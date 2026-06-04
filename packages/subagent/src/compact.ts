@@ -188,8 +188,12 @@ export function renderCompactSingle(
     activityLine = theme.fg("error", "  ⎿  Failed");
   }
 
+  const modelLabel = progress?.model
+    ? theme.fg("accent", progress.model)
+    : "";
+  const modelPart = modelLabel ? "  " + modelLabel : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored} ${statsPart}${expandHint ? "  " + expandHint : ""}`;
+  let output = `${glyphColored}${statsPart}${modelPart}  ${expandHint}`;
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -320,9 +324,13 @@ export function renderCompactProgress(
     activityLine = theme.fg("error", "  ⎿  Failed");
   }
 
+  const modelLabel = progress.model
+    ? theme.fg("accent", progress.model)
+    : "";
+  const modelPart = modelLabel ? "  " + modelLabel : "";
   const statsPart = statsLine ? "  " + statsLine : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored} ${statsPart}  ${expandHint}`;
+  let output = `${glyphColored}${statsPart}${modelPart}  ${expandHint}`;
   output += "\n" + activityLine;
 
   text.setText(output);

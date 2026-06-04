@@ -21,6 +21,8 @@ export interface SubagentProgress {
   cost: number;
   durationMs: number;
   error?: string;
+  /** Model used by the subagent */
+  model?: string;
   /** Accumulated assistant text output during streaming */
   output?: string;
   /** Last N lines of assistant text for live display */
@@ -34,6 +36,7 @@ export interface SubagentResult {
   task: string;
   exitCode: number;
   usage: SubagentUsage;
+  model?: string;
   finalOutput?: string;
   error?: string;
   progress?: SubagentProgress;
@@ -64,6 +67,7 @@ export interface StreamState {
   currentTool: string | undefined;
   currentToolArgs: string | undefined;
   currentToolStartedAt: number | undefined;
+  model: string | undefined;
   accumulatedOutput: string[];
   recentOutput: string[];
   toolCalls: string[];

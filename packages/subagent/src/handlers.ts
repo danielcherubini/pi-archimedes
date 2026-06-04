@@ -93,6 +93,11 @@ export function handleMessageEnd(state: StreamState, event: JsonEvent): void {
   const message = event.message as Record<string, unknown> | undefined;
   if (!message || message.role !== "assistant") return;
 
+  // Capture model name
+  if (!state.model && message.model) {
+    state.model = message.model as string;
+  }
+
   // Collect text output
   const content = message.content as Array<Record<string, unknown>> | string | undefined;
   if (typeof content === "string" && content.trim()) {

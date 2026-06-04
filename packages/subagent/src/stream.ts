@@ -41,6 +41,7 @@ export function streamEvents(
       currentTool: undefined,
       currentToolArgs: undefined,
       currentToolStartedAt: undefined,
+      model: undefined,
       accumulatedOutput: [],
       recentOutput: [],
       toolCalls: [],
@@ -66,6 +67,7 @@ export function streamEvents(
       output: state.accumulatedOutput.length > 0 ? state.accumulatedOutput.join("\n\n") : undefined,
       recentOutput: state.recentOutput.length > 0 ? state.recentOutput : undefined,
       toolCalls: state.toolCalls.length > 0 ? state.toolCalls : undefined,
+      model: state.model,
     });
 
     const emitProgress = () => {
@@ -138,6 +140,7 @@ export function streamEvents(
         agent: callbacks.agent ?? "subagent",
         task: callbacks.task ?? "",
         exitCode,
+        model: state.model,
         usage: {
           input: state.totalInput,
           output: state.totalOutput,
