@@ -83,7 +83,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           signal,
           onUpdate: (progress: SubagentProgress[]) => {
             onUpdate?.({
-              content: [{ type: "text", text: formatProgressSummary(progress) }],
+              content: [],
               details: {
                 mode: "parallel",
                 results: [],
@@ -113,7 +113,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           signal,
           onUpdate: (progress: SubagentProgress) => {
             onUpdate?.({
-              content: [{ type: "text", text: formatProgressSummary([progress]) }],
+              content: [],
               details: {
                 mode: "single",
                 results: [],
