@@ -1,0 +1,9 @@
+{
+  "name": "pi-archimedes-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "meta"
+  ],
+  "type": "module"
+}
