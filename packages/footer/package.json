@@ -4,6 +4,7 @@
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Rich footer status bar for pi-archimedes",
+  "files": ["src"],
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",

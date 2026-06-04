@@ -4,6 +4,7 @@
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Shiki-powered diff rendering for pi-archimedes",
+  "files": ["src"],
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"

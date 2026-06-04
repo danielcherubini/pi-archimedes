@@ -4,6 +4,7 @@
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Clipboard image paste for pi-archimedes",
+  "files": ["src"],
   "main": "./src/index.ts",
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

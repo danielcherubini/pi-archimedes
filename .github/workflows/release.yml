@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write  # for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type-check all packages
+        run: |
+          for dir in packages/core packages/footer packages/diff packages/image-paste meta; do
+            echo ">>> Checking $dir"
+            cd "$dir"
+            npx tsc --noEmit
+            cd ../..
+          done
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Publish component packages first, then meta (dependency order)
+          pnpm --filter "@pi-archimedes/core" publish --access public --no-git-checks
+          pnpm --filter "@pi-archimedes/footer" publish --access public --no-git-checks
+          pnpm --filter "@pi-archimedes/diff" publish --access public --no-git-checks
+          pnpm --filter "@pi-archimedes/image-paste" publish --access public --no-git-checks
+          pnpm --filter "pi-archimedes" publish --access public --no-git-checks
