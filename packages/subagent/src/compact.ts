@@ -117,8 +117,8 @@ export function renderCompactSingle(
 ): Text {
   const agentName = result.agent ?? "subagent";
   const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
-  const status = progress?.status ?? (result.exitCode === 0 ? "completed" : "failed");
-  const isRunning = status === "running";
+  const isRunning = progress?.status === "running";
+  const status = isRunning ? "running" : (result.exitCode === 0 ? "completed" : "failed");
 
   let glyph = getSpinnerGlyph(agentName, isRunning, status, context);
 
