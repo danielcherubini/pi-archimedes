@@ -15,32 +15,27 @@ interface JsonEvent {
 
 /**
  * Extract a short args preview from tool arguments.
- * Parses common tool arg patterns for readability.
+ * Generic: no hardcoded tool names.
  */
-function extractArgsPreview(args: unknown, toolName?: string): string {
+function extractArgsPreview(args: unknown): string {
   if (typeof args === "string") return args.slice(0, 120);
   if (args && typeof args === "object" && !Array.isArray(args)) {
     const obj = args as Record<string, unknown>;
-    // Extract the most relevant value based on tool name
-    let value: string | undefined;
-    if (toolName === "bash" || toolName === "execute_bash") {
-      value = obj.command as string;
-    } else if (toolName === "read") {
-      value = obj.path as string;
-    } else if (toolName === "write") {
-      value = obj.path as string;
-    } else if (toolName === "edit") {
-      value = obj.path as string;
-    } else if (toolName === "subagent") {
-      value = obj.task as string;
+    const keys = Object.keys(obj);
+    // Single-key object: just show the value
+    if (keys.length === 1) {
+      const v = obj[keys[0]];
+      if (typeof v === "string") return v.slice(0, 120);
+      if (typeof v === "number" || typeof v === "boolean") return String(v);
     }
-    if (value) {
-      return value.slice(0, 120);
-    }
-    // Fallback: first string value
+    // Multi-key: find the longest string value (likely the main payload)
+    let best: string | undefined;
     for (const v of Object.values(obj)) {
-      if (typeof v === "string" && v) return v.slice(0, 120);
+      if (typeof v === "string" && v.length > (best?.length ?? 0)) {
+        best = v;
+      }
     }
+    if (best) return best.slice(0, 120);
   }
   return JSON.stringify(args)?.slice(0, 120) ?? "";
 }
@@ -125,7 +120,7 @@ export function streamEvents(
           currentToolArgs = JSON.stringify(event.args);
           currentToolStartedAt = Date.now();
           // Record tool call with args preview
-          const argsPreview = extractArgsPreview(event.args, currentTool);
+          const argsPreview = extractArgsPreview(event.args);
           toolCalls.push(`${currentTool}: ${argsPreview}`);
           if (toolCalls.length > 50) {
             toolCalls.splice(0, toolCalls.length - 50);
