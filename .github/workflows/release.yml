@@ -28,13 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Type-check all packages
-        run: |
-          for dir in packages/core packages/footer packages/diff packages/image-paste meta; do
-            echo ">>> Checking $dir"
-            cd "$dir"
-            npx tsc --noEmit
-            cd ../..
-          done
+        run: pnpm -r exec -- tsc --noEmit
 
       - name: Publish to npm
         env:
