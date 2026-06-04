@@ -53,7 +53,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
 
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
-    stdio: ["pipe", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "pipe"],
     env: process.env,
   });
 

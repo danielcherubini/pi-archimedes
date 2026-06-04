@@ -24,7 +24,10 @@ export function streamEvents(
     const startTime = Date.now();
     let turnCount = 0;
     let toolCount = 0;
-    let totalTokens = 0;
+    let totalInput = 0;
+    let totalOutput = 0;
+    let totalCacheRead = 0;
+    let totalCacheWrite = 0;
     let totalCost = 0;
     let currentTool: string | undefined;
     let currentToolArgs: string | undefined;
@@ -41,7 +44,9 @@ export function streamEvents(
       currentToolArgs,
       currentToolStartedAt,
       toolCount,
-      tokens: totalTokens,
+      inputTokens: totalInput,
+      outputTokens: totalOutput,
+      tokens: totalInput + totalOutput,
       cost: totalCost,
       durationMs: Date.now() - startTime,
       error,
@@ -91,27 +96,19 @@ export function streamEvents(
           turnCount++;
           break;
         }
-        case "turn_end": {
-          // Extract token usage from turn_end message if available
-          const message = event.message as Record<string, unknown> | undefined;
-          if (message && message.usage) {
-            const usage = message.usage as Record<string, number>;
-            const inputTokens = usage.input_tokens ?? usage.input ?? 0;
-            const outputTokens = usage.output_tokens ?? usage.output ?? 0;
-            totalTokens += inputTokens + outputTokens;
-            // Cost estimation (rough — will be refined with actual pricing)
-            totalCost += (inputTokens * 0.000001) + (outputTokens * 0.000002);
-            emitProgress();
-          }
-          break;
-        }
         case "message_end": {
-          // Also try to extract usage from message_end
+          // Extract usage from assistant message_end events
           const message = event.message as Record<string, unknown> | undefined;
-          if (message && message.usage) {
-            const usage = message.usage as Record<string, number>;
-            // Avoid double-counting: only count if not already counted in turn_end
-            // For now, trust message_end as primary source
+          if (message && message.role === "assistant" && message.usage) {
+            const usage = message.usage as Record<string, unknown>;
+            turnCount++;
+            totalInput += (usage.input as number) || 0;
+            totalOutput += (usage.output as number) || 0;
+            totalCacheRead += (usage.cacheRead as number) || 0;
+            totalCacheWrite += (usage.cacheWrite as number) || 0;
+            const costObj = usage.cost as { total?: number } | undefined;
+            totalCost += costObj?.total ?? 0;
+            emitProgress();
           }
           break;
         }
@@ -155,10 +152,10 @@ export function streamEvents(
         task: callbacks.task ?? "",
         exitCode,
         usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
+          input: totalInput,
+          output: totalOutput,
+          cacheRead: totalCacheRead,
+          cacheWrite: totalCacheWrite,
           cost: totalCost,
           turns: turnCount,
         },
@@ -171,7 +168,7 @@ export function streamEvents(
         },
         progressSummary: {
           toolCount,
-          tokens: totalTokens,
+          tokens: totalInput + totalOutput,
           durationMs,
         },
       };

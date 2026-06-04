@@ -28,8 +28,9 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     signal: options.signal,
   });
 
-  // Track previously emitted tokens to only emit deltas
-  let lastEmittedTokens = 0;
+  // Track previously emitted values to only emit deltas
+  let lastEmittedInput = 0;
+  let lastEmittedOutput = 0;
   let lastEmittedCost = 0;
 
   try {
@@ -38,15 +39,17 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       task: options.task,
       onProgress: (progress: SubagentProgress) => {
         // Emit only deltas to avoid double-counting in CostAccumulator
-        if (progress.tokens > lastEmittedTokens) {
-          const deltaTokens = progress.tokens - lastEmittedTokens;
-          const deltaCost = progress.cost - lastEmittedCost;
+        const deltaInput = progress.inputTokens - lastEmittedInput;
+        const deltaOutput = progress.outputTokens - lastEmittedOutput;
+        const deltaCost = progress.cost - lastEmittedCost;
+        if (deltaInput > 0 || deltaOutput > 0 || deltaCost > 0) {
           emitCostUpdate(agentName, {
-            inputTokens: Math.floor(deltaTokens * 0.4),
-            outputTokens: Math.floor(deltaTokens * 0.6),
+            inputTokens: deltaInput,
+            outputTokens: deltaOutput,
             cost: deltaCost,
           });
-          lastEmittedTokens = progress.tokens;
+          lastEmittedInput = progress.inputTokens;
+          lastEmittedOutput = progress.outputTokens;
           lastEmittedCost = progress.cost;
         }
         options.onUpdate?.(progress);

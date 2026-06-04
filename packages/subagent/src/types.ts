@@ -15,6 +15,8 @@ export interface SubagentProgress {
   currentToolArgs?: string;
   currentToolStartedAt?: number;
   toolCount: number;
+  inputTokens: number;
+  outputTokens: number;
   tokens: number;
   cost: number;
   durationMs: number;
