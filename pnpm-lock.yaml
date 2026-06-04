@@ -28,6 +28,9 @@ importers:
       '@pi-archimedes/image-paste':
         specifier: workspace:*
         version: link:../packages/image-paste
+      '@pi-archimedes/subagent':
+        specifier: workspace:*
+        version: link:../packages/subagent
     devDependencies:
       typescript:
         specifier: ^6.0.0
