@@ -23,7 +23,6 @@ export function streamEvents(
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     const timeout = setTimeout(() => {
-      console.error("[subagent] timeout after 5min");
       child.kill("SIGKILL");
       reject(new Error("subagent timed out after 5 minutes"));
     }, 5 * 60 * 1000);
@@ -64,9 +63,7 @@ export function streamEvents(
     // Collect stderr
     const stderrParts: string[] = [];
     child.stderr?.on("data", (data: Buffer) => {
-      const text = data.toString();
-      stderrParts.push(text);
-      console.error(`[subagent stderr] ${text.trim()}`);
+      stderrParts.push(data.toString());
     });
 
     // Parse JSON lines from stdout
