@@ -1,0 +1,21 @@
+{
+  "name": "@pi-archimedes/footer",
+  "version": "0.1.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Rich footer status bar for pi-archimedes",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
