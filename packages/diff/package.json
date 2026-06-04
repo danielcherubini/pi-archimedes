@@ -1,0 +1,27 @@
+{
+  "name": "@pi-archimedes/diff",
+  "version": "0.1.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Shiki-powered diff rendering for pi-archimedes",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "diff": "^8.0.0",
+    "shiki": "^4.0.0",
+    "@shikijs/cli": "^4.0.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
