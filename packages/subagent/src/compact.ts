@@ -126,11 +126,25 @@ export function renderCompactSingle(
     cleanupTimer(agentName, context);
   }
 
+  // Track start time for live duration
+  const timeKey = "_subagentStartTime_" + agentName;
+  if (isRunning && !context.state[timeKey]) {
+    // Estimate start time from current duration
+    const currentDuration = summary.durationMs || (progress?.durationMs ?? 0);
+    context.state[timeKey] = Date.now() - currentDuration;
+  }
+  if (!isRunning) {
+    delete context.state[timeKey];
+  }
+  const liveDuration = isRunning && context.state[timeKey]
+    ? Date.now() - (context.state[timeKey] as number)
+    : summary.durationMs;
+
   const statsData = {
     turns: result.usage.turns ?? 0,
     toolCount: summary.toolCount,
     tokens: summary.tokens,
-    durationMs: summary.durationMs,
+    durationMs: liveDuration,
     cost: result.usage.cost ?? 0,
   };
   const statsLine = buildStatsLine(statsData, theme);
@@ -253,11 +267,23 @@ export function renderCompactProgress(
       ? theme.fg("error", glyph)
       : theme.fg("muted", glyph);
 
+  // Track start time for live duration
+  const timeKey = "_subagentStartTime_" + agentName;
+  if (isRunning && !context.state[timeKey]) {
+    context.state[timeKey] = Date.now() - (progress.durationMs ?? 0);
+  }
+  if (!isRunning) {
+    delete context.state[timeKey];
+  }
+  const liveDuration = isRunning && context.state[timeKey]
+    ? Date.now() - (context.state[timeKey] as number)
+    : progress.durationMs;
+
   const statsData = {
     turns: 0,
     toolCount: progress.toolCount,
     tokens: progress.tokens,
-    durationMs: progress.durationMs,
+    durationMs: liveDuration,
     cost: progress.cost,
   };
   const statsLine = buildStatsLine(statsData, theme);
