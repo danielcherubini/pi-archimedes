@@ -144,21 +144,25 @@ export function renderCompactSingle(
 
   // Activity: current tool if running, "Done"/error if finished
   let activityLine: string;
-  if (isRunning && progress?.currentTool) {
-    const argsPreview = progress.currentToolArgs
-      ? truncLine(progress.currentToolArgs, 60)
-      : "";
-    const durationPart = progress.currentToolStartedAt
-      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
-      : "";
-    let line = theme.fg("syntaxFunction", progress.currentTool);
-    if (argsPreview) {
-      line += theme.fg("dim", ": " + argsPreview);
+  if (isRunning) {
+    if (progress?.currentTool) {
+      const argsPreview = progress.currentToolArgs
+        ? truncLine(progress.currentToolArgs, 60)
+        : "";
+      const durationPart = progress.currentToolStartedAt
+        ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+        : "";
+      let line = theme.fg("syntaxFunction", progress.currentTool);
+      if (argsPreview) {
+        line += theme.fg("dim", ": " + argsPreview);
+      }
+      if (durationPart) {
+        line += theme.fg("dim", durationPart);
+      }
+      activityLine = theme.fg("dim", "  ⎿  ") + line;
+    } else {
+      activityLine = theme.fg("muted", "  ⎿  Working...");
     }
-    if (durationPart) {
-      line += theme.fg("dim", durationPart);
-    }
-    activityLine = theme.fg("dim", "  ⎿  ") + line;
   } else if (result.error) {
     activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(result.error, 80));
   } else if (status === "completed") {
@@ -257,21 +261,25 @@ export function renderCompactProgress(
 
   // Activity: current tool if running, status if finished
   let activityLine: string;
-  if (isRunning && progress.currentTool) {
-    const argsPreview = progress.currentToolArgs
-      ? truncLine(progress.currentToolArgs, 60)
-      : "";
-    const durationPart = progress.currentToolStartedAt
-      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
-      : "";
-    let line = theme.fg("syntaxFunction", progress.currentTool);
-    if (argsPreview) {
-      line += theme.fg("dim", ": " + argsPreview);
+  if (isRunning) {
+    if (progress.currentTool) {
+      const argsPreview = progress.currentToolArgs
+        ? truncLine(progress.currentToolArgs, 60)
+        : "";
+      const durationPart = progress.currentToolStartedAt
+        ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+        : "";
+      let line = theme.fg("syntaxFunction", progress.currentTool);
+      if (argsPreview) {
+        line += theme.fg("dim", ": " + argsPreview);
+      }
+      if (durationPart) {
+        line += theme.fg("dim", durationPart);
+      }
+      activityLine = theme.fg("dim", "  ⎿  ") + line;
+    } else {
+      activityLine = theme.fg("muted", "  ⎿  Working...");
     }
-    if (durationPart) {
-      line += theme.fg("dim", durationPart);
-    }
-    activityLine = theme.fg("dim", "  ⎿  ") + line;
   } else if (progress.error) {
     activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(progress.error, 80));
   } else if (status === "completed") {
