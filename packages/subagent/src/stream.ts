@@ -15,14 +15,34 @@ interface JsonEvent {
 
 /**
  * Extract a short args preview from tool arguments.
+ * Parses common tool arg patterns for readability.
  */
-function extractArgsPreview(args: unknown): string {
+function extractArgsPreview(args: unknown, toolName?: string): string {
   if (typeof args === "string") return args.slice(0, 120);
-  if (args && typeof args === "object") {
-    const str = JSON.stringify(args);
-    return str.slice(0, 120);
+  if (args && typeof args === "object" && !Array.isArray(args)) {
+    const obj = args as Record<string, unknown>;
+    // Extract the most relevant value based on tool name
+    let value: string | undefined;
+    if (toolName === "bash" || toolName === "execute_bash") {
+      value = obj.command as string;
+    } else if (toolName === "read") {
+      value = obj.path as string;
+    } else if (toolName === "write") {
+      value = obj.path as string;
+    } else if (toolName === "edit") {
+      value = obj.path as string;
+    } else if (toolName === "subagent") {
+      value = obj.task as string;
+    }
+    if (value) {
+      return value.slice(0, 120);
+    }
+    // Fallback: first string value
+    for (const v of Object.values(obj)) {
+      if (typeof v === "string" && v) return v.slice(0, 120);
+    }
   }
-  return "";
+  return JSON.stringify(args)?.slice(0, 120) ?? "";
 }
 
 /**
@@ -105,7 +125,7 @@ export function streamEvents(
           currentToolArgs = JSON.stringify(event.args);
           currentToolStartedAt = Date.now();
           // Record tool call with args preview
-          const argsPreview = extractArgsPreview(event.args);
+          const argsPreview = extractArgsPreview(event.args, currentTool);
           toolCalls.push(`${currentTool}: ${argsPreview}`);
           if (toolCalls.length > 50) {
             toolCalls.splice(0, toolCalls.length - 50);
