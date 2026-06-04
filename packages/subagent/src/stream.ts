@@ -1,43 +1,19 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
-import type { SubagentProgress, SubagentResult } from "./types.js";
+import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
+import {
+  type JsonEvent,
+  handleToolStart,
+  handleToolEnd,
+  handleToolResult,
+  handleMessageEnd,
+  handleAgentEnd,
+} from "./handlers.js";
 
 export interface StreamCallbacks {
   agent?: string;
   task?: string;
   onProgress?: (progress: SubagentProgress) => void;
-}
-
-interface JsonEvent {
-  type: string;
-  [key: string]: unknown;
-}
-
-/**
- * Extract a short args preview from tool arguments.
- * Generic: no hardcoded tool names.
- */
-function extractArgsPreview(args: unknown): string {
-  if (typeof args === "string") return args.slice(0, 120);
-  if (args && typeof args === "object" && !Array.isArray(args)) {
-    const obj = args as Record<string, unknown>;
-    const keys = Object.keys(obj);
-    // Single-key object: just show the value
-    if (keys.length === 1) {
-      const v = obj[keys[0]];
-      if (typeof v === "string") return v.slice(0, 120);
-      if (typeof v === "number" || typeof v === "boolean") return String(v);
-    }
-    // Multi-key: find the longest string value (likely the main payload)
-    let best: string | undefined;
-    for (const v of Object.values(obj)) {
-      if (typeof v === "string" && v.length > (best?.length ?? 0)) {
-        best = v;
-      }
-    }
-    if (best) return best.slice(0, 120);
-  }
-  return JSON.stringify(args)?.slice(0, 120) ?? "";
 }
 
 /**
@@ -53,40 +29,43 @@ export function streamEvents(
       child.kill("SIGKILL");
       reject(new Error("subagent timed out after 5 minutes"));
     }, 5 * 60 * 1000);
-    let turnCount = 0;
-    let toolCount = 0;
-    let totalInput = 0;
-    let totalOutput = 0;
-    let totalCacheRead = 0;
-    let totalCacheWrite = 0;
-    let totalCost = 0;
-    let currentTool: string | undefined;
-    let currentToolArgs: string | undefined;
-    let currentToolStartedAt: number | undefined;
-    let accumulatedOutput: string[] = [];
-    let recentOutput: string[] = [];
-    let toolCalls: string[] = [];
-    let finalOutput: string | undefined;
+
+    const state: StreamState = {
+      toolCount: 0,
+      turnCount: 0,
+      totalInput: 0,
+      totalOutput: 0,
+      totalCacheRead: 0,
+      totalCacheWrite: 0,
+      totalCost: 0,
+      currentTool: undefined,
+      currentToolArgs: undefined,
+      currentToolStartedAt: undefined,
+      accumulatedOutput: [],
+      recentOutput: [],
+      toolCalls: [],
+      finalOutput: undefined,
+    };
     let error: string | undefined;
 
-    // Build initial progress
+    // Build progress from state
     const buildProgress = (): SubagentProgress => ({
       agent: callbacks.agent ?? "subagent",
       status: "running",
       task: callbacks.task ?? "",
-      currentTool,
-      currentToolArgs,
-      currentToolStartedAt,
-      toolCount,
-      inputTokens: totalInput,
-      outputTokens: totalOutput,
-      tokens: totalInput + totalOutput,
-      cost: totalCost,
+      currentTool: state.currentTool,
+      currentToolArgs: state.currentToolArgs,
+      currentToolStartedAt: state.currentToolStartedAt,
+      toolCount: state.toolCount,
+      inputTokens: state.totalInput,
+      outputTokens: state.totalOutput,
+      tokens: state.totalInput + state.totalOutput,
+      cost: state.totalCost,
       durationMs: Date.now() - startTime,
       error,
-      output: accumulatedOutput.length > 0 ? accumulatedOutput.join("\n\n") : undefined,
-      recentOutput: recentOutput.length > 0 ? recentOutput : undefined,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      output: state.accumulatedOutput.length > 0 ? state.accumulatedOutput.join("\n\n") : undefined,
+      recentOutput: state.recentOutput.length > 0 ? state.recentOutput : undefined,
+      toolCalls: state.toolCalls.length > 0 ? state.toolCalls : undefined,
     });
 
     const emitProgress = () => {
@@ -115,117 +94,31 @@ export function streamEvents(
 
       switch (event.type) {
         case "tool_execution_start": {
-          toolCount++;
-          currentTool = event.toolName as string;
-          currentToolArgs = JSON.stringify(event.args);
-          currentToolStartedAt = Date.now();
-          // Record tool call with args preview
-          const argsPreview = extractArgsPreview(event.args);
-          toolCalls.push(`${currentTool}: ${argsPreview}`);
-          if (toolCalls.length > 50) {
-            toolCalls.splice(0, toolCalls.length - 50);
-          }
+          handleToolStart(state, event);
           emitProgress();
           break;
         }
         case "tool_execution_end": {
-          currentTool = undefined;
-          currentToolArgs = undefined;
-          currentToolStartedAt = undefined;
+          handleToolEnd(state);
           emitProgress();
           break;
         }
         case "turn_start": {
-          turnCount++;
+          state.turnCount++;
           break;
         }
         case "tool_result_end": {
-          // Capture tool output for live display
-          const toolMessage = event.message as Record<string, unknown> | undefined;
-          if (toolMessage && toolMessage.role === "toolResult") {
-            const toolContent = toolMessage.content as Array<Record<string, unknown>> | string | undefined;
-            const toolName = (toolMessage.toolName as string) ?? "tool";
-            if (typeof toolContent === "string" && toolContent.trim()) {
-              const lines = toolContent.split("\n").filter((l) => l.trim());
-              recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
-            } else if (Array.isArray(toolContent)) {
-              for (const part of toolContent) {
-                if (part.type === "text" && (part.text as string)?.trim()) {
-                  const text = part.text as string;
-                  const lines = text.split("\n").filter((l) => l.trim());
-                  recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
-                  break;
-                }
-              }
-            }
-            if (recentOutput.length > 50) {
-              recentOutput.splice(0, recentOutput.length - 50);
-            }
-            emitProgress();
-          }
+          handleToolResult(state, event);
+          emitProgress();
           break;
         }
         case "message_end": {
-          // Extract usage and text from assistant message_end events
-          const message = event.message as Record<string, unknown> | undefined;
-          if (message && message.role === "assistant") {
-            // Collect text output
-            const content = message.content as Array<Record<string, unknown>> | string | undefined;
-            if (typeof content === "string" && content.trim()) {
-              accumulatedOutput.push(content);
-              const lines = content.split("\n").filter((l) => l.trim());
-              recentOutput.push(...lines.slice(-10));
-            } else if (Array.isArray(content)) {
-              for (const part of content) {
-                if (part.type === "text" && (part.text as string)?.trim()) {
-                  const text = part.text as string;
-                  accumulatedOutput.push(text);
-                  const lines = text.split("\n").filter((l) => l.trim());
-                  recentOutput.push(...lines.slice(-10));
-                }
-              }
-            }
-            // Cap recentOutput at 50 lines
-            if (recentOutput.length > 50) {
-              recentOutput.splice(0, recentOutput.length - 50);
-            }
-
-            // Extract usage
-            if (message.usage) {
-              const usage = message.usage as Record<string, unknown>;
-              turnCount++;
-              totalInput += (usage.input as number) || 0;
-              totalOutput += (usage.output as number) || 0;
-              totalCacheRead += (usage.cacheRead as number) || 0;
-              totalCacheWrite += (usage.cacheWrite as number) || 0;
-              const costObj = usage.cost as { total?: number } | undefined;
-              totalCost += costObj?.total ?? 0;
-            }
-            emitProgress();
-          }
+          handleMessageEnd(state, event);
+          emitProgress();
           break;
         }
         case "agent_end": {
-          // Collect all text from assistant messages
-          const messages = event.messages as Array<Record<string, unknown>> | undefined;
-          if (messages && messages.length > 0) {
-            const allText: string[] = [];
-            for (const msg of messages) {
-              if (msg.role === "assistant") {
-                const content = msg.content as Array<Record<string, unknown>> | string | undefined;
-                if (typeof content === "string" && content.trim()) {
-                  allText.push(content);
-                } else if (Array.isArray(content)) {
-                  for (const part of content) {
-                    if (part.type === "text" && (part.text as string)?.trim()) {
-                      allText.push(part.text as string);
-                    }
-                  }
-                }
-              }
-            }
-            finalOutput = allText.join("\n\n");
-          }
+          handleAgentEnd(state, event);
           break;
         }
       }
@@ -246,14 +139,14 @@ export function streamEvents(
         task: callbacks.task ?? "",
         exitCode,
         usage: {
-          input: totalInput,
-          output: totalOutput,
-          cacheRead: totalCacheRead,
-          cacheWrite: totalCacheWrite,
-          cost: totalCost,
-          turns: turnCount,
+          input: state.totalInput,
+          output: state.totalOutput,
+          cacheRead: state.totalCacheRead,
+          cacheWrite: state.totalCacheWrite,
+          cost: state.totalCost,
+          turns: state.turnCount,
         },
-        finalOutput,
+        finalOutput: state.finalOutput,
         error,
         progress: {
           ...buildProgress(),
@@ -261,8 +154,8 @@ export function streamEvents(
           durationMs,
         },
         progressSummary: {
-          toolCount,
-          tokens: totalInput + totalOutput,
+          toolCount: state.toolCount,
+          tokens: state.totalInput + state.totalOutput,
           durationMs,
         },
       };

@@ -52,6 +52,24 @@ export interface SubagentDetails {
   progress?: SubagentProgress[];
 }
 
+/** Mutable state during streaming — shared between stream.ts and handlers.ts */
+export interface StreamState {
+  toolCount: number;
+  turnCount: number;
+  totalInput: number;
+  totalOutput: number;
+  totalCacheRead: number;
+  totalCacheWrite: number;
+  totalCost: number;
+  currentTool: string | undefined;
+  currentToolArgs: string | undefined;
+  currentToolStartedAt: number | undefined;
+  accumulatedOutput: string[];
+  recentOutput: string[];
+  toolCalls: string[];
+  finalOutput: string | undefined;
+}
+
 export interface SubagentParamsSchema {
   agent?: string;
   task: string;
