@@ -135,16 +135,6 @@ export function renderCompactSingle(
   };
   const statsLine = buildStatsLine(statsData, theme);
 
-  const activityData = {
-    currentTool: progress?.currentTool,
-    currentToolArgs: progress?.currentToolArgs,
-    currentToolStartedAt: progress?.currentToolStartedAt,
-    finalOutput: result.finalOutput,
-    status,
-    error: result.error,
-  };
-  const activityLine = buildActivityLine(activityData, theme);
-
   const statsPart = statsLine ? "  " + statsLine : "";
   const glyphColored = status === "completed"
     ? theme.fg("success", glyph)
@@ -152,10 +142,34 @@ export function renderCompactSingle(
       ? theme.fg("error", glyph)
       : theme.fg("muted", glyph);
 
-  let output = `${glyphColored} ${agentName}${statsPart}`;
-  if (activityLine) {
-    output += "\n" + activityLine;
+  // Activity: current tool if running, "Done"/error if finished
+  let activityLine: string;
+  if (isRunning && progress?.currentTool) {
+    const argsPreview = progress.currentToolArgs
+      ? truncLine(progress.currentToolArgs, 60)
+      : "";
+    const durationPart = progress.currentToolStartedAt
+      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+      : "";
+    let line = theme.fg("syntaxFunction", progress.currentTool);
+    if (argsPreview) {
+      line += theme.fg("dim", ": " + argsPreview);
+    }
+    if (durationPart) {
+      line += theme.fg("dim", durationPart);
+    }
+    activityLine = theme.fg("dim", "  ⎿  ") + line;
+  } else if (result.error) {
+    activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(result.error, 80));
+  } else if (status === "completed") {
+    activityLine = theme.fg("success", "  ⎿  Done");
+  } else {
+    activityLine = theme.fg("error", "  ⎿  Failed");
   }
+
+  const expandHint = theme.fg("muted", "(ctrl+o)");
+  let output = `${glyphColored} ${statsPart}${expandHint ? "  " + expandHint : ""}`;
+  output += "\n" + activityLine;
 
   text.setText(output);
   return text;
@@ -241,21 +255,35 @@ export function renderCompactProgress(
   };
   const statsLine = buildStatsLine(statsData, theme);
 
-  const activityData = {
-    currentTool: progress.currentTool,
-    currentToolArgs: progress.currentToolArgs,
-    currentToolStartedAt: progress.currentToolStartedAt,
-    finalOutput: undefined,
-    status,
-    error: progress.error,
-  };
-  const activityLine = buildActivityLine(activityData, theme);
+  // Activity: current tool if running, status if finished
+  let activityLine: string;
+  if (isRunning && progress.currentTool) {
+    const argsPreview = progress.currentToolArgs
+      ? truncLine(progress.currentToolArgs, 60)
+      : "";
+    const durationPart = progress.currentToolStartedAt
+      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+      : "";
+    let line = theme.fg("syntaxFunction", progress.currentTool);
+    if (argsPreview) {
+      line += theme.fg("dim", ": " + argsPreview);
+    }
+    if (durationPart) {
+      line += theme.fg("dim", durationPart);
+    }
+    activityLine = theme.fg("dim", "  ⎿  ") + line;
+  } else if (progress.error) {
+    activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(progress.error, 80));
+  } else if (status === "completed") {
+    activityLine = theme.fg("success", "  ⎿  Done");
+  } else {
+    activityLine = theme.fg("error", "  ⎿  Failed");
+  }
 
   const statsPart = statsLine ? "  " + statsLine : "";
-  let output = `${glyphColored} ${agentName}${statsPart}`;
-  if (activityLine) {
-    output += "\n" + activityLine;
-  }
+  const expandHint = theme.fg("muted", "(ctrl+o)");
+  let output = `${glyphColored} ${statsPart}  ${expandHint}`;
+  output += "\n" + activityLine;
 
   text.setText(output);
   return text;
