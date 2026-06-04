@@ -60,3 +60,15 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 - All packages share the same version (bump all together)
 - `git tag v0.x.y && git push origin v0.x.y` triggers the release workflow
 - Publishes in dependency order: core → footer → diff → image-paste → meta
+
+## Release Steps
+
+When releasing a new version, apply these steps after bumping versions but before tagging:
+
+1. **Bump all 5 package versions** — `packages/core`, `packages/footer`, `packages/diff`, `packages/image-paste`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+
+2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 5 package directories. Don't release if any check fails.
+
+3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
+
+4. **Tag and push** — use annotated tag with `v` prefix: `git tag -a v0.x.y -m "Release v0.x.y"` then `git push origin v0.x.y`. The release workflow handles publishing to npm.
