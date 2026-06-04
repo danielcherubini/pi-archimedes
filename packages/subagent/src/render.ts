@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import { clampLine } from "@pi-archimedes/core/text";
-import type { SubagentDetails, SubagentResult, SubagentToolResult } from "./types.js";
+import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
 
 // ── Spinner frames ──────────────────────────────────────────────────────────
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -14,7 +14,7 @@ function formatTokens(n: number): string {
 }
 
 function formatDuration(ms: number): string {
-  if (ms < 1000) return Math.round(ms) + "ms";
+  if (ms < 1000) return "0s";
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return seconds + "s";
   const minutes = Math.floor(seconds / 60);
@@ -126,7 +126,20 @@ export function renderSubagentResult(
   const details: SubagentDetails | undefined = result.details;
   const expanded = context.expanded ?? options.expanded;
 
-  if (!details || details.results.length === 0) {
+  if (!details) {
+    text.setText(theme.fg("dim", "  no results"));
+    return text;
+  }
+
+  // ── Streaming progress (results empty but progress has data) ──────────
+  if (details.results.length === 0 && details.progress && details.progress.length > 0) {
+    if (details.progress.length === 1) {
+      return renderProgressUpdate(text, details.progress[0], expanded, theme, context);
+    }
+    return renderProgressUpdatesParallel(text, details, expanded, theme, context);
+  }
+
+  if (details.results.length === 0) {
     text.setText(theme.fg("dim", "  no results"));
     return text;
   }
@@ -165,36 +178,37 @@ function renderSingleAgent(
   // Status glyph
   let glyph: string;
   if (isRunning) {
-    // Animate spinner
-    const frameIndex = Math.floor(
-      ((summary.toolCount ?? 0) + (summary.tokens ?? 0) + Math.floor(summary.durationMs / 100)) %
-      SPINNER_FRAMES.length,
-    );
-    glyph = SPINNER_FRAMES[frameIndex];
-
-    // Set up animation interval
+    // Time-based spinner frame counter
     const timerKey = "_subagentTimer_" + agentName;
+    const frameKey = "_subagentFrame_" + agentName;
     if (!context.state[timerKey]) {
+      context.state[frameKey] = 0;
       const timer = setInterval(() => {
+        context.state[frameKey] = ((context.state[frameKey] as number) + 1) % SPINNER_FRAMES.length;
         context.invalidate();
       }, 80);
       context.state[timerKey] = timer;
     }
+    glyph = SPINNER_FRAMES[context.state[frameKey] as number];
   } else if (status === "completed") {
     glyph = "✓";
     // Clear animation timer
     const timerKey = "_subagentTimer_" + agentName;
+    const frameKey = "_subagentFrame_" + agentName;
     if (context.state[timerKey]) {
       clearInterval(context.state[timerKey] as ReturnType<typeof setInterval>);
       delete context.state[timerKey];
     }
+    delete context.state[frameKey];
   } else {
     glyph = "✗";
     const timerKey = "_subagentTimer_" + agentName;
+    const frameKey = "_subagentFrame_" + agentName;
     if (context.state[timerKey]) {
       clearInterval(context.state[timerKey] as ReturnType<typeof setInterval>);
       delete context.state[timerKey];
     }
+    delete context.state[frameKey];
   }
 
   // Stats
@@ -349,4 +363,267 @@ function renderExpanded(
 ): Text {
   text.setText(buildExpandedText(result, progress, theme));
   return text;
+}
+
+// ── Streaming progress renderers ───────────────────────────────────────────
+
+function renderProgressUpdate(
+  text: Text,
+  progress: SubagentProgress,
+  expanded: boolean,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+  context: {
+    state: Record<string, unknown>;
+    invalidate: () => void;
+  },
+): Text {
+  const agentName = progress.agent ?? "subagent";
+  const status = progress.status;
+  const isRunning = status === "running";
+
+  if (expanded) {
+    return renderProgressExpanded(text, progress, theme);
+  }
+
+  // ── Compact view ────────────────────────────────────────────────────────
+
+  // Status glyph
+  let glyph: string;
+  if (isRunning) {
+    // Time-based spinner frame counter
+    const timerKey = "_subagentTimer_" + agentName;
+    const frameKey = "_subagentFrame_" + agentName;
+    if (!context.state[timerKey]) {
+      context.state[frameKey] = 0;
+      const timer = setInterval(() => {
+        context.state[frameKey] = ((context.state[frameKey] as number) + 1) % SPINNER_FRAMES.length;
+        context.invalidate();
+      }, 80);
+      context.state[timerKey] = timer;
+    }
+    glyph = SPINNER_FRAMES[context.state[frameKey] as number];
+  } else if (status === "completed") {
+    glyph = "✓";
+  } else {
+    glyph = "✗";
+  }
+
+  // Stats
+  const statsData = {
+    turns: 0,
+    toolCount: progress.toolCount,
+    tokens: progress.tokens,
+    durationMs: progress.durationMs,
+    cost: progress.cost,
+  };
+  const statsLine = buildStatsLine(statsData, theme);
+
+  // Activity
+  const activityData = {
+    currentTool: progress.currentTool,
+    currentToolArgs: progress.currentToolArgs,
+    currentToolStartedAt: progress.currentToolStartedAt,
+    finalOutput: undefined,
+    status,
+    error: progress.error,
+  };
+  const activityLine = buildActivityLine(activityData, theme);
+
+  // Assemble
+  const statsPart = statsLine ? "  " + statsLine : "";
+  const glyphColored = status === "completed"
+    ? theme.fg("success", glyph)
+    : status === "failed"
+      ? theme.fg("error", glyph)
+      : theme.fg("muted", glyph);
+
+  let output = `${glyphColored} ${agentName}${statsPart}`;
+  if (activityLine) {
+    output += "\n" + activityLine;
+  }
+
+  text.setText(output);
+  return text;
+}
+
+function renderProgressExpanded(
+  text: Text,
+  progress: SubagentProgress,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+): Text {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(theme.fg("toolTitle", theme.bold(progress.agent ?? "subagent")));
+
+  // Task
+  if (progress.task) {
+    lines.push(theme.fg("dim", "  Task: " + progress.task));
+  }
+
+  // Stats
+  const stats: string[] = [];
+  if (progress.toolCount > 0) stats.push(progress.toolCount + " tools");
+  if (progress.tokens > 0) stats.push(formatTokens(progress.tokens) + " tokens");
+  if (progress.durationMs > 0) stats.push(formatDuration(progress.durationMs));
+  if (stats.length > 0) {
+    lines.push(theme.fg("dim", "  " + stats.join(" · ")));
+  }
+
+  // Activity
+  if (progress.currentTool) {
+    const argsPreview = progress.currentToolArgs
+      ? truncLine(progress.currentToolArgs, 60)
+      : "";
+    const durationPart = progress.currentToolStartedAt
+      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+      : "";
+    let line = theme.fg("syntaxFunction", progress.currentTool);
+    if (argsPreview) {
+      line += theme.fg("dim", ": " + argsPreview);
+    }
+    if (durationPart) {
+      line += theme.fg("dim", durationPart);
+    }
+    lines.push("" + line);
+  }
+
+  // Error
+  if (progress.error) {
+    lines.push("");
+    lines.push(theme.fg("error", "  Error: " + progress.error));
+  }
+
+  text.setText(lines.join("\n"));
+  return text;
+}
+
+function renderProgressUpdatesParallel(
+  text: Text,
+  details: SubagentDetails,
+  expanded: boolean,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+  context: {
+    state: Record<string, unknown>;
+    invalidate: () => void;
+  },
+): Text {
+  if (expanded) {
+    const lines = (details.progress ?? []).map((progress) => {
+      return buildProgressExpandedText(progress, theme);
+    });
+    text.setText(lines.join("\n\n"));
+    return text;
+  }
+
+  // Compact parallel progress view
+  const lines = (details.progress ?? []).map((progress, i) => {
+    const agentName = progress.agent ?? "agent-" + i;
+    const status = progress.status;
+
+    let glyph: string;
+    if (status === "running") {
+      // Time-based spinner frame counter
+      const timerKey = "_subagentTimer_" + agentName;
+      const frameKey = "_subagentFrame_" + agentName;
+      if (!context.state[timerKey]) {
+        context.state[frameKey] = 0;
+        const timer = setInterval(() => {
+          context.state[frameKey] = ((context.state[frameKey] as number) + 1) % SPINNER_FRAMES.length;
+          context.invalidate();
+        }, 80);
+        context.state[timerKey] = timer;
+      }
+      glyph = SPINNER_FRAMES[context.state[frameKey] as number];
+    } else if (status === "completed") {
+      glyph = "✓";
+    } else {
+      glyph = "✗";
+    }
+
+    const glyphColored = status === "completed"
+      ? theme.fg("success", glyph)
+      : status === "failed"
+        ? theme.fg("error", glyph)
+        : theme.fg("muted", glyph);
+
+    const statsData = {
+      turns: 0,
+      toolCount: progress.toolCount,
+      tokens: progress.tokens,
+      durationMs: progress.durationMs,
+      cost: progress.cost,
+    };
+    const statsLine = buildStatsLine(statsData, theme);
+    const statsPart = statsLine ? "  " + statsLine : "";
+
+    const activityData = {
+      currentTool: progress.currentTool,
+      currentToolArgs: progress.currentToolArgs,
+      currentToolStartedAt: progress.currentToolStartedAt,
+      finalOutput: undefined,
+      status,
+      error: progress.error,
+    };
+    const activityLine = buildActivityLine(activityData, theme);
+
+    let line = `${glyphColored} ${agentName}${statsPart}`;
+    if (activityLine) {
+      line += "\n" + activityLine;
+    }
+    return line;
+  });
+
+  text.setText(lines.join("\n"));
+  return text;
+}
+
+function buildProgressExpandedText(
+  progress: SubagentProgress,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(theme.fg("toolTitle", theme.bold(progress.agent ?? "subagent")));
+
+  // Task
+  if (progress.task) {
+    lines.push(theme.fg("dim", "  Task: " + progress.task));
+  }
+
+  // Stats
+  const stats: string[] = [];
+  if (progress.toolCount > 0) stats.push(progress.toolCount + " tools");
+  if (progress.tokens > 0) stats.push(formatTokens(progress.tokens) + " tokens");
+  if (progress.durationMs > 0) stats.push(formatDuration(progress.durationMs));
+  if (stats.length > 0) {
+    lines.push(theme.fg("dim", "  " + stats.join(" · ")));
+  }
+
+  // Activity
+  if (progress.currentTool) {
+    const argsPreview = progress.currentToolArgs
+      ? truncLine(progress.currentToolArgs, 60)
+      : "";
+    const durationPart = progress.currentToolStartedAt
+      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+      : "";
+    let line = theme.fg("syntaxFunction", progress.currentTool);
+    if (argsPreview) {
+      line += theme.fg("dim", ": " + argsPreview);
+    }
+    if (durationPart) {
+      line += theme.fg("dim", durationPart);
+    }
+    lines.push("" + line);
+  }
+
+  // Error
+  if (progress.error) {
+    lines.push("");
+    lines.push(theme.fg("error", "  Error: " + progress.error));
+  }
+
+  return lines.join("\n");
 }
