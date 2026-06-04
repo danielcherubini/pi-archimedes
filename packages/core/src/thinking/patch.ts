@@ -4,7 +4,7 @@ import { Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-t
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // The label we prepend to visible thinking content.
-const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215,0mThinking...\x1b[39m\x1b[22m";
+const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
 
 /**
  * Patches `AssistantMessageComponent.prototype.updateContent` so thinking
