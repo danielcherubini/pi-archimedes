@@ -25,6 +25,8 @@ export interface SubagentProgress {
   output?: string;
   /** Last N lines of assistant text for live display */
   recentOutput?: string[];
+  /** History of tool calls: "toolName: args_preview" */
+  toolCalls?: string[];
 }
 
 export interface SubagentResult {

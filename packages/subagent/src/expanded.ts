@@ -85,11 +85,11 @@ export function renderProgressExpanded(
     lines.push(theme.fg("dim", "  " + stats.join(" · ")));
   }
 
-  // Live output lines
-  if (progress.recentOutput && progress.recentOutput.length > 0) {
+  // Tool calls history
+  if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
-    for (const line of progress.recentOutput) {
-      lines.push(theme.fg("dim", "  " + line));
+    for (const call of progress.toolCalls) {
+      lines.push(theme.fg("dim", "  - " + call));
     }
   }
 
@@ -147,11 +147,11 @@ export function buildProgressExpandedText(
     lines.push(theme.fg("dim", "  " + stats.join(" · ")));
   }
 
-  // Live output lines
-  if (progress.recentOutput && progress.recentOutput.length > 0) {
+  // Tool calls history
+  if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
-    for (const line of progress.recentOutput) {
-      lines.push(theme.fg("dim", "  " + line));
+    for (const call of progress.toolCalls) {
+      lines.push(theme.fg("dim", "  - " + call));
     }
   }
 

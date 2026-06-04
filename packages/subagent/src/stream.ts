@@ -14,6 +14,18 @@ interface JsonEvent {
 }
 
 /**
+ * Extract a short args preview from tool arguments.
+ */
+function extractArgsPreview(args: unknown): string {
+  if (typeof args === "string") return args.slice(0, 120);
+  if (args && typeof args === "object") {
+    const str = JSON.stringify(args);
+    return str.slice(0, 120);
+  }
+  return "";
+}
+
+/**
  * Stream JSON events from a child pi process and build progress/result.
  */
 export function streamEvents(
@@ -38,6 +50,7 @@ export function streamEvents(
     let currentToolStartedAt: number | undefined;
     let accumulatedOutput: string[] = [];
     let recentOutput: string[] = [];
+    let toolCalls: string[] = [];
     let finalOutput: string | undefined;
     let error: string | undefined;
 
@@ -58,6 +71,7 @@ export function streamEvents(
       error,
       output: accumulatedOutput.length > 0 ? accumulatedOutput.join("\n\n") : undefined,
       recentOutput: recentOutput.length > 0 ? recentOutput : undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     });
 
     const emitProgress = () => {
@@ -90,6 +104,12 @@ export function streamEvents(
           currentTool = event.toolName as string;
           currentToolArgs = JSON.stringify(event.args);
           currentToolStartedAt = Date.now();
+          // Record tool call with args preview
+          const argsPreview = extractArgsPreview(event.args);
+          toolCalls.push(`${currentTool}: ${argsPreview}`);
+          if (toolCalls.length > 50) {
+            toolCalls.splice(0, toolCalls.length - 50);
+          }
           emitProgress();
           break;
         }
