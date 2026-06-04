@@ -47,10 +47,6 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     args.push("--model", options.model);
   }
 
-  if (options.context === "fork") {
-    args.push("--context", "fork");
-  }
-
   console.error(`[subagent spawn] ${command} ${args.join(" ")}`);
 
   const child = spawn(command, args, {
