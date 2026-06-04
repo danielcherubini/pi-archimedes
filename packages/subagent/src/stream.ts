@@ -117,25 +117,25 @@ export function streamEvents(
           break;
         }
         case "agent_end": {
-          // Extract final output from messages
+          // Collect all text from assistant messages
           const messages = event.messages as Array<Record<string, unknown>> | undefined;
           if (messages && messages.length > 0) {
-            // Find last assistant message
-            for (let i = messages.length - 1; i >= 0; i--) {
-              const msg = messages[i];
+            const allText: string[] = [];
+            for (const msg of messages) {
               if (msg.role === "assistant") {
-                const content = msg.content as Array<Record<string, unknown>> | string;
-                if (typeof content === "string") {
-                  finalOutput = content;
+                const content = msg.content as Array<Record<string, unknown>> | string | undefined;
+                if (typeof content === "string" && content.trim()) {
+                  allText.push(content);
                 } else if (Array.isArray(content)) {
-                  const textParts = content
-                    .filter((c) => c.type === "text")
-                    .map((c) => c.text as string);
-                  finalOutput = textParts.join("\n");
+                  for (const part of content) {
+                    if (part.type === "text" && (part.text as string)?.trim()) {
+                      allText.push(part.text as string);
+                    }
+                  }
                 }
-                break;
               }
             }
+            finalOutput = allText.join("\n\n");
           }
           break;
         }
