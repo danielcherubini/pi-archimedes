@@ -160,6 +160,9 @@ export function renderCompactSingle(
         line += theme.fg("dim", durationPart);
       }
       activityLine = theme.fg("dim", "  ⎿  ") + line;
+    } else if (progress?.toolCalls && progress.toolCalls.length > 0) {
+      const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
+      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall);
     } else {
       activityLine = theme.fg("muted", "  ⎿  Working...");
     }
@@ -277,6 +280,9 @@ export function renderCompactProgress(
         line += theme.fg("dim", durationPart);
       }
       activityLine = theme.fg("dim", "  ⎿  ") + line;
+    } else if (progress.toolCalls && progress.toolCalls.length > 0) {
+      const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
+      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall);
     } else {
       activityLine = theme.fg("muted", "  ⎿  Working...");
     }
