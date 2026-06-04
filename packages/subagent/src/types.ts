@@ -34,7 +34,7 @@ export interface SubagentResult {
 
 export interface SubagentToolResult {
   content: Array<{ type: "text"; text: string }>;
-  details?: SubagentDetails;
+  details: SubagentDetails;
   isError?: boolean;
 }
 
