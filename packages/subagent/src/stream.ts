@@ -22,6 +22,11 @@ export function streamEvents(
 ): Promise<SubagentResult> {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
+    const timeout = setTimeout(() => {
+      console.error("[subagent] timeout after 5min");
+      child.kill("SIGKILL");
+      reject(new Error("subagent timed out after 5 minutes"));
+    }, 5 * 60 * 1000);
     let turnCount = 0;
     let toolCount = 0;
     let totalInput = 0;
@@ -59,7 +64,9 @@ export function streamEvents(
     // Collect stderr
     const stderrParts: string[] = [];
     child.stderr?.on("data", (data: Buffer) => {
-      stderrParts.push(data.toString());
+      const text = data.toString();
+      stderrParts.push(text);
+      console.error(`[subagent stderr] ${text.trim()}`);
     });
 
     // Parse JSON lines from stdout
@@ -140,6 +147,7 @@ export function streamEvents(
 
     // Handle process exit
     child.on("close", (code) => {
+      clearTimeout(timeout);
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 
@@ -180,6 +188,7 @@ export function streamEvents(
     });
 
     child.on("error", (err) => {
+      clearTimeout(timeout);
       reject(err);
     });
   });

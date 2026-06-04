@@ -51,6 +51,8 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     args.push("--context", "fork");
   }
 
+  console.error(`[subagent spawn] ${command} ${args.join(" ")}`);
+
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
