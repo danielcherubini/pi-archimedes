@@ -54,10 +54,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      ...(options.context === "fresh" ? { PI_SESSION_MODE: "fresh" } : {}),
-    },
+    env: process.env,
   });
 
   // Handle abort signal
