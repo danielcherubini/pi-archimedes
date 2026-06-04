@@ -19,16 +19,17 @@ export default function (pi: ExtensionAPI): void {
   // Register image paste (shortcuts, input handler, preview renderer)
   registerImagePaste(pi);
 
+  // session_shutdown handler (top-level to prevent accumulation on /reload)
+  pi.on("session_shutdown", (_event, _ctx) => {
+    shutdownImagePaste();
+  });
+
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     // Register diff tools (needs getTheme + readConfig callbacks)
     registerDiffTools(pi, () => ctx.ui.theme, () => loadDiffConfig());
 
     // Initialize image paste for this session
     initImagePasteSession(ctx);
-
-    pi.on("session_shutdown", (_event, _ctx) => {
-      shutdownImagePaste();
-    });
   });
 
   // Register /archimedes command

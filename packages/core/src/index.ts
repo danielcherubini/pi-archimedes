@@ -53,17 +53,43 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
 
 // ── Core registration ─────────────────────────────────────────────────────
 
+// Module-level state for session lifecycle (shared between session_start and session_shutdown)
+let coreRef: ListingRef | undefined;
+let coreResponseTimes: number[] | undefined;
+let coreCtx: ExtensionContext | undefined;
+
 export function registerCore(pi: ExtensionAPI): void {
   // Patch console.log for model scope capture
   patchConsoleLog();
+
+  // session_shutdown handler (top-level to prevent accumulation on /reload)
+  pi.on("session_shutdown", (_event, _ctx) => {
+    // Mark listing as settled
+    if (coreRef) { coreRef.settled = true; }
+    const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
+    const listingRef = g["listingRef"] as ListingRef | undefined;
+    if (listingRef) { listingRef.settled = true; }
+
+    // Clear response times
+    if (coreResponseTimes) { coreResponseTimes.length = 0; }
+
+    // Reset instance count
+    resetInstanceCount();
+
+    // Clear editor component override
+    if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
+  });
 
   // session_start handler
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     // Initialize bus (flushes queued events)
     initBus();
 
+    // Save context for shutdown cleanup
+    coreCtx = ctx;
+
     // Set animated header
-    const ref: ListingRef = {
+    coreRef = {
       sections: [],
       frame: 0,
       revealed: false,
@@ -71,6 +97,7 @@ export function registerCore(pi: ExtensionAPI): void {
       scaffoldAt: 0,
       settled: false,
     };
+    const ref = coreRef;
     const headerFactory = (tui: TUI, theme: Theme): Component & { dispose?(): void } => {
       const comp: Component & { dispose?(): void } = {
         invalidate(): void { /* no-op */ },
@@ -84,7 +111,8 @@ export function registerCore(pi: ExtensionAPI): void {
     ctx.ui.setHeader(headerFactory);
 
     // Shared response times array (used by both patchUserMessage and message_end)
-    const responseTimes: number[] = [];
+    coreResponseTimes = [];
+    const responseTimes = coreResponseTimes;
 
     // Set editor component
     ctx.ui.setEditorComponent((tui: TUI, editorTheme: EditorTheme, keybindings: KeybindingsManager) => {
@@ -118,22 +146,6 @@ export function registerCore(pi: ExtensionAPI): void {
         const idx = rawMsg.instanceIndex ?? responseTimes.length;
         responseTimes[idx] = rawMsg.duration;
       }
-    });
-
-    pi.on("session_shutdown", (_event, _ctx) => {
-      // Mark listing as settled
-      const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
-      const listingRef = g["listingRef"] as ListingRef | undefined;
-      if (listingRef) { listingRef.settled = true; }
-
-      // Clear response times
-      responseTimes.length = 0;
-
-      // Reset instance count
-      resetInstanceCount();
-
-      // Clear editor component override
-      ctx.ui.setEditorComponent(undefined);
     });
   });
 }
