@@ -5,6 +5,10 @@
   "keywords": ["pi-package"],
   "description": "Rich footer status bar for pi-archimedes",
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts"
+  },
   "dependencies": {
     "@pi-archimedes/core": "workspace:*"
   },

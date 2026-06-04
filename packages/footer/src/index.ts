@@ -15,7 +15,8 @@ import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
 
-export default function registerFooter(pi: ExtensionAPI): void {
+export function registerFooter(pi: ExtensionAPI): void {
+
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     const splitThreshold = loadFooterConfig().splitThreshold;
 
@@ -158,3 +159,5 @@ export default function registerFooter(pi: ExtensionAPI): void {
     });
   });
 }
+
+export default registerFooter;

@@ -8,6 +8,31 @@ importers:
 
   .: {}
 
+  meta:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.1.0'
+        version: 0.78.0(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '>=0.1.0'
+        version: 0.78.0
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@pi-archimedes/diff':
+        specifier: workspace:*
+        version: link:../packages/diff
+      '@pi-archimedes/footer':
+        specifier: workspace:*
+        version: link:../packages/footer
+      '@pi-archimedes/image-paste':
+        specifier: workspace:*
+        version: link:../packages/image-paste
+    devDependencies:
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+
   packages/core:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -57,6 +82,19 @@ importers:
       '@pi-archimedes/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+
+  packages/image-paste:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.1.0'
+        version: 0.78.0(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '>=0.1.0'
+        version: 0.78.0
     devDependencies:
       typescript:
         specifier: ^6.0.0
@@ -861,7 +899,7 @@ snapshots:
       '@aws-sdk/types': 3.973.10
       '@smithy/core': 3.24.6
       '@smithy/fetch-http-handler': 5.4.6
-      '@smithy/node-http-handler': 4.7.3
+      '@smithy/node-http-handler': 4.7.6
       '@smithy/types': 4.14.3
       tslib: 2.8.1
 
