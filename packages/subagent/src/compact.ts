@@ -120,9 +120,10 @@ export function renderCompactSingle(
   const isRunning = progress?.status === "running";
   const status = isRunning ? "running" : (result.exitCode === 0 ? "completed" : "failed");
 
-  let glyph = getSpinnerGlyph(agentName, isRunning, status, context);
-
-  if (!isRunning) {
+  // Manage timer for spinner on line 3
+  if (isRunning) {
+    getSpinnerGlyph(agentName, true, "running", context);
+  } else {
     cleanupTimer(agentName, context);
   }
 
@@ -150,15 +151,12 @@ export function renderCompactSingle(
   const statsLine = buildStatsLine(statsData, theme);
 
   const statsPart = statsLine ? "  " + statsLine : "";
-  const glyphColored = status === "completed"
-    ? theme.fg("success", glyph)
-    : status === "failed"
-      ? theme.fg("error", glyph)
-      : theme.fg("muted", glyph);
 
-  // Activity: current tool if running, "Done"/error if finished
+  // Activity: spinner + current tool if running, status if finished
   let activityLine: string;
   if (isRunning) {
+    const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
+    const spinnerColored = theme.fg("muted", spinner);
     if (progress?.currentTool) {
       const argsPreview = progress.currentToolArgs
         ? truncLine(progress.currentToolArgs, 60)
@@ -173,7 +171,7 @@ export function renderCompactSingle(
       if (durationPart) {
         line += theme.fg("dim", durationPart);
       }
-      activityLine = theme.fg("dim", "  ⎿  ") + line;
+      activityLine = spinnerColored + " " + line;
     } else if (progress?.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
       activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall);
@@ -181,18 +179,19 @@ export function renderCompactSingle(
       activityLine = theme.fg("muted", "  ⎿  Working...");
     }
   } else if (result.error) {
-    activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(result.error, 80));
+    activityLine = theme.fg("error", "✗ " + truncLine(result.error, 80));
   } else if (status === "completed") {
-    activityLine = theme.fg("success", "  ⎿  Done");
+    activityLine = theme.fg("success", "✓ Done");
   } else {
-    activityLine = theme.fg("error", "  ⎿  Failed");
+    activityLine = theme.fg("error", "✗ Failed");
   }
 
   const modelLabel = progress?.model
-    ? theme.fg("accent", " " + progress.model)
+    ? theme.fg("accent", progress.model)
     : "";
+  const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored}${modelLabel}${statsPart}  ${expandHint}`;
+  let output = parts.join("  ") + "  " + expandHint;
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -294,6 +293,8 @@ export function renderCompactProgress(
   // Activity: current tool if running, status if finished
   let activityLine: string;
   if (isRunning) {
+    const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
+    const spinnerColored = theme.fg("muted", spinner);
     if (progress.currentTool) {
       const argsPreview = progress.currentToolArgs
         ? truncLine(progress.currentToolArgs, 60)
@@ -308,27 +309,28 @@ export function renderCompactProgress(
       if (durationPart) {
         line += theme.fg("dim", durationPart);
       }
-      activityLine = theme.fg("dim", "  ⎿  ") + line;
+      activityLine = spinnerColored + " " + line;
     } else if (progress.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall);
+      activityLine = spinnerColored + " " + theme.fg("muted", lastCall);
     } else {
-      activityLine = theme.fg("muted", "  ⎿  Working...");
+      activityLine = spinnerColored + " " + theme.fg("muted", "Working...");
     }
   } else if (progress.error) {
-    activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("error", truncLine(progress.error, 80));
+    activityLine = theme.fg("error", "✗ " + truncLine(progress.error, 80));
   } else if (status === "completed") {
-    activityLine = theme.fg("success", "  ⎿  Done");
+    activityLine = theme.fg("success", "✓ Done");
   } else {
-    activityLine = theme.fg("error", "  ⎿  Failed");
+    activityLine = theme.fg("error", "✗ Failed");
   }
 
   const modelLabel = progress.model
-    ? theme.fg("accent", " " + progress.model)
+    ? theme.fg("accent", progress.model)
     : "";
   const statsPart = statsLine ? "  " + statsLine : "";
+  const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored}${modelLabel}${statsPart}  ${expandHint}`;
+  let output = parts.join("  ") + "  " + expandHint;
   output += "\n" + activityLine;
 
   text.setText(output);
