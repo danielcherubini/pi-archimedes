@@ -1,0 +1,26 @@
+{
+  "name": "@pi-archimedes/core",
+  "version": "0.1.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Core UI modules for pi-archimedes: editor, message, startup, thinking",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bus": "./src/bus.ts",
+    "./chrome": "./src/chrome.ts",
+    "./text": "./src/text.ts",
+    "./color": "./src/color.ts",
+    "./config": "./src/config.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
