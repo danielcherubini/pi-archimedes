@@ -191,7 +191,7 @@ export function renderCompactSingle(
     : "";
   const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = parts.join("  ") + "  " + expandHint;
+  let output = parts.join(" ") + " " + expandHint;
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -330,7 +330,7 @@ export function renderCompactProgress(
   const statsPart = statsLine ? "  " + statsLine : "";
   const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = parts.join("  ") + "  " + expandHint;
+  let output = parts.join(" ") + " " + expandHint;
   output += "\n" + activityLine;
 
   text.setText(output);
