@@ -36,11 +36,8 @@ export {
 
 // ── Diff config ────────────────────────────────────────────────────────
 
-export interface DiffConfig {
-  diffTheme: string;
-  diffSplitMinWidth: number;
-  diffSplitMinCodeWidth: number;
-}
+import type { DiffConfig } from "@pi-archimedes/diff";
+export type { DiffConfig } from "@pi-archimedes/diff";
 
 export const DEFAULT_DIFF_CONFIG: DiffConfig = {
   diffTheme: "github-dark",
