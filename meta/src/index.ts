@@ -4,14 +4,10 @@ import { registerCore } from "@pi-archimedes/core";
 import { registerFooter } from "@pi-archimedes/footer";
 import { registerDiffTools } from "@pi-archimedes/diff";
 import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@pi-archimedes/image-paste";
-import { initBus } from "@pi-archimedes/core/bus";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js";
 
 export default function (pi: ExtensionAPI): void {
-  // Initialize bus (handles event queuing before session starts)
-  initBus();
-
   // Register all component extensions
   registerCore(pi);
   registerFooter(pi);
