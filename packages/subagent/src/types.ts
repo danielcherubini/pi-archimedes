@@ -21,6 +21,10 @@ export interface SubagentProgress {
   cost: number;
   durationMs: number;
   error?: string;
+  /** Accumulated assistant text output during streaming */
+  output?: string;
+  /** Last N lines of assistant text for live display */
+  recentOutput?: string[];
 }
 
 export interface SubagentResult {

@@ -36,6 +36,8 @@ export function streamEvents(
     let currentTool: string | undefined;
     let currentToolArgs: string | undefined;
     let currentToolStartedAt: number | undefined;
+    let accumulatedOutput: string[] = [];
+    let recentOutput: string[] = [];
     let finalOutput: string | undefined;
     let error: string | undefined;
 
@@ -54,6 +56,8 @@ export function streamEvents(
       cost: totalCost,
       durationMs: Date.now() - startTime,
       error,
+      output: accumulatedOutput.length > 0 ? accumulatedOutput.join("\n\n") : undefined,
+      recentOutput: recentOutput.length > 0 ? recentOutput : undefined,
     });
 
     const emitProgress = () => {
@@ -101,17 +105,41 @@ export function streamEvents(
           break;
         }
         case "message_end": {
-          // Extract usage from assistant message_end events
+          // Extract usage and text from assistant message_end events
           const message = event.message as Record<string, unknown> | undefined;
-          if (message && message.role === "assistant" && message.usage) {
-            const usage = message.usage as Record<string, unknown>;
-            turnCount++;
-            totalInput += (usage.input as number) || 0;
-            totalOutput += (usage.output as number) || 0;
-            totalCacheRead += (usage.cacheRead as number) || 0;
-            totalCacheWrite += (usage.cacheWrite as number) || 0;
-            const costObj = usage.cost as { total?: number } | undefined;
-            totalCost += costObj?.total ?? 0;
+          if (message && message.role === "assistant") {
+            // Collect text output
+            const content = message.content as Array<Record<string, unknown>> | string | undefined;
+            if (typeof content === "string" && content.trim()) {
+              accumulatedOutput.push(content);
+              const lines = content.split("\n").filter((l) => l.trim());
+              recentOutput.push(...lines.slice(-10));
+            } else if (Array.isArray(content)) {
+              for (const part of content) {
+                if (part.type === "text" && (part.text as string)?.trim()) {
+                  const text = part.text as string;
+                  accumulatedOutput.push(text);
+                  const lines = text.split("\n").filter((l) => l.trim());
+                  recentOutput.push(...lines.slice(-10));
+                }
+              }
+            }
+            // Cap recentOutput at 50 lines
+            if (recentOutput.length > 50) {
+              recentOutput.splice(0, recentOutput.length - 50);
+            }
+
+            // Extract usage
+            if (message.usage) {
+              const usage = message.usage as Record<string, unknown>;
+              turnCount++;
+              totalInput += (usage.input as number) || 0;
+              totalOutput += (usage.output as number) || 0;
+              totalCacheRead += (usage.cacheRead as number) || 0;
+              totalCacheWrite += (usage.cacheWrite as number) || 0;
+              const costObj = usage.cost as { total?: number } | undefined;
+              totalCost += costObj?.total ?? 0;
+            }
             emitProgress();
           }
           break;
