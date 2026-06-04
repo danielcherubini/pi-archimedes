@@ -104,6 +104,32 @@ export function streamEvents(
           turnCount++;
           break;
         }
+        case "tool_result_end": {
+          // Capture tool output for live display
+          const toolMessage = event.message as Record<string, unknown> | undefined;
+          if (toolMessage && toolMessage.role === "toolResult") {
+            const toolContent = toolMessage.content as Array<Record<string, unknown>> | string | undefined;
+            const toolName = (toolMessage.toolName as string) ?? "tool";
+            if (typeof toolContent === "string" && toolContent.trim()) {
+              const lines = toolContent.split("\n").filter((l) => l.trim());
+              recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
+            } else if (Array.isArray(toolContent)) {
+              for (const part of toolContent) {
+                if (part.type === "text" && (part.text as string)?.trim()) {
+                  const text = part.text as string;
+                  const lines = text.split("\n").filter((l) => l.trim());
+                  recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
+                  break;
+                }
+              }
+            }
+            if (recentOutput.length > 50) {
+              recentOutput.splice(0, recentOutput.length - 50);
+            }
+            emitProgress();
+          }
+          break;
+        }
         case "message_end": {
           // Extract usage and text from assistant message_end events
           const message = event.message as Record<string, unknown> | undefined;
