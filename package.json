@@ -5,5 +5,10 @@
     "packages/*",
     "meta"
   ],
-  "type": "module"
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "meta/src/index.ts"
+    ]
+  }
 }
