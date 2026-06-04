@@ -189,11 +189,10 @@ export function renderCompactSingle(
   }
 
   const modelLabel = progress?.model
-    ? theme.fg("accent", progress.model)
+    ? theme.fg("accent", " " + progress.model)
     : "";
-  const modelPart = modelLabel ? "  " + modelLabel : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored}${statsPart}${modelPart}  ${expandHint}`;
+  let output = `${glyphColored}${modelLabel}${statsPart}  ${expandHint}`;
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -325,12 +324,11 @@ export function renderCompactProgress(
   }
 
   const modelLabel = progress.model
-    ? theme.fg("accent", progress.model)
+    ? theme.fg("accent", " " + progress.model)
     : "";
-  const modelPart = modelLabel ? "  " + modelLabel : "";
   const statsPart = statsLine ? "  " + statsLine : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = `${glyphColored}${statsPart}${modelPart}  ${expandHint}`;
+  let output = `${glyphColored}${modelLabel}${statsPart}  ${expandHint}`;
   output += "\n" + activityLine;
 
   text.setText(output);
