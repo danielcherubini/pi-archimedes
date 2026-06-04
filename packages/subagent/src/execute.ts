@@ -20,10 +20,6 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
   const agentName = options.agent ?? "subagent";
   const startTime = Date.now();
 
-  // Track cumulative usage
-  let cumulativeInput = 0;
-  let cumulativeOutput = 0;
-
   const child = spawnSubagent({
     task: options.task,
     model: options.model,
@@ -32,16 +28,26 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     signal: options.signal,
   });
 
+  // Track previously emitted tokens to only emit deltas
+  let lastEmittedTokens = 0;
+  let lastEmittedCost = 0;
+
   try {
     const result = await streamEvents(child, {
+      agent: agentName,
+      task: options.task,
       onProgress: (progress: SubagentProgress) => {
-        // Emit cost updates on each progress tick
-        if (progress.tokens > 0) {
+        // Emit only deltas to avoid double-counting in CostAccumulator
+        if (progress.tokens > lastEmittedTokens) {
+          const deltaTokens = progress.tokens - lastEmittedTokens;
+          const deltaCost = progress.cost - lastEmittedCost;
           emitCostUpdate(agentName, {
-            inputTokens: Math.floor(progress.tokens * 0.4),
-            outputTokens: Math.floor(progress.tokens * 0.6),
-            cost: progress.cost,
+            inputTokens: Math.floor(deltaTokens * 0.4),
+            outputTokens: Math.floor(deltaTokens * 0.6),
+            cost: deltaCost,
           });
+          lastEmittedTokens = progress.tokens;
+          lastEmittedCost = progress.cost;
         }
         options.onUpdate?.(progress);
       },

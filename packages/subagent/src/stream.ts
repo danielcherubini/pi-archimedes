@@ -1,8 +1,10 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
-import type { SubagentProgress, SubagentResult, SubagentUsage } from "./types.js";
+import type { SubagentProgress, SubagentResult } from "./types.js";
 
 export interface StreamCallbacks {
+  agent?: string;
+  task?: string;
   onProgress?: (progress: SubagentProgress) => void;
 }
 
@@ -32,9 +34,9 @@ export function streamEvents(
 
     // Build initial progress
     const buildProgress = (): SubagentProgress => ({
-      agent: "subagent",
+      agent: callbacks.agent ?? "subagent",
       status: "running",
-      task: "",
+      task: callbacks.task ?? "",
       currentTool,
       currentToolArgs,
       currentToolStartedAt,
@@ -149,8 +151,8 @@ export function streamEvents(
       }
 
       const result: SubagentResult = {
-        agent: "subagent",
-        task: "",
+        agent: callbacks.agent ?? "subagent",
+        task: callbacks.task ?? "",
         exitCode,
         usage: {
           input: 0,
