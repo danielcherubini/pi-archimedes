@@ -3,6 +3,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { executeSubagent, executeParallel } from "./execute.js";
 import { renderSubagentResult } from "./render.js";
+import { discoverAgents, findAgent } from "./agents.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -24,13 +25,13 @@ const SUBAGENT_PARAMS_SCHEMA = Type.Object({
     description: "Agent name/identifier (optional, defaults to 'general')",
   })),
   task: Type.Optional(Type.String({
-    description: "Task description for the subagent",
+    description: "Task description for the subagent. Required when not using 'tasks' array.",
   })),
   tasks: Type.Optional(Type.Array(TaskItem, {
-    description: "Multiple tasks for parallel execution",
+    description: "Multiple tasks for parallel execution. Required when not using 'task'.",
   })),
   model: Type.Optional(Type.String({
-    description: "Model override (e.g. 'anthropic/claude-sonnet-4')",
+    description: "Model override for the subagent",
   })),
   async: Type.Optional(Type.Boolean({
     description: "Run asynchronously (fire-and-forget)",
@@ -54,7 +55,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
     name: "subagent",
     label: "Subagent",
     description:
-      "Delegate tasks to subagents. Single: { agent, task }. Parallel: { tasks: [{ agent, task }] }. Options: model, cwd.",
+      "Delegate tasks to subagents. Provide either 'task' (single) or 'tasks' (parallel). Never omit both. Options: agent, model, cwd.",
     parameters: SUBAGENT_PARAMS_SCHEMA,
 
     async execute(
@@ -69,13 +70,31 @@ export function registerSubagent(pi: ExtensionAPI): void {
       },
       signal: AbortSignal | undefined,
       onUpdate: ((update: SubagentToolResult) => void) | undefined,
-      _ctx: ExtensionContext,
+      ctx: ExtensionContext,
     ): Promise<SubagentToolResult> {
+      // Discover available agents
+      const agents = discoverAgents(ctx.cwd);
+
       // Parallel mode
       if (params.tasks && params.tasks.length > 0) {
+        const missingAgents = params.tasks.filter((t) => t.agent && !findAgent(agents, t.agent));
+        if (missingAgents.length > 0) {
+          const available = agents.map((a) => a.name).join(", ") || "none";
+          const unknown = missingAgents.map((t) => `"${t.agent}"`).join(", ");
+          return {
+            content: [{ type: "text", text: `Unknown agent(s): ${unknown}. Available: ${available}` }],
+            details: {
+              mode: "parallel",
+              results: [],
+              progress: undefined,
+            },
+            isError: true,
+          };
+        }
         const results: SubagentResult[] = await executeParallel({
           tasks: params.tasks.map((t) => ({
             agent: t.agent ?? undefined,
+            agentConfig: t.agent ? findAgent(agents, t.agent) : undefined,
             task: t.task,
             model: t.model ?? undefined,
             cwd: t.cwd ?? undefined,
@@ -105,8 +124,22 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
       // Single mode
       if (params.task) {
+        let agentConfig = params.agent ? findAgent(agents, params.agent) : undefined;
+        if (params.agent && !agentConfig) {
+          const available = agents.map((a) => a.name).join(", ") || "none";
+          return {
+            content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${available}` }],
+            details: {
+              mode: "single",
+              results: [],
+              progress: undefined,
+            },
+            isError: true,
+          };
+        }
         const result: SubagentResult = await executeSubagent({
           agent: params.agent ?? undefined,
+          agentConfig,
           task: params.task,
           model: params.model ?? undefined,
           cwd: params.cwd ?? undefined,

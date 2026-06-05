@@ -1,10 +1,12 @@
 import { spawnSubagent } from "./spawn.js";
 import { streamEvents } from "./stream.js";
 import { emitCostUpdate } from "./cost.js";
+import type { AgentConfig } from "./agents.js";
 import type { SubagentProgress, SubagentResult, SubagentUsage } from "./types.js";
 
 export interface ExecuteOptions {
   agent: string | undefined;
+  agentConfig: AgentConfig | undefined;
   task: string;
   model: string | undefined;
   cwd: string | undefined;
@@ -24,6 +26,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     model: options.model,
     cwd: options.cwd,
     signal: options.signal,
+    agent: options.agentConfig,
   });
 
   // Track previously emitted values to only emit deltas
@@ -93,7 +96,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
  * Execute multiple subagents in parallel.
  */
 export async function executeParallel(options: {
-  tasks: Array<{ agent: string | undefined; task: string; model: string | undefined; cwd: string | undefined }>;
+  tasks: Array<{ agent: string | undefined; agentConfig: AgentConfig | undefined; task: string; model: string | undefined; cwd: string | undefined }>;
   signal: AbortSignal | undefined;
   onUpdate: ((progress: SubagentProgress[]) => void) | undefined;
 }): Promise<SubagentResult[]> {

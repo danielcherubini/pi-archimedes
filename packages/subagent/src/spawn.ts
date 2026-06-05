@@ -1,12 +1,16 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AgentConfig } from "./agents.js";
 
 export interface SpawnOptions {
   task: string;
   model: string | undefined;
   cwd: string | undefined;
   signal: AbortSignal | undefined;
+  agent: AgentConfig | undefined;
 }
 
 /**
@@ -33,6 +37,29 @@ export function resolvePiCommand(): { command: string; args: string[] } {
 }
 
 /**
+ * Write system prompt to a temp file for --append-system-prompt.
+ */
+function writePromptToFile(agentName: string, prompt: string): { dir: string; filePath: string } {
+  const safeName = agentName.replace(/[^\w.-]+/g, "_");
+  const tmpDir = mkdtempSync(join(tmpdir(), "pi-subagent-"));
+  const filePath = join(tmpDir, `prompt-${safeName}.md`);
+  writeFileSync(filePath, prompt, { encoding: "utf-8" });
+  return { dir: tmpDir, filePath };
+}
+
+/**
+ * Clean up temp prompt file and directory.
+ */
+function cleanupTempFiles(dir: string | null, filePath: string | null): void {
+  if (filePath) {
+    try { unlinkSync(filePath); } catch { /* ignore */ }
+  }
+  if (dir) {
+    try { rmdirSync(dir); } catch { /* ignore */ }
+  }
+}
+
+/**
  * Spawn a child `pi` process in JSON mode.
  */
 export function spawnSubagent(options: SpawnOptions): ChildProcess {
@@ -40,12 +67,41 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const args: string[] = [
     ...baseArgs,
     "--mode", "json",
-    "-p", options.task,
+    "-p",
+    "--no-session",
   ];
 
-  if (options.model) {
+  // Use agent config from frontmatter if available
+  if (options.agent) {
+    const agent = options.agent;
+    // Agent's model takes precedence; tool-call model as fallback
+    const modelToUse = agent.model ?? options.model;
+    if (modelToUse) {
+      args.push("--model", modelToUse);
+    }
+    if (agent.thinking) {
+      args.push("--thinking", agent.thinking);
+    }
+    if (agent.tools && agent.tools.length > 0) {
+      args.push("--tools", agent.tools.join(","));
+    }
+  } else if (options.model) {
+    // Fallback: use model from tool call params (legacy)
     args.push("--model", options.model);
   }
+
+  // Temp files for system prompt
+  let tmpDir: string | null = null;
+  let tmpPath: string | null = null;
+
+  if (options.agent && options.agent.systemPrompt.trim()) {
+    const tmp = writePromptToFile(options.agent.name, options.agent.systemPrompt);
+    tmpDir = tmp.dir;
+    tmpPath = tmp.filePath;
+    args.push("--append-system-prompt", tmpPath);
+  }
+
+  args.push(options.task);
 
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
@@ -54,8 +110,9 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   });
 
   // Handle abort signal
+  let abortHandler: (() => void) | undefined;
   if (options.signal) {
-    const cleanup = () => {
+    abortHandler = () => {
       if (child.pid && !child.killed) {
         child.kill("SIGTERM");
         const forceKill = setTimeout(() => {
@@ -66,13 +123,17 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
         forceKill.unref();
       }
     };
-    options.signal.addEventListener("abort", cleanup, { once: true });
+    options.signal.addEventListener("abort", abortHandler, { once: true });
   }
 
-  // Clean up on normal exit to prevent forceKill firing after process ends
+  // Clean up temp files and listeners on exit
   const exitCleanup = (): void => {
     child.removeListener("exit", exitCleanup);
     child.removeListener("error", exitCleanup);
+    if (abortHandler && options.signal) {
+      options.signal.removeEventListener("abort", abortHandler);
+    }
+    cleanupTempFiles(tmpDir, tmpPath);
   };
   child.on("exit", exitCleanup);
   child.on("error", exitCleanup);

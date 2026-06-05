@@ -40,7 +40,7 @@ export function buildExpandedText(
   if (toolCalls && toolCalls.length > 0) {
     lines.push("");
     for (const call of toolCalls) {
-      lines.push(theme.fg("dim", "- " + call));
+      lines.push(theme.fg("dim", "↳ " + call));
     }
   }
 
@@ -110,7 +110,7 @@ export function renderProgressExpanded(
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "- " + call));
+      lines.push(theme.fg("dim", "↳ " + call));
     }
   }
 
@@ -183,7 +183,7 @@ export function buildProgressExpandedText(
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "- " + call));
+      lines.push(theme.fg("dim", "↳ " + call));
     }
   }
 

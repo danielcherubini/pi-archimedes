@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
-import { SPINNER_FRAMES, formatTokens, formatDuration, formatCost, truncLine, buildStatsLine } from "./format.js";
+import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
@@ -49,44 +49,11 @@ export function buildActivityLine(
   return "";
 }
 
-// ── Spinner helper ──────────────────────────────────────────────────────────
+// ── Status glyph ────────────────────────────────────────────────────────────
 
-const SPINNER_INTERVAL_MS = 80;
-
-function getSpinnerGlyph(agentName: string, isRunning: boolean, status: string, context: RenderContext): string {
-  if (isRunning) {
-    const timerKey = "_subagentTimer_" + agentName;
-    const frameKey = "_subagentFrame_" + agentName;
-    if (!context.state[timerKey]) {
-      context.state[frameKey] = 0;
-      const timer = setInterval(() => {
-        context.state[frameKey] = ((context.state[frameKey] as number) + 1) % SPINNER_FRAMES.length;
-        context.invalidate();
-      }, SPINNER_INTERVAL_MS);
-      context.state[timerKey] = timer;
-    }
-    return SPINNER_FRAMES[context.state[frameKey] as number]!;
-  }
+function statusGlyph(isRunning: boolean, status: string): string {
+  if (isRunning) return "↳";
   return status === "completed" ? "✓" : "✗";
-}
-
-function cleanupTimer(agentName: string, context: RenderContext): void {
-  const timerKey = "_subagentTimer_" + agentName;
-  const frameKey = "_subagentFrame_" + agentName;
-  const timer = context.state[timerKey] as ReturnType<typeof setInterval> | undefined;
-  if (timer) {
-    clearInterval(timer);
-    delete context.state[timerKey];
-  }
-  delete context.state[frameKey];
-}
-
-/** Cleanup ALL timers for a given agent — idempotent. */
-function cleanupAllTimers(agentName: string, context: RenderContext): void {
-  cleanupTimer(agentName, context);
-  // Also clean up start time tracker
-  const timeKey = "_subagentStartTime_" + agentName;
-  delete context.state[timeKey];
 }
 
 // ── Compact single agent ────────────────────────────────────────────────────
@@ -102,13 +69,6 @@ export function renderCompactSingle(
   const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
   const isRunning = progress?.status === "running";
   const status = isRunning ? "running" : (result.exitCode === 0 ? "completed" : "failed");
-
-  // Manage timer for spinner
-  if (isRunning) {
-    getSpinnerGlyph(agentName, true, "running", context);
-  } else {
-    cleanupAllTimers(agentName, context);
-  }
 
   // Track start time for live duration
   const timeKey = "_subagentStartTime_" + agentName;
@@ -132,11 +92,10 @@ export function renderCompactSingle(
 
   const statsPart = statsLine ?? "";
 
-  // Activity: spinner + current tool if running, status if finished
+  // Activity: arrow + current tool if running, status if finished
   let activityLine: string;
   if (isRunning) {
-    const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
-    const spinnerColored = theme.fg("muted", spinner ?? "");
+    const arrow = theme.fg("muted", "↳ ");
     if (progress?.currentTool) {
       const argsPreview = progress.currentToolArgs
         ? truncLine(progress.currentToolArgs ?? "", 60)
@@ -151,7 +110,7 @@ export function renderCompactSingle(
       if (durationPart) {
         line += theme.fg("dim", durationPart);
       }
-      activityLine = spinnerColored + " " + line;
+      activityLine = arrow + line;
     } else if (progress?.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
       activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall ?? "");
@@ -193,14 +152,7 @@ export function renderCompactParallel(
     const isRunning = progress?.status === "running";
     const status = progress?.status ?? (result.exitCode === 0 ? "completed" : "failed");
 
-    // Use animated spinner for running agents
-    let glyph: string;
-    if (isRunning) {
-      glyph = getSpinnerGlyph(agentName, true, "running", context);
-    } else {
-      cleanupTimer(agentName, context);
-      glyph = status === "completed" ? "✓" : "✗";
-    }
+    const glyph = statusGlyph(isRunning, status);
     const glyphColored = status === "completed"
       ? theme.fg("success", glyph)
       : status === "failed"
@@ -250,7 +202,7 @@ export function renderCompactProgress(
   const status = progress.status;
   const isRunning = status === "running";
 
-  let glyph = getSpinnerGlyph(agentName, isRunning, status, context);
+  const glyph = statusGlyph(isRunning, status);
   const glyphColored = status === "completed"
     ? theme.fg("success", glyph)
     : status === "failed"
@@ -261,9 +213,6 @@ export function renderCompactProgress(
   const timeKey = "_subagentStartTime_" + agentName;
   if (isRunning && context.state[timeKey] === undefined) {
     context.state[timeKey] = Date.now() - (progress.durationMs ?? 0);
-  }
-  if (!isRunning) {
-    cleanupAllTimers(agentName, context);
   }
   const liveDuration = isRunning && context.state[timeKey] !== undefined
     ? Date.now() - (context.state[timeKey] as number)
@@ -278,11 +227,10 @@ export function renderCompactProgress(
   };
   const statsLine = buildStatsLine(statsData, theme);
 
-  // Activity: current tool if running, status if finished
+  // Activity: arrow + current tool if running, status if finished
   let activityLine: string;
   if (isRunning) {
-    const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
-    const spinnerColored = theme.fg("muted", spinner ?? "");
+    const arrow = theme.fg("muted", "↳ ");
     if (progress.currentTool) {
       const argsPreview = progress.currentToolArgs
         ? truncLine(progress.currentToolArgs ?? "", 60)
@@ -297,12 +245,12 @@ export function renderCompactProgress(
       if (durationPart) {
         line += theme.fg("dim", durationPart);
       }
-      activityLine = spinnerColored + " " + line;
+      activityLine = arrow + line;
     } else if (progress.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = spinnerColored + " " + theme.fg("muted", lastCall ?? "");
+      activityLine = arrow + theme.fg("muted", lastCall ?? "");
     } else {
-      activityLine = spinnerColored + " " + theme.fg("muted", "Working...");
+      activityLine = arrow + theme.fg("muted", "Working...");
     }
   } else if (progress.error) {
     activityLine = theme.fg("error", "✗ " + truncLine(progress.error, 80));
@@ -337,7 +285,7 @@ export function renderCompactParallelProgress(
     const status = progress.status;
     const isRunning = status === "running";
 
-    let glyph = getSpinnerGlyph(agentName, isRunning, status, context);
+    const glyph = statusGlyph(isRunning, status);
     const glyphColored = status === "completed"
       ? theme.fg("success", glyph)
       : status === "failed"

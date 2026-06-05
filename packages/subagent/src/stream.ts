@@ -74,6 +74,9 @@ export function streamEvents(
       callbacks.onProgress?.(buildProgress());
     };
 
+    // Periodic progress updates for live duration display
+    const heartbeat = setInterval(emitProgress, 1000);
+
     // Collect stderr
     const stderrParts: string[] = [];
     child.stderr?.on("data", (data: Buffer) => {
@@ -129,6 +132,7 @@ export function streamEvents(
     // Handle process exit
     child.on("close", (code) => {
       clearTimeout(timeout);
+      clearInterval(heartbeat);
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 
@@ -171,6 +175,7 @@ export function streamEvents(
 
     child.on("error", (err) => {
       clearTimeout(timeout);
+      clearInterval(heartbeat);
       reject(err);
     });
   });
