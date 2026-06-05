@@ -22,16 +22,17 @@ export function parseDiff(oldContent: string, newContent: string, ctx = 3): Pars
 
 	for (let hi = 0; hi < patch.hunks.length; hi++) {
 		if (hi > 0) {
-			const prev = patch.hunks[hi - 1];
-			const gap = patch.hunks[hi].oldStart - (prev.oldStart + prev.oldLines);
+			const prev = patch.hunks[hi - 1]!;
+			const curr = patch.hunks[hi]!;
+			const gap = curr.oldStart - (prev.oldStart + prev.oldLines);
 			lines.push({ type: "sep", oldNum: null, newNum: gap > 0 ? gap : null, content: "" });
 		}
-		const h = patch.hunks[hi];
+		const h = patch.hunks[hi]!;
 		let oL = h.oldStart;
 		let nL = h.newStart;
 		for (const raw of h.lines) {
 			if (raw === "\\ No newline at end of file") continue;
-			const ch = raw[0];
+			const ch = raw[0]!;
 			const text = raw.slice(1);
 			if (ch === "+") {
 				lines.push({ type: "add", oldNum: null, newNum: nL++, content: text });

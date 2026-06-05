@@ -15,7 +15,6 @@ import type {
 const TaskItem = Type.Object({
   agent: Type.Optional(Type.String()),
   task: Type.String(),
-  count: Type.Optional(Type.Number()),
   model: Type.Optional(Type.String()),
   cwd: Type.Optional(Type.String()),
 });
@@ -75,8 +74,13 @@ export function registerSubagent(pi: ExtensionAPI): void {
       // Parallel mode
       if (params.tasks && params.tasks.length > 0) {
         const results: SubagentResult[] = await executeParallel({
-          tasks: params.tasks,
-          signal,
+          tasks: params.tasks.map((t) => ({
+            agent: t.agent ?? undefined,
+            task: t.task,
+            model: t.model ?? undefined,
+            cwd: t.cwd ?? undefined,
+          })),
+          signal: signal ?? undefined,
           onUpdate: (progress: SubagentProgress[]) => {
             onUpdate?.({
               content: [],
@@ -102,11 +106,11 @@ export function registerSubagent(pi: ExtensionAPI): void {
       // Single mode
       if (params.task) {
         const result: SubagentResult = await executeSubagent({
-          agent: params.agent,
+          agent: params.agent ?? undefined,
           task: params.task,
-          model: params.model,
-          cwd: params.cwd,
-          signal,
+          model: params.model ?? undefined,
+          cwd: params.cwd ?? undefined,
+          signal: signal ?? undefined,
           onUpdate: (progress: SubagentProgress) => {
             onUpdate?.({
               content: [],
@@ -135,6 +139,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
         details: {
           mode: "single",
           results: [],
+          progress: undefined,
         },
         isError: true,
       };

@@ -12,8 +12,8 @@ import type { DiffLine, ParsedDiff } from "./core/diff.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_PREVIEW_LINES = 60;
-const MAX_RENDER_LINES = 150;
+export const MAX_PREVIEW_LINES = 60;
+export const MAX_RENDER_LINES = 150;
 const MAX_HL_CHARS = 80_000;
 const WORD_DIFF_MIN_SIM = 0.15;
 const SPLIT_MAX_WRAP_RATIO = 0.2;
@@ -187,7 +187,7 @@ export async function renderUnified(
 	}
 
 	while (idx < vis.length) {
-		const l = vis[idx];
+		const l = vis[idx]!;
 
 		if (l.type === "sep") {
 			const gap = l.newNum;
@@ -208,30 +208,30 @@ export async function renderUnified(
 		}
 
 		const dels: Array<{ l: DiffLine; hl: string }> = [];
-		while (idx < vis.length && vis[idx].type === "del") {
-			dels.push({ l: vis[idx], hl: oldHL[oI] ?? vis[idx].content });
+		while (idx < vis.length && vis[idx]!.type === "del") {
+			dels.push({ l: vis[idx]!, hl: oldHL[oI] ?? vis[idx]!.content });
 			oI++; idx++;
 		}
 		const adds: Array<{ l: DiffLine; hl: string }> = [];
-		while (idx < vis.length && vis[idx].type === "add") {
-			adds.push({ l: vis[idx], hl: newHL[nI] ?? vis[idx].content });
+		while (idx < vis.length && vis[idx]!.type === "add") {
+			adds.push({ l: vis[idx]!, hl: newHL[nI] ?? vis[idx]!.content });
 			nI++; idx++;
 		}
 
 		const isPaired = dels.length === 1 && adds.length === 1;
-		const wd = isPaired ? wordDiffAnalysis(dels[0].l.content, adds[0].l.content) : null;
+		const wd = isPaired ? wordDiffAnalysis(dels[0]!.l.content, adds[0]!.l.content) : null;
 
 		if (isPaired && wd && wd.similarity >= WORD_DIFF_MIN_SIM && canHL) {
-			const delBody = injectBg(dels[0].hl, wd.oldRanges, Ansi.BG_DEL, Ansi.BG_DEL_W);
-			const addBody = injectBg(adds[0].hl, wd.newRanges, Ansi.BG_ADD, Ansi.BG_ADD_W);
-			emitRow(dels[0].l.oldNum, "-", Ansi.BG_GUTTER_DEL, `${dc.fgDel}${Ansi.BOLD}`, delBody, Ansi.BG_DEL);
-			emitRow(adds[0].l.newNum, "+", Ansi.BG_GUTTER_ADD, `${dc.fgAdd}${Ansi.BOLD}`, addBody, Ansi.BG_ADD);
+			const delBody = injectBg(dels[0]!.hl, wd.oldRanges, Ansi.BG_DEL, Ansi.BG_DEL_W);
+			const addBody = injectBg(adds[0]!.hl, wd.newRanges, Ansi.BG_ADD, Ansi.BG_ADD_W);
+			emitRow(dels[0]!.l.oldNum, "-", Ansi.BG_GUTTER_DEL, `${dc.fgDel}${Ansi.BOLD}`, delBody, Ansi.BG_DEL);
+			emitRow(adds[0]!.l.newNum, "+", Ansi.BG_GUTTER_ADD, `${dc.fgAdd}${Ansi.BOLD}`, addBody, Ansi.BG_ADD);
 			continue;
 		}
 		if (isPaired && wd && wd.similarity >= WORD_DIFF_MIN_SIM && !canHL) {
-			const pwd = plainWordDiff(dels[0].l.content, adds[0].l.content);
-			emitRow(dels[0].l.oldNum, "-", Ansi.BG_GUTTER_DEL, `${dc.fgDel}${Ansi.BOLD}`, `${Ansi.BG_DEL}${pwd.old}`, Ansi.BG_DEL);
-			emitRow(adds[0].l.newNum, "+", Ansi.BG_GUTTER_ADD, `${dc.fgAdd}${Ansi.BOLD}`, `${Ansi.BG_ADD}${pwd.new}`, Ansi.BG_ADD);
+			const pwd = plainWordDiff(dels[0]!.l.content, adds[0]!.l.content);
+			emitRow(dels[0]!.l.oldNum, "-", Ansi.BG_GUTTER_DEL, `${dc.fgDel}${Ansi.BOLD}`, `${Ansi.BG_DEL}${pwd.old}`, Ansi.BG_DEL);
+			emitRow(adds[0]!.l.newNum, "+", Ansi.BG_GUTTER_ADD, `${dc.fgAdd}${Ansi.BOLD}`, `${Ansi.BG_ADD}${pwd.new}`, Ansi.BG_ADD);
 			continue;
 		}
 
@@ -270,11 +270,11 @@ export async function renderSplit(
 	const rows: Row[] = [];
 	let i = 0;
 	while (i < diff.lines.length) {
-		const l = diff.lines[i];
+		const l = diff.lines[i]!;
 		if (l.type === "sep" || l.type === "ctx") { rows.push({ left: l, right: l }); i++; continue; }
 		const dels: DiffLine[] = [], adds: DiffLine[] = [];
-		while (i < diff.lines.length && diff.lines[i].type === "del") { dels.push(diff.lines[i]); i++; }
-		while (i < diff.lines.length && diff.lines[i].type === "add") { adds.push(diff.lines[i]); i++; }
+		while (i < diff.lines.length && diff.lines[i]!.type === "del") { dels.push(diff.lines[i]!); i++; }
+		while (i < diff.lines.length && diff.lines[i]!.type === "add") { adds.push(diff.lines[i]!); i++; }
 		const n = Math.max(dels.length, adds.length);
 		for (let j = 0; j < n; j++) rows.push({ left: dels[j] ?? null, right: adds[j] ?? null });
 	}

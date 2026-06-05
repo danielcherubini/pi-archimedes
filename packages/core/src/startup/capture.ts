@@ -14,11 +14,14 @@ export function patchConsoleLog(): void {
         const plain = (args[0] as string).replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
         const m = MODEL_SCOPE_RE.exec(plain);
         if (m) {
-          const raw = m[1].replace(/\s*\(Ctrl\+\w[\w\s]*\)/gi, "");
+          const raw = m[1]!.replace(/\s*\(Ctrl\+\w[\w\s]*\)/gi, "");
           g[CAPTURED_MODELS] = raw
             .split(",")
             .map((s: string) => s.trim())
             .filter(Boolean);
+          // Unpatch once captured — no need to keep intercepting
+          console.log = origLog;
+          g[PATCHED_LOG] = false;
           return;
         }
       }

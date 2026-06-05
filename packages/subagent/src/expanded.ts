@@ -88,6 +88,7 @@ export function renderProgressExpanded(
   // Stats line (same as compact view)
   const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
   const statsLine = buildStatsLine({
+    turns: undefined,
     toolCount: progress.toolCount,
     tokens: progress.tokens,
     durationMs: progress.durationMs,
@@ -160,6 +161,7 @@ export function buildProgressExpandedText(
   // Stats line (same as compact view)
   const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
   const statsLine = buildStatsLine({
+    turns: undefined,
     toolCount: progress.toolCount,
     tokens: progress.tokens,
     durationMs: progress.durationMs,

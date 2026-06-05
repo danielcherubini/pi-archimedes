@@ -67,7 +67,7 @@ export function getShinedLogo(frame: number, style: AnimationStyle = "wave"): st
   return LOGO.map((line, y) => {
     let result = "";
     for (let x = 0; x < line.length; x++) {
-      const char = line[x];
+      const char = line[x]!;
       if (char === " ") { result += " "; continue; }
 
       const revealAt = computeRevealAt(x, y, style);

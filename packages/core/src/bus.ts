@@ -17,7 +17,13 @@ interface CostUpdatePayload {
   cost?: number;
 }
 
-const g = globalThis as unknown as Record<symbol, unknown>;
+// Type-safe globalThis access — avoids `as unknown as` casts
+function getGlobal<T>(key: symbol): T | undefined {
+  return (globalThis as Record<symbol, unknown>)[key] as T | undefined;
+}
+function setGlobal<T>(key: symbol, value: T): void {
+  (globalThis as Record<symbol, unknown>)[key] = value;
+}
 
 function createBus(): Bus {
   const listeners = new Map<string, Array<(payload: unknown) => void>>();
@@ -29,8 +35,9 @@ function createBus(): Bus {
         for (const fn of subs) {
           try {
             fn(payload);
-          } catch {
-            /* ignore listener errors */
+          } catch (err) {
+            // Listener errors should not crash other listeners
+            console.error(`[archimedes:bus] Error in listener for "${event}":`, err);
           }
         }
       }
@@ -50,10 +57,10 @@ function createBus(): Bus {
 }
 
 export function getBus(): Bus {
-  let bus = g[BUS_KEY] as Bus | undefined;
+  let bus = getGlobal<Bus>(BUS_KEY);
   if (!bus) {
     bus = createBus();
-    g[BUS_KEY] = bus;
+    setGlobal(BUS_KEY, bus);
   }
   return bus;
 }
@@ -61,12 +68,12 @@ export function getBus(): Bus {
 export function initBus(): void {
   const bus = getBus();
   // Flush queued events (if any were emitted before init)
-  const queue = g[QUEUE_KEY] as Array<{ event: string; payload: unknown }> | undefined;
+  const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY);
   if (queue && queue.length > 0) {
     for (const { event, payload } of queue) {
       bus.emit(event, payload);
     }
-    g[QUEUE_KEY] = [];
+    setGlobal(QUEUE_KEY, []);
   }
 }
 

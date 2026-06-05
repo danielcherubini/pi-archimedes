@@ -40,7 +40,7 @@ export function renderSubagentResult(
   // ── Streaming progress (results empty but progress has data) ──────────
   if (details.results.length === 0 && details.progress && details.progress.length > 0) {
     if (details.progress.length === 1) {
-      return renderProgressUpdate(text, details.progress[0], expanded, theme, context);
+      return renderProgressUpdate(text, details.progress[0]!, expanded, theme, context);
     }
     return renderProgressUpdatesParallel(text, details, expanded, theme, context);
   }
@@ -52,7 +52,7 @@ export function renderSubagentResult(
 
   // ── Single agent ────────────────────────────────────────────────────────
   if (details.mode === "single" || details.results.length === 1) {
-    return renderSingleAgent(text, details.results[0], details.progress?.[0], expanded, theme, context);
+    return renderSingleAgent(text, details.results[0]!, details.progress?.[0], expanded, theme, context);
   }
 
   // ── Parallel agents ─────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 
 import type { ClipboardImage } from "./types.js";
 
@@ -17,6 +19,11 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
 ] as const;
 
 let cachedClipboardModule: ClipboardModule | null | undefined;
+
+/** Reset the clipboard module cache — allows retry after install. */
+export function resetClipboardModuleCache(): void {
+  cachedClipboardModule = undefined;
+}
 
 interface ClipboardModule {
   hasImage: () => boolean;
@@ -389,8 +396,7 @@ export async function readClipboardImage(options?: {
   throw new Error(getUnavailableReaderMessage(platform));
 }
 
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+// ── File-based image reading ────────────────────────────────────────────────
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"]);
 

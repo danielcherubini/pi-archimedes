@@ -1,15 +1,21 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { AssistantMessageComponent } from "@earendil-works/pi-coding-agent";
+import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // The label we prepend to visible thinking content.
 const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
 
+// Track which pi version we patched against to detect incompatibility
+const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
+const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
+
 /**
  * Patches `AssistantMessageComponent.prototype.updateContent` so thinking
  * blocks render with a muted `MarkdownTheme`. Called on every session_start
  * to capture a fresh `getTheme` closure (required for /resume).
+ *
+ * Re-patches when pi version changes to catch breaking upstream changes.
  */
 export function patchThinkingRenderer(getTheme: () => Theme): void {
   if (!AssistantMessageComponent) return;
@@ -29,6 +35,19 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
     !src.includes("this.markdownTheme")
   ) {
     return;
+  }
+
+  // Check if already patched against the current pi version
+  const currentVersion = VERSION ?? "unknown";
+  const patchVersion = (proto as any)[PATCH_VERSION_KEY] as string | undefined;
+  if ((proto as any)[PATCHED_KEY] && patchVersion === currentVersion) {
+    // Already patched for this version — just update the closure by re-patching
+    // (needed for /resume to get fresh getTheme)
+  } else {
+    // First patch or version changed — warn if version mismatch
+    if ((proto as any)[PATCHED_KEY] && patchVersion && patchVersion !== currentVersion) {
+      console.warn(`[archimedes] Re-patching thinking renderer: pi version changed ${patchVersion} → ${currentVersion}`);
+    }
   }
 
   // Re-patch every time — /resume needs a fresh getTheme closure
@@ -147,4 +166,8 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
     // Bottom padding so next message has breathing room
     this.contentContainer.addChild(new Spacer(1));
   };
+
+  // Mark as patched with version for incompatibility detection
+  (proto as any)[PATCHED_KEY] = true;
+  (proto as any)[PATCH_VERSION_KEY] = currentVersion;
 }

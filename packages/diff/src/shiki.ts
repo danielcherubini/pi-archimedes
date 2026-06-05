@@ -52,12 +52,13 @@ async function ensureShiki(): Promise<void> {
 const _cache = new Map<string, string[]>();
 
 function _touch(k: string, v: string[]): string[] {
+	// True LRU: delete and re-insert to move to end (most recently used)
 	_cache.delete(k);
 	_cache.set(k, v);
 	while (_cache.size > CACHE_LIMIT) {
-		const first = _cache.keys().next().value;
-		if (first === undefined) break;
-		_cache.delete(first);
+		const oldest = _cache.keys().next().value;
+		if (oldest === undefined) break;
+		_cache.delete(oldest);
 	}
 	return v;
 }
@@ -71,7 +72,7 @@ export async function hlBlock(code: string, language: BundledLanguage | undefine
 	const theme = _getConfig().diffTheme;
 	const k = `${theme}\0${language}\0${code}`;
 	const hit = _cache.get(k);
-	if (hit) return _touch(k, hit);
+	if (hit) return _touch(k, hit); // Promote to most-recently-used
 
 	try {
 		const ansi = normalizeShikiContrast(await codeToANSI(code, language, theme as BundledTheme));

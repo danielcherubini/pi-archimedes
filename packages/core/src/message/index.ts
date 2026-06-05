@@ -1,11 +1,13 @@
 import type { Theme, UserMessageComponent } from "@earendil-works/pi-coding-agent";
+import { VERSION } from "@earendil-works/pi-coding-agent";
 import { RESET, resolvePalette, setThemeBg } from "../chrome.js";
 
-type UserMsgCtor = typeof UserMessageComponent & { [PATCHED]?: boolean };
+type UserMsgCtor = typeof UserMessageComponent & { [PATCHED]?: boolean; [PATCH_VERSION]?: string };
 
 // ── Constants ──────────────────────────────────────────────
 
 const PATCHED = Symbol.for("splashscreen:userMsgPatched");
+const PATCH_VERSION = Symbol.for("splashscreen:userMsgPatchVersion");
 // Match OSC133 B (zone end) or C (zone final). v0.67 moved these from line
 // tail to line head — we strip from wherever they sit and re-emit at the end.
 const OSC133_RE = /\x1b\]133;[BC]\x07/g;
@@ -44,7 +46,13 @@ export function patchUserMessage(
 
     import("@earendil-works/pi-coding-agent").then(
       ({ UserMessageComponent }: { UserMessageComponent: UserMsgCtor }) => {
-        if (UserMessageComponent[PATCHED]) return;
+        const currentVersion = VERSION ?? "unknown";
+        const patchVersion = UserMessageComponent[PATCH_VERSION];
+        // Skip if already patched for this version
+        if (UserMessageComponent[PATCHED] && patchVersion === currentVersion) return;
+        if (UserMessageComponent[PATCHED] && patchVersion && patchVersion !== currentVersion) {
+          console.warn(`[archimedes] Re-patching user message: pi version changed ${patchVersion} → ${currentVersion}`);
+        }
 
         if (
           typeof UserMessageComponent.prototype.addChild !== "function" ||
@@ -55,6 +63,7 @@ export function patchUserMessage(
         }
 
         UserMessageComponent[PATCHED] = true;
+        UserMessageComponent[PATCH_VERSION] = currentVersion;
 
         const origAddChild = UserMessageComponent.prototype.addChild;
         UserMessageComponent.prototype.addChild = function (child: any) {
@@ -79,7 +88,7 @@ export function patchUserMessage(
             if (bg !== lastBg) { setThemeBg(currentTheme, "userMessageBg", bg); lastBg = bg; }
 
             const idx = instanceIndex.get(this);
-            const elapsed = idx !== undefined ? responseTimes[idx] : 0;
+            const elapsed = idx !== undefined ? (responseTimes[idx] ?? 0) : 0;
             const hasTime = idx !== undefined;
 
             const contentWidth = width - TIME_COL;

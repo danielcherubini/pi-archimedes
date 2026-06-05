@@ -4,12 +4,12 @@ import { emitCostUpdate } from "./cost.js";
 import type { SubagentProgress, SubagentResult, SubagentUsage } from "./types.js";
 
 export interface ExecuteOptions {
-  agent?: string;
+  agent: string | undefined;
   task: string;
-  model?: string;
-  cwd?: string;
-  signal?: AbortSignal;
-  onUpdate?: (progress: SubagentProgress) => void;
+  model: string | undefined;
+  cwd: string | undefined;
+  signal: AbortSignal | undefined;
+  onUpdate: ((progress: SubagentProgress) => void) | undefined;
 }
 
 /**
@@ -80,7 +80,10 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
         cost: 0,
         turns: 0,
       } as SubagentUsage,
+      model: undefined,
+      finalOutput: undefined,
       error: err instanceof Error ? err.message : String(err),
+      progress: undefined,
       progressSummary: { toolCount: 0, tokens: 0, durationMs: Date.now() - startTime },
     };
   }
@@ -90,19 +93,23 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
  * Execute multiple subagents in parallel.
  */
 export async function executeParallel(options: {
-  tasks: Array<{ agent?: string; task: string; count?: number; model?: string; cwd?: string }>;
-  signal?: AbortSignal;
-  onUpdate?: (progress: SubagentProgress[]) => void;
+  tasks: Array<{ agent: string | undefined; task: string; model: string | undefined; cwd: string | undefined }>;
+  signal: AbortSignal | undefined;
+  onUpdate: ((progress: SubagentProgress[]) => void) | undefined;
 }): Promise<SubagentResult[]> {
+  // Collect latest progress per agent for aggregated reporting
+  const latestProgress = new Map<string, SubagentProgress>();
+
   const results = await Promise.all(
     options.tasks.map((taskDef) =>
       executeSubagent({
         ...taskDef,
         signal: options.signal,
         onUpdate: (progress: SubagentProgress) => {
-          // Collect all parallel progress updates
-          // This is a simplified approach — each task fires independently
-          options.onUpdate?.([progress]);
+          // Store latest progress keyed by agent name
+          latestProgress.set(progress.agent, progress);
+          // Emit aggregated progress across ALL agents
+          options.onUpdate?.([...latestProgress.values()]);
         },
       }),
     ),

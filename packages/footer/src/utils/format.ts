@@ -1,14 +1,15 @@
 import { footerIcons, gitDisplayIcons, gitStatusColors, thinkingLevelColors, type ColorFn } from "./icons.js";
 
-export function formatTokenCount(count: number): string {
-  const K = 1024;
-  const M = 1048576; // 1024 * 1024
+// Token counts use SI units (1K = 1000), not binary (1024)
+const TOKEN_K = 1_000;
+const TOKEN_M = 1_000_000;
 
-  if (count < K) return count.toString();
-  if (count < K * 10) return (count / K).toFixed(1) + "k";
-  if (count < M) return Math.round(count / K) + "k";
-  if (count < M * 10) return (count / M).toFixed(1) + "M";
-  return Math.round(count / M) + "M";
+export function formatTokenCount(count: number): string {
+  if (count < TOKEN_K) return count.toString();
+  if (count < TOKEN_K * 10) return (count / TOKEN_K).toFixed(1) + "k";
+  if (count < TOKEN_M) return Math.round(count / TOKEN_K) + "k";
+  if (count < TOKEN_M * 10) return (count / TOKEN_M).toFixed(1) + "M";
+  return Math.round(count / TOKEN_M) + "M";
 }
 
 export function formatContextBar(colorize: ColorFn, percentValue: number, availableSpace: number): string {
