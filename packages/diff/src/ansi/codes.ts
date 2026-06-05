@@ -1,5 +1,7 @@
 /** ANSI escape codes, constants, and interfaces. */
 
+import { deriveBgFromTheme } from "./colors.js";
+
 // ---------------------------------------------------------------------------
 // ANSI escape codes
 // ---------------------------------------------------------------------------
@@ -123,7 +125,6 @@ export function themeCacheKey(theme?: any): string {
 	return parts.join("|");
 }
 
-import { deriveBgFromTheme } from "./colors.js";
 export { deriveBgFromTheme };
 
 export function resolveDiffColors(theme?: any): DiffColors {

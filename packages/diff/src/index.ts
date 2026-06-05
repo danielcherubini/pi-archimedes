@@ -105,6 +105,6 @@ export function registerDiffTools(
 		registerWriteTool(pi, cwd, home, createWriteTool, TextComponent);
 
 		// Register edit tool override
-		registerEditTool(pi, cwd, home, createEditTool, TextComponent);
+		registerEditTool(pi, cwd, home, createEditTool);
 	})().catch(console.error);
 }

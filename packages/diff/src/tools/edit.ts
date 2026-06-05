@@ -2,7 +2,6 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
 import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import { parseDiff } from "../core/diff.js";
 import * as Ansi from "../ansi/index.js";
@@ -17,7 +16,6 @@ export function registerEditTool(
 	cwd: string,
 	home: string,
 	createEditTool: (cwd: string) => any,
-	TextComponent: new (text?: string, paddingX?: number, paddingY?: number) => Component,
 ): void {
 	const sp = (p: string) => Ansi.shortPath(cwd, home, p);
 	const origEdit = createEditTool(cwd);

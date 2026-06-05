@@ -55,7 +55,6 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
 
 // Module-level state for session lifecycle (shared between session_start and session_shutdown)
 let coreRef: ListingRef | undefined;
-let coreResponseTimes: number[] | undefined;
 let coreCtx: ExtensionContext | undefined;
 
 export function registerCore(pi: ExtensionAPI): void {
@@ -69,9 +68,6 @@ export function registerCore(pi: ExtensionAPI): void {
     const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
     const listingRef = g["listingRef"] as ListingRef | undefined;
     if (listingRef) { listingRef.settled = true; }
-
-    // Clear response times
-    if (coreResponseTimes) { coreResponseTimes.length = 0; }
 
     // Clear editor component override
     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
@@ -107,10 +103,6 @@ export function registerCore(pi: ExtensionAPI): void {
     };
     ctx.ui.setHeader(headerFactory);
 
-    // Shared response times array (used by message_end)
-    coreResponseTimes = [];
-    const responseTimes = coreResponseTimes;
-
     // Set editor component
     ctx.ui.setEditorComponent((tui: TUI, editorTheme: EditorTheme, keybindings: KeybindingsManager) => {
       const theme = ctx.ui.theme;
@@ -132,13 +124,6 @@ export function registerCore(pi: ExtensionAPI): void {
       // Transform thinking content (unindent code blocks if enabled)
       if (config.codeUnindent) {
         transformThinkingContent(event.message as any);
-      }
-
-      // Track response time from the raw message
-      const rawMsg = event.message as any;
-      if (rawMsg.duration) {
-        const idx = rawMsg.instanceIndex ?? responseTimes.length;
-        responseTimes[idx] = rawMsg.duration;
       }
     });
   });

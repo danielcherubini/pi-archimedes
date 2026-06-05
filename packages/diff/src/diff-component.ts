@@ -125,7 +125,10 @@ export class DiffComponent implements Component {
 	private _updateShell(lines: string[]): void {
 		this.shell.clear();
 		// Join lines into a single text block; each line is a row.
-		const textComponent = { render: (_w: number) => lines, invalidate: () => {} };
+		const textComponent = new (class implements Component {
+			render(_w: number): string[] { return lines; }
+			invalidate(): void {}
+		})();
 		this.shell.addChild(textComponent);
 	}
 
