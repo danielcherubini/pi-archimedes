@@ -45,7 +45,7 @@ export function hexToRgb(hex: string): RGB {
 	let s = hex.trim();
 	if (s.startsWith("#")) s = s.slice(1);
 	if (s.length === 3) {
-		s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+		s = s[0]! + s[0]! + s[1]! + s[1]! + s[2]! + s[2]!;
 	}
 	if (s.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(s)) {
 		throw new Error(`Invalid hex color: ${hex}`);
@@ -121,13 +121,13 @@ export function ansi256ToRgb(code: number): RGB {
 		throw new Error(`ANSI 256 code out of range: ${code}`);
 	}
 	if (c < 16) {
-		return { ...XTERM_16[c] };
+		return { ...XTERM_16[c]! };
 	}
 	if (c < 232) {
 		const idx = c - 16;
-		const r = CUBE_LEVELS[Math.floor(idx / 36) % 6];
-		const g = CUBE_LEVELS[Math.floor(idx / 6) % 6];
-		const b = CUBE_LEVELS[idx % 6];
+		const r = CUBE_LEVELS[Math.floor(idx / 36) % 6]!;
+		const g = CUBE_LEVELS[Math.floor(idx / 6) % 6]!;
+		const b = CUBE_LEVELS[idx % 6]!;
 		return { r, g, b };
 	}
 	const v = 8 + (c - 232) * 10;
@@ -140,14 +140,14 @@ export function parseAnsiFgToRgb(ansi: string): RGB | null {
 	const tc = /^\x1b\[38;2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(ansi);
 	if (tc) {
 		return {
-			r: clamp(parseInt(tc[1], 10), 0, 255),
-			g: clamp(parseInt(tc[2], 10), 0, 255),
-			b: clamp(parseInt(tc[3], 10), 0, 255),
+			r: clamp(parseInt(tc[1]!, 10), 0, 255),
+			g: clamp(parseInt(tc[2]!, 10), 0, 255),
+			b: clamp(parseInt(tc[3]!, 10), 0, 255),
 		};
 	}
 	const palette = /^\x1b\[38;5;(\d{1,3})m/.exec(ansi);
 	if (palette) {
-		const code = parseInt(palette[1], 10);
+		const code = parseInt(palette[1]!, 10);
 		if (code < 0 || code > 255) return null;
 		return ansi256ToRgb(code);
 	}
@@ -187,7 +187,7 @@ export function rgb(r: number, g: number, b: number, text: string): string {
 
 export function extractRgb(themed: string): [number, number, number] {
   const m = themed.match(/\x1b\[38;2;(\d+);(\d+);(\d+)m/);
-  return m ? [+m[1], +m[2], +m[3]] : [100, 100, 100];
+  return m ? [+m[1]!, +m[2]!, +m[3]!] : [100, 100, 100];
 }
 
 export function lerp(a: number, b: number, t: number): number {

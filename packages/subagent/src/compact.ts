@@ -9,12 +9,12 @@ type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
 
 export function buildActivityLine(
   progress: {
-    currentTool?: string;
-    currentToolArgs?: string;
-    currentToolStartedAt?: number;
-    finalOutput?: string;
-    status?: "running" | "completed" | "failed";
-    error?: string;
+    currentTool: string | undefined;
+    currentToolArgs: string | undefined;
+    currentToolStartedAt: number | undefined;
+    finalOutput: string | undefined;
+    status: "running" | "completed" | "failed" | undefined;
+    error: string | undefined;
   },
   theme: Theme,
 ): string {
@@ -26,7 +26,7 @@ export function buildActivityLine(
 
   if (progress.currentTool) {
     const argsPreview = progress.currentToolArgs
-      ? truncLine(progress.currentToolArgs, 60)
+      ? truncLine(progress.currentToolArgs ?? "", 60)
       : "";
     const durationPart = progress.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
@@ -51,6 +51,8 @@ export function buildActivityLine(
 
 // ── Spinner helper ──────────────────────────────────────────────────────────
 
+const SPINNER_INTERVAL_MS = 80;
+
 function getSpinnerGlyph(agentName: string, isRunning: boolean, status: string, context: RenderContext): string {
   if (isRunning) {
     const timerKey = "_subagentTimer_" + agentName;
@@ -60,22 +62,31 @@ function getSpinnerGlyph(agentName: string, isRunning: boolean, status: string, 
       const timer = setInterval(() => {
         context.state[frameKey] = ((context.state[frameKey] as number) + 1) % SPINNER_FRAMES.length;
         context.invalidate();
-      }, 80);
+      }, SPINNER_INTERVAL_MS);
       context.state[timerKey] = timer;
     }
-    return SPINNER_FRAMES[context.state[frameKey] as number];
+    return SPINNER_FRAMES[context.state[frameKey] as number]!;
   }
   return status === "completed" ? "✓" : "✗";
 }
 
-function cleanupTimer(agentName: string, context: RenderContext) {
+function cleanupTimer(agentName: string, context: RenderContext): void {
   const timerKey = "_subagentTimer_" + agentName;
   const frameKey = "_subagentFrame_" + agentName;
-  if (context.state[timerKey]) {
-    clearInterval(context.state[timerKey] as ReturnType<typeof setInterval>);
+  const timer = context.state[timerKey] as ReturnType<typeof setInterval> | undefined;
+  if (timer) {
+    clearInterval(timer);
     delete context.state[timerKey];
   }
   delete context.state[frameKey];
+}
+
+/** Cleanup ALL timers for a given agent — idempotent. */
+function cleanupAllTimers(agentName: string, context: RenderContext): void {
+  cleanupTimer(agentName, context);
+  // Also clean up start time tracker
+  const timeKey = "_subagentStartTime_" + agentName;
+  delete context.state[timeKey];
 }
 
 // ── Compact single agent ────────────────────────────────────────────────────
@@ -92,22 +103,19 @@ export function renderCompactSingle(
   const isRunning = progress?.status === "running";
   const status = isRunning ? "running" : (result.exitCode === 0 ? "completed" : "failed");
 
-  // Manage timer for spinner on line 3
+  // Manage timer for spinner
   if (isRunning) {
     getSpinnerGlyph(agentName, true, "running", context);
   } else {
-    cleanupTimer(agentName, context);
+    cleanupAllTimers(agentName, context);
   }
 
   // Track start time for live duration
   const timeKey = "_subagentStartTime_" + agentName;
-  if (isRunning && !context.state[timeKey]) {
+  if (isRunning && context.state[timeKey] === undefined) {
     // Estimate start time from current duration
     const currentDuration = summary.durationMs || (progress?.durationMs ?? 0);
     context.state[timeKey] = Date.now() - currentDuration;
-  }
-  if (!isRunning) {
-    delete context.state[timeKey];
   }
   const liveDuration = isRunning && context.state[timeKey]
     ? Date.now() - (context.state[timeKey] as number)
@@ -128,10 +136,10 @@ export function renderCompactSingle(
   let activityLine: string;
   if (isRunning) {
     const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
-    const spinnerColored = theme.fg("muted", spinner);
+    const spinnerColored = theme.fg("muted", spinner ?? "");
     if (progress?.currentTool) {
       const argsPreview = progress.currentToolArgs
-        ? truncLine(progress.currentToolArgs, 60)
+        ? truncLine(progress.currentToolArgs ?? "", 60)
         : "";
       const durationPart = progress.currentToolStartedAt
         ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
@@ -146,7 +154,7 @@ export function renderCompactSingle(
       activityLine = spinnerColored + " " + line;
     } else if (progress?.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall);
+      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall ?? "");
     } else {
       activityLine = theme.fg("muted", "  ⎿  Working...");
     }
@@ -182,9 +190,17 @@ export function renderCompactParallel(
     const progress = details.progress?.[i];
     const agentName = result.agent ?? "agent-" + i;
     const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
+    const isRunning = progress?.status === "running";
     const status = progress?.status ?? (result.exitCode === 0 ? "completed" : "failed");
 
-    let glyph = status === "completed" ? "✓" : status === "failed" ? "✗" : "⠋";
+    // Use animated spinner for running agents
+    let glyph: string;
+    if (isRunning) {
+      glyph = getSpinnerGlyph(agentName, true, "running", context);
+    } else {
+      cleanupTimer(agentName, context);
+      glyph = status === "completed" ? "✓" : "✗";
+    }
     const glyphColored = status === "completed"
       ? theme.fg("success", glyph)
       : status === "failed"
@@ -243,13 +259,13 @@ export function renderCompactProgress(
 
   // Track start time for live duration
   const timeKey = "_subagentStartTime_" + agentName;
-  if (isRunning && !context.state[timeKey]) {
+  if (isRunning && context.state[timeKey] === undefined) {
     context.state[timeKey] = Date.now() - (progress.durationMs ?? 0);
   }
   if (!isRunning) {
-    delete context.state[timeKey];
+    cleanupAllTimers(agentName, context);
   }
-  const liveDuration = isRunning && context.state[timeKey]
+  const liveDuration = isRunning && context.state[timeKey] !== undefined
     ? Date.now() - (context.state[timeKey] as number)
     : progress.durationMs;
 
@@ -266,10 +282,10 @@ export function renderCompactProgress(
   let activityLine: string;
   if (isRunning) {
     const spinner = SPINNER_FRAMES[(context.state["_subagentFrame_" + agentName] as number) ?? 0];
-    const spinnerColored = theme.fg("muted", spinner);
+    const spinnerColored = theme.fg("muted", spinner ?? "");
     if (progress.currentTool) {
       const argsPreview = progress.currentToolArgs
-        ? truncLine(progress.currentToolArgs, 60)
+        ? truncLine(progress.currentToolArgs ?? "", 60)
         : "";
       const durationPart = progress.currentToolStartedAt
         ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
@@ -284,7 +300,7 @@ export function renderCompactProgress(
       activityLine = spinnerColored + " " + line;
     } else if (progress.toolCalls && progress.toolCalls.length > 0) {
       const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = spinnerColored + " " + theme.fg("muted", lastCall);
+      activityLine = spinnerColored + " " + theme.fg("muted", lastCall ?? "");
     } else {
       activityLine = spinnerColored + " " + theme.fg("muted", "Working...");
     }

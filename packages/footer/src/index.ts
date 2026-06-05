@@ -16,13 +16,24 @@ import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, f
 import { footerIcons } from "./utils/icons.js";
 
 export function registerFooter(pi: ExtensionAPI): void {
+  // Module-level state for session lifecycle (shared between session_start and session_shutdown)
+  let footerAccumulator: CostAccumulator | undefined;
+
+  // session_shutdown handler (top-level to prevent accumulation on /reload)
+  pi.on("session_shutdown", (_event, _ctx) => {
+    if (footerAccumulator) {
+      footerAccumulator.dispose();
+      footerAccumulator.reset();
+      footerAccumulator = undefined;
+    }
+  });
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     const splitThreshold = loadFooterConfig().splitThreshold;
 
     // Create cost accumulator for subagent costs
-    const accumulator = new CostAccumulator();
-    accumulator.subscribe();
+    footerAccumulator = new CostAccumulator();
+    footerAccumulator.subscribe();
 
     ctx.ui.setFooter((tui, theme, footerData) => {
       const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
@@ -42,12 +53,13 @@ export function registerFooter(pi: ExtensionAPI): void {
 
             // Merge main agent stats with subagent stats from accumulator
             const mainStats = getTokenUsageStats(ctx);
+            const acc = footerAccumulator;
             const mergedStats: TokenUsageStats = {
-              totalInput: mainStats.totalInput + accumulator.inputTokens,
-              totalOutput: mainStats.totalOutput + accumulator.outputTokens,
-              totalCacheRead: mainStats.totalCacheRead + accumulator.cacheReadTokens,
-              totalCacheWrite: mainStats.totalCacheWrite + accumulator.cacheWriteTokens,
-              totalCost: mainStats.totalCost + accumulator.cost,
+              totalInput: mainStats.totalInput + (acc?.inputTokens ?? 0),
+              totalOutput: mainStats.totalOutput + (acc?.outputTokens ?? 0),
+              totalCacheRead: mainStats.totalCacheRead + (acc?.cacheReadTokens ?? 0),
+              totalCacheWrite: mainStats.totalCacheWrite + (acc?.cacheWriteTokens ?? 0),
+              totalCost: mainStats.totalCost + (acc?.cost ?? 0),
             };
 
             const { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost } = mergedStats;
@@ -151,11 +163,6 @@ export function registerFooter(pi: ExtensionAPI): void {
           }
         },
       };
-    });
-
-    pi.on("session_shutdown", (_event, _ctx) => {
-      accumulator.dispose();
-      accumulator.reset();
     });
   });
 }

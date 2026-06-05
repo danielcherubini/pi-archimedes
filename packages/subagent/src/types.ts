@@ -11,24 +11,24 @@ export interface SubagentProgress {
   agent: string;
   status: "running" | "completed" | "failed";
   task: string;
-  currentTool?: string;
-  currentToolArgs?: string;
-  currentToolStartedAt?: number;
+  currentTool: string | undefined;
+  currentToolArgs: string | undefined;
+  currentToolStartedAt: number | undefined;
   toolCount: number;
   inputTokens: number;
   outputTokens: number;
   tokens: number;
   cost: number;
   durationMs: number;
-  error?: string;
+  error: string | undefined;
   /** Model used by the subagent */
-  model?: string;
+  model: string | undefined;
   /** Accumulated assistant text output during streaming */
-  output?: string;
+  output: string | undefined;
   /** Last N lines of assistant text for live display */
-  recentOutput?: string[];
+  recentOutput: string[] | undefined;
   /** History of tool calls: "toolName: args_preview" */
-  toolCalls?: string[];
+  toolCalls: string[] | undefined;
 }
 
 export interface SubagentResult {
@@ -36,11 +36,11 @@ export interface SubagentResult {
   task: string;
   exitCode: number;
   usage: SubagentUsage;
-  model?: string;
-  finalOutput?: string;
-  error?: string;
-  progress?: SubagentProgress;
-  progressSummary?: { toolCount: number; tokens: number; durationMs: number };
+  model: string | undefined;
+  finalOutput: string | undefined;
+  error: string | undefined;
+  progress: SubagentProgress | undefined;
+  progressSummary: { toolCount: number; tokens: number; durationMs: number } | undefined;
 }
 
 export interface SubagentToolResult {
@@ -52,7 +52,7 @@ export interface SubagentToolResult {
 export interface SubagentDetails {
   mode: "single" | "parallel";
   results: SubagentResult[];
-  progress?: SubagentProgress[];
+  progress: SubagentProgress[] | undefined;
 }
 
 /** Mutable state during streaming — shared between stream.ts and handlers.ts */

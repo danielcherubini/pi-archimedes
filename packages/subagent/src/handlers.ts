@@ -1,5 +1,10 @@
 import type { StreamState } from "./types.js";
 
+// Truncation limits for previews
+const ARGS_PREVIEW_MAX = 120;
+const TOOL_CALLS_MAX = 50;
+const RECENT_OUTPUT_MAX = 50;
+
 export interface JsonEvent {
   type: string;
   [key: string]: unknown;
@@ -10,14 +15,14 @@ export interface JsonEvent {
  * Generic: no hardcoded tool names.
  */
 export function extractArgsPreview(args: unknown): string {
-  if (typeof args === "string") return args.slice(0, 120);
+  if (typeof args === "string") return args.slice(0, ARGS_PREVIEW_MAX);
   if (args && typeof args === "object" && !Array.isArray(args)) {
     const obj = args as Record<string, unknown>;
     const keys = Object.keys(obj);
     // Single-key object: just show the value
     if (keys.length === 1) {
-      const v = obj[keys[0]];
-      if (typeof v === "string") return v.slice(0, 120);
+      const v = obj[keys[0]!];
+      if (typeof v === "string") return v.slice(0, ARGS_PREVIEW_MAX);
       if (typeof v === "number" || typeof v === "boolean") return String(v);
     }
     // Multi-key: find the longest string value (likely the main payload)
@@ -27,9 +32,10 @@ export function extractArgsPreview(args: unknown): string {
         best = v;
       }
     }
-    if (best) return best.slice(0, 120);
+    if (best) return best.slice(0, ARGS_PREVIEW_MAX);
   }
-  return JSON.stringify(args)?.slice(0, 120) ?? "";
+  const serialized = JSON.stringify(args);
+  return serialized?.slice(0, ARGS_PREVIEW_MAX) ?? "";
 }
 
 /**
@@ -43,8 +49,8 @@ export function handleToolStart(state: StreamState, event: JsonEvent): void {
   // Record tool call with args preview
   const argsPreview = extractArgsPreview(event.args);
   state.toolCalls.push(`${state.currentTool}: ${argsPreview}`);
-  if (state.toolCalls.length > 50) {
-    state.toolCalls.splice(0, state.toolCalls.length - 50);
+  if (state.toolCalls.length > TOOL_CALLS_MAX) {
+    state.toolCalls.splice(0, state.toolCalls.length - TOOL_CALLS_MAX);
   }
 }
 
@@ -69,20 +75,20 @@ export function handleToolResult(state: StreamState, event: JsonEvent): void {
 
   if (typeof toolContent === "string" && toolContent.trim()) {
     const lines = toolContent.split("\n").filter((l) => l.trim());
-    state.recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
+    state.recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, ARGS_PREVIEW_MAX)}`);
   } else if (Array.isArray(toolContent)) {
     for (const part of toolContent) {
       if (part.type === "text" && (part.text as string)?.trim()) {
         const text = part.text as string;
         const lines = text.split("\n").filter((l) => l.trim());
-        state.recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, 120)}`);
+        state.recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, ARGS_PREVIEW_MAX)}`);
         break;
       }
     }
   }
 
-  if (state.recentOutput.length > 50) {
-    state.recentOutput.splice(0, state.recentOutput.length - 50);
+  if (state.recentOutput.length > RECENT_OUTPUT_MAX) {
+    state.recentOutput.splice(0, state.recentOutput.length - RECENT_OUTPUT_MAX);
   }
 }
 
@@ -115,9 +121,9 @@ export function handleMessageEnd(state: StreamState, event: JsonEvent): void {
     }
   }
 
-  // Cap recentOutput at 50 lines
-  if (state.recentOutput.length > 50) {
-    state.recentOutput.splice(0, state.recentOutput.length - 50);
+  // Cap recentOutput
+  if (state.recentOutput.length > RECENT_OUTPUT_MAX) {
+    state.recentOutput.splice(0, state.recentOutput.length - RECENT_OUTPUT_MAX);
   }
 
   // Extract usage (turnCount tracked via turn_start in stream.ts)

@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext, KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { TUI, EditorTheme, Component, type SettingItem } from "@earendil-works/pi-tui";
+import { TUI, type EditorTheme, type Component, type SettingItem } from "@earendil-works/pi-tui";
 
 import { HephaestusEditor } from "./editor/index.js";
 import { patchUserMessage, resetInstanceCount } from "./message/index.js";

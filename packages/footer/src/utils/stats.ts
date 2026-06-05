@@ -20,14 +20,36 @@ export interface TokenUsageStats {
   totalCost: number;
 }
 
+// Cache TTL: 500ms — stats don't change more frequently than message_end events
+const STATS_CACHE_TTL_MS = 500;
+
+interface StatsCacheEntry {
+  value: TokenUsageStats;
+  timestamp: number;
+  entryCount: number;
+}
+
+let statsCache: StatsCacheEntry | undefined;
+
 export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
+  const entries = ctx.sessionManager.getEntries();
+
+  // Return cached result if entry count hasn't changed and cache is fresh
+  if (
+    statsCache &&
+    statsCache.entryCount === entries.length &&
+    Date.now() - statsCache.timestamp < STATS_CACHE_TTL_MS
+  ) {
+    return statsCache.value;
+  }
+
   let totalInput = 0,
     totalOutput = 0,
     totalCacheRead = 0,
     totalCacheWrite = 0,
     totalCost = 0;
 
-  for (const sessionEntry of ctx.sessionManager.getEntries()) {
+  for (const sessionEntry of entries) {
     if (sessionEntry.type === "message" && sessionEntry.message.role === "assistant") {
       const assistantMessage = sessionEntry.message as AssistantMessage;
       totalInput += assistantMessage.usage.input;
@@ -38,7 +60,14 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
     }
   }
 
-  return { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
+  const result: TokenUsageStats = { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
+  statsCache = { value: result, timestamp: Date.now(), entryCount: entries.length };
+  return result;
+}
+
+/** Clear the stats cache — call when a new message arrives. */
+export function invalidateStatsCache(): void {
+  statsCache = undefined;
 }
 
 export interface ContextWindowInfo {

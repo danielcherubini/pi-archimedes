@@ -4,9 +4,9 @@ import { existsSync } from "node:fs";
 
 export interface SpawnOptions {
   task: string;
-  model?: string;
-  cwd?: string;
-  signal?: AbortSignal;
+  model: string | undefined;
+  cwd: string | undefined;
+  signal: AbortSignal | undefined;
 }
 
 /**
@@ -68,6 +68,14 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     };
     options.signal.addEventListener("abort", cleanup, { once: true });
   }
+
+  // Clean up on normal exit to prevent forceKill firing after process ends
+  const exitCleanup = (): void => {
+    child.removeListener("exit", exitCleanup);
+    child.removeListener("error", exitCleanup);
+  };
+  child.on("exit", exitCleanup);
+  child.on("error", exitCleanup);
 
   return child;
 }

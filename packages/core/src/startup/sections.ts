@@ -97,7 +97,7 @@ export function parseSectionText(plain: string): ParsedSection | undefined {
 export function parseModelScope(plain: string): ParsedSection | undefined {
   const m = plain.match(/Model scope:\s*(.+)/i);
   if (!m) return undefined;
-  const raw = m[1].replace(/\s*\(Ctrl\+\w[\w\s]*\)/gi, "");
+  const raw = m[1]!.replace(/\s*\(Ctrl\+\w[\w\s]*\)/gi, "");
   const items = raw.split(",").map(s => s.trim()).filter(Boolean);
   return items.length > 0 ? { name: "Models", items } : undefined;
 }
@@ -186,7 +186,7 @@ export function formatColumns(sections: RenderSection[], theme: Theme, maxW: num
   const lines: string[] = [];
 
   for (let si = 0; si < sections.length; si++) {
-    const sec = sections[si];
+    const sec = sections[si]!;
     if (sec.items.length === 0) continue;
 
     const availableW = maxW - headerW - 1;
@@ -207,7 +207,7 @@ export function formatColumns(sections: RenderSection[], theme: Theme, maxW: num
     const styleItem = (raw: string): string => {
       const prefixMatch = raw.match(/^(npm:|git:)/);
       if (prefixMatch) {
-        const pfx = prefixMatch[1];
+        const pfx = prefixMatch[1]!;
         const name = raw.slice(pfx.length);
         return wrapLabel(pfx) + wrapItems(name);
       }

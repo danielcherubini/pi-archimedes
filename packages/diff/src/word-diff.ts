@@ -52,6 +52,8 @@ export function wordDiffAnalysis(
  * Inject diff background into Shiki ANSI output.
  * `baseBg` on unchanged spans, `hlBg` on changed character ranges.
  * Re-injects bg after any full reset (\x1b[0m).
+ *
+ * Handles unsorted and overlapping ranges by checking all ranges per position.
  */
 export function injectBg(
 	ansiLine: string,
@@ -61,6 +63,17 @@ export function injectBg(
 ): string {
 	if (!ranges.length) return baseBg + ansiLine + Ansi.RST;
 
+	// Sort ranges and merge overlaps for efficient lookup
+	const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
+	const merged: Array<[number, number]> = [];
+	for (const [start, end] of sorted) {
+		if (merged.length > 0 && start <= merged[merged.length - 1]![1]) {
+			merged[merged.length - 1]![1] = Math.max(merged[merged.length - 1]![1], end);
+		} else {
+			merged.push([start, end]);
+		}
+	}
+
 	let out = baseBg;
 	let vis = 0;
 	let inHL = false;
@@ -68,7 +81,7 @@ export function injectBg(
 	let i = 0;
 
 	while (i < ansiLine.length) {
-		if (ansiLine[i] === "\x1b") {
+		if (ansiLine[i]! === "\x1b") {
 			const m = ansiLine.indexOf("m", i);
 			if (m !== -1) {
 				const seq = ansiLine.slice(i, m + 1);
@@ -78,13 +91,15 @@ export function injectBg(
 				continue;
 			}
 		}
-		while (ri < ranges.length && vis >= ranges[ri][1]) ri++;
-		const want = ri < ranges.length && vis >= ranges[ri][0] && vis < ranges[ri][1];
+		// Advance range index past completed ranges
+		while (ri < merged.length && vis >= merged[ri]![1]) ri++;
+		// Check if current position falls within the next range
+		const want = ri < merged.length && vis >= merged[ri]![0] && vis < merged[ri]![1];
 		if (want !== inHL) {
 			inHL = want;
 			out += inHL ? hlBg : baseBg;
 		}
-		out += ansiLine[i];
+		out += ansiLine[i]!;
 		vis++;
 		i++;
 	}

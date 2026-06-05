@@ -9,7 +9,8 @@ export function formatTokens(n: number): string {
 }
 
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return "0s";
+  if (ms < 100) return "<0.1s";
+  if (ms < 1000) return (ms / 1000).toFixed(1) + "s";
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return seconds + "s";
   const minutes = Math.floor(seconds / 60);
@@ -28,11 +29,11 @@ export function truncLine(text: string, width: number): string {
 }
 
 export interface StatsData {
-  turns?: number;
-  toolCount?: number;
-  tokens?: number;
-  durationMs?: number;
-  cost?: number;
+  turns: number | undefined;
+  toolCount: number | undefined;
+  tokens: number | undefined;
+  durationMs: number | undefined;
+  cost: number | undefined;
 }
 
 export interface StatsTheme {

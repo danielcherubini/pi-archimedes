@@ -23,7 +23,7 @@ function createTextSubmenu(opts: {
   label: string;
   cancelHint?: string;
   confirmHint?: string;
-}): SettingItem["submenu"] {
+}): (currentValue: string, done: (selectedValue?: string) => void) => import("@earendil-works/pi-tui").Component {
   return (currentValue: string, done: (selectedValue?: string) => void) => {
     const state = { value: currentValue };
     return {
@@ -57,7 +57,7 @@ function createNumberSubmenu(opts: {
   cancelHint?: string;
   confirmHint?: string;
   min?: number;
-}): SettingItem["submenu"] {
+}): (currentValue: string, done: (selectedValue?: string) => void) => import("@earendil-works/pi-tui").Component {
   return (currentValue: string, done: (selectedValue?: string) => void) => {
     const state = { value: currentValue };
     return {
@@ -177,12 +177,24 @@ export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
         case "animationStyle": coreConfig.animationStyle = newValue as CoreConfig["animationStyle"]; break;
 
         // ── Footer settings ──
-        case "splitThreshold": footerConfig.splitThreshold = parseInt(newValue, 10); break;
+        case "splitThreshold": {
+          const v = parseInt(newValue, 10);
+          if (Number.isFinite(v)) footerConfig.splitThreshold = v;
+          break;
+        }
 
         // ── Diff settings ──
         case "diffTheme": diffConfig.diffTheme = newValue; break;
-        case "diffSplitMinWidth": diffConfig.diffSplitMinWidth = parseInt(newValue, 10); break;
-        case "diffSplitMinCodeWidth": diffConfig.diffSplitMinCodeWidth = parseInt(newValue, 10); break;
+        case "diffSplitMinWidth": {
+          const v = parseInt(newValue, 10);
+          if (Number.isFinite(v)) diffConfig.diffSplitMinWidth = v;
+          break;
+        }
+        case "diffSplitMinCodeWidth": {
+          const v = parseInt(newValue, 10);
+          if (Number.isFinite(v)) diffConfig.diffSplitMinCodeWidth = v;
+          break;
+        }
 
         // ── Save ──
         case "save": {

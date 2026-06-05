@@ -13,7 +13,7 @@ import * as Ansi from "./ansi.js";
 import { resolveDiffColors, themeCacheKey, DEFAULT_DIFF_COLORS } from "./ansi.js";
 import { setConfigGetter as setShikiConfig } from "./shiki.js";
 import { hlBlock, lang } from "./shiki.js";
-import { renderSplit } from "./render.js";
+import { renderSplit, MAX_PREVIEW_LINES, MAX_RENDER_LINES } from "./render.js";
 import { setConfigGetter as setRenderConfig } from "./render.js";
 
 // ---------------------------------------------------------------------------
@@ -34,13 +34,6 @@ const DEFAULT_DIFF_CONFIG: DiffConfig = {
 
 let _readConfig: () => DiffConfig = () => DEFAULT_DIFF_CONFIG;
 function getConfig(): DiffConfig { return _readConfig(); }
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const MAX_PREVIEW_LINES = 60;
-const MAX_RENDER_LINES = 150;
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -296,7 +289,7 @@ export function registerDiffTools(
 					try {
 						if (fp && existsSync(fp)) {
 							const f = readFileSync(fp, "utf-8");
-							const idx = f.indexOf(operations[0].newText);
+							const idx = f.indexOf(operations[0]!.newText);
 							if (idx >= 0) editLine = f.slice(0, idx).split("\n").length;
 						}
 					} catch { editLine = 0; }
@@ -332,7 +325,7 @@ export function registerDiffTools(
 					const dc = resolveDiffColors(theme);
 
 					if (operations.length === 1) {
-						const diff = parseDiff(operations[0].oldText, operations[0].newText);
+						const diff = parseDiff(operations[0]!.oldText, operations[0]!.newText);
 						renderSplit(diff, lg, MAX_PREVIEW_LINES, dc)
 							.then((rendered) => {
 								if (ctx.state._pk !== pk) return;

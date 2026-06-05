@@ -104,10 +104,11 @@ export function renderHeader(theme: Theme, ref: ListingRef, width: number, heigh
     contentLines.push(" ".repeat(LOGO_PAD) + " ".repeat(listingLeftPad) + listRow);
   }
 
-  // Pad top and bottom to fill height (bias top by 2 for visual centering)
+  // Pad top and bottom to fill height (+5 top bias for visual centering)
+  const VERTICAL_CENTER_BIAS = 5; // Shift content slightly upward for visual balance
   const contentHeight = contentLines.length;
   const remaining = Math.max(0, height - contentHeight);
-  const topPad = Math.floor(remaining / 2) + 5;
+  const topPad = Math.floor(remaining / 2) + VERTICAL_CENTER_BIAS;
   const bottomPad = remaining - topPad;
 
   const result: string[] = [];
@@ -123,15 +124,38 @@ export function renderHeader(theme: Theme, ref: ListingRef, width: number, heigh
 // Fragile: relies on TUI child ordering (header, chat, footer) which is an
 // internal layout detail of pi's InteractiveMode. If upstream changes the
 // child structure, this will need updating.
+//
+// Strategy (most specific → least specific):
+// 1. Container with "Scrollable" in constructor name
+// 2. Container with most children (chat usually has the most)
+// 3. Middle child if exactly 3 children (header, chat, footer)
+// 4. First Container found
 function findChatContainer(tui: TUI): Container | undefined {
+  // Strategy 1: Look for Scrollable container
   for (const child of tui.children) {
     if (child instanceof Container && child.constructor.name.includes("Scrollable")) {
       return child;
     }
   }
-  if (tui.children.length >= 3) {
-    return tui.children[1] as Container;
+
+  // Strategy 2: Find the Container with the most children (chat area)
+  const containers = tui.children.filter((c): c is Container => c instanceof Container);
+  if (containers.length > 1) {
+    const largest = containers.reduce((best, c) =>
+      c.children.length > best.children.length ? c : best,
+    );
+    if (largest.children.length > 0) return largest;
   }
+
+  // Strategy 3: Middle child if exactly 3 children
+  if (tui.children.length >= 3) {
+    const middle = tui.children[1];
+    if (middle instanceof Container) return middle;
+  }
+
+  // Strategy 4: First Container
+  if (containers.length > 0) return containers[0];
+
   return undefined;
 }
 
@@ -153,9 +177,9 @@ export function patchStartupListing(
   ref.revealedAt = 0;
   ref.scaffoldAt = 0;
   ref.settled = false;
-  ref.cachedLines = undefined;
-  ref.cachedWidth = undefined;
-  ref.maxHeaderHeight = undefined;
+  delete ref.cachedLines;
+  delete ref.cachedWidth;
+  delete ref.maxHeaderHeight;
 
   if (cc[ANIM_INTERVAL]) clearInterval(cc[ANIM_INTERVAL]);
   if (cc[DEBOUNCE_TIMER]) clearTimeout(cc[DEBOUNCE_TIMER]);
@@ -187,7 +211,7 @@ export function patchStartupListing(
       const current: ListingRef = cc[LISTING_REF];
       current.latestVersion = v;
       // Invalidate cache so version updates on next render
-      current.cachedLines = undefined;
+      delete current.cachedLines;
       current.settled = false;
     }
   });
@@ -236,7 +260,7 @@ export function patchStartupListing(
 
         // Invalidate cache so late-arriving sections show up
         currentRef.settled = false;
-        currentRef.cachedLines = undefined;
+        delete currentRef.cachedLines;
 
         if (currentRef.revealed) {
           // Already revealed — show new section immediately
@@ -269,9 +293,11 @@ export function patchStartupListing(
     if (component instanceof Spacer && !currentRef.revealed) return;
     try {
       origAddChild(component);
-    } catch (e) {
+    } catch (err) {
+      console.error("[archimedes] Error in chat.addChild:", err);
     }
-  } catch (e) {
+  } catch (err) {
+    console.error("[archimedes] Error in startup listing addChild handler:", err);
   }
   };
 }

@@ -103,7 +103,7 @@ export function isLowContrastShikiFg(params: string): boolean {
 	if (!params.startsWith("38;2;")) return false;
 	const parts = params.split(";").map(Number);
 	if (parts.length !== 5 || parts.some((n) => !Number.isFinite(n))) return false;
-	const [, , r, g, b] = parts;
+	const [, , r, g, b] = parts as [number, number, number, number, number];
 	const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 	return luminance < 72;
 }
@@ -156,7 +156,7 @@ export function summarize(a: number, d: number): string {
 function parseAnsiRgb(ansi: string): { r: number; g: number; b: number } | null {
 	const esc = "\u001b";
 	const m = ansi.match(new RegExp(`${esc}\\[(?:38|48);2;(\\d+);(\\d+);(\\d+)m`));
-	return m ? { r: +m[1], g: +m[2], b: +m[3] } : null;
+	return m ? { r: +m[1]!, g: +m[2]!, b: +m[3]! } : null;
 }
 
 /** Mix an accent color into a base color at the given intensity (0.0–1.0). */
@@ -243,11 +243,31 @@ export function themeCacheKey(theme?: any): string {
 	return parts.join("|");
 }
 
-let _didAutoDerive = false;
+let _lastThemeKey: string | undefined;
+
+/** Reset auto-derived colors — call when theme changes. */
+export function resetDiffColors(): void {
+	_lastThemeKey = undefined;
+	// Restore hardcoded fallbacks
+	BG_ADD = "\x1b[48;2;22;38;32m";
+	BG_DEL = "\x1b[48;2;45;25;25m";
+	BG_ADD_W = "\x1b[48;2;35;75;50m";
+	BG_DEL_W = "\x1b[48;2;80;35;35m";
+	BG_GUTTER_ADD = "\x1b[48;2;18;32;26m";
+	BG_GUTTER_DEL = "\x1b[48;2;38;22;22m";
+	BG_EMPTY = "\x1b[48;2;18;18;18m";
+	BG_BASE = BG_DEFAULT;
+	RST = "\x1b[0m";
+	DIVIDER = `${FG_RULE}│${RST}`;
+}
+
 export function resolveDiffColors(theme?: any): DiffColors {
-	if (!_didAutoDerive && theme?.getFgAnsi) {
+	const themeKey = themeCacheKey(theme);
+
+	// Re-derive when theme changes (different key) or first call
+	if (themeKey !== _lastThemeKey && theme?.getFgAnsi) {
 		autoDeriveBgFromTheme(theme);
-		_didAutoDerive = true;
+		_lastThemeKey = themeKey;
 	}
 	if (!theme?.getFgAnsi) return DEFAULT_DIFF_COLORS;
 	try {

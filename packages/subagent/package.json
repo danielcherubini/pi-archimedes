@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/subagent",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Subagent dispatch with live TUI streaming and cost tracking",
