@@ -22,7 +22,7 @@ export function buildExpandedText(
     tokens: result.progressSummary?.tokens,
     durationMs: result.progressSummary?.durationMs,
     cost: result.usage.cost,
-  }, theme.fg);
+  }, theme);
   const expandHint = theme.fg("muted", "(ctrl+o)");
   const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
   if (statsParts.length > 0) {
@@ -86,7 +86,7 @@ export function renderProgressExpanded(
     tokens: progress.tokens,
     durationMs: progress.durationMs,
     cost: progress.cost,
-  }, theme.fg);
+  }, theme);
   const expandHint = theme.fg("muted", "(ctrl+o)");
   const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
   if (statsParts.length > 0) {
@@ -151,7 +151,7 @@ export function buildProgressExpandedText(
     tokens: progress.tokens,
     durationMs: progress.durationMs,
     cost: progress.cost,
-  }, theme.fg);
+  }, theme);
   const expandHint = theme.fg("muted", "(ctrl+o)");
   const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
   if (statsParts.length > 0) {

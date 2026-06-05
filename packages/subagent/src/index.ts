@@ -164,6 +164,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
     renderResult(result: unknown, options: unknown, theme: Theme, context: unknown): import("@earendil-works/pi-tui").Component {
       const toolResult = result as unknown as SubagentToolResult;
+      const debugText = new Text("", 0, 0);
       const expanded = ((context as Record<string, unknown>)?.expanded ??
         (options as Record<string, unknown>)?.expanded ??
         false) as boolean;
@@ -178,7 +179,14 @@ export function registerSubagent(pi: ExtensionAPI): void {
         invalidate: () => {},
       };
       (context as Record<string, unknown>).lastComponent = text;
-      return renderSubagentResult(text, toolResult, { expanded }, renderTheme, renderContext as any);
+
+      try {
+        const rendered = renderSubagentResult(text, toolResult, { expanded }, renderTheme, renderContext as any);
+        return rendered;
+      } catch (e) {
+        debugText.setText("render error: " + (e instanceof Error ? e.message : String(e)));
+        return debugText;
+      }
     },
   });
 }

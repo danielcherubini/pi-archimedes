@@ -35,11 +35,13 @@ export interface StatsData {
   cost?: number;
 }
 
-export type ThemeFg = (token: string, text: string) => string;
+export interface StatsTheme {
+  fg: (token: string, text: string) => string;
+}
 
 export function buildStatsLine(
   data: StatsData,
-  themeFg: ThemeFg,
+  theme: StatsTheme,
 ): string {
   const parts: string[] = [];
   const turns = data.turns ?? 0;
@@ -54,5 +56,5 @@ export function buildStatsLine(
   if (duration > 0) parts.push(formatDuration(duration));
   if (cost > 0) parts.push(formatCost(cost));
 
-  return parts.map(p => themeFg("dim", "· " + p)).join(" ");
+  return parts.map(p => theme.fg("dim", "· " + p)).join(" ");
 }

@@ -120,7 +120,7 @@ export function renderCompactSingle(
     durationMs: liveDuration,
     cost: result.usage.cost ?? 0,
   };
-  const statsLine = buildStatsLine(statsData, theme.fg);
+  const statsLine = buildStatsLine(statsData, theme);
 
   const statsPart = statsLine ?? "";
 
@@ -198,7 +198,7 @@ export function renderCompactParallel(
       durationMs: summary.durationMs,
       cost: result.usage.cost ?? 0,
     };
-    const statsLine = buildStatsLine(statsData, theme.fg);
+    const statsLine = buildStatsLine(statsData, theme);
     const statsPart = statsLine ? "  " + statsLine : "";
 
     const activityData = {
@@ -260,7 +260,7 @@ export function renderCompactProgress(
     durationMs: liveDuration,
     cost: progress.cost,
   };
-  const statsLine = buildStatsLine(statsData, theme.fg);
+  const statsLine = buildStatsLine(statsData, theme);
 
   // Activity: current tool if running, status if finished
   let activityLine: string;
@@ -335,7 +335,7 @@ export function renderCompactParallelProgress(
       durationMs: progress.durationMs,
       cost: progress.cost,
     };
-    const statsLine = buildStatsLine(statsData, theme.fg);
+    const statsLine = buildStatsLine(statsData, theme);
     const statsPart = statsLine ? "  " + statsLine : "";
 
     const activityData = {
