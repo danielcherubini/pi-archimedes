@@ -84,7 +84,7 @@ export function registerFooter(pi: ExtensionAPI): void {
               worktreeBranch ? colorize("syntaxNumber", footerIcons.worktree + " " + worktreeBranch) : "",
             ].filter(Boolean);
 
-            const separator = theme.fg("dim", " | ");
+            const separator = theme.fg("dim", " · ");
             const leftSectionStr = leftSections.join(separator);
 
             // Token stats with context percentage
@@ -124,7 +124,7 @@ export function registerFooter(pi: ExtensionAPI): void {
               const rightSections: string[] = [];
               if (statsSectionStr) rightSections.push(statsSectionStr);
               if (contextBarStr) rightSections.push(contextBarStr);
-              const rightSectionStr = rightSections.join(theme.fg("dim", " | "));
+              const rightSectionStr = rightSections.join(theme.fg("dim", " · "));
 
               // Edge case: if both stats and bar are empty, return only line 1
               if (!rightSectionStr) {
@@ -140,7 +140,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             // ── Single-line mode ───────────────────────────────────────────────
 
             // Separator between left and right sections
-            const sectionSeparator = theme.fg("dim", " | ");
+            const sectionSeparator = theme.fg("dim", " · ");
 
             // Calculate available space for the context progress bar (after stats)
             const availableBarSpace = Math.max(
@@ -155,7 +155,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             const rightSections: string[] = [];
             if (statsSectionStr) rightSections.push(statsSectionStr);
             if (contextBarStr) rightSections.push(contextBarStr);
-            const rightSectionStr = rightSections.join(theme.fg("dim", " | "));
+            const rightSectionStr = rightSections.join(theme.fg("dim", " · "));
 
             return [clampLine(leftSectionStr + sectionSeparator + rightSectionStr, width)];
           } catch (e) {
