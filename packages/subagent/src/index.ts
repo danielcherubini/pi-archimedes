@@ -94,6 +94,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           details: {
             mode: "parallel",
             results,
+            progress: results.map(r => r.progress).filter(Boolean) as SubagentProgress[] | undefined,
           },
         };
       }
@@ -123,6 +124,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           details: {
             mode: "single",
             results: [result],
+            progress: result.progress ? [result.progress] : undefined,
           },
           isError: result.exitCode !== 0,
         };

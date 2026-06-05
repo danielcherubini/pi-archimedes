@@ -144,28 +144,31 @@ export function buildProgressExpandedText(
 ): string {
   const lines: string[] = [];
 
-  // Header
-  lines.push(theme.fg("toolTitle", theme.bold(progress.agent ?? "subagent")));
+  // Stats line (same as compact view)
+  const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
+  const statsLine = buildStatsLine({
+    toolCount: progress.toolCount,
+    tokens: progress.tokens,
+    durationMs: progress.durationMs,
+    cost: progress.cost,
+  }, theme.fg);
+  const expandHint = theme.fg("muted", "(ctrl+o)");
+  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  if (statsParts.length > 0) {
+    lines.push(statsParts.join(" "));
+  }
 
   // Task
   if (progress.task) {
-    lines.push(theme.fg("dim", "  Task: " + progress.task));
-  }
-
-  // Stats
-  const stats: string[] = [];
-  if (progress.toolCount > 0) stats.push(progress.toolCount + " tools");
-  if (progress.tokens > 0) stats.push(formatTokens(progress.tokens) + " tokens");
-  if (progress.durationMs > 0) stats.push(formatDuration(progress.durationMs));
-  if (stats.length > 0) {
-    lines.push(theme.fg("dim", "  " + stats.join(" · ")));
+    lines.push("");
+    lines.push(theme.fg("dim", "Task: " + progress.task));
   }
 
   // Tool calls history
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "  - " + call));
+      lines.push(theme.fg("dim", "- " + call));
     }
   }
 
