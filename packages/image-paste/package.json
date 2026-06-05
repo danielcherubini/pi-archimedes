@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/image-paste",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Clipboard image paste for pi-archimedes",
