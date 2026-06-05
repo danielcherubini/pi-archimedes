@@ -49,7 +49,7 @@ export function buildActivityLine(
   return "";
 }
 
-// ── Spinner helper ──────────────────────────────────────────────────────────
+// TEST — revert me
 
 function getSpinnerGlyph(agentName: string, isRunning: boolean, status: string, context: RenderContext): string {
   if (isRunning) {
