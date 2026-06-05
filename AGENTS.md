@@ -65,7 +65,7 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 
 When releasing a new version, apply these steps after bumping versions but before tagging:
 
-1. **Bump all 5 package versions** — `packages/core`, `packages/footer`, `packages/diff`, `packages/image-paste`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+1. **Bump all 6 package versions** — `packages/core`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/subagent`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
 
 2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 5 package directories. Don't release if any check fails.
 
