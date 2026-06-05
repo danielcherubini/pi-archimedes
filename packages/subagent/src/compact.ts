@@ -186,8 +186,9 @@ export function renderCompactSingle(
     activityLine = theme.fg("error", "✗ Failed");
   }
 
-  const modelLabel = progress?.model
-    ? theme.fg("accent", progress.model)
+  const modelName = progress?.model ?? result.model;
+  const modelLabel = modelName
+    ? theme.fg("accent", modelName)
     : "";
   const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
