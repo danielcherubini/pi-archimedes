@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/diff",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Shiki-powered diff rendering for pi-archimedes",

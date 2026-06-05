@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/footer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Rich footer status bar for pi-archimedes",
