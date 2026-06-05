@@ -5,7 +5,6 @@ import { detectSection, parseSectionText, parseModelScope, formatColumns, buildI
 import { fetchLatestVersion, compareVersions } from "./version.js";
 import { patchConsoleLog } from "./capture.js";
 import { stripAnsi } from "../text.js";
-import { resetInstanceCount } from "../message/index.js";
 import { Text, Spacer, Container, TUI, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 
 // Symbol keys (survive hot-reload)
@@ -221,7 +220,6 @@ export function patchStartupListing(
     cc[PATCHED_CLEAR] = true;
     const origClear = chat.clear.bind(chat);
     chat.clear = () => {
-      resetInstanceCount();
       return origClear();
     };
   }

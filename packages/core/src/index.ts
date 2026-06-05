@@ -3,7 +3,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { TUI, type EditorTheme, type Component, type SettingItem } from "@earendil-works/pi-tui";
 
 import { HephaestusEditor } from "./editor/index.js";
-import { patchUserMessage, resetInstanceCount } from "./message/index.js";
+
 import { renderHeader, patchStartupListing, type ListingRef } from "./startup/index.js";
 import { patchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
@@ -73,9 +73,6 @@ export function registerCore(pi: ExtensionAPI): void {
     // Clear response times
     if (coreResponseTimes) { coreResponseTimes.length = 0; }
 
-    // Reset instance count
-    resetInstanceCount();
-
     // Clear editor component override
     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
   });
@@ -110,7 +107,7 @@ export function registerCore(pi: ExtensionAPI): void {
     };
     ctx.ui.setHeader(headerFactory);
 
-    // Shared response times array (used by both patchUserMessage and message_end)
+    // Shared response times array (used by message_end)
     coreResponseTimes = [];
     const responseTimes = coreResponseTimes;
 
@@ -126,9 +123,6 @@ export function registerCore(pi: ExtensionAPI): void {
 
     // Patch thinking renderer
     patchThinkingRenderer(() => ctx.ui.theme);
-
-    // Patch user message response time
-    patchUserMessage(() => ctx.ui.theme, responseTimes);
 
     // Load config for thinking transformation
     const config = loadCoreConfig();
