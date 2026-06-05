@@ -107,12 +107,10 @@ export function registerWriteTool(
 			}
 			const d = result.details;
 			if (d?._type === "diff") {
-				const comp = ctx.lastComponent ?? new DiffComponent(d.diff, d.language, theme, MAX_RENDER_LINES);
-				if (comp instanceof DiffComponent) {
-					return comp;
-				}
-				text.setText(`  ${d.summary}`);
-				return text;
+				const comp = ctx.lastComponent instanceof DiffComponent
+					? ctx.lastComponent
+					: new DiffComponent(d.diff, d.language, theme, MAX_RENDER_LINES);
+				return comp;
 			}
 			if (d?._type === "noChange") {
 				text.setText(`  ${theme.fg("muted", "✓ no changes")}`);

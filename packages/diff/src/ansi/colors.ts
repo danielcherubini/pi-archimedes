@@ -9,7 +9,7 @@ import { DEFAULT_DIFF_BG, FG_RULE } from "./codes.js";
 
 /** Parse 24-bit ANSI color code → RGB. Works for both fg and bg escapes. */
 function parseAnsiRgb(ansi: string): { r: number; g: number; b: number } | null {
-	const esc = "\u001b";
+	const esc = "\x1b";
 	const m = ansi.match(new RegExp(`${esc}\\[(?:38|48);2;(\\d+);(\\d+);(\\d+)m`));
 	return m ? { r: +m[1]!, g: +m[2]!, b: +m[3]! } : null;
 }

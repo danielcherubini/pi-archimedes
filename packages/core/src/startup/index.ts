@@ -215,7 +215,7 @@ export function patchStartupListing(
     }
   });
 
-  // Patch clear() to reset message instance tracking on container rebuild
+  // Patch clear() to intercept container rebuild
   if (!cc[PATCHED_CLEAR]) {
     cc[PATCHED_CLEAR] = true;
     const origClear = chat.clear.bind(chat);
