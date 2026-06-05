@@ -150,7 +150,7 @@ export function renderCompactSingle(
   };
   const statsLine = buildStatsLine(statsData, theme);
 
-  const statsPart = statsLine ? "  " + statsLine : "";
+  const statsPart = statsLine ?? "";
 
   // Activity: spinner + current tool if running, status if finished
   let activityLine: string;
@@ -328,7 +328,7 @@ export function renderCompactProgress(
   const modelLabel = progress.model
     ? theme.fg("accent", progress.model)
     : "";
-  const statsPart = statsLine ? "  " + statsLine : "";
+  const statsPart = statsLine ?? "";
   const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
   let output = parts.join(" ") + " " + expandHint;
