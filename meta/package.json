@@ -10,7 +10,8 @@
     "@pi-archimedes/core": "workspace:*",
     "@pi-archimedes/footer": "workspace:*",
     "@pi-archimedes/diff": "workspace:*",
-    "@pi-archimedes/image-paste": "workspace:*"
+    "@pi-archimedes/image-paste": "workspace:*",
+    "@pi-archimedes/subagent": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

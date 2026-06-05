@@ -201,12 +201,12 @@ export function registerDiffTools(
 					const key = `wd:${themeCacheKey(theme)}:${w}:${d.summary}:${d.diff?.lines?.length ?? 0}:${d.language ?? ""}`;
 					if (ctx.state._wdk !== key) {
 						ctx.state._wdk = key;
-						ctx.state._wdt = `  ${d.summary}\n${theme.fg("muted", "  rendering diff…")}`;
+						ctx.state._wdt = `${"  " + d.summary}\n${theme.fg("muted", "  rendering diff…")}`;
 						const dc = resolveDiffColors(theme);
 						renderSplit(d.diff, d.language, MAX_RENDER_LINES, dc)
 							.then((rendered: string) => {
 								if (ctx.state._wdk !== key) return;
-								ctx.state._wdt = `  ${d.summary}\n${rendered}`;
+								ctx.state._wdt = `${"  " + d.summary}\n${rendered}`;
 								ctx.invalidate();
 							})
 							.catch(() => {
@@ -359,7 +359,7 @@ export function registerDiffTools(
 								if (ctx.state._pk !== pk) return;
 								const remainder = operations.length - maxShown;
 								const suffix = remainder > 0 ? `\n${theme.fg("muted", `… ${remainder} more edit blocks`)}` : "";
-								ctx.state._pt = `${hdr}\n${operations.length} edits ${summary}\n\n${sections.join("\n\n")}${suffix}`;
+								ctx.state._pt = `${hdr}\n${`${operations.length} edits ${summary}`}\n\n${sections.join("\n\n")}${suffix}`;
 								ctx.invalidate();
 							})
 							.catch(() => {
@@ -387,18 +387,12 @@ export function registerDiffTools(
 				if (result.details?._type === "editInfo") {
 					const { summary: s, editLine } = result.details;
 					const loc = editLine > 0 ? ` ${theme.fg("muted", `at line ${editLine}`)}` : "";
-					const content = `  ${s}${loc}`;
-					const vis = content.replace(Ansi.ANSI_RE, "").length;
-					const pad = Math.max(0, (process.stdout.columns ?? 200) - vis);
-					text.setText(`${content}${" ".repeat(pad)}`);
+					text.setText(`  ${s}${loc}`);
 					return text;
 				}
 				if (result.details?._type === "multiEditInfo") {
 					const { summary: s, editCount, diffLineCount } = result.details;
-					const content = `  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`;
-					const vis = content.replace(Ansi.ANSI_RE, "").length;
-					const pad = Math.max(0, (process.stdout.columns ?? 200) - vis);
-					text.setText(`${content}${" ".repeat(pad)}`);
+					text.setText(`  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`);
 					return text;
 				}
 				text.setText(`  ${theme.fg("dim", String(result?.content?.[0]?.text ?? "edited").slice(0, 120))}`);

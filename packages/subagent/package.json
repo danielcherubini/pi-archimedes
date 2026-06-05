@@ -1,0 +1,25 @@
+{
+  "name": "@pi-archimedes/subagent",
+  "version": "0.2.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Subagent dispatch with live TUI streaming and cost tracking",
+  "files": ["src"],
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0",
+    "typebox": ">=1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typebox": "^1.1.38",
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
