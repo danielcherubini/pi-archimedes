@@ -1,8 +1,8 @@
 import { footerIcons, gitDisplayIcons, gitStatusColors, thinkingLevelColors, type ColorFn } from "./icons.js";
 
-// Token counts use SI units (1K = 1000), not binary (1024)
-const TOKEN_K = 1_000;
-const TOKEN_M = 1_000_000;
+// Token counts use binary units (1K = 1024)
+const TOKEN_K = 1_024;
+const TOKEN_M = 1_048_576;
 
 export function formatTokenCount(count: number): string {
   if (count < TOKEN_K) return count.toString();
