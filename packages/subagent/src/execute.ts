@@ -8,7 +8,6 @@ export interface ExecuteOptions {
   task: string;
   model?: string;
   cwd?: string;
-  context?: "fresh" | "fork";
   signal?: AbortSignal;
   onUpdate?: (progress: SubagentProgress) => void;
 }
@@ -24,7 +23,6 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     task: options.task,
     model: options.model,
     cwd: options.cwd,
-    context: options.context,
     signal: options.signal,
   });
 
@@ -92,7 +90,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
  * Execute multiple subagents in parallel.
  */
 export async function executeParallel(options: {
-  tasks: Array<{ agent?: string; task: string; count?: number; model?: string; cwd?: string; context?: "fresh" | "fork" }>;
+  tasks: Array<{ agent?: string; task: string; count?: number; model?: string; cwd?: string }>;
   signal?: AbortSignal;
   onUpdate?: (progress: SubagentProgress[]) => void;
 }): Promise<SubagentResult[]> {

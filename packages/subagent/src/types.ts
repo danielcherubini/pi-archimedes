@@ -74,12 +74,3 @@ export interface StreamState {
   finalOutput: string | undefined;
 }
 
-export interface SubagentParamsSchema {
-  agent?: string;
-  task: string;
-  tasks?: Array<{ agent?: string; task: string; count?: number }>;
-  model?: string;
-  async?: boolean;
-  context?: "fresh" | "fork";
-  cwd?: string;
-}

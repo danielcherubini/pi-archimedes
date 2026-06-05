@@ -6,7 +6,6 @@ export interface SpawnOptions {
   task: string;
   model?: string;
   cwd?: string;
-  context?: "fresh" | "fork";
   signal?: AbortSignal;
 }
 
@@ -37,8 +36,9 @@ export function resolvePiCommand(): { command: string; args: string[] } {
  * Spawn a child `pi` process in JSON mode.
  */
 export function spawnSubagent(options: SpawnOptions): ChildProcess {
-  const { command } = resolvePiCommand();
+  const { command, args: baseArgs } = resolvePiCommand();
   const args: string[] = [
+    ...baseArgs,
     "--mode", "json",
     "-p", options.task,
   ];

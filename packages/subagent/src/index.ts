@@ -36,9 +36,6 @@ const SUBAGENT_PARAMS_SCHEMA = Type.Object({
   async: Type.Optional(Type.Boolean({
     description: "Run asynchronously (fire-and-forget)",
   })),
-  context: Type.Optional(Type.Union([Type.Literal("fresh"), Type.Literal("fork")], {
-    description: "Session context mode",
-  })),
   cwd: Type.Optional(Type.String({
     description: "Working directory for the subagent",
   })),
@@ -58,7 +55,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
     name: "subagent",
     label: "Subagent",
     description:
-      "Delegate tasks to subagents. Single: { agent, task }. Parallel: { tasks: [{ agent, task }] }. Options: model, cwd, context (fresh|fork).",
+      "Delegate tasks to subagents. Single: { agent, task }. Parallel: { tasks: [{ agent, task }] }. Options: model, cwd.",
     parameters: SUBAGENT_PARAMS_SCHEMA,
 
     async execute(
@@ -68,7 +65,6 @@ export function registerSubagent(pi: ExtensionAPI): void {
         task?: string;
         tasks?: Array<{ agent?: string; task: string; count?: number; model?: string; cwd?: string }>;
         model?: string;
-        context?: "fresh" | "fork";
         cwd?: string;
         async?: boolean;
       },
@@ -109,7 +105,6 @@ export function registerSubagent(pi: ExtensionAPI): void {
           task: params.task,
           model: params.model,
           cwd: params.cwd,
-          context: params.context,
           signal,
           onUpdate: (progress: SubagentProgress) => {
             onUpdate?.({

@@ -120,10 +120,9 @@ export function handleMessageEnd(state: StreamState, event: JsonEvent): void {
     state.recentOutput.splice(0, state.recentOutput.length - 50);
   }
 
-  // Extract usage
+  // Extract usage (turnCount tracked via turn_start in stream.ts)
   if (message.usage) {
     const usage = message.usage as Record<string, unknown>;
-    state.turnCount++;
     state.totalInput += (usage.input as number) || 0;
     state.totalOutput += (usage.output as number) || 0;
     state.totalCacheRead += (usage.cacheRead as number) || 0;
