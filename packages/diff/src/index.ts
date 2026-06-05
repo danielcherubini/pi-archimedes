@@ -17,6 +17,16 @@ import { renderSplit } from "./render.js";
 import { setConfigGetter as setRenderConfig } from "./render.js";
 
 // ---------------------------------------------------------------------------
+// Line padding helper — ensures BG_BASE fills to terminal edge
+// ---------------------------------------------------------------------------
+
+function padLine(content: string): string {
+	const vis = content.replace(Ansi.ANSI_RE, "").length;
+	const pad = Math.max(0, (process.stdout.columns ?? 200) - vis);
+	return `${Ansi.BG_BASE}${content}${Ansi.BG_BASE}${" ".repeat(pad)}${Ansi.RST}`;
+}
+
+// ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
@@ -201,12 +211,12 @@ export function registerDiffTools(
 					const key = `wd:${themeCacheKey(theme)}:${w}:${d.summary}:${d.diff?.lines?.length ?? 0}:${d.language ?? ""}`;
 					if (ctx.state._wdk !== key) {
 						ctx.state._wdk = key;
-						ctx.state._wdt = `${Ansi.BG_BASE}  ${d.summary}${Ansi.RST}\n${theme.fg("muted", "  rendering diff…")}`;
+						ctx.state._wdt = `${padLine("  " + d.summary)}\n${theme.fg("muted", "  rendering diff…")}`;
 						const dc = resolveDiffColors(theme);
 						renderSplit(d.diff, d.language, MAX_RENDER_LINES, dc)
 							.then((rendered: string) => {
 								if (ctx.state._wdk !== key) return;
-								ctx.state._wdt = `${Ansi.BG_BASE}  ${d.summary}${Ansi.RST}\n${rendered}`;
+								ctx.state._wdt = `${padLine("  " + d.summary)}\n${rendered}`;
 								ctx.invalidate();
 							})
 							.catch(() => {
@@ -336,12 +346,12 @@ export function registerDiffTools(
 						renderSplit(diff, lg, MAX_PREVIEW_LINES, dc)
 							.then((rendered) => {
 								if (ctx.state._pk !== pk) return;
-								ctx.state._pt = `${Ansi.BG_BASE}${hdr}${Ansi.RST}\n${Ansi.BG_BASE}${Ansi.summarize(diff.added, diff.removed)}${Ansi.RST}\n${rendered}`;
+								ctx.state._pt = `${padLine(hdr)}\n${padLine(Ansi.summarize(diff.added, diff.removed))}\n${rendered}`;
 								ctx.invalidate();
 							})
 							.catch(() => {
 								if (ctx.state._pk !== pk) return;
-								ctx.state._pt = `${Ansi.BG_BASE}${hdr}  ${Ansi.summarize(diff.added, diff.removed)}${Ansi.RST}`;
+								ctx.state._pt = padLine(`${hdr}  ${Ansi.summarize(diff.added, diff.removed)}`);
 								ctx.invalidate();
 							});
 					} else {
@@ -359,12 +369,12 @@ export function registerDiffTools(
 								if (ctx.state._pk !== pk) return;
 								const remainder = operations.length - maxShown;
 								const suffix = remainder > 0 ? `\n${theme.fg("muted", `… ${remainder} more edit blocks`)}` : "";
-								ctx.state._pt = `${Ansi.BG_BASE}${hdr}${Ansi.RST}\n${Ansi.BG_BASE}${operations.length} edits ${summary}${Ansi.RST}\n\n${sections.join("\n\n")}${suffix}`;
+								ctx.state._pt = `${padLine(hdr)}\n${padLine(`${operations.length} edits ${summary}`)}\n\n${sections.join("\n\n")}${suffix}`;
 								ctx.invalidate();
 							})
 							.catch(() => {
 								if (ctx.state._pk !== pk) return;
-								ctx.state._pt = `${Ansi.BG_BASE}${hdr}  ${operations.length} edits ${summary}${Ansi.RST}`;
+								ctx.state._pt = padLine(`${hdr}  ${operations.length} edits ${summary}`);
 								ctx.invalidate();
 							});
 					}
@@ -387,18 +397,12 @@ export function registerDiffTools(
 				if (result.details?._type === "editInfo") {
 					const { summary: s, editLine } = result.details;
 					const loc = editLine > 0 ? ` ${theme.fg("muted", `at line ${editLine}`)}` : "";
-					const content = `${Ansi.BG_BASE}  ${s}${loc}${Ansi.RST}`;
-					const vis = content.replace(Ansi.ANSI_RE, "").length;
-					const pad = Math.max(0, (process.stdout.columns ?? 200) - vis);
-					text.setText(`${content}${" ".repeat(pad)}`);
+					text.setText(padLine(`  ${s}${loc}`));
 					return text;
 				}
 				if (result.details?._type === "multiEditInfo") {
 					const { summary: s, editCount, diffLineCount } = result.details;
-					const content = `${Ansi.BG_BASE}  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}${Ansi.RST}`;
-					const vis = content.replace(Ansi.ANSI_RE, "").length;
-					const pad = Math.max(0, (process.stdout.columns ?? 200) - vis);
-					text.setText(`${content}${" ".repeat(pad)}`);
+					text.setText(padLine(`  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`));
 					return text;
 				}
 				text.setText(`  ${theme.fg("dim", String(result?.content?.[0]?.text ?? "edited").slice(0, 120))}`);
