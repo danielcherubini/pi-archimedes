@@ -190,9 +190,8 @@ export function renderCompactSingle(
   const modelLabel = modelName
     ? theme.fg("accent", modelName)
     : "";
-  const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = parts.join(" ") + " " + expandHint;
+  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -329,9 +328,8 @@ export function renderCompactProgress(
     ? theme.fg("accent", progress.model)
     : "";
   const statsPart = statsLine ?? "";
-  const parts = [modelLabel, statsPart].filter(Boolean);
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = parts.join(" ") + " " + expandHint;
+  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
