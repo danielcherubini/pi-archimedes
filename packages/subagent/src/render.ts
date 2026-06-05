@@ -23,12 +23,12 @@ type RenderContext = {
 };
 
 export function renderSubagentResult(
+  text: Text,
   result: SubagentToolResult,
   options: { expanded: boolean },
   theme: Theme,
   context: RenderContext,
 ): Text {
-  const text = context.lastComponent ?? new Text("", 0, 0);
   const details: SubagentDetails | undefined = result.details;
   const expanded = context.expanded ?? options.expanded;
 

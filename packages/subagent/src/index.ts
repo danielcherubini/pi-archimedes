@@ -147,6 +147,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
       const lastComponent = (ctx as { lastComponent?: import("@earendil-works/pi-tui").Component })?.lastComponent;
       const text = (lastComponent instanceof Text ? lastComponent : new Text("", 0, 0)) as Text;
+      (ctx as Record<string, unknown>).lastComponent = text;
 
       if (tasks && tasks.length > 0) {
         const label = theme.fg("toolTitle", theme.bold("subagent")) + " " + tasks.length + " tasks";
@@ -168,7 +169,16 @@ export function registerSubagent(pi: ExtensionAPI): void {
         false) as boolean;
 
       const renderTheme = theme as unknown as RenderTheme;
-      return renderSubagentResult(toolResult, { expanded }, renderTheme, context as any);
+      const text = new Text("", 0, 0);
+      const renderContext = {
+        expanded,
+        isError: toolResult.isError ?? false,
+        lastComponent: (context as { lastComponent?: Text })?.lastComponent,
+        state: (context as Record<string, unknown>)?.state ?? {},
+        invalidate: () => {},
+      };
+      (context as Record<string, unknown>).lastComponent = text;
+      return renderSubagentResult(text, toolResult, { expanded }, renderTheme, renderContext as any);
     },
   });
 }
