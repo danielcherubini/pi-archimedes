@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult } from "./types.js";
-import { formatTokens, formatDuration, truncLine } from "./format.js";
+import { formatTokens, formatDuration, truncLine, buildStatsLine } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 
@@ -13,23 +13,34 @@ export function buildExpandedText(
 ): string {
   const lines: string[] = [];
 
-  // Header
-  lines.push(theme.fg("toolTitle", theme.bold(result.agent ?? "subagent")));
+  // Stats line (same as compact view)
+  const modelName = progress?.model ?? result.model;
+  const modelLabel = modelName ? theme.fg("accent", modelName) : "";
+  const statsLine = buildStatsLine({
+    turns: result.usage.turns,
+    toolCount: result.progressSummary?.toolCount,
+    tokens: result.progressSummary?.tokens,
+    durationMs: result.progressSummary?.durationMs,
+    cost: result.usage.cost,
+  }, theme.fg);
+  const expandHint = theme.fg("muted", "(ctrl+o)");
+  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  if (statsParts.length > 0) {
+    lines.push(statsParts.join(" "));
+  }
 
   // Task
   if (result.task) {
-    lines.push(theme.fg("dim", "  Task: " + result.task));
+    lines.push("");
+    lines.push(theme.fg("dim", "Task: " + result.task));
   }
 
-  // Stats
-  const summary = result.progressSummary;
-  if (summary) {
-    const stats: string[] = [];
-    if (summary.toolCount > 0) stats.push(summary.toolCount + " tools");
-    if (summary.tokens > 0) stats.push(formatTokens(summary.tokens) + " tokens");
-    if (summary.durationMs > 0) stats.push(formatDuration(summary.durationMs));
-    if (stats.length > 0) {
-      lines.push(theme.fg("dim", "  " + stats.join(" · ")));
+  // Tool calls history
+  const toolCalls = progress?.toolCalls;
+  if (toolCalls && toolCalls.length > 0) {
+    lines.push("");
+    for (const call of toolCalls) {
+      lines.push(theme.fg("dim", "- " + call));
     }
   }
 
@@ -43,7 +54,7 @@ export function buildExpandedText(
   // Error
   if (result.error) {
     lines.push("");
-    lines.push(theme.fg("error", "  Error: " + result.error));
+    lines.push(theme.fg("error", "Error: " + result.error));
   }
 
   return lines.join("\n");
@@ -68,33 +79,37 @@ export function renderProgressExpanded(
 ): Text {
   const lines: string[] = [];
 
-  // Header
-  lines.push(theme.fg("toolTitle", theme.bold(progress.agent ?? "subagent")));
+  // Stats line (same as compact view)
+  const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
+  const statsLine = buildStatsLine({
+    toolCount: progress.toolCount,
+    tokens: progress.tokens,
+    durationMs: progress.durationMs,
+    cost: progress.cost,
+  }, theme.fg);
+  const expandHint = theme.fg("muted", "(ctrl+o)");
+  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  if (statsParts.length > 0) {
+    lines.push(statsParts.join(" "));
+  }
 
   // Task
   if (progress.task) {
-    lines.push(theme.fg("dim", "  Task: " + progress.task));
-  }
-
-  // Stats
-  const stats: string[] = [];
-  if (progress.toolCount > 0) stats.push(progress.toolCount + " tools");
-  if (progress.tokens > 0) stats.push(formatTokens(progress.tokens) + " tokens");
-  if (progress.durationMs > 0) stats.push(formatDuration(progress.durationMs));
-  if (stats.length > 0) {
-    lines.push(theme.fg("dim", "  " + stats.join(" · ")));
+    lines.push("");
+    lines.push(theme.fg("dim", "Task: " + progress.task));
   }
 
   // Tool calls history
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "  - " + call));
+      lines.push(theme.fg("dim", "- " + call));
     }
   }
 
-  // Activity
+  // Activity (current tool with spinner)
   if (progress.currentTool) {
+    lines.push("");
     const argsPreview = progress.currentToolArgs
       ? truncLine(progress.currentToolArgs, 60)
       : "";
@@ -108,14 +123,13 @@ export function renderProgressExpanded(
     if (durationPart) {
       line += theme.fg("dim", durationPart);
     }
-    lines.push("");
     lines.push(line);
   }
 
   // Error
   if (progress.error) {
     lines.push("");
-    lines.push(theme.fg("error", "  Error: " + progress.error));
+    lines.push(theme.fg("error", "Error: " + progress.error));
   }
 
   text.setText(lines.join("\n"));

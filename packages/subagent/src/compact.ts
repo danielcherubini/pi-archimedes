@@ -1,37 +1,9 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
-import { SPINNER_FRAMES, formatTokens, formatDuration, formatCost, truncLine } from "./format.js";
+import { SPINNER_FRAMES, formatTokens, formatDuration, formatCost, truncLine, buildStatsLine } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
-
-// ── Stats line builder ──────────────────────────────────────────────────────
-
-export function buildStatsLine(
-  progress: {
-    turns?: number;
-    toolCount?: number;
-    tokens?: number;
-    durationMs?: number;
-    cost?: number;
-  },
-  theme: Theme,
-): string {
-  const parts: string[] = [];
-  const turns = progress.turns ?? 0;
-  const tools = progress.toolCount ?? 0;
-  const tokens = progress.tokens ?? 0;
-  const duration = progress.durationMs ?? 0;
-  const cost = progress.cost ?? 0;
-
-  if (turns > 0) parts.push("⟳ " + turns);
-  if (tools > 0) parts.push(tools + " tool" + (tools !== 1 ? "s" : ""));
-  if (tokens > 0) parts.push(formatTokens(tokens) + " tok");
-  if (duration > 0) parts.push(formatDuration(duration));
-  if (cost > 0) parts.push(formatCost(cost));
-
-  return parts.map(p => theme.fg("dim", "· " + p)).join(" ");
-}
 
 // ── Activity line builder ───────────────────────────────────────────────────
 
@@ -148,7 +120,7 @@ export function renderCompactSingle(
     durationMs: liveDuration,
     cost: result.usage.cost ?? 0,
   };
-  const statsLine = buildStatsLine(statsData, theme);
+  const statsLine = buildStatsLine(statsData, theme.fg);
 
   const statsPart = statsLine ?? "";
 
@@ -226,7 +198,7 @@ export function renderCompactParallel(
       durationMs: summary.durationMs,
       cost: result.usage.cost ?? 0,
     };
-    const statsLine = buildStatsLine(statsData, theme);
+    const statsLine = buildStatsLine(statsData, theme.fg);
     const statsPart = statsLine ? "  " + statsLine : "";
 
     const activityData = {
@@ -288,7 +260,7 @@ export function renderCompactProgress(
     durationMs: liveDuration,
     cost: progress.cost,
   };
-  const statsLine = buildStatsLine(statsData, theme);
+  const statsLine = buildStatsLine(statsData, theme.fg);
 
   // Activity: current tool if running, status if finished
   let activityLine: string;
@@ -363,7 +335,7 @@ export function renderCompactParallelProgress(
       durationMs: progress.durationMs,
       cost: progress.cost,
     };
-    const statsLine = buildStatsLine(statsData, theme);
+    const statsLine = buildStatsLine(statsData, theme.fg);
     const statsPart = statsLine ? "  " + statsLine : "";
 
     const activityData = {

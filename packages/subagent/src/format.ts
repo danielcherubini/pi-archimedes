@@ -26,3 +26,33 @@ export function formatCost(cost: number): string {
 export function truncLine(text: string, width: number): string {
   return clampLine(text, width);
 }
+
+export interface StatsData {
+  turns?: number;
+  toolCount?: number;
+  tokens?: number;
+  durationMs?: number;
+  cost?: number;
+}
+
+export type ThemeFg = (token: string, text: string) => string;
+
+export function buildStatsLine(
+  data: StatsData,
+  themeFg: ThemeFg,
+): string {
+  const parts: string[] = [];
+  const turns = data.turns ?? 0;
+  const tools = data.toolCount ?? 0;
+  const tokens = data.tokens ?? 0;
+  const duration = data.durationMs ?? 0;
+  const cost = data.cost ?? 0;
+
+  if (turns > 0) parts.push("⟳ " + turns);
+  if (tools > 0) parts.push(tools + " tool" + (tools !== 1 ? "s" : ""));
+  if (tokens > 0) parts.push(formatTokens(tokens) + " tok");
+  if (duration > 0) parts.push(formatDuration(duration));
+  if (cost > 0) parts.push(formatCost(cost));
+
+  return parts.map(p => themeFg("dim", "· " + p)).join(" ");
+}
