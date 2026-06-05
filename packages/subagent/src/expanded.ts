@@ -54,7 +54,13 @@ export function buildExpandedText(
   // Error
   if (result.error) {
     lines.push("");
-    lines.push(theme.fg("error", "Error: " + result.error));
+    lines.push(theme.fg("error", "✗ " + result.error));
+  } else if (result.exitCode === 0) {
+    lines.push("");
+    lines.push(theme.fg("success", "✓ Done"));
+  } else {
+    lines.push("");
+    lines.push(theme.fg("error", "✗ Failed"));
   }
 
   return lines.join("\n");
@@ -126,10 +132,17 @@ export function renderProgressExpanded(
     lines.push(line);
   }
 
-  // Error
-  if (progress.error) {
+  // Status at bottom
+  if (progress.status === "completed") {
     lines.push("");
-    lines.push(theme.fg("error", "Error: " + progress.error));
+    lines.push(theme.fg("success", "✓ Done"));
+  } else if (progress.status === "failed") {
+    lines.push("");
+    if (progress.error) {
+      lines.push(theme.fg("error", "✗ " + progress.error));
+    } else {
+      lines.push(theme.fg("error", "✗ Failed"));
+    }
   }
 
   text.setText(lines.join("\n"));
@@ -191,10 +204,17 @@ export function buildProgressExpandedText(
     lines.push(line);
   }
 
-  // Error
-  if (progress.error) {
+  // Status at bottom
+  if (progress.status === "completed") {
     lines.push("");
-    lines.push(theme.fg("error", "  Error: " + progress.error));
+    lines.push(theme.fg("success", "✓ Done"));
+  } else if (progress.status === "failed") {
+    lines.push("");
+    if (progress.error) {
+      lines.push(theme.fg("error", "✗ " + progress.error));
+    } else {
+      lines.push(theme.fg("error", "✗ Failed"));
+    }
   }
 
   return lines.join("\n");
