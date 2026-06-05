@@ -4,7 +4,7 @@ import { extname } from "node:path";
 import { codeToANSI } from "@shikijs/cli";
 import type { BundledLanguage, BundledTheme } from "shiki";
 
-import { normalizeShikiContrast } from "./ansi.js";
+import { normalizeShikiContrast } from "./ansi/index.js";
 
 // ---------------------------------------------------------------------------
 // Config access

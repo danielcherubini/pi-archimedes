@@ -1,7 +1,7 @@
 /** Word diff analysis and background injection. */
 
 import * as Diff from "diff";
-import * as Ansi from "./ansi.js";
+import * as Ansi from "./ansi/index.js";
 
 // ---------------------------------------------------------------------------
 // Word diff analysis

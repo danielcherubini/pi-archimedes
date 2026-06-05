@@ -3,7 +3,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { TUI, type EditorTheme, type Component, type SettingItem } from "@earendil-works/pi-tui";
 
 import { HephaestusEditor } from "./editor/index.js";
-import { patchUserMessage, resetInstanceCount } from "./message/index.js";
+
 import { renderHeader, patchStartupListing, type ListingRef } from "./startup/index.js";
 import { patchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
@@ -55,7 +55,6 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
 
 // Module-level state for session lifecycle (shared between session_start and session_shutdown)
 let coreRef: ListingRef | undefined;
-let coreResponseTimes: number[] | undefined;
 let coreCtx: ExtensionContext | undefined;
 
 export function registerCore(pi: ExtensionAPI): void {
@@ -69,12 +68,6 @@ export function registerCore(pi: ExtensionAPI): void {
     const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
     const listingRef = g["listingRef"] as ListingRef | undefined;
     if (listingRef) { listingRef.settled = true; }
-
-    // Clear response times
-    if (coreResponseTimes) { coreResponseTimes.length = 0; }
-
-    // Reset instance count
-    resetInstanceCount();
 
     // Clear editor component override
     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
@@ -110,10 +103,6 @@ export function registerCore(pi: ExtensionAPI): void {
     };
     ctx.ui.setHeader(headerFactory);
 
-    // Shared response times array (used by both patchUserMessage and message_end)
-    coreResponseTimes = [];
-    const responseTimes = coreResponseTimes;
-
     // Set editor component
     ctx.ui.setEditorComponent((tui: TUI, editorTheme: EditorTheme, keybindings: KeybindingsManager) => {
       const theme = ctx.ui.theme;
@@ -127,9 +116,6 @@ export function registerCore(pi: ExtensionAPI): void {
     // Patch thinking renderer
     patchThinkingRenderer(() => ctx.ui.theme);
 
-    // Patch user message response time
-    patchUserMessage(() => ctx.ui.theme, responseTimes);
-
     // Load config for thinking transformation
     const config = loadCoreConfig();
 
@@ -138,13 +124,6 @@ export function registerCore(pi: ExtensionAPI): void {
       // Transform thinking content (unindent code blocks if enabled)
       if (config.codeUnindent) {
         transformThinkingContent(event.message as any);
-      }
-
-      // Track response time from the raw message
-      const rawMsg = event.message as any;
-      if (rawMsg.duration) {
-        const idx = rawMsg.instanceIndex ?? responseTimes.length;
-        responseTimes[idx] = rawMsg.duration;
       }
     });
   });
