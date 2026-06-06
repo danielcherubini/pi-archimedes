@@ -21,20 +21,20 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
   const agentName = options.agent ?? "subagent";
   const startTime = Date.now();
 
-  const child = spawnSubagent({
-    task: options.task,
-    model: options.model,
-    cwd: options.cwd,
-    signal: options.signal,
-    agent: options.agentConfig,
-  });
-
   // Track previously emitted values to only emit deltas
   let lastEmittedInput = 0;
   let lastEmittedOutput = 0;
   let lastEmittedCost = 0;
 
   try {
+    const child = spawnSubagent({
+      task: options.task,
+      model: options.model,
+      cwd: options.cwd,
+      signal: options.signal,
+      agent: options.agentConfig,
+    });
+
     const result = await streamEvents(child, {
       agent: agentName,
       task: options.task,

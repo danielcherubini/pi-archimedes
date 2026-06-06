@@ -11,6 +11,7 @@ import { setConfigGetter as setShikiConfig } from "./shiki.js";
 import { setConfigGetter as setRenderConfig } from "./render/index.js";
 import { DiffComponent } from "./diff-component.js";
 import type { DiffBg, DiffColors } from "./ansi/index.js";
+import { resetDiffColors } from "./ansi/index.js";
 import { registerWriteTool, registerEditTool } from "./tools/index.js";
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,9 @@ export function registerDiffTools(
 	readConfig: () => DiffConfig,
 ): void {
 	_readConfig = readConfig;
+
+	// Reset theme-derived colors so they are re-derived from the current theme
+	resetDiffColors();
 
 	// Wire config getters into submodules
 	setShikiConfig(() => getConfig());

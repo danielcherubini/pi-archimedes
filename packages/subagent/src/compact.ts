@@ -7,46 +7,61 @@ type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
 
 // ── Activity line builder ───────────────────────────────────────────────────
 
+interface ActivityData {
+  currentTool: string | undefined;
+  currentToolArgs: string | undefined;
+  currentToolStartedAt: number | undefined;
+  finalOutput: string | undefined;
+  status: "running" | "completed" | "failed" | undefined;
+  error: string | undefined;
+  toolCalls?: string[] | undefined;
+}
+
 export function buildActivityLine(
-  progress: {
-    currentTool: string | undefined;
-    currentToolArgs: string | undefined;
-    currentToolStartedAt: number | undefined;
-    finalOutput: string | undefined;
-    status: "running" | "completed" | "failed" | undefined;
-    error: string | undefined;
-  },
+  data: ActivityData,
   theme: Theme,
 ): string {
-  const prefix = theme.fg("dim", "  ⎿  ");
-
-  if (progress.error) {
-    return prefix + theme.fg("error", truncLine(progress.error, 80));
+  if (data.error) {
+    return theme.fg("error", "✗ " + truncLine(data.error, 80));
   }
 
-  if (progress.currentTool) {
-    const argsPreview = progress.currentToolArgs
-      ? truncLine(progress.currentToolArgs ?? "", 60)
+  if (data.currentTool) {
+    const arrow = theme.fg("muted", "↳ ");
+    const argsPreview = data.currentToolArgs
+      ? truncLine(data.currentToolArgs ?? "", 60)
       : "";
-    const durationPart = progress.currentToolStartedAt
-      ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
+    const durationPart = data.currentToolStartedAt
+      ? " | " + formatDuration(Date.now() - data.currentToolStartedAt)
       : "";
-    let line = theme.fg("syntaxFunction", progress.currentTool);
+    let line = theme.fg("syntaxFunction", data.currentTool);
     if (argsPreview) {
       line += theme.fg("dim", ": " + argsPreview);
     }
     if (durationPart) {
       line += theme.fg("dim", durationPart);
     }
-    return prefix + line;
+    return arrow + line;
   }
 
-  if (progress.finalOutput) {
-    const firstLine = progress.finalOutput.split("\n")[0] ?? "";
-    return prefix + truncLine(firstLine, 80);
+  // Show last completed tool call from history
+  if (data.toolCalls && data.toolCalls.length > 0) {
+    const lastCall = data.toolCalls[data.toolCalls.length - 1];
+    if (lastCall) return theme.fg("muted", "↳ " + lastCall);
   }
 
-  return "";
+  if (data.finalOutput) {
+    const firstLine = data.finalOutput.split("\n")[0] ?? "";
+    return theme.fg("muted", "↳ " + truncLine(firstLine, 80));
+  }
+
+  // Running with no tool info yet
+  if (data.status === "running") {
+    return theme.fg("muted", "↳ Starting...");
+  }
+
+  return data.status === "completed"
+    ? theme.fg("success", "✓ Done")
+    : theme.fg("error", "✗ Failed");
 }
 
 // ── Status glyph ────────────────────────────────────────────────────────────
@@ -90,40 +105,18 @@ export function renderCompactSingle(
   };
   const statsLine = buildStatsLine(statsData, theme);
 
-  const statsPart = statsLine ?? "";
+  const statsPart = statsLine;
 
   // Activity: arrow + current tool if running, status if finished
-  let activityLine: string;
-  if (isRunning) {
-    const arrow = theme.fg("muted", "↳ ");
-    if (progress?.currentTool) {
-      const argsPreview = progress.currentToolArgs
-        ? truncLine(progress.currentToolArgs ?? "", 60)
-        : "";
-      const durationPart = progress.currentToolStartedAt
-        ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
-        : "";
-      let line = theme.fg("syntaxFunction", progress.currentTool);
-      if (argsPreview) {
-        line += theme.fg("dim", ": " + argsPreview);
-      }
-      if (durationPart) {
-        line += theme.fg("dim", durationPart);
-      }
-      activityLine = arrow + line;
-    } else if (progress?.toolCalls && progress.toolCalls.length > 0) {
-      const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = theme.fg("dim", "  ⎿  ") + theme.fg("muted", lastCall ?? "");
-    } else {
-      activityLine = theme.fg("muted", "  ⎿  Working...");
-    }
-  } else if (result.error) {
-    activityLine = theme.fg("error", "✗ " + truncLine(result.error, 80));
-  } else if (status === "completed") {
-    activityLine = theme.fg("success", "✓ Done");
-  } else {
-    activityLine = theme.fg("error", "✗ Failed");
-  }
+  const activityLine = buildActivityLine({
+    currentTool: progress?.currentTool,
+    currentToolArgs: progress?.currentToolArgs,
+    currentToolStartedAt: progress?.currentToolStartedAt,
+    finalOutput: result.finalOutput,
+    status: isRunning ? "running" : status,
+    error: result.error,
+    toolCalls: progress?.toolCalls,
+  }, theme);
 
   const modelName = progress?.model ?? result.model;
   const modelLabel = modelName
@@ -176,6 +169,7 @@ export function renderCompactParallel(
       finalOutput: result.finalOutput,
       status,
       error: result.error,
+      toolCalls: progress?.toolCalls,
     };
     const activityLine = buildActivityLine(activityData, theme);
 
@@ -228,42 +222,20 @@ export function renderCompactProgress(
   const statsLine = buildStatsLine(statsData, theme);
 
   // Activity: arrow + current tool if running, status if finished
-  let activityLine: string;
-  if (isRunning) {
-    const arrow = theme.fg("muted", "↳ ");
-    if (progress.currentTool) {
-      const argsPreview = progress.currentToolArgs
-        ? truncLine(progress.currentToolArgs ?? "", 60)
-        : "";
-      const durationPart = progress.currentToolStartedAt
-        ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
-        : "";
-      let line = theme.fg("syntaxFunction", progress.currentTool);
-      if (argsPreview) {
-        line += theme.fg("dim", ": " + argsPreview);
-      }
-      if (durationPart) {
-        line += theme.fg("dim", durationPart);
-      }
-      activityLine = arrow + line;
-    } else if (progress.toolCalls && progress.toolCalls.length > 0) {
-      const lastCall = progress.toolCalls[progress.toolCalls.length - 1];
-      activityLine = arrow + theme.fg("muted", lastCall ?? "");
-    } else {
-      activityLine = arrow + theme.fg("muted", "Working...");
-    }
-  } else if (progress.error) {
-    activityLine = theme.fg("error", "✗ " + truncLine(progress.error, 80));
-  } else if (status === "completed") {
-    activityLine = theme.fg("success", "✓ Done");
-  } else {
-    activityLine = theme.fg("error", "✗ Failed");
-  }
+  const activityLine = buildActivityLine({
+    currentTool: progress.currentTool,
+    currentToolArgs: progress.currentToolArgs,
+    currentToolStartedAt: progress.currentToolStartedAt,
+    finalOutput: undefined,
+    status,
+    error: progress.error,
+    toolCalls: progress.toolCalls,
+  }, theme);
 
   const modelLabel = progress.model
     ? theme.fg("accent", progress.model)
     : "";
-  const statsPart = statsLine ?? "";
+  const statsPart = statsLine;
   const expandHint = theme.fg("muted", "(ctrl+o)");
   let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
@@ -309,6 +281,7 @@ export function renderCompactParallelProgress(
       finalOutput: undefined,
       status,
       error: progress.error,
+      toolCalls: progress.toolCalls,
     };
     const activityLine = buildActivityLine(activityData, theme);
 

@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -157,7 +157,7 @@ function encodePowerShell(script: string): string {
   return Buffer.from(script, "utf16le").toString("base64");
 }
 
-function readClipboardImageViaPowerShell(): ClipboardReadResult {
+async function readClipboardImageViaPowerShell(): Promise<ClipboardReadResult> {
   const script = `
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -182,57 +182,78 @@ try {
 }
 `;
 
-  const result = spawnSync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-STA",
-      "-EncodedCommand",
-      encodePowerShell(script),
-    ],
-    {
-      encoding: "utf8",
-      timeout: READ_TIMEOUT_MS,
-      maxBuffer: MAX_BUFFER_BYTES,
-      windowsHide: true,
-    },
-  );
-
-  if (result.error) {
-    return {
-      available: !isErrnoException(result.error) || result.error.code !== "ENOENT",
-      image: null,
-    };
-  }
-
-  if (result.status !== 0) {
-    return { available: true, image: null };
-  }
-
-  const base64 = result.stdout.trim();
-  if (!base64) {
-    return { available: true, image: null };
-  }
-
-  try {
-    const bytes = Buffer.from(base64, "base64");
-    if (bytes.length === 0) {
-      return { available: true, image: null };
-    }
-
-    return {
-      available: true,
-      image: {
-        bytes: new Uint8Array(bytes),
-        mimeType: "image/png",
+  return new Promise((resolve) => {
+    const child = spawn(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-STA",
+        "-EncodedCommand",
+        encodePowerShell(script),
+      ],
+      {
+        windowsHide: true,
       },
-    };
-  } catch {
-    return { available: true, image: null };
-  }
+    );
+
+    // Timeout guard
+    const timeout = setTimeout(() => {
+      child.kill("SIGKILL");
+      resolve({ available: true, image: null });
+    }, READ_TIMEOUT_MS);
+
+    let stdout = "";
+    let exceededMaxBuffer = false;
+    child.stdout?.on("data", (data: Buffer) => {
+      if (stdout.length + data.length > MAX_BUFFER_BYTES) {
+        exceededMaxBuffer = true;
+        return;
+      }
+      stdout += data.toString("utf8");
+    });
+
+    child.on("error", (err: Error) => {
+      clearTimeout(timeout);
+      resolve({
+        available: !isErrnoException(err) || (err as NodeJS.ErrnoException).code !== "ENOENT",
+        image: null,
+      });
+    });
+
+    child.on("close", (status: number | null) => {
+      clearTimeout(timeout);
+      if (status !== 0 || exceededMaxBuffer) {
+        resolve({ available: true, image: null });
+        return;
+      }
+
+      const base64 = stdout.trim();
+      if (!base64) {
+        resolve({ available: true, image: null });
+        return;
+      }
+
+      try {
+        const bytes = Buffer.from(base64, "base64");
+        if (bytes.length === 0) {
+          resolve({ available: true, image: null });
+          return;
+        }
+        resolve({
+          available: true,
+          image: {
+            bytes: new Uint8Array(bytes),
+            mimeType: "image/png",
+          },
+        });
+      } catch {
+        resolve({ available: true, image: null });
+      }
+    });
+  });
 }
 
 function readClipboardImageViaWlPaste(): ClipboardReadResult {
@@ -362,7 +383,7 @@ export async function readClipboardImage(options?: {
       return nativeImage;
     }
 
-    const powerShellImage = recordResult(readClipboardImageViaPowerShell());
+    const powerShellImage = recordResult(await readClipboardImageViaPowerShell());
     if (powerShellImage) {
       return powerShellImage;
     }

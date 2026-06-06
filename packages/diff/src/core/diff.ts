@@ -15,6 +15,10 @@ export interface ParsedDiff {
 }
 
 export function parseDiff(oldContent: string, newContent: string, ctx = 3): ParsedDiff {
+	// Early return for identical content — skip expensive diff computation
+	if (oldContent === newContent) {
+		return { lines: [], added: 0, removed: 0, chars: 0 };
+	}
 	const patch = Diff.structuredPatch("", "", oldContent, newContent, "", "", { context: ctx });
 	const lines: DiffLine[] = [];
 	let added = 0;

@@ -42,8 +42,7 @@ import type { ParsedDiff } from "./core/diff.js";
 export class DiffComponent implements Component {
 	private diff: ParsedDiff;
 	private language: BundledLanguage | undefined;
-	private dc: DiffColors;
-	private dbg: DiffBg;
+	private theme: Theme;
 	private maxLines: number;
 
 	/** Box wrapper with base background — makes the diff self-contained. */
@@ -58,6 +57,9 @@ export class DiffComponent implements Component {
 	/** Final cached output (box-wrapped). */
 	private _cachedLines: string[] | undefined;
 
+	/** Theme cache key — invalidates derived colors on theme change. */
+	private _themeKey: string | undefined;
+
 	constructor(
 		diff: ParsedDiff,
 		language: BundledLanguage | undefined,
@@ -66,12 +68,31 @@ export class DiffComponent implements Component {
 	) {
 		this.diff = diff;
 		this.language = language;
-		this.dc = Ansi.resolveDiffColors(theme);
-		this.dbg = deriveBgFromTheme(theme);
+		this.theme = theme;
 		this.maxLines = maxLines;
 
 		// Box provides base background so the diff is self-contained.
-		this.shell = new Box(0, 0, (s: string) => this.dbg.bgBase + s + this.dbg.rst);
+		// Background function is re-derived on each render via _deriveBg().
+		this.shell = new Box(0, 0, (s: string) => this._deriveBg().bgBase + s + this._deriveBg().rst);
+	}
+
+	/** Re-derive colors from the current theme — handles theme changes. */
+	private _deriveColors(): { dc: DiffColors; dbg: DiffBg } {
+		const themeKey = Ansi.themeCacheKey(this.theme);
+		if (themeKey === this._themeKey && this._cachedDc && this._cachedDbg) {
+			return { dc: this._cachedDc, dbg: this._cachedDbg };
+		}
+		this._themeKey = themeKey;
+		this._cachedDc = Ansi.resolveDiffColors(this.theme);
+		this._cachedDbg = deriveBgFromTheme(this.theme);
+		return { dc: this._cachedDc, dbg: this._cachedDbg };
+	}
+
+	private _cachedDc: DiffColors | undefined;
+	private _cachedDbg: DiffBg | undefined;
+
+	private _deriveBg(): DiffBg {
+		return this._deriveColors().dbg;
 	}
 
 	render(width: number): string[] {
@@ -96,13 +117,14 @@ export class DiffComponent implements Component {
 		}
 
 		// Start async render for this width
+		const { dc, dbg } = this._deriveColors();
 		const promise = renderSplitLines(
 			this.diff,
 			this.language,
 			width,
 			this.maxLines,
-			this.dc,
-			this.dbg,
+			dc,
+			dbg,
 		);
 		this._renderPromise = promise;
 
@@ -135,5 +157,8 @@ export class DiffComponent implements Component {
 	invalidate(): void {
 		this._cachedWidth = undefined;
 		this._cachedLines = undefined;
+		this._themeKey = undefined; // Force re-derive on theme change
+		this._cachedDc = undefined;
+		this._cachedDbg = undefined;
 	}
 }

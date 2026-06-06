@@ -13,6 +13,7 @@ const ANIM_INTERVAL = Symbol.for("splashscreen:animInterval");
 const DEBOUNCE_TIMER = Symbol.for("splashscreen:debounceTimer");
 const PATCHED_CLEAR = Symbol.for("splashscreen:clearPatched");
 const PATCHED_LISTING = Symbol.for("splashscreen:listingPatched");
+const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
 
 // Animation constants
 const MAX_RENDER_WIDTH = 9999;
@@ -165,6 +166,9 @@ export function patchStartupListing(
 ): void {
   const chat = findChatContainer(tui);
   if (!chat) {
+    // Graceful degradation: if we can't find the chat container,
+    // the startup listing won't render but the extension continues.
+    console.warn("[archimedes] Could not find chat container — startup listing disabled. This may indicate a pi TUI structure change.");
     return;
   }
   const cc = chat as any;
@@ -232,6 +236,7 @@ export function patchStartupListing(
   cc[PATCHED_LISTING] = true;
 
   const origAddChild = chat.addChild.bind(chat);
+  cc[ORIG_ADD_CHILD] = origAddChild; // Store for cleanup on shutdown
   chat.clear();
 
   chat.addChild = (component: Component) => {

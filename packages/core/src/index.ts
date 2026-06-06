@@ -69,6 +69,27 @@ export function registerCore(pi: ExtensionAPI): void {
     const listingRef = g["listingRef"] as ListingRef | undefined;
     if (listingRef) { listingRef.settled = true; }
 
+    // Restore patched chat.addChild to prevent closure accumulation across reloads
+    const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
+    const PATCHED_LISTING = Symbol.for("splashscreen:listingPatched");
+    if (coreCtx) {
+      try {
+        const tui = (coreCtx.ui as any).tui;
+        if (tui?.children) {
+          for (const child of tui.children) {
+            const cc = child as any;
+            if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
+              child.addChild = cc[ORIG_ADD_CHILD];
+              cc[PATCHED_LISTING] = false;
+              cc[ORIG_ADD_CHILD] = undefined;
+            }
+          }
+        }
+      } catch {
+        /* TUI structure may have changed — ignore */
+      }
+    }
+
     // Clear editor component override
     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
   });
