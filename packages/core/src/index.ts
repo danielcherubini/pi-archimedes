@@ -5,11 +5,14 @@ import { TUI, type EditorTheme, type Component, type SettingItem } from "@earend
 import { HephaestusEditor } from "./editor/index.js";
 
 import { renderHeader, patchStartupListing, type ListingRef } from "./startup/index.js";
-import { patchConsoleLog } from "./startup/capture.js";
+import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
 import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, type CoreConfig } from "./config.js";
 import { initBus } from "./bus.js";
+
+// Re-export for session lifecycle management
+export { unpatchConsoleLog } from "./startup/capture.js";
 
 // ── Settings items ────────────────────────────────────────────────────────
 

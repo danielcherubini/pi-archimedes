@@ -4,10 +4,14 @@ const MODEL_SCOPE_RE = /Model scope:\s*(.+)/;
 export const CAPTURED_MODELS = Symbol.for("splashscreen:capturedModels");
 export const PATCHED_LOG = Symbol.for("splashscreen:logPatched");
 
+// Store original console.log for restoration
+let _origLog: typeof console.log | undefined;
+
 export function patchConsoleLog(): void {
   if (g[PATCHED_LOG]) return;
   g[PATCHED_LOG] = true;
-  const origLog = console.log;
+  _origLog = console.log;
+
   console.log = (...args: unknown[]) => {
     try {
       if (args.length === 1 && typeof args[0] === "string") {
@@ -20,14 +24,24 @@ export function patchConsoleLog(): void {
             .map((s: string) => s.trim())
             .filter(Boolean);
           // Unpatch once captured — no need to keep intercepting
-          console.log = origLog;
-          g[PATCHED_LOG] = false;
+          unpatchConsoleLog();
           return;
         }
       }
-    } catch {
-      /* ignore errors in patching logic */
+    } catch (err) {
+      // Log the error but don't suppress the original call
+      console.error("[archimedes] Error in console.log patch:", err);
     }
-    origLog.apply(console, args);
+    _origLog!.apply(console, args);
   };
+}
+
+/** Restore original console.log — call on session_shutdown. */
+export function unpatchConsoleLog(): void {
+  if (!g[PATCHED_LOG]) return;
+  g[PATCHED_LOG] = false;
+  if (_origLog) {
+    console.log = _origLog;
+    _origLog = undefined;
+  }
 }

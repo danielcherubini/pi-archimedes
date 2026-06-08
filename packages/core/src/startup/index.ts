@@ -3,7 +3,6 @@ import { getShinedLogo, TRUECOLOR, LOGO_PAD, LOGO_SETTLE_FRAME } from "./logo.js
 import { loadCoreConfig } from "../config.js";
 import { detectSection, parseSectionText, parseModelScope, formatColumns, buildItemWrapper, type ParsedSection, SECTION_KEYS } from "./sections.js";
 import { fetchLatestVersion, compareVersions } from "./version.js";
-import { patchConsoleLog } from "./capture.js";
 import { stripAnsi } from "../text.js";
 import { Text, Spacer, Container, TUI, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 

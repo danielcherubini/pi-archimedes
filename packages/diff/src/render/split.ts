@@ -34,20 +34,7 @@ export async function renderSplit(
 	dc: DiffColors = DEFAULT_DIFF_COLORS,
 ): Promise<string> {
 	const width = process.stdout.columns ?? DEFAULT_TERM_WIDTH;
-	// Build DiffBg from current (possibly theme-derived) global aliases.
-	const dbg: DiffBg = {
-		bgAdd: Ansi.BG_ADD,
-		bgDel: Ansi.BG_DEL,
-		bgAddW: Ansi.BG_ADD_W,
-		bgDelW: Ansi.BG_DEL_W,
-		bgGutterAdd: Ansi.BG_GUTTER_ADD,
-		bgGutterDel: Ansi.BG_GUTTER_DEL,
-		bgEmpty: Ansi.BG_EMPTY,
-		bgBase: Ansi.BG_BASE,
-		rst: Ansi.BG_BASE === "\x1b[49m" ? "\x1b[0m" : `\x1b[0m${Ansi.BG_BASE}`,
-		divider: Ansi.DIVIDER,
-	};
-	const lines = await renderSplitLines(diff, language, width, max, dc, dbg);
+	const lines = await renderSplitLines(diff, language, width, max, dc, DEFAULT_DIFF_BG);
 	return lines.join("\n");
 }
 
@@ -160,7 +147,7 @@ export async function renderSplitLines(
 			lResult = half_build(leftLine, lhl, wd.oldRanges, "left");
 			rResult = half_build(rightLine, rhl, wd.newRanges, "right");
 		} else if (paired && wd && wd.similarity >= WORD_DIFF_MIN_SIM && !canHL) {
-			const pwd = plainWordDiff(leftLine.content, rightLine.content);
+			const pwd = plainWordDiff(leftLine.content, rightLine.content, dbg);
 			lI++; rI++;
 			lResult = half_build(leftLine, pwd.old, null, "left");
 			rResult = half_build(rightLine, pwd.new, null, "right");

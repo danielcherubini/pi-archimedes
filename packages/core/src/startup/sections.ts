@@ -40,26 +40,32 @@ export function parseSectionText(plain: string): ParsedSection | undefined {
   const sectionName = detectSection(plain);
   if (!sectionName) return undefined;
 
+  const names = extractItemsFromSection(plain, sectionName);
+  const items = deduplicateItems(names);
+  return { name: sectionName, items };
+}
+
+/**
+ * Extract item names from a section's plain text.
+ * Tracks source prefixes (npm:/git:) for Extensions/Skills sections.
+ */
+function extractItemsFromSection(plain: string, sectionName: SectionKey): string[] {
   const names: string[] = [];
   const lines = plain.split("\n");
   let currentSource = "";
   let sourceIndent = 0;
+  const showSource = sectionName === "Extensions" || sectionName === "Skills";
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith("[")) continue;
-    if (/^(user|project|path)$/.test(trimmed)) { currentSource = ""; sourceIndent = 0; continue; }
+    if (shouldSkipLine(trimmed, currentSource)) continue;
 
     const indent = line.length - line.trimStart().length;
 
     // Track package source headers (e.g. "git:github.com/...", "npm:@foo/bar")
-    // Extract name from the header itself + let children inherit the prefix
     if (/^(git:|npm:)\S+\//.test(trimmed)) {
       currentSource = trimmed.startsWith("git:") ? "git:" : "npm:";
       sourceIndent = indent;
-      // Extract name from source header (e.g. "npm:@foo/pi-tavily-tools" → "npm:pi-tavily-tools")
-      const showSource = sectionName === "Extensions" || sectionName === "Skills";
       const name = extractName(trimmed, sectionName);
       if (name && showSource) names.push(name);
       continue;
@@ -71,27 +77,38 @@ export function parseSectionText(plain: string): ParsedSection | undefined {
       sourceIndent = 0;
     }
 
-    if (/^(index\.(ts|js)|src|dist|out|build|lib|bin)$/i.test(trimmed)) continue;
-    // Skip resolved file paths only under source headers (e.g. "dist/index.js" under npm:)
-    if (currentSource) {
-      if (/\/(src|dist|out|build|lib|bin)\//.test(trimmed)) continue;
-      if (/\.(ts|js)$/.test(trimmed) && trimmed.includes("/") && !/SKILL\.(ts|js)$/i.test(trimmed)) continue;
-    }
-
     const name = extractName(trimmed, sectionName);
-    // Prompts/Context don't need source prefix — only Extensions/Skills
-    const showSource = sectionName === "Extensions" || sectionName === "Skills";
     if (name) names.push(showSource && currentSource ? currentSource + name : name);
   }
+  return names;
+}
 
-  // Deduplicate by bare name (without prefix) — prefer prefixed version
+/** Check if a line should be skipped during section parsing. */
+function shouldSkipLine(trimmed: string, currentSource: string): boolean {
+  if (!trimmed) return true;
+  if (trimmed.startsWith("[")) return true;
+  if (/^(user|project|path)$/.test(trimmed)) return true;
+  if (/^(index\.(ts|js)|src|dist|out|build|lib|bin)$/i.test(trimmed)) return true;
+  // Skip resolved file paths only under source headers
+  if (currentSource) {
+    if (/\/(src|dist|out|build|lib|bin)\//.test(trimmed)) return true;
+    if (/\.(ts|js)$/.test(trimmed) && trimmed.includes("/") && !/SKILL\.(ts|js)$/i.test(trimmed)) return true;
+  }
+  return false;
+}
+
+/**
+ * Deduplicate items by bare name (without prefix).
+ * Prefers prefixed versions (npm:/git:) over bare names.
+ */
+function deduplicateItems(names: string[]): string[] {
   const seen = new Map<string, string>();
   for (const n of names) {
     if (/^(index|dist|src|out|lib|bin)$/i.test(n)) continue;
     const bare = n.replace(/^(npm:|git:)/, "");
     if (!seen.has(bare) || n.includes(":")) seen.set(bare, n);
   }
-  return { name: sectionName, items: [...seen.values()] };
+  return [...seen.values()];
 }
 
 export function parseModelScope(plain: string): ParsedSection | undefined {

@@ -2,6 +2,7 @@
 
 import * as Diff from "diff";
 import * as Ansi from "./ansi/index.js";
+import type { DiffBg } from "./ansi/index.js";
 
 // ---------------------------------------------------------------------------
 // Word diff analysis
@@ -107,13 +108,17 @@ export function injectBg(
 }
 
 /** Simple word diff (no syntax hl) — fallback when Shiki isn't available. */
-export function plainWordDiff(oldText: string, newText: string): { old: string; new: string } {
+export function plainWordDiff(
+	oldText: string,
+	newText: string,
+	dbg: DiffBg,
+): { old: string; new: string } {
 	const parts = Diff.diffWords(oldText, newText);
 	let o = "",
 		n = "";
 	for (const p of parts) {
-		if (p.removed) o += `${Ansi.BG_DEL_W}${p.value}${Ansi.RST}${Ansi.BG_DEL}`;
-		else if (p.added) n += `${Ansi.BG_ADD_W}${p.value}${Ansi.RST}${Ansi.BG_ADD}`;
+		if (p.removed) o += `${dbg.bgDelW}${p.value}${Ansi.RST}${dbg.bgDel}`;
+		else if (p.added) n += `${dbg.bgAddW}${p.value}${Ansi.RST}${dbg.bgAdd}`;
 		else {
 			o += p.value;
 			n += p.value;
