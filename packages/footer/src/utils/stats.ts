@@ -60,7 +60,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
   if (startIdx === 0) {
     // Full scan — no running total yet
     for (const sessionEntry of entries) {
-      if (sessionEntry.type === "message" && sessionEntry.message.role === "assistant") {
+      if (sessionEntry?.type === "message" && sessionEntry.message?.role === "assistant") {
         const assistantMessage = sessionEntry.message as AssistantMessage;
         totalInput += assistantMessage.usage.input;
         totalOutput += assistantMessage.usage.output;

@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentConfig } from "./agents.js";
 
-// Track all temp dirs for cleanup on process exit (SIGKILL/OOM)
+// Track all temp dirs for cleanup on process exit (graceful shutdown only).
+// Note: SIGKILL/OOM cannot be caught — the exit handler only fires for
+// normal exits and catchable signals (SIGTERM, SIGINT, SIGHUP, etc.).
 const tempDirs = new Set<string>();
 
 process.on("exit", () => {
@@ -65,8 +67,10 @@ function cleanupTempFiles(dir: string | null, filePath: string | null): void {
     try { unlinkSync(filePath); } catch { /* ignore */ }
   }
   if (dir) {
-    try { rmdirSync(dir); } catch { /* ignore */ }
-    tempDirs.delete(dir);
+    try {
+      rmdirSync(dir);
+      tempDirs.delete(dir);
+    } catch { /* leave in Set so exit handler can retry with rmSync */ }
   }
 }
 

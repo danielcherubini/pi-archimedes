@@ -79,7 +79,7 @@ export interface DiffColors {
 export const DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
 
 // ---------------------------------------------------------------------------
-// Theme-aware color resolution (mutates legacy aliases)
+// Theme-aware color resolution
 // ---------------------------------------------------------------------------
 
 /** Reset auto-derived colors — call when theme changes. */
