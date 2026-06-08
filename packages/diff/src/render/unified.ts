@@ -31,20 +31,7 @@ export async function renderUnified(
 	dc: DiffColors = DEFAULT_DIFF_COLORS,
 ): Promise<string> {
 	const width = process.stdout.columns ?? DEFAULT_TERM_WIDTH;
-	// Build DiffBg from current (possibly theme-derived) global aliases.
-	const dbg: DiffBg = {
-		bgAdd: Ansi.BG_ADD,
-		bgDel: Ansi.BG_DEL,
-		bgAddW: Ansi.BG_ADD_W,
-		bgDelW: Ansi.BG_DEL_W,
-		bgGutterAdd: Ansi.BG_GUTTER_ADD,
-		bgGutterDel: Ansi.BG_GUTTER_DEL,
-		bgEmpty: Ansi.BG_EMPTY,
-		bgBase: Ansi.BG_BASE,
-		rst: Ansi.BG_BASE === "\x1b[49m" ? "\x1b[0m" : `\x1b[0m${Ansi.BG_BASE}`,
-		divider: Ansi.DIVIDER,
-	};
-	const lines = await renderUnifiedLines(diff, language, width, max, dc, dbg);
+	const lines = await renderUnifiedLines(diff, language, width, max, dc, DEFAULT_DIFF_BG);
 	return lines.join("\n");
 }
 
@@ -135,7 +122,7 @@ export async function renderUnifiedLines(
 			continue;
 		}
 		if (isPaired && wd && wd.similarity >= WORD_DIFF_MIN_SIM && !canHL) {
-			const pwd = plainWordDiff(dels[0]!.l.content, adds[0]!.l.content);
+			const pwd = plainWordDiff(dels[0]!.l.content, adds[0]!.l.content, dbg);
 			emitRow(dels[0]!.l.oldNum, "-", dbg.bgGutterDel, `${dc.fgDel}${Ansi.BOLD}`, `${dbg.bgDel}${pwd.old}`, dbg.bgDel);
 			emitRow(adds[0]!.l.newNum, "+", dbg.bgGutterAdd, `${dc.fgAdd}${Ansi.BOLD}`, `${dbg.bgAdd}${pwd.new}`, dbg.bgAdd);
 			continue;

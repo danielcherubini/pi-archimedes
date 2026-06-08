@@ -159,6 +159,7 @@ export function registerFooter(pi: ExtensionAPI): void {
 
             return [clampLine(leftSectionStr + sectionSeparator + rightSectionStr, width)];
           } catch (e) {
+            console.error("[archimedes:footer] Render error:", e);
             return [];
           }
         },

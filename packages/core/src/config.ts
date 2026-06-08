@@ -1,6 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { loadConfig, saveConfig } from "./settings-io.js";
 
 export const ANIMATION_STYLES = [
   "diagonal",
@@ -23,8 +21,6 @@ export interface CoreConfig {
   animationStyle: AnimationStyle;
 }
 
-const SETTINGS_PATH = join(getAgentDir(), "settings.json");
-
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
   mutedTheme: false,
   codeUnindent: true,
@@ -33,27 +29,12 @@ export const DEFAULT_CORE_CONFIG: CoreConfig = {
   animationStyle: "vertical-up",
 };
 
+const NAMESPACE = "archimedes.core";
+
 export function loadCoreConfig(): CoreConfig {
-  if (existsSync(SETTINGS_PATH)) {
-    try {
-      const full = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
-      return { ...DEFAULT_CORE_CONFIG, ...(full["archimedes.core"] ?? {}) };
-    } catch {
-      /* ignore corrupt file */
-    }
-  }
-  return DEFAULT_CORE_CONFIG;
+  return loadConfig(NAMESPACE, DEFAULT_CORE_CONFIG);
 }
 
 export function saveCoreConfig(config: CoreConfig): void {
-  let full: Record<string, unknown> = {};
-  if (existsSync(SETTINGS_PATH)) {
-    try {
-      full = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
-    } catch {
-      /* ignore corrupt file */
-    }
-  }
-  full["archimedes.core"] = config;
-  writeFileSync(SETTINGS_PATH, JSON.stringify(full, null, 2), "utf-8");
+  saveConfig(NAMESPACE, config);
 }

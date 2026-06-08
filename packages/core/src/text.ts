@@ -3,9 +3,24 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 // Inline stripSgr — narrow SGR-only strip (no trim) for char-level checks
 const stripSgr = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
-/** Strip ALL ANSI escapes (SGR color/style + OSC sequences). Trims whitespace. Use for text extraction. */
+/**
+ * Strip ALL ANSI escape sequences. Covers:
+ * - CSI: ESC [ ... letter (SGR, cursor movement, etc.)
+ * - OSC: ESC ] ... ST (operating system commands)
+ * - DCS: ESC P ... ST (device control strings)
+ * - APC: ESC _ ... ST (application program commands)
+ * - SOS: ESC ^ ... ST (start of string)
+ * - PM:  ESC \x5c ... ST (privacy message)
+ * - Character set: ESC ( or ESC ) (DECSET/DECRST)
+ * Trims whitespace. Use for text extraction.
+ */
 export function stripAnsi(s: string): string {
-  return s.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)/g, "").trim();
+  return s
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")   // CSI
+    .replace(/\x1b\].*?(?:\x07|\x1b\\)/g, "")  // OSC
+    .replace(/\x1b[P^_\x5c].*?(?:\x07|\x1b\\)/g, "") // DCS, SOS, APC, PM
+    .replace(/\x1b[()]/g, "")                   // character set
+    .trim();
 }
 
 /** Clamp a line to maxW visible characters, preserving ANSI escapes. */

@@ -54,18 +54,6 @@ export const DEFAULT_DIFF_BG: DiffBg = {
 	divider: `${FG_RULE}│\x1b[0m`,
 };
 
-// Legacy aliases — used by word-diff.ts during transition. Will be removed.
-// These MUST be mutable and live in the same module as the functions that mutate them.
-export let BG_ADD = DEFAULT_DIFF_BG.bgAdd;
-export let BG_DEL = DEFAULT_DIFF_BG.bgDel;
-export let BG_ADD_W = DEFAULT_DIFF_BG.bgAddW;
-export let BG_DEL_W = DEFAULT_DIFF_BG.bgDelW;
-export let BG_GUTTER_ADD = DEFAULT_DIFF_BG.bgGutterAdd;
-export let BG_GUTTER_DEL = DEFAULT_DIFF_BG.bgGutterDel;
-export let BG_EMPTY = DEFAULT_DIFF_BG.bgEmpty;
-export let BG_BASE = DEFAULT_DIFF_BG.bgBase;
-export let DIVIDER = DEFAULT_DIFF_BG.divider;
-
 // Theme cache key state — lives here since it's used by resolveDiffColors.
 let _lastThemeKey: string | undefined;
 
@@ -91,21 +79,12 @@ export interface DiffColors {
 export const DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
 
 // ---------------------------------------------------------------------------
-// Theme-aware color resolution (mutates legacy aliases)
+// Theme-aware color resolution
 // ---------------------------------------------------------------------------
 
 /** Reset auto-derived colors — call when theme changes. */
 export function resetDiffColors(): void {
 	_lastThemeKey = undefined;
-	BG_ADD = DEFAULT_DIFF_BG.bgAdd;
-	BG_DEL = DEFAULT_DIFF_BG.bgDel;
-	BG_ADD_W = DEFAULT_DIFF_BG.bgAddW;
-	BG_DEL_W = DEFAULT_DIFF_BG.bgDelW;
-	BG_GUTTER_ADD = DEFAULT_DIFF_BG.bgGutterAdd;
-	BG_GUTTER_DEL = DEFAULT_DIFF_BG.bgGutterDel;
-	BG_EMPTY = DEFAULT_DIFF_BG.bgEmpty;
-	BG_BASE = DEFAULT_DIFF_BG.bgBase;
-	DIVIDER = DEFAULT_DIFF_BG.divider;
 }
 
 export function themeCacheKey(theme?: any): string {
@@ -130,18 +109,8 @@ export { deriveBgFromTheme };
 export function resolveDiffColors(theme?: any): DiffColors {
 	const themeKey = themeCacheKey(theme);
 
-	// Re-derive when theme changes (different key) or first call
-	if (themeKey !== _lastThemeKey && theme?.getFgAnsi) {
-		const dbg = deriveBgFromTheme(theme);
-		BG_ADD = dbg.bgAdd;
-		BG_DEL = dbg.bgDel;
-		BG_ADD_W = dbg.bgAddW;
-		BG_DEL_W = dbg.bgDelW;
-		BG_GUTTER_ADD = dbg.bgGutterAdd;
-		BG_GUTTER_DEL = dbg.bgGutterDel;
-		BG_EMPTY = dbg.bgEmpty;
-		BG_BASE = dbg.bgBase;
-		DIVIDER = dbg.divider;
+	// Re-derive theme key cache (bg colors are now passed explicitly via DiffBg)
+	if (themeKey !== _lastThemeKey) {
 		_lastThemeKey = themeKey;
 	}
 	if (!theme?.getFgAnsi) return DEFAULT_DIFF_COLORS;

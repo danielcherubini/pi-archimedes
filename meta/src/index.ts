@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { registerCore } from "@pi-archimedes/core";
+import { registerCore, unpatchConsoleLog } from "@pi-archimedes/core";
 import { registerFooter } from "@pi-archimedes/footer";
 import { registerDiffTools } from "@pi-archimedes/diff";
 import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@pi-archimedes/image-paste";
@@ -22,6 +22,7 @@ export default function (pi: ExtensionAPI): void {
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
     shutdownImagePaste();
+    unpatchConsoleLog();
   });
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {

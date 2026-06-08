@@ -30,10 +30,15 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
   }
 
   const src = proto.updateContent.toString();
-  if (
-    !src.includes('content.type === "thinking"') ||
-    !src.includes("this.markdownTheme")
-  ) {
+  const hasThinkingCheck = src.includes('content.type === "thinking"');
+  const hasMarkdownTheme = src.includes("this.markdownTheme");
+  if (!hasThinkingCheck || !hasMarkdownTheme) {
+    console.warn(
+      `[archimedes] Skipping thinking renderer patch — signature mismatch
+  hasThinkingCheck: ${hasThinkingCheck}, hasMarkdownTheme: ${hasMarkdownTheme}
+  This likely means pi's AssistantMessageComponent changed. The muted theme
+  for thinking blocks will not be applied.`,
+    );
     return;
   }
 

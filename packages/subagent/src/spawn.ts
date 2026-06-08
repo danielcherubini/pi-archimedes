@@ -1,9 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
-import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentConfig } from "./agents.js";
+
+// Track all temp dirs for cleanup on process exit (graceful shutdown only).
+// Note: SIGKILL/OOM cannot be caught — the exit handler only fires for
+// normal exits and catchable signals (SIGTERM, SIGINT, SIGHUP, etc.).
+const tempDirs = new Set<string>();
+
+process.on("exit", () => {
+  for (const dir of tempDirs) {
+    try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
 
 export interface SpawnOptions {
   task: string;
@@ -42,6 +53,7 @@ export function resolvePiCommand(): { command: string; args: string[] } {
 function writePromptToFile(agentName: string, prompt: string): { dir: string; filePath: string } {
   const safeName = agentName.replace(/[^\w.-]+/g, "_");
   const tmpDir = mkdtempSync(join(tmpdir(), "pi-subagent-"));
+  tempDirs.add(tmpDir);
   const filePath = join(tmpDir, `prompt-${safeName}.md`);
   writeFileSync(filePath, prompt, { encoding: "utf-8" });
   return { dir: tmpDir, filePath };
@@ -55,7 +67,10 @@ function cleanupTempFiles(dir: string | null, filePath: string | null): void {
     try { unlinkSync(filePath); } catch { /* ignore */ }
   }
   if (dir) {
-    try { rmdirSync(dir); } catch { /* ignore */ }
+    try {
+      rmdirSync(dir);
+      tempDirs.delete(dir);
+    } catch { /* leave in Set so exit handler can retry with rmSync */ }
   }
 }
 

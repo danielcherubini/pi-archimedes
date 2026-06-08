@@ -12,7 +12,8 @@
     "./chrome": "./src/chrome.ts",
     "./text": "./src/text.ts",
     "./color": "./src/color.ts",
-    "./config": "./src/config.ts"
+    "./config": "./src/config.ts",
+    "./settings-io": "./src/settings-io.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

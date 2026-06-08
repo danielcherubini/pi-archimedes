@@ -1,7 +1,3 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
-
 // ── Re-export core config ──────────────────────────────────────────────
 
 import {
@@ -37,6 +33,7 @@ export {
 // ── Diff config ────────────────────────────────────────────────────────
 
 import type { DiffConfig } from "@pi-archimedes/diff";
+import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
 export type { DiffConfig } from "@pi-archimedes/diff";
 
 export const DEFAULT_DIFF_CONFIG: DiffConfig = {
@@ -45,31 +42,14 @@ export const DEFAULT_DIFF_CONFIG: DiffConfig = {
   diffSplitMinCodeWidth: 60,
 };
 
-const SETTINGS_PATH = join(getAgentDir(), "settings.json");
+const NAMESPACE = "archimedes.diff";
 
 export function loadDiffConfig(): DiffConfig {
-  if (existsSync(SETTINGS_PATH)) {
-    try {
-      const full = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
-      return { ...DEFAULT_DIFF_CONFIG, ...(full["archimedes.diff"] ?? {}) };
-    } catch {
-      /* ignore corrupt file */
-    }
-  }
-  return DEFAULT_DIFF_CONFIG;
+  return loadConfig(NAMESPACE, DEFAULT_DIFF_CONFIG);
 }
 
 export function saveDiffConfig(config: DiffConfig): void {
-  let full: Record<string, unknown> = {};
-  if (existsSync(SETTINGS_PATH)) {
-    try {
-      full = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
-    } catch {
-      /* ignore corrupt file */
-    }
-  }
-  full["archimedes.diff"] = config;
-  writeFileSync(SETTINGS_PATH, JSON.stringify(full, null, 2), "utf-8");
+  saveConfig(NAMESPACE, config);
 }
 
 // ── Composed config loader ─────────────────────────────────────────────

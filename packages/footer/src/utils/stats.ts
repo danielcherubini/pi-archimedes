@@ -31,6 +31,10 @@ interface StatsCacheEntry {
 
 let statsCache: StatsCacheEntry | undefined;
 
+// Running total from initial scan — avoids re-scanning old entries
+let runningTotal: TokenUsageStats | undefined;
+let runningTotalEntryCount = 0;
+
 export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
   const entries = ctx.sessionManager.getEntries();
 
@@ -49,18 +53,49 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
     totalCacheWrite = 0,
     totalCost = 0;
 
-  for (const sessionEntry of entries) {
-    if (sessionEntry.type === "message" && sessionEntry.message.role === "assistant") {
-      const assistantMessage = sessionEntry.message as AssistantMessage;
-      totalInput += assistantMessage.usage.input;
-      totalOutput += assistantMessage.usage.output;
-      totalCacheRead += assistantMessage.usage.cacheRead;
-      totalCacheWrite += assistantMessage.usage.cacheWrite;
-      totalCost += assistantMessage.usage.cost.total;
+  // If we have a running total, only scan new entries
+  const hasRunningTotal = runningTotal !== undefined && runningTotalEntryCount < entries.length;
+  const startIdx = hasRunningTotal ? runningTotalEntryCount : 0;
+
+  if (startIdx === 0) {
+    // Full scan — no running total yet
+    for (const sessionEntry of entries) {
+      if (sessionEntry?.type === "message" && sessionEntry.message?.role === "assistant") {
+        const assistantMessage = sessionEntry.message as AssistantMessage;
+        totalInput += assistantMessage.usage.input;
+        totalOutput += assistantMessage.usage.output;
+        totalCacheRead += assistantMessage.usage.cacheRead;
+        totalCacheWrite += assistantMessage.usage.cacheWrite;
+        totalCost += assistantMessage.usage.cost.total;
+      }
     }
+    runningTotal = { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
+    runningTotalEntryCount = entries.length;
+  } else {
+    // Incremental: start from running total + scan new entries
+    const rt = runningTotal!; // Safe: hasRunningTotal guard above
+    totalInput = rt.totalInput;
+    totalOutput = rt.totalOutput;
+    totalCacheRead = rt.totalCacheRead;
+    totalCacheWrite = rt.totalCacheWrite;
+    totalCost = rt.totalCost;
+
+    for (let i = startIdx; i < entries.length; i++) {
+      const sessionEntry = entries[i];
+      if (sessionEntry?.type === "message" && sessionEntry.message?.role === "assistant") {
+        const assistantMessage = sessionEntry.message as AssistantMessage;
+        totalInput += assistantMessage.usage.input;
+        totalOutput += assistantMessage.usage.output;
+        totalCacheRead += assistantMessage.usage.cacheRead;
+        totalCacheWrite += assistantMessage.usage.cacheWrite;
+        totalCost += assistantMessage.usage.cost.total;
+      }
+    }
+    runningTotalEntryCount = entries.length;
   }
 
   const result: TokenUsageStats = { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
+  runningTotal = result;
   statsCache = { value: result, timestamp: Date.now(), entryCount: entries.length };
   return result;
 }
