@@ -166,6 +166,32 @@ function agentModel(a: AgentConfig): string {
 
 // ── Border wrapper ────────────────────────────────────────────────────────────
 
+/** Hard-truncate by visible width — no "..." suffix. Strips ANSI, truncates, rebuilds. */
+function hardTruncate(text: string, maxVisible: number): string {
+  if (visibleWidth(text) <= maxVisible) return text;
+  // Strip ANSI codes, truncate, then re-apply any trailing reset codes
+  const plain = text.replace(/\x1b\[[0-9;]*m/g, "");
+  const truncated = plain.slice(0, maxVisible);
+  // Restore any ANSI codes that were in the original up to this point
+  let result = "";
+  let plainPos = 0;
+  let i = 0;
+  while (i < text.length && plainPos < maxVisible) {
+    if (text[i] === "\x1b" && text[i + 1] === "[") {
+      // Copy the escape sequence
+      let j = i;
+      while (j < text.length && text[j] !== "m") j++;
+      result += text.slice(i, j + 1);
+      i = j + 1;
+    } else {
+      result += text[i];
+      plainPos++;
+      i++;
+    }
+  }
+  return result;
+}
+
 function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] {
   const innerWidth = Math.max(1, width - 2);
   const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
@@ -175,7 +201,8 @@ function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] 
   const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
   const result: string[] = [top];
   for (const line of lines) {
-    const padded = " " + padEnd(line, contentWidth) + " ";
+    const clamped = hardTruncate(line, contentWidth);
+    const padded = " " + padEnd(clamped, contentWidth) + " ";
     result.push(left + padded + right);
   }
   result.push(bottom);
