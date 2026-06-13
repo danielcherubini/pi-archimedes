@@ -10,12 +10,14 @@ import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 export interface AgentConfig {
   name: string;
   description: string;
+  tools?: string[];
   model?: string;
   thinking?: string;
-  tools?: string[];
   systemPrompt: string;
   source: "user" | "project";
   filePath: string;
+  // Extra fields preserved from frontmatter but not editable in TUI
+  extraFields?: Record<string, string>;
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -50,6 +52,14 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
       ? frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean)
       : undefined;
 
+    const knownKeys = new Set(["name", "description", "tools", "model", "thinking"]);
+    const extraFields: Record<string, string> = {};
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (!knownKeys.has(key) && value != null && typeof value !== "object") {
+        extraFields[key] = String(value);
+      }
+    }
+
     const config: AgentConfig = {
       name: frontmatter.name as string,
       description: frontmatter.description as string,
@@ -60,6 +70,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
     if (frontmatter.model) config.model = frontmatter.model as string;
     if (frontmatter.thinking) config.thinking = frontmatter.thinking as string;
     if (tools && tools.length > 0) config.tools = tools;
+    if (Object.keys(extraFields).length > 0) config.extraFields = extraFields;
 
     agents.push(config);
   }
@@ -88,6 +99,16 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
 }
 
 /**
+ * Result of discovering agents — separated by source with directory paths.
+ */
+export interface AgentsDiscoveryResult {
+  user: AgentConfig[];
+  project: AgentConfig[];
+  userDir: string;        // e.g., ~/.pi/agent/agents
+  projectDir: string | null;  // e.g., .pi/agents or null if not found
+}
+
+/**
  * Discover all available agents from user and/or project directories.
  */
 export function discoverAgents(cwd: string): AgentConfig[] {
@@ -103,6 +124,24 @@ export function discoverAgents(cwd: string): AgentConfig[] {
   for (const agent of projectAgents) agentMap.set(agent.name, agent);
 
   return Array.from(agentMap.values());
+}
+
+/**
+ * Discover agents and return them separated by source with directory paths.
+ */
+export function discoverAgentsAll(cwd: string): AgentsDiscoveryResult {
+  const userDir = path.join(getAgentDir(), "agents");
+  const projectDir = findNearestProjectAgentsDir(cwd);
+
+  const userAgents = loadAgentsFromDir(userDir, "user");
+  const projectAgents = projectDir ? loadAgentsFromDir(projectDir, "project") : [];
+
+  return {
+    user: userAgents,
+    project: projectAgents,
+    userDir,
+    projectDir,
+  };
 }
 
 /**

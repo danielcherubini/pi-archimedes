@@ -3,7 +3,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { executeSubagent, executeParallel } from "./execute.js";
 import { renderSubagentResult } from "./render.js";
-import { discoverAgents, findAgent } from "./agents.js";
+import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";
 import type {
   SubagentDetails,
   SubagentProgress,
