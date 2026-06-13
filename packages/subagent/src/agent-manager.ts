@@ -175,8 +175,7 @@ function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] 
   const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
   const result: string[] = [top];
   for (const line of lines) {
-    const content = truncateToWidth(line, contentWidth);
-    const padded = " " + padEnd(content, contentWidth) + " ";
+    const padded = " " + padEnd(line, contentWidth) + " ";
     result.push(left + padded + right);
   }
   result.push(bottom);
@@ -1201,24 +1200,25 @@ export function createAgentManager(
         return cachedLines;
       }
 
-      // Pass inner width (minus border columns) to screen renderers
+      // Pass content width (minus border + padding) to screen renderers
       const innerWidth = Math.max(1, width - 2);
+      const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
       let lines: string[];
       switch (state.screen) {
         case "list":
-          lines = renderList(state, innerWidth, theme);
+          lines = renderList(state, contentWidth, theme);
           break;
         case "detail":
-          lines = renderDetail(state, innerWidth, theme);
+          lines = renderDetail(state, contentWidth, theme);
           break;
         case "edit":
-          lines = renderEdit(state, innerWidth, theme);
+          lines = renderEdit(state, contentWidth, theme);
           break;
         case "name-input":
-          lines = renderNameInput(state, innerWidth, theme);
+          lines = renderNameInput(state, contentWidth, theme);
           break;
         case "confirm-delete":
-          lines = renderConfirmDelete(state, innerWidth, theme);
+          lines = renderConfirmDelete(state, contentWidth, theme);
           break;
       }
 
