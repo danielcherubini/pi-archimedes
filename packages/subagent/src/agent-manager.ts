@@ -163,6 +163,21 @@ function agentModel(a: AgentConfig): string {
   return a.model ?? "default";
 }
 
+
+// ── Border wrapper ────────────────────────────────────────────────────────────
+
+function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] {
+  const innerWidth = Math.max(1, width - 2);
+  const top = theme.fg("dim", `┌${"─".repeat(innerWidth)}┐`);
+  const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
+  const result: string[] = [top];
+  for (const line of lines) {
+    const inner = padEnd(line, innerWidth);
+    result.push(theme.fg("dim", `│${inner}│`));
+  }
+  result.push(bottom);
+  return result;
+}
 // ── List screen ─────────────────────────────────────────────────────────────
 
 function renderList(state: ManagerState, width: number, theme: Theme): string[] {
@@ -1182,28 +1197,31 @@ export function createAgentManager(
         return cachedLines;
       }
 
+      // Pass inner width (minus border columns) to screen renderers
+      const innerWidth = Math.max(1, width - 2);
       let lines: string[];
       switch (state.screen) {
         case "list":
-          lines = renderList(state, width, theme);
+          lines = renderList(state, innerWidth, theme);
           break;
         case "detail":
-          lines = renderDetail(state, width, theme);
+          lines = renderDetail(state, innerWidth, theme);
           break;
         case "edit":
-          lines = renderEdit(state, width, theme);
+          lines = renderEdit(state, innerWidth, theme);
           break;
         case "name-input":
-          lines = renderNameInput(state, width, theme);
+          lines = renderNameInput(state, innerWidth, theme);
           break;
         case "confirm-delete":
-          lines = renderConfirmDelete(state, width, theme);
+          lines = renderConfirmDelete(state, innerWidth, theme);
           break;
       }
 
+      const bordered = wrapWithBorder(lines, width, theme);
       cachedWidth = width;
-      cachedLines = lines;
-      return lines;
+      cachedLines = bordered;
+      return bordered;
     },
 
     handleInput,
