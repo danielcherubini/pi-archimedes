@@ -101,7 +101,8 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
       args.push("--tools", agent.tools.join(","));
     }
   } else if (options.model) {
-    // Fallback: use model from tool call params (legacy)
+    // Fallback: tool-call model (which itself falls back to the parent's
+    // currently-selected model via ctx.model?.id at the call site).
     args.push("--model", options.model);
   }
 
