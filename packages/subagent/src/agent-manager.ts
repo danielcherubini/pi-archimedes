@@ -172,8 +172,8 @@ function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] 
   const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
   const result: string[] = [top];
   for (const line of lines) {
-    const inner = padEnd(line, innerWidth);
-    result.push(theme.fg("dim", `│${inner}│`));
+    const padded = " " + padEnd(line, innerWidth - 2) + " ";
+    result.push(theme.fg("dim", `│${padded}│`));
   }
   result.push(bottom);
   return result;
