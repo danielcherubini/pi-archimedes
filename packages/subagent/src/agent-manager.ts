@@ -80,6 +80,9 @@ interface ManagerState {
 
   // New agent tracking
   isNew: boolean;
+
+  // Render width (stored so input handlers can compute correct scroll bounds)
+  lastWidth: number;
 }
 
 // ── Component return type ───────────────────────────────────────────────────
@@ -415,7 +418,7 @@ function handleDetailInput(
     }
   } else if (matchesKey(data, Key.down)) {
     if (state.detailAgent) {
-      const bodyLines = wrapText(state.detailAgent.systemPrompt, 84);
+      const bodyLines = wrapText(state.detailAgent.systemPrompt, state.lastWidth);
       const bodyViewport = Math.max(6, 14 - 9);
       if (state.detailScroll < bodyLines.length - bodyViewport) {
         state.detailScroll++;
@@ -623,7 +626,7 @@ function handleEditInput(
         requestRender();
       }
     } else if (matchesKey(data, Key.down)) {
-      const promptLines = wrapText(state.editAgent.systemPrompt, 84);
+      const promptLines = wrapText(state.editAgent.systemPrompt, state.lastWidth);
       const promptViewport = Math.max(6, 14 - 4 - 2);
       if (state.editPromptScroll < promptLines.length - promptViewport) {
         state.editPromptScroll++;
@@ -1138,6 +1141,8 @@ export function createAgentManager(
     deleteFromScreen: "list",
 
     isNew: false,
+
+    lastWidth: 84,
   };
 
   let cachedWidth: number | undefined;
@@ -1172,6 +1177,7 @@ export function createAgentManager(
 
   return {
     render(width: number): string[] {
+      state.lastWidth = width;
       if (cachedLines && cachedWidth === width) {
         return cachedLines;
       }
