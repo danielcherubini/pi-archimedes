@@ -168,12 +168,16 @@ function agentModel(a: AgentConfig): string {
 
 function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] {
   const innerWidth = Math.max(1, width - 2);
+  const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
+  const left = theme.fg("dim", "│");
+  const right = theme.fg("dim", "│");
   const top = theme.fg("dim", `┌${"─".repeat(innerWidth)}┐`);
   const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
   const result: string[] = [top];
   for (const line of lines) {
-    const padded = " " + padEnd(line, innerWidth - 2) + " ";
-    result.push(theme.fg("dim", `│${padded}│`));
+    const content = truncateToWidth(line, contentWidth);
+    const padded = " " + padEnd(content, contentWidth) + " ";
+    result.push(left + padded + right);
   }
   result.push(bottom);
   return result;
