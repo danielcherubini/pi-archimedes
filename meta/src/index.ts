@@ -4,7 +4,7 @@ import { registerCore, unpatchConsoleLog } from "@pi-archimedes/core";
 import { registerFooter } from "@pi-archimedes/footer";
 import { registerDiffTools } from "@pi-archimedes/diff";
 import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@pi-archimedes/image-paste";
-import { registerSubagent } from "@pi-archimedes/subagent";
+import { registerSubagent, registerAgentsCommand } from "@pi-archimedes/subagent";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js";
 
@@ -18,6 +18,9 @@ export default function (pi: ExtensionAPI): void {
 
   // Register subagent tool
   registerSubagent(pi);
+
+  // Register /agents command
+  registerAgentsCommand(pi);
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
