@@ -216,6 +216,7 @@ function renderList(state: ManagerState, width: number, theme: Theme): string[] 
 
   // Header
   lines.push(renderHeader(` Agents [${state.agents.length}] `, width, theme));
+  lines.push(padEnd("", width));
 
   // Search bar
   if (state.filterMode || state.filterQuery.length > 0) {
@@ -227,6 +228,7 @@ function renderList(state: ManagerState, width: number, theme: Theme): string[] 
   } else {
     lines.push(padEnd(`◎ ${theme.fg("dim", "type to filter...")}`, width));
   }
+  lines.push(padEnd("", width));
 
   // Agent rows or empty state
   const start = state.listScroll;
@@ -261,7 +263,7 @@ function renderList(state: ManagerState, width: number, theme: Theme): string[] 
   }
 
   // Fill remaining viewport rows
-  while (lines.length < 2 + LIST_VIEWPORT + 2) {
+  while (lines.length < 4 + LIST_VIEWPORT + 2) {
     lines.push(padEnd("", width));
   }
 
