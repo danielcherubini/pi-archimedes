@@ -468,7 +468,7 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
   if (state.editDiscardPrompt) {
     lines.push(renderHeader(" Discard changes? ", width, theme));
     lines.push(padEnd("", width));
-    lines.push(padEnd("Unsaved changes will be lost.", width));
+    lines.push(padEnd(theme.fg("dim", "Unsaved changes will be lost."), width));
     lines.push(padEnd("", width));
     lines.push(renderFooter(" [y] discard  [n / esc] keep editing ", width, theme));
     return lines;
@@ -882,7 +882,7 @@ function renderNameInput(state: ManagerState, width: number, theme: Theme): stri
   lines.push(renderHeader(title, width, theme));
 
   // Label
-  lines.push(padEnd("Name:", width));
+  lines.push(padEnd(theme.fg("accent", "Name:"), width));
 
   // Input box
   const boxWidth = Math.min(width - 2, 60);
@@ -1045,7 +1045,7 @@ function renderConfirmDelete(state: ManagerState, width: number, theme: Theme): 
   lines.push(renderHeader(` Delete "${target.name}"? `, width, theme));
 
   // File path
-  lines.push(padEnd(`File: ${target.filePath}`, width));
+  lines.push(padEnd(theme.fg("dim", `File: ${target.filePath}`), width));
 
   // Warning
   lines.push(padEnd(theme.fg("error", "This cannot be undone."), width));
