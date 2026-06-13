@@ -25,10 +25,29 @@ export function streamEvents(
 ): Promise<SubagentResult> {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
-    const timeout = setTimeout(() => {
+
+    // Startup safeguard: if the child produces no JSON event within
+    // STARTUP_TIMEOUT_MS, kill it. This guards against hangs during pi
+    // initialization (model never loads, auth fails, etc.) and is the only
+    // automatic timeout. Once any event arrives the model is considered
+    // active and runtime is controlled entirely by the user's abort
+    // signal — a model that is REALLY thinking is left alone until the
+    // user explicitly cancels.
+    const STARTUP_TIMEOUT_MS = 2 * 60 * 1000;
+
+    let startupTimer: NodeJS.Timeout | undefined = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error("subagent timed out after 5 minutes"));
-    }, 5 * 60 * 1000);
+      reject(new Error(
+        `subagent timed out: no model output within ${STARTUP_TIMEOUT_MS / 60_000} minutes of startup`,
+      ));
+    }, STARTUP_TIMEOUT_MS);
+
+    const clearStartupTimer = (): void => {
+      if (startupTimer) {
+        clearTimeout(startupTimer);
+        startupTimer = undefined;
+      }
+    };
 
     const state: StreamState = {
       toolCount: 0,
@@ -97,6 +116,10 @@ export function streamEvents(
         return; // Skip non-JSON lines
       }
 
+      // First event received from the child means the model has engaged —
+      // from here on, the user controls lifetime via the abort signal.
+      clearStartupTimer();
+
       switch (event.type) {
         case "tool_execution_start": {
           handleToolStart(state, event);
@@ -131,7 +154,7 @@ export function streamEvents(
 
     // Handle process exit
     child.on("close", (code) => {
-      clearTimeout(timeout);
+      clearStartupTimer();
       clearInterval(heartbeat);
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
@@ -174,7 +197,7 @@ export function streamEvents(
     });
 
     child.on("error", (err) => {
-      clearTimeout(timeout);
+      clearStartupTimer();
       clearInterval(heartbeat);
       reject(err);
     });
