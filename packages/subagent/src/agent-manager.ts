@@ -180,30 +180,36 @@ function renderList(state: ManagerState, width: number, theme: Theme): string[] 
     lines.push(padEnd(`◎ ${theme.fg("dim", "type to filter...")}`, width));
   }
 
-  // Agent rows
+  // Agent rows or empty state
   const start = state.listScroll;
   const end = Math.min(start + LIST_VIEWPORT, filtered.length);
 
-  for (let i = start; i < end; i++) {
-    const agent = filtered[i];
-    if (!agent) continue;
-    const isCursor = i === state.listCursor;
-    const cursorMark = isCursor ? ">" : " ";
+  if (filtered.length === 0) {
+    lines.push(padEnd("", width));
+    lines.push(padEnd(theme.fg("dim", "No agents found"), width));
+    lines.push(padEnd(theme.fg("dim", "Press n to create your first agent"), width));
+  } else {
+    for (let i = start; i < end; i++) {
+      const agent = filtered[i];
+      if (!agent) continue;
+      const isCursor = i === state.listCursor;
+      const cursorMark = isCursor ? ">" : " ";
 
-    const name = truncateToWidth(agent.name, 16);
-    const model = truncateToWidth(agentModel(agent), 12);
-    const scope = `[${scopeLabel(agent.source)}]`;
-    const desc = truncateToWidth(agent.description, Math.max(1, width - 1 - 16 - 1 - 12 - 1 - 8 - 1));
+      const name = truncateToWidth(agent.name, 16);
+      const model = truncateToWidth(agentModel(agent), 12);
+      const scope = `[${scopeLabel(agent.source)}]`;
+      const desc = truncateToWidth(agent.description, Math.max(1, width - 1 - 16 - 1 - 12 - 1 - 8 - 1));
 
-    const nameCol = isCursor
-      ? theme.fg("accent", padEnd(name, 16))
-      : padEnd(name, 16);
-    const modelCol = theme.fg("dim", padEnd(model, 12));
-    const scopeCol = theme.fg("dim", padEnd(scope, 8));
-    const descCol = theme.fg("dim", desc);
+      const nameCol = isCursor
+        ? theme.fg("accent", padEnd(name, 16))
+        : padEnd(name, 16);
+      const modelCol = theme.fg("dim", padEnd(model, 12));
+      const scopeCol = theme.fg("dim", padEnd(scope, 8));
+      const descCol = theme.fg("dim", desc);
 
-    const line = `${cursorMark} ${nameCol} ${modelCol} ${scopeCol} ${descCol}`;
-    lines.push(padEnd(line, width));
+      const line = `${cursorMark} ${nameCol} ${modelCol} ${scopeCol} ${descCol}`;
+      lines.push(padEnd(line, width));
+    }
   }
 
   // Fill remaining viewport rows
@@ -344,15 +350,15 @@ function renderDetail(state: ManagerState, width: number, theme: Theme): string[
 
   // Frontmatter section
   const fieldLines: string[] = [];
-  fieldLines.push(`name: ${agent.name}`);
-  fieldLines.push(`description: ${agent.description}`);
+  fieldLines.push(theme.fg("accent", `name:`) + ` ${agent.name}`);
+  fieldLines.push(theme.fg("accent", `description:`) + ` ${agent.description}`);
   if (agent.tools && agent.tools.length > 0) {
-    fieldLines.push(`tools: ${agent.tools.join(", ")}`);
+    fieldLines.push(theme.fg("accent", `tools:`) + ` ${agent.tools.join(", ")}`);
   } else {
-    fieldLines.push(`tools: ${theme.fg("dim", "(none)")}`);
+    fieldLines.push(theme.fg("accent", `tools:`) + ` ${theme.fg("dim", "(none)")}`);
   }
-  fieldLines.push(`model: ${agentModel(agent)}`);
-  fieldLines.push(`thinking: ${agent.thinking ?? theme.fg("dim", "(none)")}`);
+  fieldLines.push(theme.fg("accent", `model:`) + ` ${agentModel(agent)}`);
+  fieldLines.push(theme.fg("accent", `thinking:`) + ` ${agent.thinking ?? theme.fg("dim", "(none)")}`);
 
   for (const fl of fieldLines) {
     lines.push(padEnd(fl, width));
@@ -375,9 +381,20 @@ function renderDetail(state: ManagerState, width: number, theme: Theme): string[
   const bodyStart = state.detailScroll;
   const bodyEnd = Math.min(bodyStart + bodyViewport, bodyLines.length);
 
+  // Scroll indicator: more above
+  if (bodyStart > 0) {
+    lines.push(padEnd(theme.fg("dim", `↑ ${bodyStart} more`), width));
+  }
+
   for (let i = bodyStart; i < bodyEnd; i++) {
     const line = bodyLines[i];
     if (line != null) lines.push(padEnd(line, width));
+  }
+
+  // Scroll indicator: more below
+  const remainingBelow = bodyLines.length - bodyEnd;
+  if (remainingBelow > 0) {
+    lines.push(padEnd(theme.fg("dim", `↓ ${remainingBelow} more`), width));
   }
 
   // Footer
@@ -482,32 +499,38 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
   }
 
   // Field list
-  const fields: { key: EditField; value: string }[] = EDIT_FIELDS.map((key) => {
+  const fields: { key: EditField; value: string; empty: boolean }[] = EDIT_FIELDS.map((key) => {
     let value: string;
+    let empty: boolean;
     switch (key) {
       case "name":
         value = agent.name;
+        empty = false;
         break;
       case "description":
         value = agent.description;
+        empty = value.length === 0;
         break;
       case "tools":
         value = agent.tools ? agent.tools.join(", ") : "";
+        empty = value.length === 0;
         break;
       case "model":
         value = agent.model ?? "";
+        empty = value.length === 0;
         break;
       case "thinking":
         value = agent.thinking ?? "";
+        empty = value.length === 0;
         break;
     }
-    return { key, value };
+    return { key, value, empty };
   });
 
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i];
     if (!field) continue;
-    const { key, value } = field;
+    const { key, value, empty } = field;
     const isCurrent = i === state.editFieldIndex;
     const prefix = isCurrent ? "> " : "  ";
 
@@ -539,10 +562,12 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
     } else {
       // Normal field display
       const label = `${key}: `;
-      const truncated = truncateToWidth(value, width - visibleWidth(prefix + label));
+      const displayValue = empty
+        ? theme.fg("dim", "(not set)")
+        : truncateToWidth(value, width - visibleWidth(prefix + label));
       const display = isCurrent
-        ? theme.fg("accent", `${prefix}${label}${truncated}`)
-        : `${prefix}${label}${truncated}`;
+        ? theme.fg("accent", `${prefix}${label}`) + displayValue
+        : `${prefix}${label}${displayValue}`;
       lines.push(padEnd(display, width));
     }
   }
@@ -869,8 +894,13 @@ function renderNameInput(state: ManagerState, width: number, theme: Theme): stri
   const scopeText = `Scope: [${state.nameInputScope}]  [tab] toggle`;
   lines.push(padEnd(theme.fg("dim", scopeText), width));
 
-  // Error line
-  if (state.nameInputError) {
+  // Cross-scope collision warning
+  const otherScope = state.nameInputScope === "user" ? "project" : "user";
+  const otherScopeAgents = otherScope === "user" ? state.userAgents : state.projectAgents;
+  const collisionAgent = otherScopeAgents.find((a) => a.name === state.nameInputBuffer.trim());
+  if (collisionAgent) {
+    lines.push(padEnd(theme.fg("warning", `Warning: a ${otherScope} agent "${collisionAgent.name}" exists and will take precedence`), width));
+  } else if (state.nameInputError) {
     lines.push(padEnd(theme.fg("error", `  ${state.nameInputError}`), width));
   } else {
     lines.push(padEnd("", width));
