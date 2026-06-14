@@ -1,46 +1,143 @@
+<div align="center">
+  <img src="docs/splash-screen.png" width="600" alt="pi-archimedes splash (art originally from pi-ui-hephaestus)">
+
 # pi-archimedes
 
-Visual polish and useful context for the [Pi](https://github.com/earendil-works/pi) coding agent TUI. An npm workspaces monorepo that splits the original `pi-ui-hephaestus` into independent, installable packages.
+*Visual polish and useful context for the Pi coding agent TUI — composable but complete*
 
-## Packages
+[![npm version](https://img.shields.io/npm/v/pi-archimedes?style=flat-square)](https://www.npmjs.com/package/pi-archimedes)
+[![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue?style=flat-square)](https://www.typescriptlang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-| Package | Description |
-|---------|-------------|
-| [`@pi-archimedes/core`](packages/core) | Core UI modules: editor, message, startup, thinking, bus, chrome, text/color utilities |
-| [`@pi-archimedes/footer`](packages/footer) | Rich footer status bar with git status, model info, token usage, and cost tracking |
-| [`@pi-archimedes/diff`](packages/diff) | Shiki-powered syntax-highlighted diff rendering |
-| [`@pi-archimedes/image-paste`](packages/image-paste) | Clipboard image paste, preview rendering, and marker-based attachment |
-| [`pi-archimedes`](meta) | Meta-package — depends on all four above for one-line install |
+</div>
 
-## Installation
+## Why pi-archimedes?
+
+pi-archimedes is a modular monorepo of Pi UI extensions. Each package does one thing well and can be installed independently.
+
+- **Install only what you need** — don't pay for features you don't use
+- **Isolate regressions** — a bug in one package doesn't break the others
+- **Faster upgrades** — smaller diffs, clearer changelogs per package
+
+Install `pi-archimedes` (the meta package) to bundle all five for a tightly integrated experience — e.g. subagent cost is pushed to the footer via the shared bus. Or install individual `@pi-archimedes/*` packages.
+
+## Features
+
+### 🎬 Core (`@pi-archimedes/core`)
+
+- Animated splash screen with configurable styles
+- Framed editor with double-press quit guard
+- Muted thinking blocks
+
+### 📊 Footer (`@pi-archimedes/footer`)
+
+- Compact status bar with directory, git branch (clean/dirty indicator), model, thinking level, worktree
+- Token stats (↑input ↓output + cost)
+- Color-coded context window bar
+
+### 🔍 Diff (`@pi-archimedes/diff`)
+
+- Shiki-powered split and unified views
+- Word-level emphasis on changed characters
+- Auto-derived theme colors
+- Graceful fallback to plain text
+
+### 🖼️ Image-paste (`@pi-archimedes/image-paste`)
+
+- Paste images from clipboard (Ctrl+V on Linux, Alt+V on Windows) with inline preview
+
+### 🤖 Subagent (`@pi-archimedes/subagent`)
+
+- Dispatch sub-agents with live TUI streaming
+- Parallel execution mode
+- Per-subagent tool counts and token usage
+- Unified cost summary
+
+### 📝 Agents (`/agents` command, new in 0.9.0)
+
+- Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, tool picker, dirty-tracking, cross-scope collision warnings
+- *Note: available when installed via `pi-archimedes` (the meta package), not as a standalone `@pi-archimedes/subagent` install.*
+
+> When installed via the meta package, the six components share state and cooperate. For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer subscribes via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations are unavailable.
+
+## Quick Start
 
 ```bash
-# Install the meta-package (includes all components)
 pi install pi-archimedes
-
-# Or install individual packages
-pi install @pi-archimedes/core
-pi install @pi-archimedes/footer
-pi install @pi-archimedes/diff
-pi install @pi-archimedes/image-paste
 ```
 
-## Development
+That's it. Restart Pi and the components load automatically.
 
-```bash
-npm install          # Install workspace dependencies
-npm ls               # Verify workspace structure
-```
+### Or install selectively
 
-Each package extends the root `tsconfig.json`. Verify TypeScript compiles with:
+- `pi install @pi-archimedes/core`
+- `pi install @pi-archimedes/footer`
+- `pi install @pi-archimedes/diff`
+- `pi install @pi-archimedes/image-paste`
+- `pi install @pi-archimedes/subagent`
 
-```bash
-cd packages/<name> && npx tsc --noEmit
-```
+Run `/archimedes` to open the interactive settings panel and configure components.
+
+## Settings
+
+Run `/archimedes` to open the interactive settings panel. Navigate with arrow keys, press Enter to toggle or edit, Save to persist, ESC to cancel.
+
+### Per-package configuration
+
+Each package reads from its own namespace in `~/.pi/agent/settings.json`. For example, `@pi-archimedes/footer` reads from `archimedes.footer`.
+
+### @pi-archimedes/core
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `mutedTheme` | bool | `false` | Use subdued colors for thinking blocks |
+| `codeUnindent` | bool | `true` | Remove common indentation from code blocks inside thinking sections |
+| `labelText` | string | `Thinking...` | Custom prefix shown before thinking blocks |
+| `labelColor` | string | `255,215,0` | RGB color for the thinking label |
+| `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
+
+### @pi-archimedes/footer
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `splitThreshold` | number | `150` | Minimum terminal columns for full footer (below this, simplified layout) |
+
+### @pi-archimedes/diff
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `diffTheme` | string | `github-dark` | Shiki syntax-highlighting theme |
+| `diffSplitMinWidth` | number | `150` | Minimum terminal columns to show split diff view (≥ 100) |
+| `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
+
+### @pi-archimedes/image-paste
+
+Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
+
+### @pi-archimedes/subagent
+
+TBD — no settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the footer to consume.
 
 ## Architecture
 
-- **TypeScript (ESM)** — loaded via jiti by Pi, no build step
-- **npm workspaces** — packages reference each other via workspace protocol
-- **Import paths:** relative within a package, package subpath exports across packages (e.g., `@pi-archimedes/core/bus`)
-- **Config:** each package reads its own namespace from `~/.pi/agent/settings.json` under `archimedes.*`
+### Monorepo layout
+
+```
+pi-archimedes/
+├── packages/
+│   ├── core/         # @pi-archimedes/core — editor, message, startup, thinking
+│   ├── footer/       # @pi-archimedes/footer — status bar
+│   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
+│   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
+│   └── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
+└── meta/             # pi-archimedes — meta-package bundling all five
+```
+
+Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.
+
+See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and contribution workflow.
+
+### Requirements
+
+- Pi TUI with extension support
+- Node.js >= 24
