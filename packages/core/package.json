@@ -1,10 +1,14 @@
 {
   "name": "@pi-archimedes/core",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "description": "Core UI modules for pi-archimedes: editor, message, startup, thinking",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
@@ -23,6 +27,8 @@
     "typescript": "^6.0.0"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
