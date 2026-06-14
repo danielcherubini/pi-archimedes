@@ -57,6 +57,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
     const knownKeys = new Set(["name", "description", "model", "thinking"]);
     const extraFields: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(frontmatter)) {
+      if (key === "tools") continue; // tools is handled separately above/below
       if (!knownKeys.has(key) && value != null && typeof value !== "object") {
         extraFields[key] = String(value);
       } else if (!knownKeys.has(key) && value != null) {
@@ -84,14 +85,6 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
   }
 
   return agents;
-}
-
-function isDirectory(p: string): boolean {
-  try {
-    return fs.statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 function findNearestProjectAgentsDir(cwd: string): string | null {
