@@ -268,9 +268,15 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       const { user, project, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
 
+      const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
+        id: m.id,
+        provider: m.provider,
+        fullId: `${m.provider}/${m.id}`,
+      }));
+
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
-          return createAgentManager(user, project, userDir, projectDir, tui, theme, done);
+          return createAgentManager(user, project, userDir, projectDir, tui, theme, done, availableModels);
         },
         { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
       );

@@ -18,6 +18,7 @@ import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
 // ── Screen constants ────────────────────────────────────────────────────────
 
 const LIST_VIEWPORT = 8;
+const MODEL_SELECTOR_HEIGHT = 10;
 const EDIT_FIELDS = ["name", "description", "tools", "model", "thinking"] as const;
 type EditField = (typeof EDIT_FIELDS)[number];
 
@@ -32,6 +33,12 @@ interface Theme {
 
 interface TUIContext {
   requestRender(): void;
+}
+
+interface ModelInfo {
+  id: string;
+  provider: string;
+  fullId: string;
 }
 
 // ── Manager state ───────────────────────────────────────────────────────────
@@ -73,6 +80,13 @@ interface ManagerState {
   nameInputMode: "new" | "clone";
   nameInputSource: AgentConfig | null;
   nameInputError: string | null;
+
+  // Model picker state
+  models: ModelInfo[];
+  modelPickerOpen: boolean;
+  modelSearchQuery: string;
+  modelCursor: number;
+  filteredModels: ModelInfo[];
 
   // Confirm delete state
   deleteTarget: AgentConfig | null;
@@ -161,6 +175,17 @@ function scopeLabel(source: "user" | "project"): string {
 
 function agentModel(a: AgentConfig): string {
   return a.model ?? "default";
+}
+
+function filterModels(models: ModelInfo[], query: string): ModelInfo[] {
+  if (!query) return models;
+  const q = query.toLowerCase();
+  return models.filter(
+    (m) =>
+      m.fullId.toLowerCase().includes(q) ||
+      m.id.toLowerCase().includes(q) ||
+      m.provider.toLowerCase().includes(q),
+  );
 }
 
 
@@ -521,6 +546,11 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
     return lines;
   }
 
+  // Model picker
+  if (state.modelPickerOpen) {
+    return renderModelPicker(state, width, theme);
+  }
+
   // Header
   const dirtyMark = state.editDirty ? " *" : "";
   lines.push(renderHeader(` Edit: ${agent.name}${dirtyMark} `, width, theme));
@@ -623,7 +653,69 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
   }
 
   // Hint
-  lines.push(renderFooter(" [↑↓] fields  [enter] edit  [p] prompt  [ctrl+s] save  [esc] back ", width, theme));
+  lines.push(renderFooter(" [↑↓] fields  [enter/m] edit  [p] prompt  [ctrl+s] save  [esc] back ", width, theme));
+
+  return lines;
+}
+
+function renderModelPicker(state: ManagerState, width: number, theme: Theme): string[] {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(renderHeader(" Select Model ", width, theme));
+  lines.push(padEnd("", width));
+
+  // Search box
+  const searchLine = `Search: ${state.modelSearchQuery}${CURSOR_MARKER}`;
+  lines.push(padEnd(searchLine, width));
+  lines.push(padEnd("", width));
+
+  // Current model
+  const currentModel = state.editAgent ? agentModel(state.editAgent) : "default";
+  lines.push(
+    padEnd(theme.fg("dim", "Current: ") + theme.fg("warning", currentModel), width),
+  );
+  lines.push(padEnd("", width));
+
+  // Model list
+  const list = state.filteredModels;
+  if (list.length === 0) {
+    lines.push(padEnd(theme.fg("dim", "No matching models"), width));
+  } else {
+    let startIdx = 0;
+    if (list.length > MODEL_SELECTOR_HEIGHT) {
+      startIdx = Math.max(0, state.modelCursor - Math.floor(MODEL_SELECTOR_HEIGHT / 2));
+      startIdx = Math.min(startIdx, list.length - MODEL_SELECTOR_HEIGHT);
+    }
+    const endIdx = Math.min(startIdx + MODEL_SELECTOR_HEIGHT, list.length);
+
+    if (startIdx > 0) {
+      lines.push(padEnd(theme.fg("dim", `↑ ${startIdx} more`), width));
+    }
+
+    for (let i = startIdx; i < endIdx; i++) {
+      const model = list[i];
+      if (!model) continue;
+      const isSelected = i === state.modelCursor;
+      const prefix = isSelected ? theme.fg("accent", "> ") : "  ";
+      const modelText = isSelected ? theme.fg("accent", model.id) : model.id;
+      const provider = theme.fg("dim", ` [${model.provider}]`);
+      lines.push(padEnd(`${prefix}${modelText}${provider}`, width));
+    }
+
+    const remaining = list.length - endIdx;
+    if (remaining > 0) {
+      lines.push(padEnd(theme.fg("dim", `↓ ${remaining} more`), width));
+    }
+  }
+
+  // Pad to fixed height
+  while (lines.length < 18) {
+    lines.push(padEnd("", width));
+  }
+
+  // Footer
+  lines.push(renderFooter(" [enter] select  [esc] cancel  type to search ", width, theme));
 
   return lines;
 }
@@ -657,6 +749,53 @@ function handleEditInput(
   }
 
   if (!state.editAgent) return;
+
+  // Model picker mode
+  if (state.modelPickerOpen) {
+    if (matchesKey(data, Key.escape)) {
+      state.modelPickerOpen = false;
+      state.modelSearchQuery = "";
+      requestRender();
+    } else if (matchesKey(data, Key.enter)) {
+      const selected = state.filteredModels[state.modelCursor];
+      if (selected) {
+        state.editAgent.model = selected.fullId;
+        state.modelPickerOpen = false;
+        state.modelSearchQuery = "";
+        state.editDirty = true;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.up)) {
+      if (state.filteredModels.length > 0) {
+        state.modelCursor =
+          state.modelCursor > 0
+            ? state.modelCursor - 1
+            : state.filteredModels.length - 1;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.down)) {
+      if (state.filteredModels.length > 0) {
+        state.modelCursor =
+          state.modelCursor < state.filteredModels.length - 1
+            ? state.modelCursor + 1
+            : 0;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.backspace)) {
+      if (state.modelSearchQuery.length > 0) {
+        state.modelSearchQuery = state.modelSearchQuery.slice(0, -1);
+        state.filteredModels = filterModels(state.models, state.modelSearchQuery);
+        state.modelCursor = Math.min(state.modelCursor, Math.max(0, state.filteredModels.length - 1));
+        requestRender();
+      }
+    } else if (data.length === 1 && data >= " " && data <= "~") {
+      state.modelSearchQuery += data;
+      state.filteredModels = filterModels(state.models, state.modelSearchQuery);
+      state.modelCursor = Math.min(state.modelCursor, Math.max(0, state.filteredModels.length - 1));
+      requestRender();
+    }
+    return;
+  }
 
   // System prompt edit mode
   if (state.editPromptMode) {
@@ -762,9 +901,19 @@ function handleEditInput(
       state.editFieldIndex++;
       requestRender();
     }
-  } else if (matchesKey(data, Key.enter)) {
+  } else if (matchesKey(data, Key.enter) || matchesKey(data, "m")) {
     const field = EDIT_FIELDS[state.editFieldIndex];
-    if (field) {
+    if (field === "model") {
+      state.modelPickerOpen = true;
+      state.modelSearchQuery = "";
+      state.filteredModels = state.models;
+      const current = agentModel(state.editAgent);
+      const idx = state.models.findIndex(
+        (m) => m.fullId === current || m.id === current,
+      );
+      state.modelCursor = idx >= 0 ? idx : 0;
+      requestRender();
+    } else if (field) {
       state.editInField = true;
       state.editFieldCursor = getFieldValue(state.editAgent, field).length;
       requestRender();
@@ -1149,6 +1298,7 @@ export function createAgentManager(
   tui: TUIContext,
   theme: Theme,
   done: () => void,
+  models: ModelInfo[],
 ): Component {
   const state: ManagerState = {
     screen: "list",
@@ -1183,6 +1333,12 @@ export function createAgentManager(
     nameInputMode: "new",
     nameInputSource: null,
     nameInputError: null,
+
+    models,
+    modelPickerOpen: false,
+    modelSearchQuery: "",
+    modelCursor: 0,
+    filteredModels: models,
 
     deleteTarget: null,
     deleteFromScreen: "list",
