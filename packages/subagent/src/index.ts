@@ -1,9 +1,10 @@
-import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import { Text, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { executeSubagent, executeParallel } from "./execute.js";
 import { renderSubagentResult } from "./render.js";
-import { discoverAgents, findAgent } from "./agents.js";
+import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";
+import { createAgentManager } from "./agent-manager.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -257,6 +258,35 @@ function formatResultsSummary(results: SubagentResult[]): string {
     return `${status} ${r.agent}${summary ? " " + summary : ""}`;
   });
   return lines.join("\n");
+}
+
+// ── Command registration ────────────────────────────────────────────────────
+
+export function registerAgentsCommand(pi: ExtensionAPI): void {
+  pi.registerCommand("agents", {
+    description: "Open the Agents Manager",
+    handler: async (_args: string, ctx: ExtensionCommandContext) => {
+      const { user, project, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
+
+      const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
+        id: m.id,
+        provider: m.provider,
+        fullId: `${m.provider}/${m.id}`,
+      }));
+
+      const availableTools = pi.getAllTools().map((t) => ({
+        name: t.name,
+        description: t.description ?? "",
+      }));
+
+      await ctx.ui.custom<void>(
+        (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
+          return createAgentManager(user, project, userDir, projectDir, tui, theme, done, availableModels, availableTools);
+        },
+        { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
+      );
+    },
+  });
 }
 
 // ── Default export ──────────────────────────────────────────────────────────

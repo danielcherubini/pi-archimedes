@@ -10,12 +10,14 @@ import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 export interface AgentConfig {
   name: string;
   description: string;
+  tools?: string[];
   model?: string;
   thinking?: string;
-  tools?: string[];
   systemPrompt: string;
   source: "user" | "project";
   filePath: string;
+  // Extra fields preserved from frontmatter but not editable in TUI
+  extraFields?: Record<string, unknown>;
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -46,9 +48,26 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 
     if (!frontmatter.name || !frontmatter.description) continue;
 
-    const tools = typeof frontmatter.tools === "string"
-      ? frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean)
-      : undefined;
+    // Handle tools specially — preserve non-string values in extraFields
+    let parsedTools: string[] | undefined;
+    if (typeof frontmatter.tools === "string") {
+      parsedTools = frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean);
+    }
+
+    const knownKeys = new Set(["name", "description", "model", "thinking"]);
+    const extraFields: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (key === "tools") continue; // tools is handled separately above/below
+      if (!knownKeys.has(key) && value != null && typeof value !== "object") {
+        extraFields[key] = String(value);
+      } else if (!knownKeys.has(key) && value != null) {
+        extraFields[key] = value;
+      }
+    }
+    // If tools was non-string, store it in extraFields for round-trip preservation
+    if (frontmatter.tools !== undefined && !parsedTools && "tools" in frontmatter) {
+      extraFields.tools = frontmatter.tools;
+    }
 
     const config: AgentConfig = {
       name: frontmatter.name as string,
@@ -59,7 +78,8 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
     };
     if (frontmatter.model) config.model = frontmatter.model as string;
     if (frontmatter.thinking) config.thinking = frontmatter.thinking as string;
-    if (tools && tools.length > 0) config.tools = tools;
+    if (parsedTools && parsedTools.length > 0) config.tools = parsedTools;
+    if (Object.keys(extraFields).length > 0) config.extraFields = extraFields;
 
     agents.push(config);
   }
@@ -67,24 +87,29 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
   return agents;
 }
 
-function isDirectory(p: string): boolean {
-  try {
-    return fs.statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 function findNearestProjectAgentsDir(cwd: string): string | null {
+  // Walk up looking for a git repo, even if .pi/agents doesn't exist yet
   let currentDir = cwd;
   while (true) {
-    const candidate = path.join(currentDir, ".pi", "agents");
-    if (isDirectory(candidate)) return candidate;
+    const gitPath = path.join(currentDir, ".git");
+    if (fs.existsSync(gitPath)) {
+      return path.join(currentDir, ".pi", "agents");
+    }
 
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) return null;
     currentDir = parentDir;
   }
+}
+
+/**
+ * Result of discovering agents — separated by source with directory paths.
+ */
+export interface AgentsDiscoveryResult {
+  user: AgentConfig[];
+  project: AgentConfig[];
+  userDir: string;        // e.g., ~/.pi/agent/agents
+  projectDir: string | null;  // e.g., .pi/agents or null if not found
 }
 
 /**
@@ -103,6 +128,24 @@ export function discoverAgents(cwd: string): AgentConfig[] {
   for (const agent of projectAgents) agentMap.set(agent.name, agent);
 
   return Array.from(agentMap.values());
+}
+
+/**
+ * Discover agents and return them separated by source with directory paths.
+ */
+export function discoverAgentsAll(cwd: string): AgentsDiscoveryResult {
+  const userDir = path.join(getAgentDir(), "agents");
+  const projectDir = findNearestProjectAgentsDir(cwd);
+
+  const userAgents = loadAgentsFromDir(userDir, "user");
+  const projectAgents = projectDir ? loadAgentsFromDir(projectDir, "project") : [];
+
+  return {
+    user: userAgents,
+    project: projectAgents,
+    userDir,
+    projectDir,
+  };
 }
 
 /**
