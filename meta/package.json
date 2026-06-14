@@ -28,6 +28,6 @@
     "extensions": [
       "./src/index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/danielcherubini/pi-ui-hephaestus/main/docs/splash-screen.png"
+    "image": "https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/splash-screen.png"
   }
 }
