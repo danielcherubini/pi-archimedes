@@ -3,7 +3,7 @@
 
 # pi-archimedes
 
-*Visual polish and useful context for the Pi coding agent TUI — composable but complete*
+*A small, cohesive set of extensions for the Pi coding agent — built to be lived in*
 
 [![npm version](https://img.shields.io/npm/v/pi-archimedes?style=flat-square)](https://www.npmjs.com/package/pi-archimedes)
 [![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue?style=flat-square)](https://www.typescriptlang.org)
@@ -13,11 +13,17 @@
 
 ## Why pi-archimedes?
 
-You spend hours in this terminal. The agent is brilliant, but the default UI is functional, not friendly — abrupt startup, invisible context, plain-text diffs, and you never quite know where the cost is going.
+Pi has a wonderful plugin ecosystem. I want to say that first, because it's true, and because none of this is a criticism of anyone who built one.
 
-pi-archimedes is the polish layer that makes the TUI feel like a real tool. Smooth splash on launch, a framed editor that won't quit on you by accident, syntax-highlighted diffs you can actually read, and a footer that always shows the things that matter — model, tokens, context, cost. It also ships two tools that change the daily workflow: a **subagent** that dispatches background tasks with live progress and a unified cost rollup, and a **`/agents` command** for managing your agent files without leaving the terminal.
+What I personally wanted was something a little more minimal — a set of pieces that fit together, that I could install once and stop thinking about. pi-archimedes is that for me: a monorepo of small, focused extensions that compose into one coherent experience. The subagent cost shows up in the footer. The agent manager shares the same chrome. The diffs match my theme. It does the things most people want, and it doesn't do anything else.
 
-Because it's a monorepo, you stay in control. Grab the full bundle with `pi install pi-archimedes` and the components share state — subagent costs flow into the footer, the agent manager reuses Core's chrome. Or install only what you actually want: `pi install @pi-archimedes/footer` if that's all you need today, and add the rest later.
+The monorepo is also a door. If you only want the footer, `pi install @pi-archimedes/footer`. If you only want the diff renderer, `pi install @pi-archimedes/diff`. Mix and match.
+
+This is the only package I plan to install with Pi. But I would be thrilled if you took it apart and put it back together differently — that's exactly what I want this to be for.
+
+And I want this to be a place where any idea, issue, or suggestion is welcome. Even the small ones. Even the half-formed ones. Pi is a great harness; let's make it feel like more people's home. That's what open source is supposed to be.
+
+→ [Open an issue](https://github.com/danielcherubini/pi-archimedes/issues) · [Start a discussion](https://github.com/danielcherubini/pi-archimedes/discussions)
 
 ## Features
 
