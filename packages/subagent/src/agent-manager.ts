@@ -18,6 +18,8 @@ import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
 // ── Screen constants ────────────────────────────────────────────────────────
 
 const LIST_VIEWPORT = 8;
+const DETAIL_VIEWPORT_HEIGHT = 14;
+const EDIT_PROMPT_VIEWPORT_HEIGHT = 8;
 const MODEL_SELECTOR_HEIGHT = 10;
 const TOOL_PICKER_HEIGHT = 14;
 const EDIT_FIELDS = ["name", "description", "tools", "model", "thinking"] as const;
@@ -78,6 +80,8 @@ interface ManagerState {
   editPromptScroll: number;      // scroll offset for prompt editor
   editDiscardPrompt: boolean;    // true when asking y/n to discard changes
   editError: string | null;
+  editOriginal: AgentConfig | null;     // captured when entering edit
+  editReturnScreen: "list" | "detail" | "name-input";  // where to return on esc
 
   // Name input state
   nameInputBuffer: string;
@@ -111,6 +115,7 @@ interface ManagerState {
 
   // Render width (stored so input handlers can compute correct scroll bounds)
   lastWidth: number;
+  lastContentWidth: number;
 }
 
 // ── Component return type ───────────────────────────────────────────────────
@@ -215,18 +220,24 @@ function hardTruncate(text: string, maxVisible: number): string {
   let result = "";
   let plainPos = 0;
   let i = 0;
+  let copiedSgr = false;
   while (i < text.length && plainPos < maxVisible) {
     if (text[i] === "\x1b" && text[i + 1] === "[") {
       // Copy the escape sequence
       let j = i;
       while (j < text.length && text[j] !== "m") j++;
       result += text.slice(i, j + 1);
+      copiedSgr = true;
       i = j + 1;
     } else {
       result += text[i];
       plainPos++;
       i++;
     }
+  }
+  // Ensure styling doesn't bleed: append reset if we copied SGR and result doesn't end with one
+  if (copiedSgr && !/\x1b\[0?m$/.test(result)) {
+    result += "\x1b[0m";
   }
   return result;
 }
@@ -504,8 +515,8 @@ function handleDetailInput(
     }
   } else if (matchesKey(data, Key.down)) {
     if (state.detailAgent) {
-      const bodyLines = wrapText(state.detailAgent.systemPrompt, state.lastWidth);
-      const bodyViewport = Math.max(6, 14 - 9);
+      const bodyLines = wrapText(state.detailAgent.systemPrompt, state.lastContentWidth);
+      const bodyViewport = Math.max(6, DETAIL_VIEWPORT_HEIGHT - 9);
       if (state.detailScroll < bodyLines.length - bodyViewport) {
         state.detailScroll++;
         requestRender();
@@ -520,6 +531,9 @@ function handleDetailInput(
       const copy: AgentConfig = { ...agent };
       if (agent.tools) copy.tools = [...agent.tools];
       state.editAgent = copy;
+      state.editOriginal = { ...agent };
+      if (agent.tools) state.editOriginal.tools = [...agent.tools];
+      state.editReturnScreen = "detail";
       state.editFieldIndex = 0;
       state.editInField = false;
       state.editDirty = false;
@@ -812,9 +826,9 @@ function handleEditInput(
       state.editDiscardPrompt = false;
       state.editDirty = false;
       // Re-read from original
-      if (state.detailAgent) {
-        const origCopy: AgentConfig = { ...state.detailAgent };
-        if (state.detailAgent.tools) origCopy.tools = [...state.detailAgent.tools];
+      if (state.editOriginal) {
+        const origCopy: AgentConfig = { ...state.editOriginal };
+        if (state.editOriginal.tools) origCopy.tools = [...state.editOriginal.tools];
         state.editAgent = origCopy;
       }
       state.editFieldIndex = 0;
@@ -961,10 +975,17 @@ function handleEditInput(
   // System prompt edit mode
   if (state.editPromptMode) {
     if (matchesKey(data, Key.ctrl("s"))) {
-      state.editDirty = true;
-      requestRender();
+      saveAgent(state, requestRender);
     } else if (matchesKey(data, Key.escape)) {
       state.editPromptMode = false;
+      state.editDirty = true;
+      requestRender();
+    } else if (matchesKey(data, Key.enter)) {
+      // Insert newline at cursor
+      const before = state.editAgent.systemPrompt.slice(0, state.editPromptCursor);
+      const after = state.editAgent.systemPrompt.slice(state.editPromptCursor);
+      state.editAgent.systemPrompt = before + "\n" + after;
+      state.editPromptCursor++;
       state.editDirty = true;
       requestRender();
     } else if (matchesKey(data, Key.up)) {
@@ -973,13 +994,13 @@ function handleEditInput(
         requestRender();
       }
     } else if (matchesKey(data, Key.down)) {
-      const promptLines = wrapText(state.editAgent.systemPrompt, state.lastWidth);
-      const promptViewport = Math.max(6, 14 - 4 - 2);
+      const promptLines = wrapText(state.editAgent.systemPrompt, state.lastContentWidth);
+      const promptViewport = Math.max(6, EDIT_PROMPT_VIEWPORT_HEIGHT - 4 - 2);
       if (state.editPromptScroll < promptLines.length - promptViewport) {
         state.editPromptScroll++;
         requestRender();
       }
-    } else if (data.length === 1 && data >= " " && data <= "~") {
+    } else if (data.length === 1 && (data >= " " && data <= "~")) {
       // Append char to systemPrompt at cursor
       const before = state.editAgent.systemPrompt.slice(0, state.editPromptCursor);
       const after = state.editAgent.systemPrompt.slice(state.editPromptCursor);
@@ -1121,7 +1142,7 @@ function handleEditInput(
       state.editDiscardPrompt = true;
       requestRender();
     } else {
-      state.screen = "detail";
+      state.screen = state.editReturnScreen;
       requestRender();
     }
   }
@@ -1390,6 +1411,9 @@ function handleNameInput(
 
     // Switch to edit screen with new agent
     state.editAgent = newAgent;
+    state.editOriginal = { ...newAgent };
+    if (newAgent.tools) state.editOriginal.tools = [...newAgent.tools];
+    state.editReturnScreen = "list";
     state.editFieldIndex = 0;
     state.editInField = false;
     state.editDirty = false;
@@ -1518,6 +1542,8 @@ export function createAgentManager(
     editPromptScroll: 0,
     editDiscardPrompt: false,
     editError: null,
+    editOriginal: null,
+    editReturnScreen: "list",
 
     nameInputBuffer: "",
     nameInputCursor: 0,
@@ -1545,6 +1571,7 @@ export function createAgentManager(
     isNew: false,
 
     lastWidth: 84,
+    lastContentWidth: 80,
   };
 
   let cachedWidth: number | undefined;
@@ -1580,13 +1607,14 @@ export function createAgentManager(
   return {
     render(width: number): string[] {
       state.lastWidth = width;
+      const innerWidth = Math.max(1, width - 2);
+      const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
+      state.lastContentWidth = contentWidth;
       if (cachedLines && cachedWidth === width) {
         return cachedLines;
       }
 
       // Pass content width (minus border + padding) to screen renderers
-      const innerWidth = Math.max(1, width - 2);
-      const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
       let lines: string[];
       switch (state.screen) {
         case "list":

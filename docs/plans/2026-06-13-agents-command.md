@@ -6,7 +6,7 @@
 
 ---
 
-### Task 1: Expand AgentConfig and add frontmatter I/O
+## Task 1: Expand AgentConfig and add frontmatter I/O
 
 **Context:**
 The existing `AgentConfig` in `packages/subagent/src/agents.ts` only supports 6 fields (name, description, model, thinking, tools, systemPrompt). The `/agents` command needs the full agentspec v0.5.0 field set plus `extraFields` for unknown fields. We also need a serializer that round-trips frontmatter faithfully. The existing `parseFrontmatter` from `@earendil-works/pi-coding-agent` is used for parsing — we wrap it and add serialization.
@@ -80,7 +80,7 @@ This wraps the existing `discoverAgents` logic but returns separate arrays + dir
 
 ---
 
-### Task 2: Build the agent-manager TUI component
+## Task 2: Build the agent-manager TUI component
 
 **Context:**
 The core of the feature — a TUI overlay component with 5 screens: List, Detail, Edit, Name Input, Confirm Delete. This is the largest task (~600-800 lines). It follows the visual design from pi-subagents' AgentManager: header bar, search bar, 8-item viewport, preview bar, contextual footer. The component implements pi's `Component` interface (`render`, `handleInput`, `invalidate`, `dispose`).
@@ -303,7 +303,7 @@ interface Component {
 
 ---
 
-### Task 3: Register /agents command and wire into meta
+## Task 3: Register /agents command and wire into meta
 
 **Context:**
 The agent-manager component needs to be exposed as a `/agents` slash command. Following the existing pattern in `packages/subagent/src/index.ts` (where `registerSubagent(pi)` calls `pi.registerTool` internally), we add `registerAgentsCommand(pi)` that calls `pi.registerCommand("agents", ...)`. The command handler uses `ctx.ui.custom()` with `{ overlay: true }` to open the TUI.
@@ -324,26 +324,32 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
     description: "Open the Agents Manager",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       const { user, project, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
-      const manager = createAgentManager(user, project, userDir, projectDir);
+
+      const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
+        id: m.id,
+        provider: m.provider,
+        fullId: `${m.provider}/${m.id}`,
+      }));
+
+      const availableTools = pi.getAllTools().map((t) => ({
+        name: t.name,
+        description: t.description ?? "",
+      }));
 
       await ctx.ui.custom<void>(
-        (tui, theme, _keybindings, done) => {
-          // Wrap the manager component to inject tui/theme and provide done callback
-          return {
-            render(width: number): string[] {
-              return manager.render(width);
-            },
-            handleInput(data: string): void {
-              const result = manager.handleInput(data);
-              if (result === "close") {
-                done(undefined);
-              } else {
-                tui.requestRender();
-              }
-            },
-            invalidate(): void { manager.invalidate(); },
-            dispose(): void { manager.dispose(); },
-          };
+        (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
+          // Pass tui, theme, done, and available models/tools to the manager
+          return createAgentManager(
+            user,
+            project,
+            userDir,
+            projectDir,
+            tui,
+            theme,
+            done,
+            availableModels,
+            availableTools,
+          );
         },
         { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
       );
@@ -379,7 +385,7 @@ Place the call at the top level (not inside `session_start`) to match the AGENTS
 
 ---
 
-### Task 4: Polish — empty state, error handling, visual refinements
+## Task 4: Polish — empty state, error handling, visual refinements
 
 **Context:**
 Several edge cases and UX polish items identified during review need attention: empty list state, cross-scope collision warnings, file write error handling, and visual consistency with pi-archimedes' theme system.
@@ -441,7 +447,7 @@ Several edge cases and UX polish items identified during review need attention: 
 
 ---
 
-### Task 5: Verification and final type-check
+## Task 5: Verification and final type-check
 
 **Context:**
 Final verification pass across all packages to ensure the feature is complete and type-correct. Follows the AGENTS.md verification order: type-check each package independently.

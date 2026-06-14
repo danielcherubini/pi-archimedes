@@ -17,7 +17,7 @@ export interface AgentConfig {
   source: "user" | "project";
   filePath: string;
   // Extra fields preserved from frontmatter but not editable in TUI
-  extraFields?: Record<string, string>;
+  extraFields?: Record<string, unknown>;
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -48,16 +48,24 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 
     if (!frontmatter.name || !frontmatter.description) continue;
 
-    const tools = typeof frontmatter.tools === "string"
-      ? frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean)
-      : undefined;
+    // Handle tools specially — preserve non-string values in extraFields
+    let parsedTools: string[] | undefined;
+    if (typeof frontmatter.tools === "string") {
+      parsedTools = frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean);
+    }
 
-    const knownKeys = new Set(["name", "description", "tools", "model", "thinking"]);
-    const extraFields: Record<string, string> = {};
+    const knownKeys = new Set(["name", "description", "model", "thinking"]);
+    const extraFields: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(frontmatter)) {
       if (!knownKeys.has(key) && value != null && typeof value !== "object") {
         extraFields[key] = String(value);
+      } else if (!knownKeys.has(key) && value != null) {
+        extraFields[key] = value;
       }
+    }
+    // If tools was non-string, store it in extraFields for round-trip preservation
+    if (frontmatter.tools !== undefined && !parsedTools && "tools" in frontmatter) {
+      extraFields.tools = frontmatter.tools;
     }
 
     const config: AgentConfig = {
@@ -69,7 +77,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
     };
     if (frontmatter.model) config.model = frontmatter.model as string;
     if (frontmatter.thinking) config.thinking = frontmatter.thinking as string;
-    if (tools && tools.length > 0) config.tools = tools;
+    if (parsedTools && parsedTools.length > 0) config.tools = parsedTools;
     if (Object.keys(extraFields).length > 0) config.extraFields = extraFields;
 
     agents.push(config);
@@ -87,10 +95,13 @@ function isDirectory(p: string): boolean {
 }
 
 function findNearestProjectAgentsDir(cwd: string): string | null {
+  // Walk up looking for a git repo, even if .pi/agents doesn't exist yet
   let currentDir = cwd;
   while (true) {
-    const candidate = path.join(currentDir, ".pi", "agents");
-    if (isDirectory(candidate)) return candidate;
+    const gitPath = path.join(currentDir, ".git");
+    if (fs.existsSync(gitPath)) {
+      return path.join(currentDir, ".pi", "agents");
+    }
 
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) return null;

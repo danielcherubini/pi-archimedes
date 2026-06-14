@@ -35,6 +35,8 @@ function needsYamlQuoting(value: string): boolean {
   if (/^["'#\{\[\|>&!*%?@`-]/.test(value)) return true;
   // Contains colon (could be mistaken for mapping)
   if (value.includes(":")) return true;
+  // Contains # (inline comment marker) anywhere
+  if (value.includes("#")) return true;
   // Contains newline
   if (value.includes("\n")) return true;
   // Leading/trailing whitespace
@@ -76,7 +78,19 @@ export function serializeAgent(config: AgentConfig): string {
   // Extra fields (sorted alphabetically)
   if (config.extraFields) {
     for (const key of Object.keys(config.extraFields).sort()) {
-      lines.push(`${key}: ${quoteYamlValue(config.extraFields[key]!)}`);
+      const value = config.extraFields[key]!;
+      if (typeof value === "string") {
+        lines.push(`${key}: ${quoteYamlValue(value)}`);
+      } else if (Array.isArray(value)) {
+        // Serialize array as YAML block sequence
+        lines.push(`${key}:`);
+        for (const item of value) {
+          lines.push(`  - ${quoteYamlValue(String(item))}`);
+        }
+      } else {
+        // Fallback: JSON stringify for objects
+        lines.push(`${key}: ${JSON.stringify(value)}`);
+      }
     }
   }
 
