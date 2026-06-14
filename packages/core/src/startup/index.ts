@@ -126,8 +126,9 @@ export function renderHeader(theme: Theme, ref: ListingRef, width: number, heigh
 //
 // Strategy (most specific → least specific):
 // 1. Container with "Scrollable" in constructor name
-// 2. Container with most children (chat usually has the most)
-// 3. Middle child if exactly 3 children (header, chat, footer)
+// 2. Middle child — TUI layout is [headerContainer, chatContainer, footer]
+//    This is position-stable even when chatContainer is empty (e.g. after clear)
+// 3. Container with most children (chat usually has the most)
 // 4. First Container found
 function findChatContainer(tui: TUI): Container | undefined {
   // Strategy 1: Look for Scrollable container
@@ -137,19 +138,19 @@ function findChatContainer(tui: TUI): Container | undefined {
     }
   }
 
-  // Strategy 2: Find the Container with the most children (chat area)
+  // Strategy 2: Middle child — TUI layout is [headerContainer, chatContainer, footer]
+  if (tui.children.length >= 3) {
+    const middle = tui.children[1];
+    if (middle instanceof Container) return middle;
+  }
+
+  // Strategy 3: Find the Container with the most children (chat area)
   const containers = tui.children.filter((c): c is Container => c instanceof Container);
   if (containers.length > 1) {
     const largest = containers.reduce((best, c) =>
       c.children.length > best.children.length ? c : best,
     );
     if (largest.children.length > 0) return largest;
-  }
-
-  // Strategy 3: Middle child if exactly 3 children
-  if (tui.children.length >= 3) {
-    const middle = tui.children[1];
-    if (middle instanceof Container) return middle;
   }
 
   // Strategy 4: First Container
