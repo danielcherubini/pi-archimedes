@@ -274,9 +274,14 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
         fullId: `${m.provider}/${m.id}`,
       }));
 
+      const availableTools = pi.getAllTools().map((t) => ({
+        name: t.name,
+        description: t.description ?? "",
+      }));
+
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
-          return createAgentManager(user, project, userDir, projectDir, tui, theme, done, availableModels);
+          return createAgentManager(user, project, userDir, projectDir, tui, theme, done, availableModels, availableTools);
         },
         { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
       );

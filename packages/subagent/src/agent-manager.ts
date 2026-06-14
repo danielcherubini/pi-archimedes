@@ -19,6 +19,7 @@ import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
 
 const LIST_VIEWPORT = 8;
 const MODEL_SELECTOR_HEIGHT = 10;
+const TOOL_PICKER_HEIGHT = 14;
 const EDIT_FIELDS = ["name", "description", "tools", "model", "thinking"] as const;
 type EditField = (typeof EDIT_FIELDS)[number];
 
@@ -39,6 +40,11 @@ interface ModelInfo {
   id: string;
   provider: string;
   fullId: string;
+}
+
+interface ToolInfo {
+  name: string;
+  description: string;
 }
 
 // ── Manager state ───────────────────────────────────────────────────────────
@@ -87,6 +93,14 @@ interface ManagerState {
   modelSearchQuery: string;
   modelCursor: number;
   filteredModels: ModelInfo[];
+
+  // Tool picker state
+  tools: ToolInfo[];
+  toolPickerOpen: boolean;
+  toolCursor: number;
+  toolSelected: Set<string>;
+  toolSearch: string;
+  filteredTools: ToolInfo[];
 
   // Confirm delete state
   deleteTarget: AgentConfig | null;
@@ -551,6 +565,11 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
     return renderModelPicker(state, width, theme);
   }
 
+  // Tool picker
+  if (state.toolPickerOpen) {
+    return renderToolPicker(state, width, theme);
+  }
+
   // Header
   const dirtyMark = state.editDirty ? " *" : "";
   lines.push(renderHeader(` Edit: ${agent.name}${dirtyMark} `, width, theme));
@@ -653,7 +672,7 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
   }
 
   // Hint
-  lines.push(renderFooter(" [↑↓] fields  [enter/m] edit  [p] prompt  [ctrl+s] save  [esc] back ", width, theme));
+  lines.push(renderFooter(" [↑↓] fields  [enter] edit  [t] tools  [m] model  [p] prompt  [ctrl+s] save  [esc] back ", width, theme));
 
   return lines;
 }
@@ -716,6 +735,68 @@ function renderModelPicker(state: ManagerState, width: number, theme: Theme): st
 
   // Footer
   lines.push(renderFooter(" [enter] select  [esc] cancel  type to search ", width, theme));
+
+  return lines;
+}
+
+function renderToolPicker(state: ManagerState, width: number, theme: Theme): string[] {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(renderHeader(" Select Tools ", width, theme));
+  lines.push(padEnd("", width));
+
+  // Search box
+  const searchLine = `Search: ${state.toolSearch}`;
+  lines.push(padEnd(searchLine, width));
+  lines.push(padEnd("", width));
+
+  // Help line
+  lines.push(padEnd(theme.fg("dim", "space toggle · enter confirm · esc cancel · ↑↓ navigate"), width));
+  lines.push(padEnd("", width));
+
+  // Tool list
+  const list = state.filteredTools;
+  if (list.length === 0) {
+    lines.push(padEnd(theme.fg("dim", "No matching tools"), width));
+  } else {
+    let startIdx = 0;
+    if (list.length > TOOL_PICKER_HEIGHT) {
+      startIdx = Math.max(0, state.toolCursor - Math.floor(TOOL_PICKER_HEIGHT / 2));
+      startIdx = Math.min(startIdx, list.length - TOOL_PICKER_HEIGHT);
+    }
+    const endIdx = Math.min(startIdx + TOOL_PICKER_HEIGHT, list.length);
+
+    if (startIdx > 0) {
+      lines.push(padEnd(theme.fg("dim", `↑ ${startIdx} more`), width));
+    }
+
+    for (let i = startIdx; i < endIdx; i++) {
+      const tool = list[i];
+      if (!tool) continue;
+      const isCursor = i === state.toolCursor;
+      const checked = state.toolSelected.has(tool.name);
+      const cursor = isCursor ? theme.fg("accent", "> ") : "  ";
+      const box = checked ? theme.fg("accent", "[x] ") : "[ ] ";
+      const nameText = isCursor ? theme.fg("accent", tool.name) : tool.name;
+      const desc = tool.description ? ` ${theme.fg("dim", "— " + tool.description)}` : "";
+      const rowText = cursor + box + nameText + desc;
+      lines.push(padEnd(truncateToWidth(rowText, width), width));
+    }
+
+    const remaining = list.length - endIdx;
+    if (remaining > 0) {
+      lines.push(padEnd(theme.fg("dim", `↓ ${remaining} more`), width));
+    }
+  }
+
+  // Pad to fixed height
+  while (lines.length < 18) {
+    lines.push(padEnd("", width));
+  }
+
+  // Footer
+  lines.push(renderFooter(" [enter] confirm  [esc] cancel  [space] toggle  [type] search ", width, theme));
 
   return lines;
 }
@@ -792,6 +873,86 @@ function handleEditInput(
       state.modelSearchQuery += data;
       state.filteredModels = filterModels(state.models, state.modelSearchQuery);
       state.modelCursor = Math.min(state.modelCursor, Math.max(0, state.filteredModels.length - 1));
+      requestRender();
+    }
+    return;
+  }
+
+  // Tool picker mode
+  if (state.toolPickerOpen) {
+    if (matchesKey(data, Key.escape)) {
+      state.toolPickerOpen = false;
+      state.toolSearch = "";
+      requestRender();
+    } else if (matchesKey(data, Key.enter)) {
+      const names = [...state.toolSelected];
+      if (names.length > 0) {
+        state.editAgent.tools = names;
+      } else {
+        delete state.editAgent.tools;
+      }
+      state.toolPickerOpen = false;
+      state.toolSearch = "";
+      state.editDirty = true;
+      requestRender();
+    } else if (matchesKey(data, Key.up)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = state.toolCursor > 0 ? state.toolCursor - 1 : state.filteredTools.length - 1;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.down)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = state.toolCursor < state.filteredTools.length - 1 ? state.toolCursor + 1 : 0;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.pageUp)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = Math.max(0, state.toolCursor - TOOL_PICKER_HEIGHT);
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.pageDown)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = Math.min(state.filteredTools.length - 1, state.toolCursor + TOOL_PICKER_HEIGHT);
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.home)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = 0;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.end)) {
+      if (state.filteredTools.length > 0) {
+        state.toolCursor = state.filteredTools.length - 1;
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) {
+      // Toggle current tool
+      const tool = state.filteredTools[state.toolCursor];
+      if (tool) {
+        if (state.toolSelected.has(tool.name)) {
+          state.toolSelected.delete(tool.name);
+        } else {
+          state.toolSelected.add(tool.name);
+        }
+        requestRender();
+      }
+    } else if (matchesKey(data, Key.backspace)) {
+      if (state.toolSearch.length > 0) {
+        state.toolSearch = state.toolSearch.slice(0, -1);
+        const q = state.toolSearch.toLowerCase();
+        state.filteredTools = state.tools.filter(
+          (t) => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
+        );
+        state.toolCursor = Math.min(state.toolCursor, Math.max(0, state.filteredTools.length - 1));
+        requestRender();
+      }
+    } else if (data.length === 1 && data >= " " && data <= "~") {
+      state.toolSearch += data;
+      const q = state.toolSearch.toLowerCase();
+      state.filteredTools = state.tools.filter(
+        (t) => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
+      );
+      state.toolCursor = Math.min(state.toolCursor, Math.max(0, state.filteredTools.length - 1));
       requestRender();
     }
     return;
@@ -901,7 +1062,7 @@ function handleEditInput(
       state.editFieldIndex++;
       requestRender();
     }
-  } else if (matchesKey(data, Key.enter) || matchesKey(data, "m")) {
+  } else if (matchesKey(data, Key.enter)) {
     const field = EDIT_FIELDS[state.editFieldIndex];
     if (field === "model") {
       state.modelPickerOpen = true;
@@ -913,9 +1074,39 @@ function handleEditInput(
       );
       state.modelCursor = idx >= 0 ? idx : 0;
       requestRender();
+    } else if (field === "tools") {
+      state.toolPickerOpen = true;
+      state.toolSelected = new Set(state.editAgent.tools ?? []);
+      state.toolSearch = "";
+      state.filteredTools = state.tools;
+      state.toolCursor = 0;
+      requestRender();
     } else if (field) {
       state.editInField = true;
       state.editFieldCursor = getFieldValue(state.editAgent, field).length;
+      requestRender();
+    }
+  } else if (matchesKey(data, "m")) {
+    const field = EDIT_FIELDS[state.editFieldIndex];
+    if (field === "model") {
+      state.modelPickerOpen = true;
+      state.modelSearchQuery = "";
+      state.filteredModels = state.models;
+      const current = agentModel(state.editAgent);
+      const idx = state.models.findIndex(
+        (m) => m.fullId === current || m.id === current,
+      );
+      state.modelCursor = idx >= 0 ? idx : 0;
+      requestRender();
+    }
+  } else if (matchesKey(data, "t")) {
+    const field = EDIT_FIELDS[state.editFieldIndex];
+    if (field === "tools") {
+      state.toolPickerOpen = true;
+      state.toolSelected = new Set(state.editAgent.tools ?? []);
+      state.toolSearch = "";
+      state.filteredTools = state.tools;
+      state.toolCursor = 0;
       requestRender();
     }
   } else if (matchesKey(data, "p")) {
@@ -1299,6 +1490,7 @@ export function createAgentManager(
   theme: Theme,
   done: () => void,
   models: ModelInfo[],
+  tools: ToolInfo[],
 ): Component {
   const state: ManagerState = {
     screen: "list",
@@ -1339,6 +1531,13 @@ export function createAgentManager(
     modelSearchQuery: "",
     modelCursor: 0,
     filteredModels: models,
+
+    tools,
+    toolPickerOpen: false,
+    toolCursor: 0,
+    toolSelected: new Set<string>(),
+    toolSearch: "",
+    filteredTools: tools,
 
     deleteTarget: null,
     deleteFromScreen: "list",
