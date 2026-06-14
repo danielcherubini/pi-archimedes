@@ -54,8 +54,10 @@ interface ToolInfo {
 interface ManagerState {
   screen: "list" | "detail" | "edit" | "name-input" | "confirm-delete";
   agents: AgentConfig[];
+  globalAgents: AgentConfig[];
   userAgents: AgentConfig[];
   projectAgents: AgentConfig[];
+  globalDir: string | null;
   userDir: string;
   projectDir: string | null;
 
@@ -86,7 +88,7 @@ interface ManagerState {
   // Name input state
   nameInputBuffer: string;
   nameInputCursor: number;
-  nameInputScope: "user" | "project";
+  nameInputScope: "global" | "user" | "project";
   nameInputMode: "new" | "clone";
   nameInputSource: AgentConfig | null;
   nameInputError: string | null;
@@ -188,7 +190,8 @@ function renderFooter(text: string, width: number, theme: Theme): string {
   return theme.fg("dim", padEnd(text, width));
 }
 
-function scopeLabel(source: "user" | "project"): string {
+function scopeLabel(source: "global" | "user" | "project"): string {
+  if (source === "global") return "home";
   return source === "user" ? "user" : "proj";
 }
 
@@ -1225,7 +1228,9 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
   }
 
   // Determine target directory
-  const dir = agent.source === "user" ? state.userDir : state.projectDir;
+  const dir = agent.source === "global" ? state.globalDir
+    : agent.source === "user" ? state.userDir
+    : state.projectDir;
   if (!dir) {
     state.editError = "Target directory not available";
     requestRender();
@@ -1259,9 +1264,11 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
     // Refresh agents list
     const cwd = process.cwd();
     const discovery = discoverAgentsAll(cwd);
+    state.globalAgents = discovery.global;
     state.userAgents = discovery.user;
     state.projectAgents = discovery.project;
-    state.agents = [...discovery.user, ...discovery.project];
+    state.globalDir = discovery.globalDir;
+    state.agents = [...discovery.global, ...discovery.user, ...discovery.project];
 
     // Find the saved agent and switch to detail
     const savedAgent = state.agents.find((a) => a.name === agent.name && a.source === agent.source);
@@ -1305,12 +1312,22 @@ function renderNameInput(state: ManagerState, width: number, theme: Theme): stri
   const scopeText = `Scope: [${state.nameInputScope}]  [tab] toggle`;
   lines.push(padEnd(theme.fg("dim", scopeText), width));
 
-  // Cross-scope collision warning
-  const otherScope = state.nameInputScope === "user" ? "project" : "user";
-  const otherScopeAgents = otherScope === "user" ? state.userAgents : state.projectAgents;
-  const collisionAgent = otherScopeAgents.find((a) => a.name === state.nameInputBuffer.trim());
+  // Cross-scope collision warning — check higher-precedence scopes
+  const scopeOrder = ["global", "user", "project"];
+  const currentIdx = scopeOrder.indexOf(state.nameInputScope);
+  let collisionAgent: AgentConfig | undefined;
+  let collisionScope: string | undefined;
+  for (const scope of scopeOrder.slice(currentIdx + 1)) {
+    const scopeAgents = scope === "global" ? state.globalAgents : scope === "user" ? state.userAgents : state.projectAgents;
+    const found = scopeAgents.find((a) => a.name === state.nameInputBuffer.trim());
+    if (found) {
+      collisionAgent = found;
+      collisionScope = scope;
+      break;
+    }
+  }
   if (collisionAgent) {
-    lines.push(padEnd(theme.fg("warning", `Warning: a ${otherScope} agent "${collisionAgent.name}" exists and will take precedence`), width));
+    lines.push(padEnd(theme.fg("warning", `Warning: a ${collisionScope} agent "${collisionAgent.name}" exists and will take precedence`), width));
   } else if (state.nameInputError) {
     lines.push(padEnd(theme.fg("error", `  ${state.nameInputError}`), width));
   } else {
@@ -1329,8 +1346,13 @@ function handleNameInput(
   requestRender: () => void,
 ): void {
   if (matchesKey(data, Key.tab)) {
-    state.nameInputScope = state.nameInputScope === "user" ? "project" : "user";
-    if (state.nameInputScope === "project" && !state.projectDir) {
+    const scopes = ["global", "user", "project"];
+    const currentIdx = scopes.indexOf(state.nameInputScope);
+    const nextIdx = (currentIdx + 1) % scopes.length;
+    state.nameInputScope = scopes[nextIdx] as "global" | "user" | "project";
+    if (state.nameInputScope === "global" && !state.globalDir) {
+      state.nameInputError = "No global agents directory found";
+    } else if (state.nameInputScope === "project" && !state.projectDir) {
       state.nameInputError = "No project agents directory found";
     } else {
       state.nameInputError = null;
@@ -1363,6 +1385,11 @@ function handleNameInput(
       requestRender();
       return;
     }
+    if (state.nameInputScope === "global" && !state.globalDir) {
+      state.nameInputError = "No global agents directory found";
+      requestRender();
+      return;
+    }
     if (state.nameInputScope === "project" && !state.projectDir) {
       state.nameInputError = "No project agents directory found";
       requestRender();
@@ -1379,7 +1406,9 @@ function handleNameInput(
       return;
     }
 
-    const dir = state.nameInputScope === "user" ? state.userDir : state.projectDir;
+    const dir = state.nameInputScope === "global" ? state.globalDir
+      : state.nameInputScope === "user" ? state.userDir
+      : state.projectDir;
     if (!dir) {
       state.nameInputError = "Target directory not available";
       requestRender();
@@ -1486,9 +1515,11 @@ function handleConfirmDelete(
       // Refresh agents list
       const cwd = process.cwd();
       const discovery = discoverAgentsAll(cwd);
+      state.globalAgents = discovery.global;
       state.userAgents = discovery.user;
       state.projectAgents = discovery.project;
-      state.agents = [...discovery.user, ...discovery.project];
+      state.globalDir = discovery.globalDir;
+      state.agents = [...discovery.global, ...discovery.user, ...discovery.project];
 
       state.listCursor = 0;
       state.listScroll = 0;
@@ -1506,8 +1537,10 @@ function handleConfirmDelete(
 // ── Main factory ────────────────────────────────────────────────────────────
 
 export function createAgentManager(
+  globalAgents: AgentConfig[],
   userAgents: AgentConfig[],
   projectAgents: AgentConfig[],
+  globalDir: string | null,
   userDir: string,
   projectDir: string | null,
   tui: TUIContext,
@@ -1518,9 +1551,11 @@ export function createAgentManager(
 ): Component {
   const state: ManagerState = {
     screen: "list",
-    agents: [...userAgents, ...projectAgents],
+    agents: [...globalAgents, ...userAgents, ...projectAgents],
+    globalAgents,
     userAgents,
     projectAgents,
+    globalDir,
     userDir,
     projectDir,
 

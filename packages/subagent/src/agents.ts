@@ -4,6 +4,7 @@
  */
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
@@ -14,13 +15,13 @@ export interface AgentConfig {
   model?: string;
   thinking?: string;
   systemPrompt: string;
-  source: "user" | "project";
+  source: "global" | "user" | "project";
   filePath: string;
   // Extra fields preserved from frontmatter but not editable in TUI
   extraFields?: Record<string, unknown>;
 }
 
-function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
+function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): AgentConfig[] {
   const agents: AgentConfig[] = [];
 
   if (!fs.existsSync(dir)) return agents;
@@ -102,28 +103,55 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
   }
 }
 
+function findNearestAgentsDir(cwd: string): string | null {
+  // Walk up looking for .agents/agents inside a git repo
+  let currentDir = cwd;
+  while (true) {
+    const gitPath = path.join(currentDir, ".git");
+    if (fs.existsSync(gitPath)) {
+      const projectAgentsDir = path.join(currentDir, ".agents", "agents");
+      if (fs.existsSync(projectAgentsDir)) return projectAgentsDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
+
+  // Fallback: ~/.agents/agents
+  const homeAgentsDir = path.join(os.homedir(), ".agents", "agents");
+  if (fs.existsSync(homeAgentsDir)) return homeAgentsDir;
+  return null;
+}
+
 /**
  * Result of discovering agents — separated by source with directory paths.
  */
 export interface AgentsDiscoveryResult {
+  global: AgentConfig[];
   user: AgentConfig[];
   project: AgentConfig[];
-  userDir: string;        // e.g., ~/.pi/agent/agents
-  projectDir: string | null;  // e.g., .pi/agents or null if not found
+  globalDir: string | null;  // e.g., .agents/agents or null if not found
+  userDir: string;           // e.g., ~/.pi/agent/agents
+  projectDir: string | null; // e.g., .pi/agents or null if not found
 }
 
 /**
- * Discover all available agents from user and/or project directories.
+ * Discover all available agents from global, user and/or project directories.
+ * Precedence (highest last): global < user < project
  */
 export function discoverAgents(cwd: string): AgentConfig[] {
+  const globalDir = findNearestAgentsDir(cwd);
   const userDir = path.join(getAgentDir(), "agents");
   const projectDir = findNearestProjectAgentsDir(cwd);
 
+  const globalAgents = globalDir ? loadAgentsFromDir(globalDir, "global") : [];
   const userAgents = loadAgentsFromDir(userDir, "user");
   const projectAgents = projectDir ? loadAgentsFromDir(projectDir, "project") : [];
 
-  // Project agents override user agents with the same name
+  // Later sources override earlier: global < user < project
   const agentMap = new Map<string, AgentConfig>();
+  for (const agent of globalAgents) agentMap.set(agent.name, agent);
   for (const agent of userAgents) agentMap.set(agent.name, agent);
   for (const agent of projectAgents) agentMap.set(agent.name, agent);
 
@@ -134,15 +162,19 @@ export function discoverAgents(cwd: string): AgentConfig[] {
  * Discover agents and return them separated by source with directory paths.
  */
 export function discoverAgentsAll(cwd: string): AgentsDiscoveryResult {
+  const globalDir = findNearestAgentsDir(cwd);
   const userDir = path.join(getAgentDir(), "agents");
   const projectDir = findNearestProjectAgentsDir(cwd);
 
+  const globalAgents = globalDir ? loadAgentsFromDir(globalDir, "global") : [];
   const userAgents = loadAgentsFromDir(userDir, "user");
   const projectAgents = projectDir ? loadAgentsFromDir(projectDir, "project") : [];
 
   return {
+    global: globalAgents,
     user: userAgents,
     project: projectAgents,
+    globalDir,
     userDir,
     projectDir,
   };

@@ -266,7 +266,7 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
   pi.registerCommand("agents", {
     description: "Open the Agents Manager",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      const { user, project, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
+      const { global: globalAgents, user, project, globalDir, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
 
       const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
         id: m.id,
@@ -281,7 +281,7 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
 
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
-          return createAgentManager(user, project, userDir, projectDir, tui, theme, done, availableModels, availableTools);
+          return createAgentManager(globalAgents, user, project, globalDir, userDir, projectDir, tui, theme, done, availableModels, availableTools);
         },
         { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
       );
