@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/splash-screen.png" width="600" alt="pi-archimedes splash (art originally from pi-ui-hephaestus)">
+  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash (art originally from pi-ui-hephaestus)">
 
 # pi-archimedes
 
@@ -56,6 +56,8 @@ And I want this to be a place where any idea, issue, or suggestion is welcome. E
 - Parallel execution mode
 - Per-subagent tool counts and token usage
 - Unified cost summary
+
+![subagents main view](docs/images/subagents-main-view.png)
 
 ### 📝 Agents (`/agents` command, new in 0.9.0)
 
