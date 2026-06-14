@@ -13,13 +13,11 @@
 
 ## Why pi-archimedes?
 
-pi-archimedes is a modular monorepo of Pi UI extensions. Each package does one thing well and can be installed independently.
+You spend hours in this terminal. The agent is brilliant, but the default UI is functional, not friendly — abrupt startup, invisible context, plain-text diffs, and you never quite know where the cost is going.
 
-- **Install only what you need** — don't pay for features you don't use
-- **Isolate regressions** — a bug in one package doesn't break the others
-- **Faster upgrades** — smaller diffs, clearer changelogs per package
+pi-archimedes is the polish layer that makes the TUI feel like a real tool. Smooth splash on launch, a framed editor that won't quit on you by accident, syntax-highlighted diffs you can actually read, and a footer that always shows the things that matter — model, tokens, context, cost. It also ships two tools that change the daily workflow: a **subagent** that dispatches background tasks with live progress and a unified cost rollup, and a **`/agents` command** for managing your agent files without leaving the terminal.
 
-Install `pi-archimedes` (the meta package) to bundle all five for a tightly integrated experience — e.g. subagent cost is pushed to the footer via the shared bus. Or install individual `@pi-archimedes/*` packages.
+Because it's a monorepo, you stay in control. Grab the full bundle with `pi install pi-archimedes` and the components share state — subagent costs flow into the footer, the agent manager reuses Core's chrome. Or install only what you actually want: `pi install @pi-archimedes/footer` if that's all you need today, and add the rest later.
 
 ## Features
 
