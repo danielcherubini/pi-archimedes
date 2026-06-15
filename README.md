@@ -71,6 +71,12 @@ Dispatch work to other agents and watch them work in real time.
 
 ![subagents main view](docs/images/subagents-main-view.png)
 
+#### `/agents` command
+
+Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, tool picker, dirty-tracking, cross-scope collision warnings.
+
+*Available when installed via `pi-archimedes` (the meta package), not as a standalone `@pi-archimedes/subagent` install.*
+
 ### 📋 Todo (`@pi-archimedes/todo`)
 
 Track work without leaving the session — including what your subagents are doing.
@@ -81,11 +87,6 @@ Track work without leaving the session — including what your subagents are doi
 - `/todos` and `/todos clear` commands
 
 ![todos and subagent](docs/images/todos-and-subagent.png)
-
-### 📝 Agents (`/agents` command, new in 0.9.0)
-
-- Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, tool picker, dirty-tracking, cross-scope collision warnings
-- *Note: available when installed via `pi-archimedes` (the meta package), not as a standalone `@pi-archimedes/subagent` install.*
 
 > When installed via the meta package, the six components share state and cooperate. For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
