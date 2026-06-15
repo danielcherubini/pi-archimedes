@@ -88,6 +88,8 @@ Track work without leaving the session — including what your subagents are doi
 
 ![todos and subagent](docs/images/todos-and-subagent.png)
 
+**When installed via the meta package, the six components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+
 ## Quick Start
 
 ```bash
@@ -160,8 +162,6 @@ pi-archimedes/
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.
-
-When installed via the meta package, the six components share state and cooperate. For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and contribution workflow.
 
