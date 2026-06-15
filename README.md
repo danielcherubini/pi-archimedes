@@ -46,6 +46,8 @@ And I want this to be a place where any idea, issue, or suggestion is welcome. E
 - Auto-derived theme colors
 - Graceful fallback to plain text
 
+![diff edit](docs/images/diff-edit.png)
+
 ### 🖼️ Image-paste (`@pi-archimedes/image-paste`)
 
 - Paste images from clipboard (Ctrl+V on Linux, Alt+V on Windows) with inline preview
