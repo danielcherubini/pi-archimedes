@@ -3,13 +3,8 @@ import type { AgentToolResult, ExtensionContext, Theme, ToolRenderResultOptions 
 import { Text } from "@earendil-works/pi-tui";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import type { TodoStateManager } from "./state-manager.js";
+import { STATUS_ICONS } from "./types.js";
 import type { TodoDetails } from "./types.js";
-
-export const STATUS_ICONS: Record<string, string> = {
-  "completed": "✓",
-  "in-progress": "◉ ",
-  "not-started": "○",
-};
 
 const TodoItemSchema = Type.Object({
   id: Type.Number({ description: "Unique identifier for the todo. Use sequential numbers starting from 1." }),

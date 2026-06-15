@@ -1,15 +1,10 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { STATUS_ICONS } from "../types.js";
 import type { TodoItem } from "../types.js";
 import type { TodoStateManager } from "../state-manager.js";
 
 const WIDGET_ID = "todo-list";
-
-export const STATUS_ICONS: Record<TodoItem["status"], string> = {
-  "completed": "✓",
-  "in-progress": "◉ ",
-  "not-started": "○",
-};
 
 interface Column {
   header: string;
@@ -100,9 +95,9 @@ export function updateWidget(
             } else if (row < column.todos.length) {
               const todo = column.todos[row];
               if (todo) {
-                const icon = get_status_icon(todo.status, theme);
+                const icon = getStatusIcon(todo.status, theme);
                 const idStr = theme.fg("accent", `${todo.id}.`);
-                const title = format_todo_title(todo, theme);
+                const title = formatTodoTitle(todo, theme);
                 cellText = ` ${icon} ${idStr} ${title}`;
               } else {
                 cellText = "";
@@ -136,14 +131,14 @@ export function updateWidget(
   });
 }
 
-function get_status_icon(status: TodoItem["status"], theme: Theme): string {
+function getStatusIcon(status: TodoItem["status"], theme: Theme): string {
   const icon = STATUS_ICONS[status] ?? "?";
   if (status === "completed") return theme.fg("success", icon);
   if (status === "in-progress") return theme.fg("warning", icon.trim());
   return theme.fg("dim", icon);
 }
 
-function format_todo_title(todo: TodoItem, theme: Theme): string {
+function formatTodoTitle(todo: TodoItem, theme: Theme): string {
   if (todo.status === "completed") {
     return theme.fg("dim", theme.strikethrough(todo.title));
   }

@@ -37,3 +37,10 @@ export interface ValidationResult {
   valid: boolean;
   errors: string[];
 }
+
+/** Status icons for each todo state */
+export const STATUS_ICONS: Record<TodoStatus, string> = {
+  "completed": "✓",
+  "in-progress": "◉ ",
+  "not-started": "○",
+};
