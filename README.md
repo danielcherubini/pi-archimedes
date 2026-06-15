@@ -59,6 +59,15 @@ And I want this to be a place where any idea, issue, or suggestion is welcome. E
 
 ![subagents main view](docs/images/subagents-main-view.png)
 
+### 📋 Todo (`@pi-archimedes/todo`)
+
+- `manage_todo_list` tool with read/write operations
+- Auto-clear when all todos are completed
+- Multi-column widget — main agent + per-subagent todos side by side
+- `/todos` and `/todos clear` commands
+
+![todos and subagent](docs/images/todos-and-subagent.png)
+
 ### 📝 Agents (`/agents` command, new in 0.9.0)
 
 - Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, tool picker, dirty-tracking, cross-scope collision warnings
@@ -81,6 +90,7 @@ That's it. Restart Pi and the components load automatically.
 - `pi install @pi-archimedes/diff`
 - `pi install @pi-archimedes/image-paste`
 - `pi install @pi-archimedes/subagent`
+- `pi install @pi-archimedes/todo`
 
 Run `/archimedes` to open the interactive settings panel and configure components.
 
@@ -135,8 +145,9 @@ pi-archimedes/
 │   ├── footer/       # @pi-archimedes/footer — status bar
 │   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
 │   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
-│   └── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
-└── meta/             # pi-archimedes — meta-package bundling all five
+│   ├── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
+│   └── todo/         # @pi-archimedes/todo — todo list with auto-clear
+└── meta/             # pi-archimedes — meta-package bundling all six
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.

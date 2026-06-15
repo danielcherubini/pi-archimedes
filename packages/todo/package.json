@@ -20,5 +20,8 @@
   },
   "devDependencies": {
     "typescript": "^6.0.0"
+  },
+  "pi": {
+    "image": "https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png"
   }
 }
