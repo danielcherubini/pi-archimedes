@@ -31,6 +31,9 @@ importers:
       '@pi-archimedes/subagent':
         specifier: workspace:*
         version: link:../packages/subagent
+      '@pi-archimedes/todo':
+        specifier: workspace:*
+        version: link:../packages/todo
     devDependencies:
       typescript:
         specifier: ^6.0.0
