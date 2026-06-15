@@ -27,7 +27,7 @@ I want this to be a place where any idea, issue, or suggestion is welcome. Even 
 
 ## Features
 
-### 🎬 Core (`@pi-archimedes/core`)
+### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
 The visual chrome you see on every Pi session.
 
@@ -35,7 +35,7 @@ The visual chrome you see on every Pi session.
 - Framed editor with double-press quit guard
 - Muted thinking blocks
 
-### 📊 Footer (`@pi-archimedes/footer`)
+### 📊 Footer ([`@pi-archimedes/footer`](packages/footer/README.md))
 
 A status bar that surfaces what matters without getting in the way.
 
@@ -43,7 +43,7 @@ A status bar that surfaces what matters without getting in the way.
 - Token stats (↑input ↓output + cost)
 - Color-coded context window bar
 
-### 🔍 Diff (`@pi-archimedes/diff`)
+### 🔍 Diff ([`@pi-archimedes/diff`](packages/diff/README.md))
 
 Syntax-highlighted diffs that read at a glance.
 
@@ -54,13 +54,13 @@ Syntax-highlighted diffs that read at a glance.
 
 ![diff edit](docs/images/diff-edit.png)
 
-### 🖼️ Image-paste (`@pi-archimedes/image-paste`)
+### 🖼️ Image-paste ([`@pi-archimedes/image-paste`](packages/image-paste/README.md))
 
 Paste screenshots straight into the chat.
 
 - Paste images from clipboard (Ctrl+V on Linux, Alt+V on Windows) with inline preview
 
-### 🤖 Subagent (`@pi-archimedes/subagent`)
+### 🤖 Subagent ([`@pi-archimedes/subagent`](packages/subagent/README.md))
 
 Dispatch work to other agents and watch them work in real time.
 
@@ -77,7 +77,7 @@ Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, too
 
 *Available when installed via `pi-archimedes` (the meta package), not as a standalone `@pi-archimedes/subagent` install.*
 
-### 📋 Todo (`@pi-archimedes/todo`)
+### 📋 Todo ([`@pi-archimedes/todo`](packages/todo/README.md))
 
 Track work without leaving the session — including what your subagents are doing.
 
@@ -113,7 +113,7 @@ Run `/archimedes` to open the interactive settings panel. Navigate with arrow ke
 
 Each package reads from its own namespace in `~/.pi/agent/settings.json` — for example, `@pi-archimedes/footer` reads from `archimedes.footer`.
 
-### @pi-archimedes/core
+### [`@pi-archimedes/core`](packages/core/README.md)
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
@@ -123,13 +123,13 @@ Each package reads from its own namespace in `~/.pi/agent/settings.json` — for
 | `labelColor` | string | `255,215,0` | RGB color for the thinking label |
 | `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
 
-### @pi-archimedes/footer
+### [`@pi-archimedes/footer`](packages/footer/README.md)
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `splitThreshold` | number | `150` | Minimum terminal columns for full footer (below this, simplified layout) |
 
-### @pi-archimedes/diff
+### [`@pi-archimedes/diff`](packages/diff/README.md)
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
@@ -137,11 +137,11 @@ Each package reads from its own namespace in `~/.pi/agent/settings.json` — for
 | `diffSplitMinWidth` | number | `150` | Minimum terminal columns to show split diff view (≥ 100) |
 | `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
 
-### @pi-archimedes/image-paste
+### [`@pi-archimedes/image-paste`](packages/image-paste/README.md)
 
 Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
 
-### @pi-archimedes/subagent
+### [`@pi-archimedes/subagent`](packages/subagent/README.md)
 
 No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the footer to consume.
 
