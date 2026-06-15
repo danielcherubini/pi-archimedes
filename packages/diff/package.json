@@ -29,6 +29,7 @@
   "pi": {
     "extensions": [
       "./src/index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png"
   }
 }

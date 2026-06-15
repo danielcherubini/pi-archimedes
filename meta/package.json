@@ -15,7 +15,8 @@
     "@pi-archimedes/footer": "workspace:*",
     "@pi-archimedes/diff": "workspace:*",
     "@pi-archimedes/image-paste": "workspace:*",
-    "@pi-archimedes/subagent": "workspace:*"
+    "@pi-archimedes/subagent": "workspace:*",
+    "@pi-archimedes/todo": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",
