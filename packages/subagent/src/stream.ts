@@ -125,6 +125,17 @@ export function streamEvents(
         case "tool_execution_start": {
           handleToolStart(state, event);
           emitProgress();
+          // Forward manage_todo_list writes to the bus for parent widget
+          if (event.toolName === "manage_todo_list") {
+            const args = event.args as Record<string, unknown> | undefined;
+            const todoList = args?.todoList as Array<unknown> | undefined;
+            if (Array.isArray(todoList)) {
+              getBus().emit(Events.TODOS_UPDATE, {
+                source: `subagent:${callbacks.agent ?? "general"}`,
+                todos: todoList,
+              });
+            }
+          }
           break;
         }
         case "tool_execution_end": {
@@ -139,22 +150,6 @@ export function streamEvents(
         case "tool_result_end": {
           handleToolResult(state, event);
           emitProgress();
-          // Forward manage_todo_list results to the bus for parent widget
-          const toolMsg = event.message as Record<string, unknown> | undefined;
-          const toolName = toolMsg?.toolName as string | undefined;
-          if (toolName === "manage_todo_list") {
-            // Dump full event for debugging
-            console.error(`[archimedes:stream] manage_todo_list event keys:`, Object.keys(event || {}));
-            console.error(`[archimedes:stream] message keys:`, Object.keys(toolMsg || {}));
-            console.error(`[archimedes:stream] message:`, JSON.stringify(toolMsg).slice(0, 500));
-            const details = (toolMsg as any).details as { todos?: unknown } | undefined;
-            if (details?.todos && Array.isArray(details.todos)) {
-              getBus().emit(Events.TODOS_UPDATE, {
-                source: `subagent:${callbacks.agent ?? "general"}`,
-                todos: details.todos,
-              });
-            }
-          }
           break;
         }
         case "message_end": {
