@@ -79,6 +79,17 @@ export function initBus(): void {
 
 export const Events = {
   COST_UPDATE: "archimedes:cost_update",
+  TODOS_UPDATE: "archimedes:todos_update",
+  TODOS_CLEAR: "archimedes:todos_clear",
 } as const;
 
-export type { CostUpdatePayload };
+interface TodoUpdatePayload {
+  source: string;       // "main" or "subagent:<agent-name>"
+  todos: Array<{ id: number; title: string; description: string; status: "not-started" | "in-progress" | "completed" }>;
+}
+
+interface TodoClearPayload {
+  source: string;
+}
+
+export type { CostUpdatePayload, TodoUpdatePayload, TodoClearPayload };
