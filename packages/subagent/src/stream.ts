@@ -143,16 +143,16 @@ export function streamEvents(
           const toolMsg = event.message as Record<string, unknown> | undefined;
           const toolName = toolMsg?.toolName as string | undefined;
           if (toolName === "manage_todo_list") {
+            // Dump full event for debugging
+            console.error(`[archimedes:stream] manage_todo_list event keys:`, Object.keys(event || {}));
+            console.error(`[archimedes:stream] message keys:`, Object.keys(toolMsg || {}));
+            console.error(`[archimedes:stream] message:`, JSON.stringify(toolMsg).slice(0, 500));
             const details = (toolMsg as any).details as { todos?: unknown } | undefined;
-            console.log(`[archimedes:stream] manage_todo_list found, details keys:`, Object.keys(details || {}));
             if (details?.todos && Array.isArray(details.todos)) {
               getBus().emit(Events.TODOS_UPDATE, {
                 source: `subagent:${callbacks.agent ?? "general"}`,
                 todos: details.todos,
               });
-              console.log(`[archimedes:stream] emitted TODOS_UPDATE with ${details.todos.length} todos`);
-            } else {
-              console.error(`[archimedes:stream] manage_todo_list result missing todos:`, JSON.stringify(details).slice(0, 300));
             }
           }
           break;
