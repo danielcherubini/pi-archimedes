@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
+import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
   type JsonEvent,
   handleToolStart,
@@ -124,6 +125,17 @@ export function streamEvents(
         case "tool_execution_start": {
           handleToolStart(state, event);
           emitProgress();
+          // Forward manage_todo_list writes to the bus for parent widget
+          if (event.toolName === "manage_todo_list") {
+            const args = event.args as Record<string, unknown> | undefined;
+            const todoList = args?.todoList as Array<unknown> | undefined;
+            if (Array.isArray(todoList)) {
+              getBus().emit(Events.TODOS_UPDATE, {
+                source: `subagent:${callbacks.agent ?? "general"}`,
+                todos: todoList,
+              });
+            }
+          }
           break;
         }
         case "tool_execution_end": {
@@ -192,6 +204,11 @@ export function streamEvents(
 
       // Final progress update
       callbacks.onProgress?.(result.progress!);
+
+      // Clear subagent todos from the bus on process exit
+      getBus().emit(Events.TODOS_CLEAR, {
+        source: `subagent:${callbacks.agent ?? "general"}`,
+      });
 
       resolve(result);
     });

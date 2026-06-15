@@ -4,6 +4,7 @@
 
 | Plan | Status | Created |
 |------|--------|---------|
+| [Todo list with auto-clear + subagent visibility](plans/2026-06-15-todo-plan.md) | ✅ COMPLETED (PR #8) | 2026-06-15 |
 | [README overhaul + hephaestus deprecation](plans/2026-06-14-readme-overhaul.md) | ✅ COMPLETED (PRs #7 and #4) | 2026-06-14 |
 | [/agents command](plans/2026-06-13-agents-command.md) | ✅ COMPLETED (PR #6) | 2026-06-13 |
 | [Subagent package](plans/2026-06-04-subagent.md) | ✅ COMPLETED (PR #1) | 2026-06-04 |
@@ -11,5 +12,5 @@
 
 ## Quick Stats
 
-- Total Plans: 4
-- Completed: 4
+- Total Plans: 5
+- Completed: 5
