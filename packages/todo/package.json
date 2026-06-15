@@ -1,0 +1,24 @@
+{
+  "name": "@pi-archimedes/todo",
+  "version": "1.2.0",
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "description": "Todo list tool with auto-clear and subagent visibility",
+  "files": [
+    "src"
+  ],
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.1.0",
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  }
+}
