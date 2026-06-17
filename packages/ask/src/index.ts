@@ -193,19 +193,36 @@ export function registerAsk(pi: ExtensionAPI) {
 	const unsubscribes: Array<() => void> = [];
 	let currentCtx: ExtensionContext | undefined;
 
-	// Listen for ask requests from subagents via the bus — show UI immediately
-	const unsubAskRequest = getBus().on(Events.ASK_REQUEST, async (payload: unknown) => {
+	// Queue of pending ask requests from subagents
+	interface PendingAsk {
+		requestId: string;
+		questions: AskQuestion[];
+	}
+	const pendingAsks: PendingAsk[] = [];
+
+	// Listen for ask requests from subagents via the bus — queue for turn_end
+	const unsubAskRequest = getBus().on(Events.ASK_REQUEST, (payload: unknown) => {
 		const data = payload as {
 			source: string;
 			requestId: string;
 			questions: AskQuestion[];
-			responseFile?: string;
 		};
 
 		if (!data.questions || data.questions.length === 0) return;
-		await handleAskRequest(data);
+		pendingAsks.push({ requestId: data.requestId, questions: data.questions });
 	});
 	unsubscribes.push(unsubAskRequest);
+
+	// Process queued asks at turn_end (when TUI is idle)
+	pi.on("turn_end", async (_event, ctx: ExtensionContext) => {
+		currentCtx = ctx;
+		const asks = [...pendingAsks];
+		pendingAsks.length = 0;
+
+		for (const ask of asks) {
+			await handleAskRequest(ask);
+		}
+	});
 
 	// Keep ctx reference fresh
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
@@ -219,6 +236,7 @@ export function registerAsk(pi: ExtensionAPI) {
 	pi.on("session_shutdown", (_event, _ctx) => {
 		unsubscribes.forEach((unsub) => unsub());
 		unsubscribes.length = 0;
+		pendingAsks.length = 0;
 	});
 
 	async function handleAskRequest(data: {
