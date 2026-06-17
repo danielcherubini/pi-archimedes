@@ -1,8 +1,8 @@
 import { CURSOR_MARKER, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 const INLINE_NOTE_SEPARATOR = " — note: ";
-const INLINE_EDIT_CURSOR_INVERT_ON = "\u001b[7m";
-const INLINE_EDIT_CURSOR_INVERT_OFF = "\u001b[27m";
+const INLINE_EDIT_CURSOR_INVERT_ON = "\x1b[7m";
+const INLINE_EDIT_CURSOR_INVERT_OFF = "\x1b[27m";
 
 export const INLINE_NOTE_WRAP_PADDING = 2;
 
