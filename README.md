@@ -99,6 +99,7 @@ Structured questioning with interactive options and inline notes.
 - Inline note editing per option
 - Markdown context descriptions
 - Automatic "Other (type your own)" handling
+- Subagent support — subagents can call `ask` and questions appear in the parent's TUI via bidirectional IPC
 
 ## Quick Start
 

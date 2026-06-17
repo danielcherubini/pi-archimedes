@@ -15,6 +15,11 @@ pi install @pi-archimedes/ask
 - Inline note editing per option
 - Markdown context descriptions
 - Automatic "Other (type your own)" handling
+- Subagent support — subagents can call `ask` and the question appears in the parent's TUI (bidirectional IPC, no temp files)
+
+## Dependencies
+
+Depends on [`@pi-archimedes/core`](../core) for the shared event bus used to relay subagent questions.
 
 ## Settings
 
