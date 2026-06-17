@@ -67,20 +67,23 @@ export function handleToolEnd(state: StreamState): void {
 }
 
 /**
- * Handle a tool_result_end event — capture tool output for live display.
+ * Handle a tool_execution_end event — capture tool result output for live display.
+ * The result is in event.result (the tool's return value).
  */
 export function handleToolResult(state: StreamState, event: JsonEvent): void {
-  const toolMessage = event.message as Record<string, unknown> | undefined;
-  if (!toolMessage || toolMessage.role !== "toolResult") return;
+  const result = event.result as Record<string, unknown> | undefined;
+  if (!result) return;
 
-  const toolContent = toolMessage.content as Array<Record<string, unknown>> | string | undefined;
-  const toolName = (toolMessage.toolName as string) ?? "tool";
+  const toolName = (event.toolName as string) ?? "tool";
 
-  if (typeof toolContent === "string" && toolContent.trim()) {
-    const lines = toolContent.split("\n").filter((l) => l.trim());
+  // Extract text content from tool result
+  const content = result.content as Array<Record<string, unknown>> | string | undefined;
+
+  if (typeof content === "string" && content.trim()) {
+    const lines = content.split("\n").filter((l) => l.trim());
     state.recentOutput.push(`[${toolName}] ${lines[0]?.slice(0, ARGS_PREVIEW_MAX)}`);
-  } else if (Array.isArray(toolContent)) {
-    for (const part of toolContent) {
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
       if (part.type === "text" && (part.text as string)?.trim()) {
         const text = part.text as string;
         const lines = text.split("\n").filter((l) => l.trim());
