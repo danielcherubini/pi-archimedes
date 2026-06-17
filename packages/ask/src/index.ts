@@ -3,6 +3,7 @@ import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
 import { askQuestionsWithTabs } from "./dialog";
@@ -201,10 +202,13 @@ export function registerAsk(pi: ExtensionAPI) {
 			questions: AskQuestion[];
 		};
 
+		appendFileSync("/tmp/pi-ask-debug.log", `[ask] ASK_REQUEST received requestId=${data?.requestId} qcount=${data?.questions?.length} hasCtx=${!!currentCtx} hasUI=${!!currentCtx?.ui}\n`);
+
 		if (!data.questions || data.questions.length === 0) return;
 
 		// Defer to next tick so TUI can process current state
 		await new Promise((resolve) => setImmediate(resolve));
+		appendFileSync("/tmp/pi-ask-debug.log", `[ask] after setImmediate, calling handleAskRequest\n`);
 		await handleAskRequest(data);
 	});
 	unsubscribes.push(unsubAskRequest);
@@ -212,6 +216,7 @@ export function registerAsk(pi: ExtensionAPI) {
 	// Keep ctx reference fresh
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
 		currentCtx = ctx;
+		appendFileSync("/tmp/pi-ask-debug.log", `[ask] session_start hasUI=${!!ctx.ui}\n`);
 	});
 	pi.on("turn_start", (_event, ctx: ExtensionContext) => {
 		currentCtx = ctx;
@@ -227,6 +232,7 @@ export function registerAsk(pi: ExtensionAPI) {
 		requestId: string;
 		questions: AskQuestion[];
 	}) {
+		appendFileSync("/tmp/pi-ask-debug.log", `[ask] handleAskRequest start hasCtx=${!!currentCtx} hasUI=${!!currentCtx?.ui}\n`);
 		if (!currentCtx?.ui) return;
 
 		const questions = data.questions;
@@ -250,7 +256,9 @@ export function registerAsk(pi: ExtensionAPI) {
 				cancelled = res.cancelled;
 				selections = res.selections;
 			}
-		} catch {
+			appendFileSync("/tmp/pi-ask-debug.log", `[ask] UI returned cancelled=${cancelled} selections=${JSON.stringify(selections)}\n`);
+		} catch (e) {
+			appendFileSync("/tmp/pi-ask-debug.log", `[ask] handleAskRequest caught error: ${e instanceof Error ? e.message : String(e)}\n`);
 			cancelled = true;
 			selections = questions.map(() => ({ selectedOptions: [] }));
 		}
@@ -282,12 +290,14 @@ export function registerAsk(pi: ExtensionAPI) {
 				const requestId = randomUUID();
 				const socketPath = process.env.PI_SUBAGENT_SOCKET;
 
-				// Emit question on local bus (parent intercepts via JSON stream)
-				getBus().emit(Events.ASK_REQUEST, {
-					source: "subagent:headless",
+				appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] headless ask requestId=${requestId} socketPath=${socketPath ?? "none"}\n`);
+
+				// Send question to parent via stdout JSON stream (parent's streamEvents parses this)
+				process.stdout.write(JSON.stringify({
+					type: "ask_request",
 					requestId,
-					questions: params.questions as AskQuestion[],
-				});
+					questions: params.questions,
+				}) + "\n");
 
 				// Connect to parent's socket and wait for response
 				const response = await new Promise<{
@@ -301,6 +311,7 @@ export function registerAsk(pi: ExtensionAPI) {
 
 					const socket = connect(socketPath, () => {
 						// Connected — wait for data
+						appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] socket connected, waiting for response\n`);
 					});
 
 					let buffer = "";
@@ -312,6 +323,7 @@ export function registerAsk(pi: ExtensionAPI) {
 							try {
 								const msg = JSON.parse(line);
 								if (msg.type === "ask_response" && msg.requestId === requestId) {
+									appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] got response cancelled=${msg.cancelled}\n`);
 									socket.end();
 									resolve({ cancelled: msg.cancelled, results: msg.results });
 								}
@@ -319,7 +331,8 @@ export function registerAsk(pi: ExtensionAPI) {
 						}
 					});
 
-					socket.on("error", () => {
+					socket.on("error", (err) => {
+						appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] socket error: ${err.message}\n`);
 						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 					});
 

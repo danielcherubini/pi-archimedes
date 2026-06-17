@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
@@ -75,9 +76,11 @@ export function streamEvents(
     // Listen for ask responses from the parent's ask package — write to child socket
     const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
       const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+      appendFileSync("/tmp/pi-ask-debug.log", `[stream] ASK_RESPONSE requestId=${data?.requestId} pending=${pendingAskRequests.has(data?.requestId)}\n`);
       if (pendingAskRequests.has(data.requestId)) {
         pendingAskRequests.delete(data.requestId);
         const clientSocket = (child as ChildProcess & { clientSocket?: import("node:net").Socket }).clientSocket;
+        appendFileSync("/tmp/pi-ask-debug.log", `[stream] writing to child socket, hasSocket=${!!clientSocket}\n`);
         if (clientSocket) {
           clientSocket.write(JSON.stringify({
             type: "ask_response",
@@ -156,19 +159,20 @@ export function streamEvents(
               });
             }
           }
-          // Forward ask requests to the bus for parent UI
-          if (event.toolName === "ask") {
-            const args = event.args as Record<string, unknown> | undefined;
-            const questions = args?.questions as Array<unknown> | undefined;
-            const requestId = args?.requestId as string | undefined;
-            if (Array.isArray(questions) && requestId) {
-              pendingAskRequests.add(requestId);
-              getBus().emit(Events.ASK_REQUEST, {
-                source: `subagent:${callbacks.agent ?? "general"}`,
-                requestId,
-                questions,
-              });
-            }
+          break;
+        }
+        case "ask_request": {
+          // Custom event from child's ask tool — forward to parent bus for UI
+          const reqQuestions = (event as { questions?: unknown }).questions as Array<unknown> | undefined;
+          const reqRequestId = (event as { requestId?: unknown }).requestId as string | undefined;
+          appendFileSync("/tmp/pi-ask-debug.log", `[stream] ask_request event requestId=${reqRequestId ?? "none"} qcount=${reqQuestions?.length}\n`);
+          if (Array.isArray(reqQuestions) && reqRequestId) {
+            pendingAskRequests.add(reqRequestId);
+            getBus().emit(Events.ASK_REQUEST, {
+              source: `subagent:${callbacks.agent ?? "general"}`,
+              requestId: reqRequestId,
+              questions: reqQuestions,
+            });
           }
           break;
         }
