@@ -8,8 +8,11 @@
  * Usage: node child.js (forked with stdio: ["pipe", "pipe", "pipe", "ipc"])
  */
 
-import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
-import { getModel, type Model } from "@earendil-works/pi-ai";
+import {
+  createAgentSession,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
 import type { ParentToChild, ChildToParent, SerializedAgentEvent } from "./ipc-types.ts";
 import { createIpcAskTool } from "./ipc-ask-tool.ts";
 
@@ -31,23 +34,31 @@ interface InitParams {
 // ── Model resolution ────────────────────────────────────────────────────────
 
 /**
- * Parse a model string like "anthropic/claude-opus-4-5" into a Model object.
- * Returns undefined if the string is empty or cannot be parsed.
+ * Resolve a model reference via a ModelRegistry.
+ *
+ * Supports:
+ * - "provider/modelId" (canonical)
+ * - "modelId" (bare — resolved across providers, ambiguous matches rejected)
+ *
+ * The registry must include extension-registered providers (e.g. "tama"),
+ * which is why this is called AFTER createAgentSession has loaded
+ * extensions — not with a bare ModelRegistry.create() that only knows
+ * built-ins + models.json.
  */
-function resolveModel(modelString: string | undefined): Model<any> | undefined {
+function resolveModel(modelString: string | undefined, registry: { find(p: string, m: string): Model<any> | undefined; getAll(): Model<any>[] }): Model<any> | undefined {
   if (!modelString) return undefined;
 
   const slashIndex = modelString.indexOf("/");
-  if (slashIndex <= 0) return undefined;
-
-  const provider = modelString.slice(0, slashIndex);
-  const modelId = modelString.slice(slashIndex + 1);
-
-  try {
-    return getModel(provider as any, modelId as any);
-  } catch {
-    return undefined;
+  if (slashIndex > 0) {
+    const provider = modelString.slice(0, slashIndex);
+    const modelId = modelString.slice(slashIndex + 1);
+    return registry.find(provider, modelId);
   }
+
+  // Bare model id — search all providers, reject ambiguous matches
+  const matches = registry.getAll().filter((m) => m.id === modelString);
+  if (matches.length === 1) return matches[0];
+  return undefined;
 }
 
 // ── Thinking level parsing ──────────────────────────────────────────────────
@@ -125,10 +136,6 @@ async function main(): Promise<void> {
 
   initParams = await initPromise;
 
-  // Resolve model: agent-level model takes priority, then top-level model.
-  const modelString = initParams.agentModel ?? initParams.model;
-  const model = resolveModel(modelString);
-
   // Resolve thinking level from agent config.
   const thinkingLevel = parseThinkingLevel(initParams.agentThinking);
 
@@ -136,20 +143,35 @@ async function main(): Promise<void> {
   const tools = initParams.agentTools;
 
   // Build options object — omit undefined values to satisfy exactOptionalPropertyTypes.
+  // NOTE: we deliberately do NOT pass authStorage/modelRegistry/settingsManager —
+  // createAgentSession builds a DefaultResourceLoader that loads extensions
+  // (including custom providers like "tama") and registers them into the
+  // registry. Passing a bare ModelRegistry.create() would skip extension
+  // loading and break custom-provider model resolution.
   const sessionOptions: Parameters<typeof createAgentSession>[0] = {
     excludeTools: ["subagent"],
     customTools: [createIpcAskTool()],
     sessionManager: SessionManager.inMemory(),
-    ...(model ? { model } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
     ...(initParams.cwd ? { cwd: initParams.cwd } : {}),
     ...(tools ? { tools } : {}),
   };
 
   // Create the agent session with IPC ask tool for user questions.
+  // The session loads extensions (custom providers) and picks the settings
+  // default model when none is passed.
   const { session: agentSession } = await createAgentSession(sessionOptions);
 
   session = agentSession;
+
+  // If a specific model was requested, resolve it through the session's
+  // registry (which now includes extension-registered providers) and switch
+  // to it. This handles "tama/whatevers-hot-n-fresh" and bare ids like "glm".
+  const modelString = initParams.agentModel ?? initParams.model;
+  const resolvedModel = resolveModel(modelString, session.modelRegistry);
+  if (resolvedModel && (session.model?.provider !== resolvedModel.provider || session.model?.id !== resolvedModel.id)) {
+    await session.setModel(resolvedModel);
+  }
 
   // Bind extensions with empty bindings (no UI, no command context).
   await session.bindExtensions({});
