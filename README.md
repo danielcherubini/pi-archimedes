@@ -27,7 +27,7 @@ I want this to be a place where any idea, issue, or suggestion is welcome. Even 
 
 ## Features
 
-**When installed via the meta package, the six components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+**When installed via the meta package, the seven components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 ### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
@@ -90,6 +90,16 @@ Track work without leaving the session — including what your subagents are doi
 
 ![todos and subagent](docs/images/todos-and-subagent.png)
 
+### 💬 Ask ([`@pi-archimedes/ask`](packages/ask/README.md))
+
+Structured questioning with interactive options and inline notes.
+
+- Tabbed multi-question flow with submit review
+- Single-question picker with instant submit
+- Inline note editing per option
+- Markdown context descriptions
+- Automatic "Other (type your own)" handling
+
 ## Quick Start
 
 ```bash
@@ -106,6 +116,7 @@ That's it. Reload Pi and you're set.
 - `pi install @pi-archimedes/image-paste`
 - `pi install @pi-archimedes/subagent`
 - `pi install @pi-archimedes/todo`
+- `pi install @pi-archimedes/ask`
 
 ## Settings
 
@@ -145,6 +156,10 @@ Uses Pi's core `terminal.showImages` setting to control inline previews. No pack
 
 No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the footer to consume.
 
+### [`@pi-archimedes/ask`](packages/ask/README.md)
+
+No settings yet.
+
 ## Architecture
 
 ### Monorepo layout
@@ -153,12 +168,13 @@ No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the
 pi-archimedes/
 ├── packages/
 │   ├── core/         # @pi-archimedes/core — editor, message, startup, thinking
+│   ├── ask/          # @pi-archimedes/ask — structured question tool
 │   ├── footer/       # @pi-archimedes/footer — status bar
 │   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
 │   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
 │   ├── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
 │   └── todo/         # @pi-archimedes/todo — todo list with auto-clear
-└── meta/             # pi-archimedes — meta-package bundling all six
+└── meta/             # pi-archimedes — meta-package bundling all seven
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.
