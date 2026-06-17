@@ -45,6 +45,7 @@ function resolveInitialCursorIndexFromRecommendedOption(
 export async function askSingleQuestionWithInlineNote(
 	ui: ExtensionUIContext,
 	questionInput: SingleQuestionInput,
+	options?: { overlay?: boolean },
 ): Promise<AskSelection> {
 	const baseOptionLabels = questionInput.options.map((option) => option.label);
 	const optionLabelsWithRecommendedTag = appendRecommendedTagToOptionLabels(
@@ -297,7 +298,7 @@ export async function askSingleQuestionWithInlineNote(
 			},
 			handleInput,
 		};
-	});
+	}, options?.overlay ? { overlay: true } : undefined);
 
 	if (!result || result.cancelled || !result.selectedOption) {
 		return { selectedOptions: [] };

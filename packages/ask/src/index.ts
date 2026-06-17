@@ -3,7 +3,7 @@ import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
-import { OTHER_OPTION, type AskQuestion } from "./selection";
+import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
 import { askQuestionsWithTabs } from "./dialog";
 
@@ -230,17 +230,29 @@ export function registerAsk(pi: ExtensionAPI) {
 		if (!currentCtx?.ui) return;
 
 		const questions = data.questions;
-		const selections: Array<{ selectedOptions: string[]; customInput: string | undefined }> = [];
+		let cancelled = true;
+		let selections: AskSelection[] = [];
 
-		// Use ui.select() for subagent asks (works during streaming)
-		for (const q of questions) {
-			const labels = q.options.map((o) => o.label);
-			const selected = await currentCtx.ui.select(q.question, labels);
-			if (selected) {
-				selections.push({ selectedOptions: [selected], customInput: undefined });
+		try {
+			if (questions.length === 1) {
+				const q = questions[0]!;
+				const input: { question: string; description?: string; options: typeof q.options; recommended?: number } = {
+					question: q.question,
+					options: q.options,
+				};
+				if (q.description && q.description.trim().length > 0) input.description = q.description;
+				if (q.recommended != null) input.recommended = q.recommended;
+				const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input, { overlay: true });
+				selections = [sel];
+				cancelled = sel.selectedOptions.length === 0 && !sel.customInput;
 			} else {
-				selections.push({ selectedOptions: [], customInput: undefined });
+				const res = await askQuestionsWithTabs(currentCtx.ui, questions, { overlay: true });
+				cancelled = res.cancelled;
+				selections = res.selections;
 			}
+		} catch {
+			cancelled = true;
+			selections = questions.map(() => ({ selectedOptions: [] }));
 		}
 
 		// Build results matching the request's questions
@@ -250,9 +262,7 @@ export function registerAsk(pi: ExtensionAPI) {
 			customInput: selections[i]?.customInput,
 		}));
 
-		const cancelled = results.every((r) => r.selectedOptions.length === 0 && !r.customInput);
-
-		// Emit on bus — parent's streamEvents writes to child stdin
+		// Emit on bus — parent's streamEvents writes to child socket
 		getBus().emit(Events.ASK_RESPONSE, {
 			requestId: data.requestId,
 			cancelled,

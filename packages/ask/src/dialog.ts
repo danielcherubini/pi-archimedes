@@ -126,6 +126,7 @@ function removeIndexFromSelection(selectedOptionIndexes: number[], optionIndex: 
 export async function askQuestionsWithTabs(
 	ui: ExtensionUIContext,
 	questions: AskQuestion[],
+	options?: { overlay?: boolean },
 ): Promise<{ cancelled: boolean; selections: AskSelection[] }> {
 	const preparedQuestions: PreparedQuestion[] = questions.map((question, questionIndex) => {
 		const baseOptionLabels = question.options.map((option) => option.label);
@@ -642,7 +643,7 @@ export async function askQuestionsWithTabs(
 			},
 			handleInput,
 		};
-	});
+	}, options?.overlay ? { overlay: true } : undefined);
 
 	if (!result || result.cancelled) {
 		return {
