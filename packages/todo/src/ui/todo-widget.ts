@@ -63,6 +63,12 @@ export function updateWidget(
 
     const maxRows = Math.max(...columns.map((c) => c.todos.length));
 
+    // When any column has a subagent header, reserve an extra row at the top
+    // for the headers so todo[0] isn't overwritten by the header text.
+    const hasSubHeader = columns.some((c) => c.header.length > 0);
+    const headerRows = hasSubHeader ? 1 : 0;
+    const totalRows = maxRows + headerRows;
+
     return {
       render(width: number) {
         const lines: string[] = [];
@@ -81,29 +87,31 @@ export function updateWidget(
         let colWidth = numCols > 0 ? Math.floor((width - dividerWidth) / numCols) : width;
         colWidth = Math.max(colWidth, minColWidth);
 
-        // Render subagent headers on row 0
-        const hasSubHeader = columns.some((c) => c.header.length > 0);
-
-        for (let row = 0; row < maxRows; row++) {
+        for (let row = 0; row < totalRows; row++) {
           const cellParts: string[] = [];
 
           for (const column of columns) {
             let cellText: string;
 
-            if (row === 0 && hasSubHeader && column.header) {
+            if (row === 0 && headerRows > 0 && column.header) {
+              // Header row for subagent columns
               cellText = ` ${column.header}`;
-            } else if (row < column.todos.length) {
-              const todo = column.todos[row];
-              if (todo) {
-                const icon = getStatusIcon(todo.status, theme);
-                const idStr = theme.fg("accent", `${todo.id}.`);
-                const title = formatTodoTitle(todo, theme);
-                cellText = ` ${icon} ${idStr} ${title}`;
+            } else {
+              // Todo row — offset by the header row count
+              const todoIndex = row - headerRows;
+              if (todoIndex >= 0 && todoIndex < column.todos.length) {
+                const todo = column.todos[todoIndex];
+                if (todo) {
+                  const icon = getStatusIcon(todo.status, theme);
+                  const idStr = theme.fg("accent", `${todo.id}.`);
+                  const title = formatTodoTitle(todo, theme);
+                  cellText = ` ${icon} ${idStr} ${title}`;
+                } else {
+                  cellText = "";
+                }
               } else {
                 cellText = "";
               }
-            } else {
-              cellText = "";
             }
 
             // Truncate and pad to column width
