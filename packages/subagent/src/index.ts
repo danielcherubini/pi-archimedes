@@ -98,7 +98,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
             agentConfig: t.agent ? findAgent(agents, t.agent) : undefined,
             task: t.task,
             model: t.model,
-            activeModel: ctx.model?.id,
+            activeModel: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
             cwd: t.cwd ?? undefined,
           })),
           signal: signal ?? undefined,
@@ -148,7 +148,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           agentConfig,
           task: params.task,
           model: params.model,
-          activeModel: ctx.model?.id,
+          activeModel: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
           cwd: params.cwd ?? undefined,
           signal: signal ?? undefined,
           onUpdate: (progress: SubagentProgress) => {

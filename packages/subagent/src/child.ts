@@ -34,30 +34,100 @@ interface InitParams {
 // ── Model resolution ────────────────────────────────────────────────────────
 
 /**
- * Resolve a model reference via a ModelRegistry.
+ * Known providers' default model ids (subset of pi's defaultModelPerProvider).
+ * Used by buildFallbackModel to pick a template model when the requested
+ * model id isn't in the registry (e.g. newly-released openrouter models).
+ */
+const DEFAULT_MODEL_PER_PROVIDER: Record<string, string | undefined> = {
+  openrouter: "anthropic/claude-sonnet-4-5",
+  anthropic: "claude-sonnet-4-5",
+  openai: "gpt-4o",
+  google: "gemini-2.5-pro",
+  // fall back to first model of provider when undefined
+};
+
+/**
+ * Build a fallback model for a known provider when the exact model id isn't
+ * registered. Mirrors pi's buildFallbackModel(): take the provider's default
+ * model as a template and override id/name with the requested modelId.
+ */
+function buildFallbackModel(provider: string, modelId: string, available: Model<any>[]): Model<any> | undefined {
+  const providerModels = available.filter((m) => m.provider === provider);
+  if (providerModels.length === 0) return undefined;
+  const defaultId = DEFAULT_MODEL_PER_PROVIDER[provider];
+  const baseModel = defaultId
+    ? (providerModels.find((m) => m.id === defaultId) ?? providerModels[0]!)
+    : providerModels[0]!;
+  return { ...baseModel, id: modelId, name: modelId };
+}
+
+interface ModelRegistryLike {
+  find(provider: string, modelId: string): Model<any> | undefined;
+  getAll(): Model<any>[];
+}
+
+/**
+ * Resolve a model reference the same way the pi CLI does (resolveCliModel).
  *
  * Supports:
- * - "provider/modelId" (canonical)
- * - "modelId" (bare — resolved across providers, ambiguous matches rejected)
+ * - "provider/modelId" where provider is a known provider
+ * - "modelId" containing slashes (e.g. openrouter's "z-ai/glm-5.2")
+ * - bare "modelId"
+ * - fuzzy/partial matching on id within a provider
+ * - fallback: build a custom model for a known provider when the id isn't
+ *   registered (handles newly-released models like openrouter/z-ai/glm-5.2)
  *
  * The registry must include extension-registered providers (e.g. "tama"),
  * which is why this is called AFTER createAgentSession has loaded
  * extensions — not with a bare ModelRegistry.create() that only knows
  * built-ins + models.json.
  */
-function resolveModel(modelString: string | undefined, registry: { find(p: string, m: string): Model<any> | undefined; getAll(): Model<any>[] }): Model<any> | undefined {
+function resolveModel(modelString: string | undefined, registry: ModelRegistryLike): Model<any> | undefined {
   if (!modelString) return undefined;
+  const cliModel = modelString.trim();
+  if (!cliModel) return undefined;
 
-  const slashIndex = modelString.indexOf("/");
-  if (slashIndex > 0) {
-    const provider = modelString.slice(0, slashIndex);
-    const modelId = modelString.slice(slashIndex + 1);
-    return registry.find(provider, modelId);
+  const available = registry.getAll();
+  if (available.length === 0) return undefined;
+
+  const lower = cliModel.toLowerCase();
+
+  // Build canonical provider lookup (case-insensitive)
+  const providerMap = new Map<string, string>();
+  for (const m of available) {
+    if (!providerMap.has(m.provider.toLowerCase())) {
+      providerMap.set(m.provider.toLowerCase(), m.provider);
+    }
   }
 
-  // Bare model id — search all providers, reject ambiguous matches
-  const matches = registry.getAll().filter((m) => m.id === modelString);
-  if (matches.length === 1) return matches[0];
+  // If the input is a full canonical "provider/id", match it directly.
+  // This handles models whose ids contain slashes (e.g. openrouter "z-ai/glm-5.2").
+  const canonicalMatch = available.find(
+    (m) => `${m.provider}/${m.id}`.toLowerCase() === lower,
+  );
+  if (canonicalMatch) return canonicalMatch;
+
+  // Try interpreting "provider/modelId" when the prefix is a known provider.
+  const slashIndex = cliModel.indexOf("/");
+  if (slashIndex !== -1) {
+    const maybeProvider = cliModel.substring(0, slashIndex);
+    const canonicalProvider = providerMap.get(maybeProvider.toLowerCase());
+    if (canonicalProvider) {
+      const modelId = cliModel.substring(slashIndex + 1);
+      // Exact match within provider
+      const within = available.filter(
+        (m) => m.provider === canonicalProvider && m.id.toLowerCase() === modelId.toLowerCase(),
+      );
+      if (within.length === 1) return within[0];
+      // Fallback: unknown model id on a known provider → build a custom model
+      return buildFallbackModel(canonicalProvider, modelId, available);
+    }
+  }
+
+  // Bare id (no slash, or slash prefix isn't a known provider) — exact id match
+  const idMatches = available.filter((m) => m.id.toLowerCase() === lower);
+  if (idMatches.length === 1) return idMatches[0];
+
   return undefined;
 }
 
