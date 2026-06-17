@@ -93,9 +93,16 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     "--no-session",
   ];
 
-  // Create Unix socket for IPC (ask tool responses)
-  const socketPath = join(tmpdir(), `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  try { unlinkSync(socketPath); } catch { /* doesn't exist yet */ }
+  // Create IPC socket for ask tool responses.
+  // On Unix: filesystem Unix domain socket. On Windows: named pipe (\\.\pipe\).
+  const socketName = `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const socketPath = process.platform === "win32"
+    ? `\\\\.\\pipe\\${socketName}`
+    : join(tmpdir(), socketName);
+  // Only Unix socket files need pre-unlinking; Windows named pipes auto-clean.
+  if (process.platform !== "win32") {
+    try { unlinkSync(socketPath); } catch { /* doesn't exist yet */ }
+  }
   let clientSocket: Socket | undefined;
   const pendingAsks = new Map<string, Socket>();
   const server = createServer((socket: Socket) => {
@@ -150,7 +157,9 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     }
   });
   server.on("close", () => {
-    try { unlinkSync(socketPath); } catch { /* ignore */ }
+    if (process.platform !== "win32") {
+      try { unlinkSync(socketPath); } catch { /* ignore */ }
+    }
   });
 
   // Resolve model with correct priority:
