@@ -8,7 +8,32 @@ Rules for AI agents working on this monorepo.
 - `packages/footer` — status bar (depends on core)
 - `packages/diff` — Shiki-powered diff rendering (standalone)
 - `packages/image-paste` — clipboard image paste (standalone)
-- `meta` — orchestrator + composed settings (depends on all four)
+- `packages/subagent` — subagent dispatch with live TUI streaming and cost tracking (depends on core)
+- `packages/todo` — todo list tool with auto-clear and subagent visibility (depends on core)
+- `meta` — orchestrator + composed settings (depends on all six)
+
+## Adding a New Package
+
+When a new package is added under `packages/<name>/`, update **all** of these or it will silently break the release / `pi install` flow (this is exactly how `todo` got missed):
+
+1. **`packages/<name>/package.json`** — must include:
+   - `"version"` matching the shared monorepo version
+   - `"keywords": ["pi-package"]`
+   - `"files": ["src"]`
+   - `"pi": { "extensions": ["./src/index.ts"] }` ← **required**; without it, standalone `pi install @pi-archimedes/<name>` loads nothing
+   - Internal deps as `"@pi-archimedes/core": "workspace:*"` (pnpm rewrites this to a real version at publish time)
+   - `peerDependencies` for `@earendil-works/pi-coding-agent` / `pi-tui` / `pi-ai` as needed
+2. **`meta/package.json`** — add `"@pi-archimedes/<name>": "workspace:*"` to `dependencies`
+3. **`meta/src/index.ts`** — import and register the new package's entry
+4. **`.github/workflows/release.yml`** — add a `pnpm --filter "@pi-archimedes/<name>" publish --access public --no-git-checks` line, placed after its internal deps and before `meta`
+5. **`AGENTS.md`** — add to the Monorepo Structure list; bump the "all N package versions" count and the "N package directories" type-check count in Release Steps; add the package to the publish-order line
+6. **`README.md`** — add a feature section, a line in the monorepo layout tree, a `pi install @pi-archimedes/<name>` line under "install selectively", and a settings-table entry if it has settings
+
+### Publishing a new package safely
+
+- Always publish via the release workflow (`git tag v...`), which uses `pnpm publish`.
+- **Never** `npm publish` a workspace package directly — npm does **not** rewrite `workspace:*`, so the leaked protocol spec breaks `pi install` (npm) with `Unsupported URL Type "workspace"`. This is what happened to `todo@1.2.0`.
+- If you must publish manually, use `pnpm publish --no-git-checks --access public` from the package directory (it rewrites `workspace:*` → real version) and provide `--otp=<code>` if 2FA is enabled.
 
 ## Conventions
 
@@ -59,15 +84,15 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 
 - All packages share the same version (bump all together)
 - `git tag v0.x.y && git push origin v0.x.y` triggers the release workflow
-- Publishes in dependency order: core → footer → diff → image-paste → meta
+- Publishes in dependency order: core → todo → footer → diff → image-paste → subagent → meta
 
 ## Release Steps
 
 When releasing a new version, apply these steps after bumping versions but before tagging:
 
-1. **Bump all 6 package versions** — `packages/core`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/subagent`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+1. **Bump all 7 package versions** — `packages/core`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/subagent`, `packages/todo`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
 
-2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 5 package directories. Don't release if any check fails.
+2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 6 package directories (5 components + todo). Don't release if any check fails.
 
 3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
 
