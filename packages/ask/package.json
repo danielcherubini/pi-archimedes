@@ -19,6 +19,7 @@
     "typescript": "^6.0.0"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": ["./src/index.ts"],
+    "image": "https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png"
   }
 }

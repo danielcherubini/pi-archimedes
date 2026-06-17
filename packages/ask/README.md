@@ -17,6 +17,8 @@ pi install @pi-archimedes/ask
 - Automatic "Other (type your own)" handling
 - Subagent support — subagents can call `ask` and the question appears in the parent's TUI (bidirectional IPC, no temp files)
 
+![ask from a subagent](../../docs/images/ask-subagent.png)
+
 ## Dependencies
 
 Depends on [`@pi-archimedes/core`](../core) for the shared event bus used to relay subagent questions.
