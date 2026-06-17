@@ -195,16 +195,8 @@ export function registerAsk(pi: ExtensionAPI) {
 	const unsubscribes: Array<() => void> = [];
 	let currentCtx: ExtensionContext | undefined;
 
-	// Queue of pending ask requests from subagents (deferred until turn_end)
-	interface PendingAsk {
-		requestId: string;
-		questions: AskQuestion[];
-		responseFile: string | undefined;
-	}
-	const pendingAsks: PendingAsk[] = [];
-
-	// Listen for ask requests from subagents via the bus — queue them for turn_end
-	const unsubAskRequest = getBus().on(Events.ASK_REQUEST, (payload: unknown) => {
+	// Listen for ask requests from subagents via the bus — show UI immediately
+	const unsubAskRequest = getBus().on(Events.ASK_REQUEST, async (payload: unknown) => {
 		const data = payload as {
 			source: string;
 			requestId: string;
@@ -213,25 +205,9 @@ export function registerAsk(pi: ExtensionAPI) {
 		};
 
 		if (!data.questions || data.questions.length === 0) return;
-		// Queue for turn_end (TUI is busy during streaming)
-		pendingAsks.push({
-			requestId: data.requestId,
-			questions: data.questions,
-			responseFile: data.responseFile,
-		});
+		await handleAskRequest(data);
 	});
 	unsubscribes.push(unsubAskRequest);
-
-	// Process queued asks at turn_end (when TUI is idle)
-	pi.on("turn_end", async (_event, ctx: ExtensionContext) => {
-		currentCtx = ctx;
-		const asks = [...pendingAsks];
-		pendingAsks.length = 0;
-
-		for (const ask of asks) {
-			await handleAskRequest(ask);
-		}
-	});
 
 	// Keep ctx reference fresh
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
@@ -245,30 +221,26 @@ export function registerAsk(pi: ExtensionAPI) {
 	pi.on("session_shutdown", (_event, _ctx) => {
 		unsubscribes.forEach((unsub) => unsub());
 		unsubscribes.length = 0;
-		pendingAsks.length = 0;
 	});
 
 	async function handleAskRequest(data: {
 		requestId: string;
 		questions: AskQuestion[];
-		responseFile: string | undefined;
+		responseFile?: string;
 	}) {
 		if (!currentCtx?.ui) return;
 
 		const questions = data.questions;
+		const selections: Array<{ selectedOptions: string[]; customInput: string | undefined }> = [];
 
-		// Show UI to collect user answers
-		let selections: Array<{ selectedOptions: string[]; customInput?: string }> = [];
-
-		if (questions.length === 1 && !questions[0]!.multi) {
-			const selection = await askSingleQuestionWithInlineNote(currentCtx.ui, questions[0]!);
-			if (selection) {
-				selections = [selection];
-			}
-		} else {
-			const tabResult = await askQuestionsWithTabs(currentCtx.ui, questions);
-			if (tabResult) {
-				selections = tabResult.selections;
+		// Use ui.select() for subagent asks (works during streaming, unlike ui.custom)
+		for (const q of questions) {
+			const labels = q.options.map((o) => o.label);
+			const selected = await currentCtx.ui.select(q.question, labels);
+			if (selected) {
+				selections.push({ selectedOptions: [selected], customInput: undefined });
+			} else {
+				selections.push({ selectedOptions: [], customInput: undefined });
 			}
 		}
 
