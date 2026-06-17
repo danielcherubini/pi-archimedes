@@ -184,12 +184,6 @@ export function createIpcAskTool(): ToolDefinition<any, unknown, any> {
         cancelled: boolean;
         results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
       }>((resolve) => {
-        // If IPC channel is closed, resolve immediately with cancelled.
-        if (!process.send) {
-          resolve({ cancelled: true, results: questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
-          return;
-        }
-
         let resolved = false;
         const finish = (r: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> }) => {
           if (resolved) return;

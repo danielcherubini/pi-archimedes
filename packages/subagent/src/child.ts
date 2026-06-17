@@ -10,7 +10,7 @@
 
 import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { getModel, type Model } from "@earendil-works/pi-ai";
-import type { ParentToChild, ChildToParent } from "./ipc-types.ts";
+import type { ParentToChild, ChildToParent, SerializedAgentEvent } from "./ipc-types.ts";
 import { createIpcAskTool } from "./ipc-ask-tool.ts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ async function main(): Promise<void> {
   // Subscribe to agent events and stream them to parent.
   session.subscribe((event) => {
     const serialized = serializeEvent(event);
-    sendToParent({ type: "event", event: serialized });
+    sendToParent({ type: "event", event: serialized as SerializedAgentEvent });
 
     // On agent_end, exit the process.
     if (event.type === "agent_end") {
