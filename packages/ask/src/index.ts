@@ -285,21 +285,13 @@ export function registerAsk(pi: ExtensionAPI) {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
-			// Headless mode (subagent) — emit on bus, connect to parent via socket for response
+			// Headless mode (subagent) — send question to parent via socket, await response on same socket
 			if (!ctx.hasUI) {
 				const requestId = randomUUID();
 				const socketPath = process.env.PI_SUBAGENT_SOCKET;
 
 				appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] headless ask requestId=${requestId} socketPath=${socketPath ?? "none"}\n`);
 
-				// Send question to parent via stdout JSON stream (parent's streamEvents parses this)
-				process.stdout.write(JSON.stringify({
-					type: "ask_request",
-					requestId,
-					questions: params.questions,
-				}) + "\n");
-
-				// Connect to parent's socket and wait for response
 				const response = await new Promise<{
 					cancelled: boolean;
 					results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
@@ -310,8 +302,13 @@ export function registerAsk(pi: ExtensionAPI) {
 					}
 
 					const socket = connect(socketPath, () => {
-						// Connected — wait for data
-						appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] socket connected, waiting for response\n`);
+						// Connected — send the question to the parent
+						appendFileSync("/tmp/pi-ask-debug.log", `[ask-child] socket connected, sending ask_request\n`);
+						socket.write(JSON.stringify({
+							type: "ask_request",
+							requestId,
+							questions: params.questions,
+						}) + "\n");
 					});
 
 					let buffer = "";

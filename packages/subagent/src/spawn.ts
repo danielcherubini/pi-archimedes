@@ -4,6 +4,8 @@ import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync }
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { appendFileSync } from "node:fs";
+import { getBus, Events } from "@pi-archimedes/core/bus";
 import type { AgentConfig } from "./agents.js";
 
 // Track all temp dirs for cleanup on process exit (graceful shutdown only).
@@ -92,15 +94,57 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const socketPath = join(tmpdir(), `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   try { unlinkSync(socketPath); } catch { /* doesn't exist yet */ }
   let clientSocket: Socket | undefined;
+  const pendingAsks = new Map<string, Socket>();
   const server = createServer((socket: Socket) => {
     clientSocket = socket;
     (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = socket;
+    // Parse incoming lines from the child's ask tool (ask_request) and forward to bus
+    let buffer = "";
+    socket.on("data", (data: Buffer) => {
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === "ask_request" && msg.requestId) {
+            appendFileSync("/tmp/pi-ask-debug.log", `[spawn] ask_request via socket requestId=${msg.requestId} qcount=${msg.questions?.length}\n`);
+            pendingAsks.set(msg.requestId, socket);
+            getBus().emit(Events.ASK_REQUEST, {
+              source: `subagent:${options.agent?.name ?? "general"}`,
+              requestId: msg.requestId,
+              questions: msg.questions,
+            });
+          }
+        } catch { /* ignore non-JSON */ }
+      }
+    });
     socket.on("close", () => {
       clientSocket = undefined;
       (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = undefined;
+      // Clean up any pending asks tied to this socket
+      for (const [id, s] of pendingAsks) {
+        if (s === socket) pendingAsks.delete(id);
+      }
     });
   });
   server.listen(socketPath); // async, non-blocking
+
+  // Write ask responses back to the child over the originating socket
+  const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
+    const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+    const socket = pendingAsks.get(data.requestId);
+    appendFileSync("/tmp/pi-ask-debug.log", `[spawn] ASK_RESPONSE requestId=${data.requestId} hasSocket=${!!socket}\n`);
+    if (socket) {
+      pendingAsks.delete(data.requestId);
+      socket.write(JSON.stringify({
+        type: "ask_response",
+        requestId: data.requestId,
+        cancelled: data.cancelled,
+        results: data.results,
+      }) + "\n");
+    }
+  });
   server.on("close", () => {
     try { unlinkSync(socketPath); } catch { /* ignore */ }
   });
@@ -173,6 +217,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
       options.signal.removeEventListener("abort", abortHandler);
     }
     server.close();
+    unsubAskResponse();
     if (clientSocket) clientSocket.destroy();
     cleanupTempFiles(tmpDir, tmpPath);
   };
