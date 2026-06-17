@@ -4,7 +4,6 @@ import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync }
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendFileSync } from "node:fs";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import type { AgentConfig } from "./agents.js";
 
@@ -108,7 +107,6 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
         try {
           const msg = JSON.parse(line);
           if (msg.type === "ask_request" && msg.requestId) {
-            appendFileSync("/tmp/pi-ask-debug.log", `[spawn] ask_request via socket requestId=${msg.requestId} qcount=${msg.questions?.length}\n`);
             pendingAsks.set(msg.requestId, socket);
             getBus().emit(Events.ASK_REQUEST, {
               source: `subagent:${options.agent?.name ?? "general"}`,
@@ -134,7 +132,6 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
     const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
     const socket = pendingAsks.get(data.requestId);
-    appendFileSync("/tmp/pi-ask-debug.log", `[spawn] ASK_RESPONSE requestId=${data.requestId} hasSocket=${!!socket}\n`);
     if (socket) {
       pendingAsks.delete(data.requestId);
       socket.write(JSON.stringify({
