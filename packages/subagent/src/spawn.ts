@@ -127,6 +127,10 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     env: process.env,
   });
 
+  // Unblock child's stdin (pi in json mode blocks on pipe stdin)
+  // We keep the pipe open so we can write ask responses later
+  child.stdin?.write("\n");
+
   // Handle abort signal
   let abortHandler: (() => void) | undefined;
   if (options.signal) {
