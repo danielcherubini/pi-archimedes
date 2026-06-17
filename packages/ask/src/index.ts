@@ -1,9 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
@@ -226,14 +224,13 @@ export function registerAsk(pi: ExtensionAPI) {
 	async function handleAskRequest(data: {
 		requestId: string;
 		questions: AskQuestion[];
-		responseFile?: string;
 	}) {
 		if (!currentCtx?.ui) return;
 
 		const questions = data.questions;
 		const selections: Array<{ selectedOptions: string[]; customInput: string | undefined }> = [];
 
-		// Use ui.select() for subagent asks (works during streaming, unlike ui.custom)
+		// Use ui.select() for subagent asks (works during streaming)
 		for (const q of questions) {
 			const labels = q.options.map((o) => o.label);
 			const selected = await currentCtx.ui.select(q.question, labels);
@@ -253,12 +250,7 @@ export function registerAsk(pi: ExtensionAPI) {
 
 		const cancelled = results.every((r) => r.selectedOptions.length === 0 && !r.customInput);
 
-		// Write response to file (for subagent to read)
-		if (data.responseFile) {
-			writeFileSync(data.responseFile, JSON.stringify({ cancelled, results }), "utf-8");
-		}
-
-		// Also emit on bus (for any other listeners)
+		// Emit on bus — parent's streamEvents writes to child stdin
 		getBus().emit(Events.ASK_RESPONSE, {
 			requestId: data.requestId,
 			cancelled,
@@ -273,56 +265,50 @@ export function registerAsk(pi: ExtensionAPI) {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
-			// Headless mode (subagent) — write question to temp file, parent shows UI, reads answer back
+			// Headless mode (subagent) — emit on bus, listen for response via stdin from parent
 			if (!ctx.hasUI) {
 				const requestId = randomUUID();
-				const tmpDir = mkdtempSync(join(tmpdir(), "pi-ask-"));
-				const requestFile = join(tmpDir, "request.json");
-				const responseFile = join(tmpDir, "response.json");
 
-				// Write question to temp file
-				writeFileSync(requestFile, JSON.stringify({
-					requestId,
-					questions: params.questions,
-				}), "utf-8");
-
-				// Emit on local bus so parent's streamEvents can pick it up
+				// Emit question on local bus (parent intercepts via JSON stream)
 				getBus().emit(Events.ASK_REQUEST, {
 					source: "subagent:headless",
 					requestId,
 					questions: params.questions as AskQuestion[],
-					requestFile,
-					responseFile,
 				});
 
-				// Poll for response (parent writes answer file)
-				const POLL_INTERVAL_MS = 200;
-				const TIMEOUT_MS = 5 * 60 * 1000; // 5 min timeout
-				const startTime = Date.now();
-				let response: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> } | undefined;
-
-				while (!response && Date.now() - startTime < TIMEOUT_MS) {
-					if (existsSync(responseFile)) {
-						try {
-							response = JSON.parse(readFileSync(responseFile, "utf-8"));
-						} catch {
-							// Wait for complete write
+				// Listen for response on the local bus (parent writes answer via stdin → pi forwards to bus)
+				const response = await new Promise<{
+					cancelled: boolean;
+					results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
+				}>((resolve) => {
+					const unsub = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
+						const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+						if (data.requestId === requestId) {
+							unsub();
+							resolve(data);
 						}
-					}
-					if (!response) {
-						await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-					}
-				}
+					});
 
-				// Cleanup temp dir
-				try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+					// Listen on stdin for parent's response
+					const rl = createInterface({ input: process.stdin, output: undefined, terminal: false });
+					rl.on("line", (line: string) => {
+						try {
+							const data = JSON.parse(line);
+							if (data.type === "ask_response" && data.requestId === requestId) {
+								rl.close();
+								unsub();
+								resolve({ cancelled: data.cancelled, results: data.results });
+							}
+						} catch { /* ignore non-JSON lines */ }
+					});
 
-				if (!response) {
-					return {
-						content: [{ type: "text", text: "Error: ask timed out waiting for user response" }],
-						details: {},
-					};
-				}
+					// Timeout after 5 minutes
+					setTimeout(() => {
+						rl.close();
+						unsub();
+						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
+					}, 5 * 60 * 1000);
+				});
 
 				// Build results from response
 				const results: QuestionResult[] = params.questions.map((q, i) => {
@@ -337,6 +323,13 @@ export function registerAsk(pi: ExtensionAPI) {
 						customInput: r?.customInput ?? undefined,
 					};
 				});
+
+				if (response.cancelled && results.every((r) => r.selectedOptions.length === 0)) {
+					return {
+						content: [{ type: "text", text: "User cancelled the question." }],
+						details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,
+					};
+				}
 
 				return {
 					content: [{ type: "text", text: buildAskSessionContent(results) }],

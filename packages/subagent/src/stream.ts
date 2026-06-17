@@ -1,6 +1,5 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
-import { writeFileSync } from "node:fs";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
@@ -70,19 +69,21 @@ export function streamEvents(
     };
     let error: string | undefined;
 
-    // Track pending ask requests (requestId → responseFile path)
-    const pendingAskRequests = new Map<string, string>();
+    // Track pending ask requests (requestId → true)
+    const pendingAskRequests = new Set<string>();
 
-    // Listen for ask responses from the parent's ask package
+    // Listen for ask responses from the parent's ask package — write to child stdin
     const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
       const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
-      const responseFile = pendingAskRequests.get(data.requestId);
-      if (responseFile) {
-        writeFileSync(responseFile, JSON.stringify({
+      if (pendingAskRequests.has(data.requestId)) {
+        pendingAskRequests.delete(data.requestId);
+        // Write answer to child's stdin
+        child.stdin?.write(JSON.stringify({
+          type: "ask_response",
+          requestId: data.requestId,
           cancelled: data.cancelled,
           results: data.results,
-        }), "utf-8");
-        pendingAskRequests.delete(data.requestId);
+        }) + "\n");
       }
     });
 
@@ -157,15 +158,13 @@ export function streamEvents(
           if (event.toolName === "ask") {
             const args = event.args as Record<string, unknown> | undefined;
             const questions = args?.questions as Array<unknown> | undefined;
-            const responseFile = args?.responseFile as string | undefined;
             const requestId = args?.requestId as string | undefined;
-            if (Array.isArray(questions) && requestId && responseFile) {
-              pendingAskRequests.set(requestId, responseFile);
+            if (Array.isArray(questions) && requestId) {
+              pendingAskRequests.add(requestId);
               getBus().emit(Events.ASK_REQUEST, {
                 source: `subagent:${callbacks.agent ?? "general"}`,
                 requestId,
                 questions,
-                responseFile,
               });
             }
           }
