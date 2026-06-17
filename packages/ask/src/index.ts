@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
-import { createInterface } from "node:readline";
+import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
@@ -265,9 +265,10 @@ export function registerAsk(pi: ExtensionAPI) {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
-			// Headless mode (subagent) — emit on bus, listen for response via stdin from parent
+			// Headless mode (subagent) — emit on bus, connect to parent via socket for response
 			if (!ctx.hasUI) {
 				const requestId = randomUUID();
+				const socketPath = process.env.PI_SUBAGENT_SOCKET;
 
 				// Emit question on local bus (parent intercepts via JSON stream)
 				getBus().emit(Events.ASK_REQUEST, {
@@ -276,36 +277,43 @@ export function registerAsk(pi: ExtensionAPI) {
 					questions: params.questions as AskQuestion[],
 				});
 
-				// Listen for response on the local bus (parent writes answer via stdin → pi forwards to bus)
+				// Connect to parent's socket and wait for response
 				const response = await new Promise<{
 					cancelled: boolean;
 					results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
 				}>((resolve) => {
-					const unsub = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
-						const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
-						if (data.requestId === requestId) {
-							unsub();
-							resolve(data);
+					if (!socketPath) {
+						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
+						return;
+					}
+
+					const socket = connect(socketPath, () => {
+						// Connected — wait for data
+					});
+
+					let buffer = "";
+					socket.on("data", (data: Buffer) => {
+						buffer += data.toString();
+						const lines = buffer.split("\n");
+						buffer = lines.pop() ?? "";
+						for (const line of lines) {
+							try {
+								const msg = JSON.parse(line);
+								if (msg.type === "ask_response" && msg.requestId === requestId) {
+									socket.end();
+									resolve({ cancelled: msg.cancelled, results: msg.results });
+								}
+							} catch { /* ignore */ }
 						}
 					});
 
-					// Listen on stdin for parent's response
-					const rl = createInterface({ input: process.stdin, output: undefined, terminal: false });
-					rl.on("line", (line: string) => {
-						try {
-							const data = JSON.parse(line);
-							if (data.type === "ask_response" && data.requestId === requestId) {
-								rl.close();
-								unsub();
-								resolve({ cancelled: data.cancelled, results: data.results });
-							}
-						} catch { /* ignore non-JSON lines */ }
+					socket.on("error", () => {
+						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 					});
 
 					// Timeout after 5 minutes
 					setTimeout(() => {
-						rl.close();
-						unsub();
+						socket.end();
 						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 					}, 5 * 60 * 1000);
 				});

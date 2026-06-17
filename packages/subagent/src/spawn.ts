@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
 import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentConfig } from "./agents.js";
@@ -87,6 +88,21 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     "--no-session",
   ];
 
+  // Create Unix socket for IPC (ask tool responses)
+  const socketPath = join(tmpdir(), `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  let clientSocket: Socket | undefined;
+  const server = createServer((socket: Socket) => {
+    clientSocket = socket;
+    (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = socket;
+    socket.on("close", () => {
+      clientSocket = undefined;
+      (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = undefined;
+    });
+  }).listen(socketPath);
+  server.on("close", () => {
+    try { unlinkSync(socketPath); } catch { /* ignore */ }
+  });
+
   // Resolve model with correct priority:
   // 1. frontmatter model (agent.model)
   // 2. explicit tool-call model (options.model)
@@ -123,13 +139,12 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
 
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
-    stdio: ["pipe", "pipe", "pipe"],
-    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      PI_SUBAGENT_SOCKET: socketPath,
+    },
   });
-
-  // Unblock child's stdin (pi in json mode blocks on pipe stdin)
-  // We keep the pipe open so we can write ask responses later
-  child.stdin?.write("\n");
 
   // Handle abort signal
   let abortHandler: (() => void) | undefined;
@@ -155,10 +170,14 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     if (abortHandler && options.signal) {
       options.signal.removeEventListener("abort", abortHandler);
     }
+    server.close();
+    if (clientSocket) clientSocket.destroy();
     cleanupTempFiles(tmpDir, tmpPath);
   };
   child.on("exit", exitCleanup);
   child.on("error", exitCleanup);
 
+  // Attach client socket reference to child for streamEvents
+  (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = clientSocket;
   return child;
 }

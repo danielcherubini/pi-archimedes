@@ -72,18 +72,20 @@ export function streamEvents(
     // Track pending ask requests (requestId → true)
     const pendingAskRequests = new Set<string>();
 
-    // Listen for ask responses from the parent's ask package — write to child stdin
+    // Listen for ask responses from the parent's ask package — write to child socket
     const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
       const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
       if (pendingAskRequests.has(data.requestId)) {
         pendingAskRequests.delete(data.requestId);
-        // Write answer to child's stdin
-        child.stdin?.write(JSON.stringify({
-          type: "ask_response",
-          requestId: data.requestId,
-          cancelled: data.cancelled,
-          results: data.results,
-        }) + "\n");
+        const clientSocket = (child as ChildProcess & { clientSocket?: import("node:net").Socket }).clientSocket;
+        if (clientSocket) {
+          clientSocket.write(JSON.stringify({
+            type: "ask_response",
+            requestId: data.requestId,
+            cancelled: data.cancelled,
+            results: data.results,
+          }) + "\n");
+        }
       }
     });
 
