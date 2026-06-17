@@ -1,5 +1,5 @@
-import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
+import type { ChildToParent } from "./ipc-types.js";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
@@ -97,25 +97,20 @@ export function streamEvents(
     // Periodic progress updates for live duration display
     const heartbeat = setInterval(emitProgress, 1000);
 
-    // Collect stderr
-    const stderrParts: string[] = [];
-    child.stderr?.on("data", (data: Buffer) => {
-      stderrParts.push(data.toString());
-    });
+    // Listen for IPC messages from child
+    child.on("message", (msg: unknown) => {
+      const childMsg = msg as ChildToParent;
 
-    // Parse JSON lines from stdout
-    const rl = createInterface({
-      input: child.stdout!,
-      crlfDelay: Infinity,
-    });
-
-    rl.on("line", (line: string) => {
-      let event: JsonEvent;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        return; // Skip non-JSON lines
+      // Handle error messages from child
+      if (childMsg.type === "error") {
+        error = childMsg.message;
+        return;
       }
+
+      // Only process "event" messages (AgentSessionEvent forwarded from child)
+      if (childMsg.type !== "event") return;
+
+      const event = childMsg.event as JsonEvent;
 
       // First event received from the child means the model has engaged —
       // from here on, the user controls lifetime via the abort signal.
@@ -141,15 +136,13 @@ export function streamEvents(
         case "tool_execution_end": {
           handleToolEnd(state);
           emitProgress();
+          // Also capture tool result output here (previously in tool_result_end)
+          handleToolResult(state, event);
+          emitProgress();
           break;
         }
         case "turn_start": {
           state.turnCount++;
-          break;
-        }
-        case "tool_result_end": {
-          handleToolResult(state, event);
-          emitProgress();
           break;
         }
         case "message_end": {
@@ -171,9 +164,7 @@ export function streamEvents(
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 
-      if (stderrParts.length > 0 && exitCode !== 0) {
-        error = stderrParts.join("").trim();
-      }
+      // Error is set via IPC error messages or remains undefined
 
       const result: SubagentResult = {
         agent: callbacks.agent ?? "subagent",
