@@ -1,5 +1,11 @@
 # Plans
 
+## In Progress
+
+| Plan | Status | Created |
+|------|--------|---------|
+| [Ask tool](plans/2025-06-17-ask-tool.md) | 🚧 IN PROGRESS | 2025-06-17 |
+
 ## Completed Plans
 
 | Plan | Status | Created |
@@ -12,5 +18,5 @@
 
 ## Quick Stats
 
-- Total Plans: 5
+- Total Plans: 6
 - Completed: 5
