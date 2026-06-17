@@ -109,6 +109,8 @@ Most question tools only work when the main agent calls them. Ask works everywhe
 - The subagent blocks on the call and receives your answer over IPC
 - Works alongside live subagent streaming and cost tracking
 
+![ask from a subagent](docs/images/ask-subagent.png)
+
 ## Quick Start
 
 ```bash
