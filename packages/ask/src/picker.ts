@@ -299,7 +299,7 @@ export async function askSingleQuestionWithInlineNote(
 		};
 	});
 
-	if (result.cancelled || !result.selectedOption) {
+	if (!result || result.cancelled || !result.selectedOption) {
 		return { selectedOptions: [] };
 	}
 

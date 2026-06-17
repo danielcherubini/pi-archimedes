@@ -644,7 +644,7 @@ export async function askQuestionsWithTabs(
 		};
 	});
 
-	if (result.cancelled) {
+	if (!result || result.cancelled) {
 		return {
 			cancelled: true,
 			selections: preparedQuestions.map(() => ({ selectedOptions: [] } satisfies AskSelection)),

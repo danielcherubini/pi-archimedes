@@ -213,10 +213,14 @@ export function registerAsk(pi: ExtensionAPI) {
 
 		if (questions.length === 1 && !questions[0]!.multi) {
 			const selection = await askSingleQuestionWithInlineNote(currentCtx.ui, questions[0]!);
-			selections = [selection];
+			if (selection) {
+				selections = [selection];
+			}
 		} else {
 			const tabResult = await askQuestionsWithTabs(currentCtx.ui, questions);
-			selections = tabResult.selections;
+			if (tabResult) {
+				selections = tabResult.selections;
+			}
 		}
 
 		// Build results matching the request's questions
