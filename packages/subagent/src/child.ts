@@ -178,7 +178,11 @@ async function main(): Promise<void> {
   sendToParent({ type: "ready" });
 
   // Start the agent loop.
-  await session.prompt(initParams.task);
+  // Prepend the agent's system prompt to the first prompt (no SDK-level systemPrompt option).
+  const fullPrompt = initParams.agentSystemPrompt && initParams.agentSystemPrompt.trim()
+    ? `${initParams.agentSystemPrompt}\n\n---\n\n${initParams.task}`
+    : initParams.task;
+  await session.prompt(fullPrompt);
 }
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
