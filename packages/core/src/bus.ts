@@ -81,6 +81,8 @@ export const Events = {
   COST_UPDATE: "archimedes:cost_update",
   TODOS_UPDATE: "archimedes:todos_update",
   TODOS_CLEAR: "archimedes:todos_clear",
+  ASK_REQUEST: "archimedes:ask_request",
+  ASK_RESPONSE: "archimedes:ask_response",
 } as const;
 
 interface TodoUpdatePayload {
@@ -92,4 +94,16 @@ interface TodoClearPayload {
   source: string;
 }
 
-export type { CostUpdatePayload, TodoUpdatePayload, TodoClearPayload };
+interface AskRequestPayload {
+  source: string;        // "subagent:<agent-name>"
+  requestId: string;     // unique id to match request → response
+  questions: Array<{ id: string; question: string; description?: string; options: Array<{ label: string }>; multi?: boolean; recommended?: number }>;
+}
+
+interface AskResponsePayload {
+  requestId: string;
+  cancelled: boolean;
+  results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
+}
+
+export type { CostUpdatePayload, TodoUpdatePayload, TodoClearPayload, AskRequestPayload, AskResponsePayload };

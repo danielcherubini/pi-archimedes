@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
 import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getBus, Events } from "@pi-archimedes/core/bus";
 import type { AgentConfig } from "./agents.js";
 
 // Track all temp dirs for cleanup on process exit (graceful shutdown only).
@@ -87,6 +89,72 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     "--no-session",
   ];
 
+  // Create IPC socket for ask tool responses.
+  // On Unix: filesystem Unix domain socket. On Windows: named pipe (\\.\pipe\).
+  const socketName = `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const socketPath = process.platform === "win32"
+    ? `\\\\.\\pipe\\${socketName}`
+    : join(tmpdir(), socketName);
+  // Only Unix socket files need pre-unlinking; Windows named pipes auto-clean.
+  if (process.platform !== "win32") {
+    try { unlinkSync(socketPath); } catch { /* doesn't exist yet */ }
+  }
+  let clientSocket: Socket | undefined;
+  const pendingAsks = new Map<string, Socket>();
+  const server = createServer((socket: Socket) => {
+    clientSocket = socket;
+    (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = socket;
+    // Parse incoming lines from the child's ask tool (ask_request) and forward to bus
+    let buffer = "";
+    socket.on("data", (data: Buffer) => {
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === "ask_request" && msg.requestId) {
+            pendingAsks.set(msg.requestId, socket);
+            getBus().emit(Events.ASK_REQUEST, {
+              source: `subagent:${options.agent?.name ?? "general"}`,
+              requestId: msg.requestId,
+              questions: msg.questions,
+            });
+          }
+        } catch { /* ignore non-JSON */ }
+      }
+    });
+    socket.on("close", () => {
+      clientSocket = undefined;
+      (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = undefined;
+      // Clean up any pending asks tied to this socket
+      for (const [id, s] of pendingAsks) {
+        if (s === socket) pendingAsks.delete(id);
+      }
+    });
+  });
+  server.listen(socketPath); // async, non-blocking
+
+  // Write ask responses back to the child over the originating socket
+  const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
+    const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+    const socket = pendingAsks.get(data.requestId);
+    if (socket && socket.writable) {
+      pendingAsks.delete(data.requestId);
+      socket.write(JSON.stringify({
+        type: "ask_response",
+        requestId: data.requestId,
+        cancelled: data.cancelled,
+        results: data.results,
+      }) + "\n");
+    }
+  });
+  server.on("close", () => {
+    if (process.platform !== "win32") {
+      try { unlinkSync(socketPath); } catch { /* ignore */ }
+    }
+  });
+
   // Resolve model with correct priority:
   // 1. frontmatter model (agent.model)
   // 2. explicit tool-call model (options.model)
@@ -124,7 +192,10 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const child = spawn(command, args, {
     cwd: options.cwd || process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
+    env: {
+      ...process.env,
+      PI_SUBAGENT_SOCKET: socketPath,
+    },
   });
 
   // Handle abort signal
@@ -151,10 +222,15 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     if (abortHandler && options.signal) {
       options.signal.removeEventListener("abort", abortHandler);
     }
+    server.close();
+    unsubAskResponse();
+    if (clientSocket) clientSocket.destroy();
     cleanupTempFiles(tmpDir, tmpPath);
   };
   child.on("exit", exitCleanup);
   child.on("error", exitCleanup);
 
+  // Attach client socket reference to child for streamEvents
+  (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = clientSocket;
   return child;
 }

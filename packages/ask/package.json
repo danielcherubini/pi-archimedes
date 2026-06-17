@@ -1,0 +1,25 @@
+{
+  "name": "@pi-archimedes/ask",
+  "version": "1.2.2",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Structured question tool with tabbed multi-question flow and inline note editing",
+  "files": ["src"],
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0",
+    "typebox": ">=1.1.0"
+  },
+  "devDependencies": {
+    "typebox": "^1.1.38",
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"],
+    "image": "https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png"
+  }
+}

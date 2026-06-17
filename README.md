@@ -13,21 +13,21 @@
 
 ## Why pi-archimedes?
 
-Pi has a wonderful plugin ecosystem. I want to say that first, because it's true, and because none of this is a criticism of anyone who built one.
+Pi's plugin ecosystem is great, and none of this is a criticism of the people who built pieces of it. But there's a gap: on Pi, plugins don't talk to each other. Install one and it has no idea another exists. That was the problem that started this.
 
-What I personally wanted was something a little more minimal — a set of pieces that fit together, that I could install once and stop thinking about. pi-archimedes is that for me: a monorepo of small, focused extensions that compose into one coherent experience. The subagent cost shows up in the footer. The agent manager shares the same chrome. The diffs match my theme. It does the things most people want. It doesn't do anything else.
+I was using the subagent plugin and wanted one thing — the cost of a subagent to show in my footer, tracked across the whole session. To get that I had to build both the footer and the subagent, and a bus for them to share. Once they were connected, the rest followed: subagent todos that flow back into the main agent. And the hardest one — a subagent asking the user a question, and the parent hearing the answer and routing it back. All of that is solved now.
 
-The monorepo is also a door. If you only want the footer, `pi install @pi-archimedes/footer`. If you only want the diff renderer, `pi install @pi-archimedes/diff`. Mix and match.
+So pi-archimedes is the set of extensions that actually cooperate — and because I was building them together, I also gave them a single point of view: minimal, but designed. Matching chrome, a footer that says what matters, diffs that fit the theme. Install once, stop thinking about it.
 
-This is the only Pi package I run. But I would be thrilled if you took it apart and put it back together differently — that's exactly what I want this to be for.
+It's also a door. Want only the footer? `pi install @pi-archimedes/footer`. Only the diff renderer? `pi install @pi-archimedes/diff`. Mix and match.
 
-I want this to be a place where any idea, issue, or suggestion is welcome. Even the small ones. Even the half-formed ones. Pi is a great harness; let's make it feel like more people's home. That's what open source is supposed to be.
+This is the only Pi package I run. If you took it apart and put it back together differently, that'd be exactly what I want.
 
 → [Open an issue](https://github.com/danielcherubini/pi-archimedes/issues) · [Start a discussion](https://github.com/danielcherubini/pi-archimedes/discussions)
 
 ## Features
 
-**When installed via the meta package, the six components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+**When installed via the meta package, the seven components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 ### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
@@ -90,6 +90,27 @@ Track work without leaving the session — including what your subagents are doi
 
 ![todos and subagent](docs/images/todos-and-subagent.png)
 
+### 💬 Ask ([`@pi-archimedes/ask`](packages/ask/README.md))
+
+Ask structured questions and let the agent act on the answer — from the main agent **or** from inside a subagent.
+
+Most question tools only work when the main agent calls them. Ask works everywhere: call it directly and you get the full interactive prompt; spawn a subagent that needs a decision, and its `ask` call surfaces in your TUI — the subagent blocks until you answer, then carries on with your choice. No temp files, no pipes — just a bidirectional IPC channel that feels instant.
+
+**From the main agent:**
+- Tabbed multi-question flow with submit review
+- Single-question picker with instant submit
+- Inline note editing per option
+- Markdown context descriptions
+- Multi-select support
+- Automatic "Other (type your own)" handling
+
+**From a subagent:**
+- The same rich UI appears in the parent TUI, even mid-stream
+- The subagent blocks on the call and receives your answer over IPC
+- Works alongside live subagent streaming and cost tracking
+
+![ask from a subagent](docs/images/ask-subagent.png)
+
 ## Quick Start
 
 ```bash
@@ -106,6 +127,7 @@ That's it. Reload Pi and you're set.
 - `pi install @pi-archimedes/image-paste`
 - `pi install @pi-archimedes/subagent`
 - `pi install @pi-archimedes/todo`
+- `pi install @pi-archimedes/ask`
 
 ## Settings
 
@@ -145,6 +167,10 @@ Uses Pi's core `terminal.showImages` setting to control inline previews. No pack
 
 No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the footer to consume.
 
+### [`@pi-archimedes/ask`](packages/ask/README.md)
+
+No settings yet.
+
 ## Architecture
 
 ### Monorepo layout
@@ -153,12 +179,13 @@ No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the
 pi-archimedes/
 ├── packages/
 │   ├── core/         # @pi-archimedes/core — editor, message, startup, thinking
+│   ├── ask/          # @pi-archimedes/ask — structured question tool
 │   ├── footer/       # @pi-archimedes/footer — status bar
 │   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
 │   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
 │   ├── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
 │   └── todo/         # @pi-archimedes/todo — todo list with auto-clear
-└── meta/             # pi-archimedes — meta-package bundling all six
+└── meta/             # pi-archimedes — meta-package bundling all seven
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.

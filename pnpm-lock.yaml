@@ -16,6 +16,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '>=0.1.0'
         version: 0.78.0
+      '@pi-archimedes/ask':
+        specifier: workspace:*
+        version: link:../packages/ask
       '@pi-archimedes/core':
         specifier: workspace:*
         version: link:../packages/core
@@ -35,6 +38,25 @@ importers:
         specifier: workspace:*
         version: link:../packages/todo
     devDependencies:
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+
+  packages/ask:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.1.0'
+        version: 0.78.0(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '>=0.1.0'
+        version: 0.78.0
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typebox:
+        specifier: ^1.1.38
+        version: 1.1.38
       typescript:
         specifier: ^6.0.0
         version: 6.0.3
@@ -312,35 +334,30 @@ packages:
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@mariozechner/clipboard-linux-arm64-musl@0.3.9':
     resolution: {integrity: sha512-AGuJdgKsmJdm4Pych7kv3sqe591ERRaAHW3xjLooiFzn8J+PxUyof++7YZrB5Y5tpnTO+K18Og3taj2NpluCRQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@mariozechner/clipboard-linux-riscv64-gnu@0.3.9':
     resolution: {integrity: sha512-DXBEAiuMpk7dhS1a9NzNxVAFi1vaKoPu7rQNgY8LIDLGrK3lnIp3nT10DUum+PKVJoJppIP+NAA8IZe4DMNDPw==}
     engines: {node: '>= 10'}
     cpu: [riscv64]
     os: [linux]
-    libc: [glibc]
 
   '@mariozechner/clipboard-linux-x64-gnu@0.3.9':
     resolution: {integrity: sha512-WORrMLd6EpElEME7JRKfSaY34nW1P5LbdgK5YNCS1ncG2LqmITsSMEJ8nh2mpvxb3TxqbOOKgY7k9eMJYlW9Mw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@mariozechner/clipboard-linux-x64-musl@0.3.9':
     resolution: {integrity: sha512-/DHn+1DrfL6oRaPPWXaOKvonFFrni666fxd+zFqiQEfvBH0tsHVWjq9iqBk0oDp0qaPA72lIMy5BptxISBEhZQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@mariozechner/clipboard-win32-arm64-msvc@0.3.9':
     resolution: {integrity: sha512-O5FHD3ErkMwMhNzAfu3ggy0ug4z7btZuoQgwwxlzPrwV2bxlD6WDpqBY4NCgICAgZdDKdp+loUEKVAVt8aYnhQ==}
