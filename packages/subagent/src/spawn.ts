@@ -1,11 +1,15 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
-import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync, mkdtempSync, rmdirSync, rmSync, appendFileSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import type { AgentConfig } from "./agents.js";
+
+function dbg(msg: string): void {
+  appendFileSync("/tmp/pi-ask-debug.log", `${new Date().toISOString()} ${msg}\n`);
+}
 
 // Track all temp dirs for cleanup on process exit (graceful shutdown only).
 // Note: SIGKILL/OOM cannot be caught — the exit handler only fires for
@@ -107,6 +111,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
         try {
           const msg = JSON.parse(line);
           if (msg.type === "ask_request" && msg.requestId) {
+            dbg(`[spawn] ask_request via socket requestId=${msg.requestId} qcount=${msg.questions?.length}`);
             pendingAsks.set(msg.requestId, socket);
             getBus().emit(Events.ASK_REQUEST, {
               source: `subagent:${options.agent?.name ?? "general"}`,
@@ -132,6 +137,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
     const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
     const socket = pendingAsks.get(data.requestId);
+    dbg(`[spawn] ASK_RESPONSE requestId=${data.requestId} hasSocket=${!!socket}`);
     if (socket) {
       pendingAsks.delete(data.requestId);
       socket.write(JSON.stringify({
@@ -140,6 +146,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
         cancelled: data.cancelled,
         results: data.results,
       }) + "\n");
+      dbg(`[spawn] wrote ask_response to socket`);
     }
   });
   server.on("close", () => {

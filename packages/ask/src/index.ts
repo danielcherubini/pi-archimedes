@@ -3,9 +3,14 @@ import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
 import { askQuestionsWithTabs } from "./dialog";
+
+function dbg(msg: string): void {
+	appendFileSync("/tmp/pi-ask-debug.log", `${new Date().toISOString()} ${msg}\n`);
+}
 
 const OptionItemSchema = Type.Object({
 	label: Type.String({ description: "Display label" }),
@@ -201,10 +206,13 @@ export function registerAsk(pi: ExtensionAPI) {
 			questions: AskQuestion[];
 		};
 
+		dbg(`[ask] ASK_REQUEST received requestId=${data?.requestId} qcount=${data?.questions?.length} hasCtx=${!!currentCtx} hasUI=${!!currentCtx?.ui}`);
+
 		if (!data.questions || data.questions.length === 0) return;
 
 		// Defer to next tick so TUI can process current state
 		await new Promise((resolve) => setImmediate(resolve));
+		dbg(`[ask] after setImmediate, calling handleAskRequest`);
 		await handleAskRequest(data);
 	});
 	unsubscribes.push(unsubAskRequest);
@@ -212,6 +220,7 @@ export function registerAsk(pi: ExtensionAPI) {
 	// Keep ctx reference fresh
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
 		currentCtx = ctx;
+		dbg(`[ask] session_start hasUI=${!!ctx.ui}`);
 	});
 	pi.on("turn_start", (_event, ctx: ExtensionContext) => {
 		currentCtx = ctx;
@@ -227,6 +236,7 @@ export function registerAsk(pi: ExtensionAPI) {
 		requestId: string;
 		questions: AskQuestion[];
 	}) {
+		dbg(`[ask] handleAskRequest start hasCtx=${!!currentCtx} hasUI=${!!currentCtx?.ui}`);
 		if (!currentCtx?.ui) return;
 
 		const questions = data.questions;
@@ -250,7 +260,9 @@ export function registerAsk(pi: ExtensionAPI) {
 				cancelled = res.cancelled;
 				selections = res.selections;
 			}
-		} catch {
+			dbg(`[ask] UI returned cancelled=${cancelled} selections=${JSON.stringify(selections)}`);
+		} catch (e) {
+			dbg(`[ask] handleAskRequest caught error: ${e instanceof Error ? e.message : String(e)}`);
 			cancelled = true;
 			selections = questions.map(() => ({ selectedOptions: [] }));
 		}
@@ -282,17 +294,29 @@ export function registerAsk(pi: ExtensionAPI) {
 				const requestId = randomUUID();
 				const socketPath = process.env.PI_SUBAGENT_SOCKET;
 
+				dbg(`[ask-child] headless ask requestId=${requestId} socketPath=${socketPath ?? "none"}`);
+
 				const response = await new Promise<{
 					cancelled: boolean;
 					results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
 				}>((resolve) => {
 					if (!socketPath) {
+						dbg(`[ask-child] no socketPath, resolving cancelled`);
 						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 						return;
 					}
 
+					let resolved = false;
+					const finish = (r: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> }) => {
+						if (resolved) return;
+						resolved = true;
+						clearTimeout(timer);
+						resolve(r);
+					};
+
 					const socket = connect(socketPath, () => {
 						// Connected — send the question to the parent
+						dbg(`[ask-child] socket connected, sending ask_request`);
 						socket.write(JSON.stringify({
 							type: "ask_request",
 							requestId,
@@ -309,22 +333,31 @@ export function registerAsk(pi: ExtensionAPI) {
 							try {
 								const msg = JSON.parse(line);
 								if (msg.type === "ask_response" && msg.requestId === requestId) {
+									dbg(`[ask-child] got response cancelled=${msg.cancelled}`);
 									socket.end();
-									resolve({ cancelled: msg.cancelled, results: msg.results });
+									finish({ cancelled: msg.cancelled, results: msg.results });
 								}
 							} catch { /* ignore */ }
 						}
 					});
 
-					socket.on("error", () => {
-						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
+					socket.on("error", (err) => {
+						dbg(`[ask-child] socket error: ${err.message}`);
+						finish({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
+					});
+
+					socket.on("close", () => {
+						dbg(`[ask-child] socket closed (resolved=${resolved})`);
+						finish({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 					});
 
 					// Timeout after 5 minutes
-					setTimeout(() => {
+					const timer = setTimeout(() => {
+						dbg(`[ask-child] TIMEOUT fired`);
 						socket.end();
-						resolve({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
+						finish({ cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) });
 					}, 5 * 60 * 1000);
+					timer.unref();
 				});
 
 				// Build results from response
