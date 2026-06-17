@@ -92,14 +92,22 @@ Track work without leaving the session — including what your subagents are doi
 
 ### 💬 Ask ([`@pi-archimedes/ask`](packages/ask/README.md))
 
-Structured questioning with interactive options and inline notes.
+Ask structured questions and let the agent act on the answer — from the main agent **or** from inside a subagent.
 
+Most question tools only work when the main agent calls them. Ask works everywhere: call it directly and you get the full interactive prompt; spawn a subagent that needs a decision, and its `ask` call surfaces in your TUI — the subagent blocks until you answer, then carries on with your choice. No temp files, no pipes — just a bidirectional IPC channel that feels instant.
+
+**From the main agent:**
 - Tabbed multi-question flow with submit review
 - Single-question picker with instant submit
 - Inline note editing per option
 - Markdown context descriptions
+- Multi-select support
 - Automatic "Other (type your own)" handling
-- Subagent support — subagents can call `ask` and questions appear in the parent's TUI via bidirectional IPC
+
+**From a subagent:**
+- The same rich UI appears in the parent TUI, even mid-stream
+- The subagent blocks on the call and receives your answer over IPC
+- Works alongside live subagent streaming and cost tracking
 
 ## Quick Start
 
