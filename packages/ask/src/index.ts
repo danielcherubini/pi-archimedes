@@ -252,11 +252,11 @@ export function registerAsk(pi: ExtensionAPI) {
 				};
 				if (q.description && q.description.trim().length > 0) input.description = q.description;
 				if (q.recommended != null) input.recommended = q.recommended;
-				const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input, { overlay: true });
+				const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input);
 				selections = [sel];
 				cancelled = sel.selectedOptions.length === 0 && !sel.customInput;
 			} else {
-				const res = await askQuestionsWithTabs(currentCtx.ui, questions, { overlay: true });
+				const res = await askQuestionsWithTabs(currentCtx.ui, questions);
 				cancelled = res.cancelled;
 				selections = res.selections;
 			}
