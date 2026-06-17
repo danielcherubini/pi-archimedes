@@ -9,6 +9,7 @@ export interface ExecuteOptions {
   agentConfig: AgentConfig | undefined;
   task: string;
   model: string | undefined;
+  activeModel: string | undefined;
   cwd: string | undefined;
   signal: AbortSignal | undefined;
   onUpdate: ((progress: SubagentProgress) => void) | undefined;
@@ -30,6 +31,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     const child = spawnSubagent({
       task: options.task,
       model: options.model,
+      activeModel: options.activeModel,
       cwd: options.cwd,
       signal: options.signal,
       agent: options.agentConfig,
@@ -96,7 +98,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
  * Execute multiple subagents in parallel.
  */
 export async function executeParallel(options: {
-  tasks: Array<{ agent: string | undefined; agentConfig: AgentConfig | undefined; task: string; model: string | undefined; cwd: string | undefined }>;
+  tasks: Array<{ agent: string | undefined; agentConfig: AgentConfig | undefined; task: string; model: string | undefined; activeModel: string | undefined; cwd: string | undefined }>;
   signal: AbortSignal | undefined;
   onUpdate: ((progress: SubagentProgress[]) => void) | undefined;
 }): Promise<SubagentResult[]> {

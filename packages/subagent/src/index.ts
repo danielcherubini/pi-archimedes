@@ -97,9 +97,8 @@ export function registerSubagent(pi: ExtensionAPI): void {
             agent: t.agent ?? undefined,
             agentConfig: t.agent ? findAgent(agents, t.agent) : undefined,
             task: t.task,
-            // Fall back to the parent's currently-selected model when the caller
-            // (and the agent frontmatter) didn't specify one.
-            model: t.model ?? ctx.model?.id,
+            model: t.model,
+            activeModel: ctx.model?.id,
             cwd: t.cwd ?? undefined,
           })),
           signal: signal ?? undefined,
@@ -144,9 +143,8 @@ export function registerSubagent(pi: ExtensionAPI): void {
           agent: params.agent ?? undefined,
           agentConfig,
           task: params.task,
-          // Fall back to the parent's currently-selected model when the caller
-          // (and the agent frontmatter) didn't specify one.
-          model: params.model ?? ctx.model?.id,
+          model: params.model,
+          activeModel: ctx.model?.id,
           cwd: params.cwd ?? undefined,
           signal: signal ?? undefined,
           onUpdate: (progress: SubagentProgress) => {

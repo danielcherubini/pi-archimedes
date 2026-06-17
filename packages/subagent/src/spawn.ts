@@ -19,6 +19,7 @@ process.on("exit", () => {
 export interface SpawnOptions {
   task: string;
   model: string | undefined;
+  activeModel: string | undefined;
   cwd: string | undefined;
   signal: AbortSignal | undefined;
   agent: AgentConfig | undefined;
@@ -86,24 +87,25 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     "--no-session",
   ];
 
-  // Use agent config from frontmatter if available
+  // Resolve model with correct priority:
+  // 1. frontmatter model (agent.model)
+  // 2. explicit tool-call model (options.model)
+  // 3. currently active model (options.activeModel)
+  // 4. no --model flag → pi default
+  const modelToUse = options.agent?.model ?? options.model ?? options.activeModel;
+  if (modelToUse) {
+    args.push("--model", modelToUse);
+  }
+
+  // Apply other agent config options
   if (options.agent) {
     const agent = options.agent;
-    // Agent's model takes precedence; tool-call model as fallback
-    const modelToUse = agent.model ?? options.model;
-    if (modelToUse) {
-      args.push("--model", modelToUse);
-    }
     if (agent.thinking) {
       args.push("--thinking", agent.thinking);
     }
     if (agent.tools && agent.tools.length > 0) {
       args.push("--tools", agent.tools.join(","));
     }
-  } else if (options.model) {
-    // Fallback: tool-call model (which itself falls back to the parent's
-    // currently-selected model via ctx.model?.id at the call site).
-    args.push("--model", options.model);
   }
 
   // Temp files for system prompt
