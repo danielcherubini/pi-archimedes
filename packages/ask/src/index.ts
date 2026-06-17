@@ -246,15 +246,22 @@ export function registerAsk(pi: ExtensionAPI) {
 		try {
 			if (questions.length === 1) {
 				const q = questions[0]!;
-				const input: { question: string; description?: string; options: typeof q.options; recommended?: number } = {
-					question: q.question,
-					options: q.options,
-				};
-				if (q.description && q.description.trim().length > 0) input.description = q.description;
-				if (q.recommended != null) input.recommended = q.recommended;
-				const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input);
-				selections = [sel];
-				cancelled = sel.selectedOptions.length === 0 && !sel.customInput;
+				if (q.multi) {
+					// Multi-select single question routes to the tabs dialog (picker doesn't support multi)
+					const res = await askQuestionsWithTabs(currentCtx.ui, questions);
+					cancelled = res.cancelled;
+					selections = res.selections;
+				} else {
+					const input: { question: string; description?: string; options: typeof q.options; recommended?: number } = {
+						question: q.question,
+						options: q.options,
+					};
+					if (q.description && q.description.trim().length > 0) input.description = q.description;
+					if (q.recommended != null) input.recommended = q.recommended;
+					const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input);
+					selections = [sel];
+					cancelled = sel.selectedOptions.length === 0 && !sel.customInput;
+				}
 			} else {
 				const res = await askQuestionsWithTabs(currentCtx.ui, questions);
 				cancelled = res.cancelled;
