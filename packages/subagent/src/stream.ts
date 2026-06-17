@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
@@ -69,6 +70,22 @@ export function streamEvents(
     };
     let error: string | undefined;
 
+    // Track pending ask requests (requestId → responseFile path)
+    const pendingAskRequests = new Map<string, string>();
+
+    // Listen for ask responses from the parent's ask package
+    const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
+      const data = payload as { requestId: string; cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+      const responseFile = pendingAskRequests.get(data.requestId);
+      if (responseFile) {
+        writeFileSync(responseFile, JSON.stringify({
+          cancelled: data.cancelled,
+          results: data.results,
+        }), "utf-8");
+        pendingAskRequests.delete(data.requestId);
+      }
+    });
+
     // Build progress from state
     const buildProgress = (): SubagentProgress => ({
       agent: callbacks.agent ?? "subagent",
@@ -136,6 +153,22 @@ export function streamEvents(
               });
             }
           }
+          // Forward ask requests to the bus for parent UI
+          if (event.toolName === "ask") {
+            const args = event.args as Record<string, unknown> | undefined;
+            const questions = args?.questions as Array<unknown> | undefined;
+            const responseFile = args?.responseFile as string | undefined;
+            const requestId = args?.requestId as string | undefined;
+            if (Array.isArray(questions) && requestId && responseFile) {
+              pendingAskRequests.set(requestId, responseFile);
+              getBus().emit(Events.ASK_REQUEST, {
+                source: `subagent:${callbacks.agent ?? "general"}`,
+                requestId,
+                questions,
+                responseFile,
+              });
+            }
+          }
           break;
         }
         case "tool_execution_end": {
@@ -168,6 +201,7 @@ export function streamEvents(
     child.on("close", (code) => {
       clearStartupTimer();
       clearInterval(heartbeat);
+      unsubAskResponse();
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 

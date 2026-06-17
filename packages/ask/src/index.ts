@@ -1,5 +1,10 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
+import { getBus, Events } from "@pi-archimedes/core/bus";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion } from "./selection";
 import { askSingleQuestionWithInlineNote } from "./picker";
 import { askQuestionsWithTabs } from "./dialog";
@@ -187,6 +192,70 @@ Ask the user for clarification when a choice materially affects the outcome.
 `.trim();
 
 export function registerAsk(pi: ExtensionAPI) {
+	const unsubscribes: Array<() => void> = [];
+	let currentCtx: ExtensionContext | undefined;
+
+	// Listen for ask requests from subagents via the bus
+	const unsubAskRequest = getBus().on(Events.ASK_REQUEST, async (payload: unknown) => {
+		if (!currentCtx?.ui) return;
+		const data = payload as {
+			source: string;
+			requestId: string;
+			questions: AskQuestion[];
+			responseFile?: string;
+		};
+
+		const questions = data.questions;
+		if (!questions || questions.length === 0) return;
+
+		// Show UI to collect user answers
+		let selections: Array<{ selectedOptions: string[]; customInput?: string }> = [];
+
+		if (questions.length === 1 && !questions[0]!.multi) {
+			const selection = await askSingleQuestionWithInlineNote(currentCtx.ui, questions[0]!);
+			selections = [selection];
+		} else {
+			const tabResult = await askQuestionsWithTabs(currentCtx.ui, questions);
+			selections = tabResult.selections;
+		}
+
+		// Build results matching the request's questions
+		const results = questions.map((q, i) => ({
+			id: q.id,
+			selectedOptions: selections[i]?.selectedOptions ?? [],
+			customInput: selections[i]?.customInput,
+		}));
+
+		const cancelled = results.every((r) => r.selectedOptions.length === 0 && !r.customInput);
+
+		// Write response to file (for subagent to read)
+		if (data.responseFile) {
+			writeFileSync(data.responseFile, JSON.stringify({ cancelled, results }), "utf-8");
+		}
+
+		// Also emit on bus (for any other listeners)
+		getBus().emit(Events.ASK_RESPONSE, {
+			requestId: data.requestId,
+			cancelled,
+			results,
+		});
+	});
+	unsubscribes.push(unsubAskRequest);
+
+	// Keep ctx reference fresh
+	pi.on("session_start", (_event, ctx: ExtensionContext) => {
+		currentCtx = ctx;
+	});
+	pi.on("turn_start", (_event, ctx: ExtensionContext) => {
+		currentCtx = ctx;
+	});
+
+	// Clean up on shutdown
+	pi.on("session_shutdown", (_event, _ctx) => {
+		unsubscribes.forEach((unsub) => unsub());
+		unsubscribes.length = 0;
+	});
+
 	pi.registerTool({
 		name: "ask",
 		label: "Ask",
@@ -194,10 +263,74 @@ export function registerAsk(pi: ExtensionAPI) {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
+			// Headless mode (subagent) — write question to temp file, parent shows UI, reads answer back
 			if (!ctx.hasUI) {
+				const requestId = randomUUID();
+				const tmpDir = mkdtempSync(join(tmpdir(), "pi-ask-"));
+				const requestFile = join(tmpDir, "request.json");
+				const responseFile = join(tmpDir, "response.json");
+
+				// Write question to temp file
+				writeFileSync(requestFile, JSON.stringify({
+					requestId,
+					questions: params.questions,
+				}), "utf-8");
+
+				// Emit on local bus so parent's streamEvents can pick it up
+				getBus().emit(Events.ASK_REQUEST, {
+					source: "subagent:headless",
+					requestId,
+					questions: params.questions as AskQuestion[],
+					requestFile,
+					responseFile,
+				});
+
+				// Poll for response (parent writes answer file)
+				const POLL_INTERVAL_MS = 200;
+				const TIMEOUT_MS = 5 * 60 * 1000; // 5 min timeout
+				const startTime = Date.now();
+				let response: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> } | undefined;
+
+				while (!response && Date.now() - startTime < TIMEOUT_MS) {
+					if (existsSync(responseFile)) {
+						try {
+							response = JSON.parse(readFileSync(responseFile, "utf-8"));
+						} catch {
+							// Wait for complete write
+						}
+					}
+					if (!response) {
+						await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+					}
+				}
+
+				// Cleanup temp dir
+				try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+
+				if (!response) {
+					return {
+						content: [{ type: "text", text: "Error: ask timed out waiting for user response" }],
+						details: {},
+					};
+				}
+
+				// Build results from response
+				const results: QuestionResult[] = params.questions.map((q, i) => {
+					const r = response.results[i];
+					return {
+						id: q.id,
+						question: q.question,
+						description: q.description && q.description.trim().length > 0 ? q.description : undefined,
+						options: q.options.map((o) => o.label),
+						multi: q.multi ?? false,
+						selectedOptions: r?.selectedOptions ?? [],
+						customInput: r?.customInput ?? undefined,
+					};
+				});
+
 				return {
-					content: [{ type: "text", text: "Error: ask tool requires interactive mode" }],
-					details: {},
+					content: [{ type: "text", text: buildAskSessionContent(results) }],
+					details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,
 				};
 			}
 
