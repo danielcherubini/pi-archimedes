@@ -11,6 +11,7 @@
 import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { getModel, type Model } from "@earendil-works/pi-ai";
 import type { ParentToChild, ChildToParent } from "./ipc-types.js";
+import { createIpcAskTool } from "./ipc-ask-tool.js";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,14 +27,6 @@ interface InitParams {
   agentThinking: string | undefined;
   cwd: string | undefined;
 }
-
-// ── Pending ask tracking (for IPC ask tool in Task 2) ───────────────────────
-// The IPC ask tool (created in Task 2) will register pending asks here.
-// Parent messages of type "ask_response" resolve them.
-const pendingAsks = new Map<
-  string,
-  { resolve: (value: unknown) => void; reject: (reason: unknown) => void }
->();
 
 // ── Model resolution ────────────────────────────────────────────────────────
 
@@ -81,22 +74,12 @@ let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | null = 
 
 function handleParentMessage(msg: ParentToChild): void {
   switch (msg.type) {
-    case "ask_response": {
-      const pending = pendingAsks.get(msg.requestId);
-      if (pending) {
-        pendingAsks.delete(msg.requestId);
-        pending.resolve({
-          cancelled: msg.cancelled,
-          results: msg.results,
-        });
-      }
-      break;
-    }
     case "abort": {
       session?.abort();
       break;
     }
     // "init" is handled synchronously before this listener is set up
+    // "ask_response" is handled by the IPC ask tool's own per-execution listener
   }
 }
 
@@ -155,7 +138,7 @@ async function main(): Promise<void> {
   // Build options object — omit undefined values to satisfy exactOptionalPropertyTypes.
   const sessionOptions: Parameters<typeof createAgentSession>[0] = {
     excludeTools: ["subagent"],
-    customTools: [],
+    customTools: [createIpcAskTool()],
     sessionManager: SessionManager.inMemory(),
     ...(model ? { model } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
@@ -163,9 +146,7 @@ async function main(): Promise<void> {
     ...(tools ? { tools } : {}),
   };
 
-  // Create the agent session.
-  // customTools: TODO — wire up IPC ask tool (created in Task 2).
-  // For now, empty array. Will be replaced with: import { createIpcAskTool } from "./ipc-ask-tool.js"
+  // Create the agent session with IPC ask tool for user questions.
   const { session: agentSession } = await createAgentSession(sessionOptions);
 
   session = agentSession;

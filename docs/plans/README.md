@@ -10,7 +10,12 @@
 | [Subagent package](plans/2026-06-04-subagent.md) | ✅ COMPLETED (PR #1) | 2026-06-04 |
 | [Create pi-archimedes](plans/2026-06-04-create-pi-archimedes.md) | ✅ COMPLETED | 2026-06-04 |
 
+## In Progress
+
+| Plan | Status | Created |
+| [Fork + IPC subagent communication](plans/2025-06-17-fork-ipc-subagent.md) | 🚧 IN PROGRESS | 2026-06-17 |
+
 ## Quick Stats
 
-- Total Plans: 6
+- Total Plans: 7
 - Completed: 6
