@@ -6,6 +6,7 @@ import { registerDiffTools } from "@pi-archimedes/diff";
 import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@pi-archimedes/image-paste";
 import { registerSubagent, registerAgentsCommand } from "@pi-archimedes/subagent";
 import { registerTodo } from "@pi-archimedes/todo";
+import { registerAsk } from "@pi-archimedes/ask";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js";
 
@@ -22,6 +23,9 @@ export default function (pi: ExtensionAPI): void {
 
   // Register todo
   registerTodo(pi);
+
+  // Register ask tool
+  registerAsk(pi);
 
   // Register /agents command
   registerAgentsCommand(pi);
