@@ -90,6 +90,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
 
   // Create Unix socket for IPC (ask tool responses)
   const socketPath = join(tmpdir(), `pi-subagent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  try { unlinkSync(socketPath); } catch { /* doesn't exist yet */ }
   let clientSocket: Socket | undefined;
   const server = createServer((socket: Socket) => {
     clientSocket = socket;
@@ -98,7 +99,8 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
       clientSocket = undefined;
       (child as ChildProcess & { clientSocket: Socket | undefined }).clientSocket = undefined;
     });
-  }).listen(socketPath);
+  });
+  server.listen(socketPath); // async, non-blocking
   server.on("close", () => {
     try { unlinkSync(socketPath); } catch { /* ignore */ }
   });
