@@ -10,8 +10,8 @@
 
 import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { getModel, type Model } from "@earendil-works/pi-ai";
-import type { ParentToChild, ChildToParent } from "./ipc-types.js";
-import { createIpcAskTool } from "./ipc-ask-tool.js";
+import type { ParentToChild, ChildToParent } from "./ipc-types.ts";
+import { createIpcAskTool } from "./ipc-ask-tool.ts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

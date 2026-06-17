@@ -8,7 +8,7 @@ import type { AgentConfig } from "./agents.js";
 // Resolve child script path from this file's location
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const childScriptPath = join(__dirname, "child.js");
+const childScriptPath = join(__dirname, "child.ts");
 
 export interface SpawnOptions {
   task: string;
@@ -27,6 +27,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const child = fork(childScriptPath, [], {
     cwd: options.cwd || process.cwd(),
     env: { ...process.env },
+    execArgv: ["--experimental-strip-types"],
     stdio: ["ignore", "ignore", "ignore", "ipc"],
   });
 
