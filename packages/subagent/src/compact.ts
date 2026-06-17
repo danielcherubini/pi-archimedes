@@ -25,6 +25,17 @@ export function buildActivityLine(
     return theme.fg("error", "✗ " + truncLine(data.error, 80));
   }
 
+  // Finished subagents always show their final status — never a stale
+  // tool call from history. This keeps compact view consistent with
+  // expanded view ("✓ Done" / "✗ Failed" at the bottom).
+  if (data.status === "completed") {
+    return theme.fg("success", "✓ Done");
+  }
+  if (data.status === "failed") {
+    return theme.fg("error", "✗ Failed");
+  }
+
+  // Running: show the current tool with live duration
   if (data.currentTool) {
     const arrow = theme.fg("muted", "↳ ");
     const argsPreview = data.currentToolArgs
@@ -43,25 +54,24 @@ export function buildActivityLine(
     return arrow + line;
   }
 
-  // Show last completed tool call from history
+  // Running, no active tool: show the most recently completed tool call
   if (data.toolCalls && data.toolCalls.length > 0) {
     const lastCall = data.toolCalls[data.toolCalls.length - 1];
     if (lastCall) return theme.fg("muted", "↳ " + lastCall);
   }
 
+  // Running, no tool history: show first line of streamed output if any
   if (data.finalOutput) {
     const firstLine = data.finalOutput.split("\n")[0] ?? "";
     return theme.fg("muted", "↳ " + truncLine(firstLine, 80));
   }
 
-  // Running with no tool info yet
+  // Running, no info yet
   if (data.status === "running") {
     return theme.fg("muted", "↳ Starting...");
   }
 
-  return data.status === "completed"
-    ? theme.fg("success", "✓ Done")
-    : theme.fg("error", "✗ Failed");
+  return "";
 }
 
 // ── Status glyph ────────────────────────────────────────────────────────────
@@ -143,7 +153,13 @@ export function renderCompactParallel(
     const agentName = result.agent ?? "agent-" + i;
     const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
     const isRunning = progress?.status === "running";
-    const status = progress?.status ?? (result.exitCode === 0 ? "completed" : "failed");
+    // Prefer result.exitCode as the source of truth for completion status
+    // (matches expanded view). Only fall back to progress.status when the
+    // subagent is still actively running. This prevents stale or misaligned
+    // progress from showing the wrong status for a finished subagent.
+    const status: "running" | "completed" | "failed" = isRunning
+      ? "running"
+      : result.exitCode === 0 ? "completed" : "failed";
 
     const glyph = statusGlyph(isRunning, status);
     const glyphColored = status === "completed"

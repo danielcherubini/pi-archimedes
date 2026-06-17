@@ -119,7 +119,11 @@ export function registerSubagent(pi: ExtensionAPI): void {
           details: {
             mode: "parallel",
             results,
-            progress: results.map(r => r.progress).filter(Boolean) as SubagentProgress[] | undefined,
+            // progress is always defined for each result (executeSubagent synthesizes
+            // a failed-progress object in its catch block) so we keep alignment with
+            // results by index. Do NOT filter(Boolean) here — that would misalign
+            // details.progress[i] with details.results[i] in the renderer.
+            progress: results.map(r => r.progress) as SubagentProgress[],
           },
         };
       }

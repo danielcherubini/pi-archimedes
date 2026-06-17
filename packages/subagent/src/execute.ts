@@ -67,12 +67,34 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       task: options.task,
       progress: result.progress
         ? { ...result.progress, agent: agentName, durationMs }
-        : undefined,
+        : // Defensive: streamEvents should always return a progress, but if not,
+          // synthesize one so the parallel renderer stays aligned with results.
+          {
+            agent: agentName,
+            status: result.exitCode === 0 ? "completed" : "failed",
+            task: options.task,
+            currentTool: undefined,
+            currentToolArgs: undefined,
+            currentToolStartedAt: undefined,
+            toolCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            tokens: 0,
+            cost: 0,
+            durationMs,
+            error: undefined,
+            output: undefined,
+            recentOutput: undefined,
+            toolCalls: undefined,
+            model: result.model,
+          },
       progressSummary: result.progressSummary
         ? { ...result.progressSummary, durationMs }
         : { toolCount: 0, tokens: 0, durationMs },
     };
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const durationMs = Date.now() - startTime;
     return {
       agent: agentName,
       task: options.task,
@@ -87,9 +109,31 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       } as SubagentUsage,
       model: undefined,
       finalOutput: undefined,
-      error: err instanceof Error ? err.message : String(err),
-      progress: undefined,
-      progressSummary: { toolCount: 0, tokens: 0, durationMs: Date.now() - startTime },
+      error: errorMessage,
+      // Always return a valid progress object so the parallel renderer's
+      // `details.progress[i]` stays aligned with `details.results[i]`.
+      // Returning undefined here would be filtered out and cause index
+      // misalignment between results and progress in the parallel view.
+      progress: {
+        agent: agentName,
+        status: "failed",
+        task: options.task,
+        currentTool: undefined,
+        currentToolArgs: undefined,
+        currentToolStartedAt: undefined,
+        toolCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        tokens: 0,
+        cost: 0,
+        durationMs,
+        error: errorMessage,
+        output: undefined,
+        recentOutput: undefined,
+        toolCalls: undefined,
+        model: undefined,
+      },
+      progressSummary: { toolCount: 0, tokens: 0, durationMs },
     };
   }
 }
