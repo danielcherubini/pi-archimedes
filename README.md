@@ -13,15 +13,15 @@
 
 ## Why pi-archimedes?
 
-Pi has a wonderful plugin ecosystem. I want to say that first, because it's true, and because none of this is a criticism of anyone who built one.
+Pi's plugin ecosystem is great, and none of this is a criticism of the people who built pieces of it. But there's a gap: on Pi, plugins don't talk to each other. Install one and it has no idea another exists. That was the problem that started this.
 
-What I personally wanted was something a little more minimal — a set of pieces that fit together, that I could install once and stop thinking about. pi-archimedes is that for me: a monorepo of small, focused extensions that compose into one coherent experience. The subagent cost shows up in the footer. The agent manager shares the same chrome. The diffs match my theme. It does the things most people want. It doesn't do anything else.
+I was using the subagent plugin and wanted one thing — the cost of a subagent to show in my footer, tracked across the whole session. To get that I had to build both the footer and the subagent, and a bus for them to share. Once they were connected, the rest followed: subagent todos that flow back into the main agent. And the hardest one — a subagent asking the user a question, and the parent hearing the answer and routing it back. All of that is solved now.
 
-The monorepo is also a door. If you only want the footer, `pi install @pi-archimedes/footer`. If you only want the diff renderer, `pi install @pi-archimedes/diff`. Mix and match.
+So pi-archimedes is the set of extensions that actually cooperate — and because I was building them together, I also gave them a single point of view: minimal, but designed. Matching chrome, a footer that says what matters, diffs that fit the theme. Install once, stop thinking about it.
 
-This is the only Pi package I run. But I would be thrilled if you took it apart and put it back together differently — that's exactly what I want this to be for.
+It's also a door. Want only the footer? `pi install @pi-archimedes/footer`. Only the diff renderer? `pi install @pi-archimedes/diff`. Mix and match.
 
-I want this to be a place where any idea, issue, or suggestion is welcome. Even the small ones. Even the half-formed ones. Pi is a great harness; let's make it feel like more people's home. That's what open source is supposed to be.
+This is the only Pi package I run. If you took it apart and put it back together differently, that'd be exactly what I want.
 
 → [Open an issue](https://github.com/danielcherubini/pi-archimedes/issues) · [Start a discussion](https://github.com/danielcherubini/pi-archimedes/discussions)
 
