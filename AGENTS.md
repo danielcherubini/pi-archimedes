@@ -37,6 +37,12 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 
 ## Conventions
 
+### Package Manager
+- This is a **pnpm workspace** — always use `pnpm install`, never `npm install`
+- `packageManager` field in root `package.json` pins pnpm via Corepack
+- `workspace:*` protocol in dependencies is pnpm-specific; npm cannot parse it
+- `.npmrc` sets `package-manager-strict=true` and `manage-package-manager-versions=true`
+
 ### Imports
 - **Within a package:** always relative paths (e.g., `from "../chrome.js"`)
 - **Cross-package:** use package subpath exports (e.g., `from "@pi-archimedes/core/bus"`)

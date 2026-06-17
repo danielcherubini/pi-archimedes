@@ -169,3 +169,25 @@ See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and contri
 
 - Pi TUI with extension support
 - Node.js >= 24
+- pnpm >= 10 (for development — `npm install` is not supported; `packageManager` field pins pnpm via Corepack)
+
+## Development
+
+This is a pnpm workspace. To work on the source:
+
+```bash
+git clone https://github.com/danielcherubini/pi-archimedes
+cd pi-archimedes
+pnpm install
+pnpm -r exec -- tsc --noEmit   # type-check all packages
+```
+
+Symlink into your Pi extensions to test:
+
+```bash
+ln -s $(pwd) ~/.pi/agent/extensions/pi-archimedes
+```
+
+Root `package.json` declares `"extensions": ["meta/src/index.ts"]` — Pi loads it from the symlink.
+
+See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and the release workflow.
