@@ -78,8 +78,13 @@ function resolvePiBinary(): string {
  * Returns the socket path and a cleanup function.
  */
 function startAskSocketServer(agentName: string): { socketPath: string; cleanup: () => void } {
-  // Keep the socket path short — Linux limit is 108 chars.
-  const socketPath = path.join(os.tmpdir(), `pi-ask-${randomUUID().slice(0, 8)}.sock`);
+  // Use named pipes on Windows, Unix domain sockets elsewhere.
+  // Linux socket path limit is 108 chars — keep it short.
+  const id = randomUUID().slice(0, 8);
+  const socketPath =
+    process.platform === "win32"
+      ? `\\\\.\\pipe\\pi-ask-${id}`
+      : path.join(os.tmpdir(), `pi-ask-${id}.sock`);
 
   // Map of pending ask requests: requestId → write-back callback
   const pending = new Map<string, (response: unknown) => void>();
@@ -150,7 +155,10 @@ function startAskSocketServer(agentName: string): { socketPath: string; cleanup:
   const cleanup = () => {
     unsubResponse();
     server.close();
-    try { fs.unlinkSync(socketPath); } catch { /* already gone */ }
+    // Named pipes on Windows are cleaned up automatically; only unlink on Unix
+    if (process.platform !== "win32") {
+      try { fs.unlinkSync(socketPath); } catch { /* already gone */ }
+    }
   };
 
   return { socketPath, cleanup };
