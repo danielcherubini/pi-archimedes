@@ -1,5 +1,5 @@
+import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
-import type { ChildToParent } from "./ipc-types.js";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import {
@@ -18,7 +18,11 @@ export interface StreamCallbacks {
 }
 
 /**
- * Stream JSON events from a child pi process and build progress/result.
+ * Stream JSON events from a child `pi --mode json` process and build progress/result.
+ *
+ * The child writes one JSON object per line to stdout. We read each line via
+ * readline, parse it, and dispatch to the same handler functions used previously.
+ * stderr is drained silently (captured as the error string on non-zero exit).
  */
 export function streamEvents(
   child: ChildProcess,
@@ -27,20 +31,15 @@ export function streamEvents(
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
 
-    // Startup safeguard: if the child produces no JSON event within
-    // STARTUP_TIMEOUT_MS, kill it. This guards against hangs during pi
-    // initialization (model never loads, auth fails, etc.) and is the only
-    // automatic timeout. Once any event arrives the model is considered
-    // active and runtime is controlled entirely by the user's abort
-    // signal — a model that is REALLY thinking is left alone until the
-    // user explicitly cancels.
+    // Startup safeguard: if no JSON event arrives within 2 minutes, kill the child.
     const STARTUP_TIMEOUT_MS = 2 * 60 * 1000;
-
     let startupTimer: NodeJS.Timeout | undefined = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error(
-        `subagent timed out: no model output within ${STARTUP_TIMEOUT_MS / 60_000} minutes of startup`,
-      ));
+      reject(
+        new Error(
+          `subagent timed out: no output within ${STARTUP_TIMEOUT_MS / 60_000} minutes of startup`,
+        ),
+      );
     }, STARTUP_TIMEOUT_MS);
 
     const clearStartupTimer = (): void => {
@@ -67,9 +66,13 @@ export function streamEvents(
       toolCalls: [],
       finalOutput: undefined,
     };
+
+    // Collect stderr for error reporting
+    const stderrChunks: Buffer[] = [];
+    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+
     let error: string | undefined;
 
-    // Build progress from state
     const buildProgress = (): SubagentProgress => ({
       agent: callbacks.agent ?? "subagent",
       status: "running",
@@ -84,43 +87,50 @@ export function streamEvents(
       cost: state.totalCost,
       durationMs: Date.now() - startTime,
       error,
-      output: state.accumulatedOutput.length > 0 ? state.accumulatedOutput.join("\n\n") : undefined,
+      output:
+        state.accumulatedOutput.length > 0
+          ? state.accumulatedOutput.join("\n\n")
+          : undefined,
       recentOutput: state.recentOutput.length > 0 ? state.recentOutput : undefined,
       toolCalls: state.toolCalls.length > 0 ? state.toolCalls : undefined,
       model: state.model,
     });
 
-    const emitProgress = () => {
-      callbacks.onProgress?.(buildProgress());
-    };
+    const emitProgress = () => callbacks.onProgress?.(buildProgress());
 
-    // Periodic progress updates for live duration display
+    // Periodic heartbeat for live duration display
     const heartbeat = setInterval(emitProgress, 1000);
 
-    // Listen for IPC messages from child
-    child.on("message", (msg: unknown) => {
-      const childMsg = msg as ChildToParent;
+    // Read stdout as newline-delimited JSON
+    if (!child.stdout) {
+      clearStartupTimer();
+      clearInterval(heartbeat);
+      reject(new Error("subagent child has no stdout pipe"));
+      return;
+    }
 
-      // Handle error messages from child
-      if (childMsg.type === "error") {
-        error = childMsg.message;
+    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+
+    rl.on("line", (line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      let event: JsonEvent;
+      try {
+        event = JSON.parse(trimmed) as JsonEvent;
+      } catch {
+        // Non-JSON output — ignore (can happen from pi startup messages)
         return;
       }
 
-      // Only process "event" messages (AgentSessionEvent forwarded from child)
-      if (childMsg.type !== "event") return;
-
-      const event = childMsg.event as JsonEvent;
-
-      // First event received from the child means the model has engaged —
-      // from here on, the user controls lifetime via the abort signal.
+      // First real event means model has engaged — cancel startup watchdog
       clearStartupTimer();
 
       switch (event.type) {
         case "tool_execution_start": {
           handleToolStart(state, event);
           emitProgress();
-          // Forward manage_todo_list writes to the bus for parent widget
+          // Forward manage_todo_list writes to the parent's todo widget
           if (event.toolName === "manage_todo_list") {
             const args = event.args as Record<string, unknown> | undefined;
             const todoList = args?.todoList as Array<unknown> | undefined;
@@ -136,7 +146,6 @@ export function streamEvents(
         case "tool_execution_end": {
           handleToolEnd(state);
           emitProgress();
-          // Also capture tool result output here (previously in tool_result_end)
           handleToolResult(state, event);
           emitProgress();
           break;
@@ -154,6 +163,7 @@ export function streamEvents(
           handleAgentEnd(state, event);
           break;
         }
+        // Ignore: session, agent_start, message_start, message_update, turn_end, tool_execution_update
       }
     });
 
@@ -164,7 +174,11 @@ export function streamEvents(
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 
-      // Error is set via IPC error messages or remains undefined
+      // Surface stderr as error if the process failed and we have no other error
+      if (exitCode !== 0 && !error) {
+        const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
+        if (stderr) error = stderr;
+      }
 
       const result: SubagentResult = {
         agent: callbacks.agent ?? "subagent",
@@ -193,10 +207,9 @@ export function streamEvents(
         },
       };
 
-      // Final progress update
       callbacks.onProgress?.(result.progress!);
 
-      // Clear subagent todos from the bus on process exit
+      // Clear subagent todos from the bus on exit
       getBus().emit(Events.TODOS_CLEAR, {
         source: `subagent:${callbacks.agent ?? "general"}`,
       });

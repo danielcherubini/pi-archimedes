@@ -1,14 +1,11 @@
-import { fork, type ChildProcess } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { spawn, type ChildProcess } from "node:child_process";
+import * as fs from "node:fs";
+import * as net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import { getBus, Events } from "@pi-archimedes/core/bus";
-import type { ParentToChild, ChildToParent } from "./ipc-types.js";
 import type { AgentConfig } from "./agents.js";
-
-// Resolve child script path from this file's location
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const childScriptPath = join(__dirname, "child.ts");
 
 export interface SpawnOptions {
   task: string;
@@ -20,83 +17,205 @@ export interface SpawnOptions {
 }
 
 /**
- * Spawn a child process via fork() with IPC channel.
+ * Resolve the pi binary path.
+ *
+ * Walk up from process.argv[1] (the pi CLI entry point) looking for the
+ * @earendil-works/pi-coding-agent package root, then resolve its bin.pi field.
+ * Falls back to "pi" (PATH lookup) if resolution fails.
  */
-export function spawnSubagent(options: SpawnOptions): ChildProcess {
-  // Fork the child script with IPC channel
-  const child = fork(childScriptPath, [], {
-    cwd: options.cwd || process.cwd(),
-    env: { ...process.env },
-    execArgv: ["--experimental-strip-types"],
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
-  });
+function resolvePiBinary(): string {
+  try {
+    const entry = process.argv[1];
+    if (!entry) return "pi";
 
-  // Send init message to child with all configuration
-  // Model priority: agent.model > options.model > options.activeModel
-  const model = options.agent?.model ?? options.model ?? options.activeModel;
-  const initBase: Partial<ParentToChild> & { type: "init"; task: string } = {
-    type: "init",
-    task: options.task,
-  };
-  if (model) initBase.model = model;
-  if (options.agent?.name) initBase.agentName = options.agent.name;
-  if (options.agent?.systemPrompt) initBase.agentSystemPrompt = options.agent.systemPrompt;
-  if (options.agent?.tools) initBase.agentTools = options.agent.tools;
-  if (options.agent?.model) initBase.agentModel = options.agent.model;
-  if (options.agent?.thinking) initBase.agentThinking = options.agent.thinking;
-  if (options.cwd) initBase.cwd = options.cwd;
-  child.send(initBase as ParentToChild);
+    let dir = path.dirname(fs.realpathSync(entry));
+    const root = path.parse(dir).root;
 
-  // Handle messages from child
-  child.on("message", (msg: ChildToParent) => {
-    switch (msg.type) {
-      case "event": {
-        // Forward events to streamEvents via the child's message handler
-        // (streamEvents attaches its own listener)
-        break;
+    while (dir !== root) {
+      const pkgPath = path.join(dir, "package.json");
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+          name?: string;
+          bin?: string | Record<string, string>;
+        };
+        if (pkg.name === "@earendil-works/pi-coding-agent") {
+          const binField = pkg.bin;
+          const binRelative =
+            typeof binField === "string"
+              ? binField
+              : binField?.pi ?? Object.values(binField ?? {})[0];
+          if (binRelative) {
+            const resolved = path.resolve(dir, binRelative);
+            if (fs.existsSync(resolved)) return resolved;
+          }
+          break;
+        }
+      } catch {
+        // package.json missing or invalid — keep walking
       }
-      case "ask_request": {
-        // Forward ask requests to the bus for parent's ask dialog
-        getBus().emit(Events.ASK_REQUEST, {
-          source: `subagent:${options.agent?.name ?? "general"}`,
-          requestId: msg.requestId,
-          questions: msg.questions,
-        });
-        break;
-      }
-      case "ready": {
-        // Child is ready — session created
-        break;
-      }
-      case "error": {
-        console.error(`[subagent:child] ${msg.message}`);
-        break;
-      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
     }
-  });
+  } catch {
+    // fall through
+  }
+  return "pi";
+}
 
-  // Handle ask responses from bus → send to child via IPC
-  const unsubAskResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
+/**
+ * Start a Unix socket server that bridges the child's ask tool to the parent bus.
+ *
+ * The child's ask tool (in packages/ask) connects to PI_SUBAGENT_SOCKET and sends:
+ *   { type: "ask_request", requestId, questions } as a JSON line
+ * and waits for:
+ *   { type: "ask_response", requestId, cancelled, results } as a JSON line
+ *
+ * We forward the request onto the bus (ASK_REQUEST), the ask package shows the
+ * parent TUI dialog, then emits ASK_RESPONSE on the bus, and we write it back
+ * to the socket connection.
+ *
+ * Returns the socket path and a cleanup function.
+ */
+function startAskSocketServer(agentName: string): { socketPath: string; cleanup: () => void } {
+  // Keep the socket path short — Linux limit is 108 chars.
+  const socketPath = path.join(os.tmpdir(), `pi-ask-${randomUUID().slice(0, 8)}.sock`);
+
+  // Map of pending ask requests: requestId → write-back callback
+  const pending = new Map<string, (response: unknown) => void>();
+
+  // Listen for ASK_RESPONSE from the bus and route back to the waiting socket conn
+  const unsubResponse = getBus().on(Events.ASK_RESPONSE, (payload: unknown) => {
     const data = payload as {
       requestId: string;
       cancelled: boolean;
       results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
     };
-    const responseMsg: ParentToChild = {
-      type: "ask_response",
-      requestId: data.requestId,
-      cancelled: data.cancelled,
-      results: data.results,
-    };
-    child.send(responseMsg);
+    const send = pending.get(data.requestId);
+    if (send) {
+      pending.delete(data.requestId);
+      send({
+        type: "ask_response",
+        requestId: data.requestId,
+        cancelled: data.cancelled,
+        results: data.results,
+      });
+    }
   });
 
+  const server = net.createServer((socket) => {
+    let buffer = "";
+
+    socket.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString("utf-8");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const msg = JSON.parse(trimmed) as {
+            type: string;
+            requestId: string;
+            questions: unknown[];
+          };
+          if (msg.type === "ask_request") {
+            // Register write-back so ASK_RESPONSE handler can find this socket
+            pending.set(msg.requestId, (response) => {
+              try {
+                socket.write(JSON.stringify(response) + "\n");
+              } catch {
+                // socket already closed
+              }
+            });
+            // Forward to bus — ask package will show the TUI dialog
+            getBus().emit(Events.ASK_REQUEST, {
+              source: `subagent:${agentName}`,
+              requestId: msg.requestId,
+              questions: msg.questions,
+            });
+          }
+        } catch {
+          // malformed JSON — ignore
+        }
+      }
+    });
+
+    socket.on("error", () => { /* connection dropped */ });
+  });
+
+  server.listen(socketPath);
+
+  const cleanup = () => {
+    unsubResponse();
+    server.close();
+    try { fs.unlinkSync(socketPath); } catch { /* already gone */ }
+  };
+
+  return { socketPath, cleanup };
+}
+
+/**
+ * Spawn a subagent as a fresh `pi --mode json --no-session -p <task>` process.
+ *
+ * A Unix socket server is started in the parent to bridge the child's ask tool
+ * back to the parent's TUI dialog. The socket path is passed via PI_SUBAGENT_SOCKET.
+ */
+export function spawnSubagent(options: SpawnOptions): ChildProcess {
+  const piBinary = resolvePiBinary();
+  const agentName = options.agent?.name ?? "general";
+
+  // Start ask bridge socket before spawning so the env var is ready
+  const { socketPath, cleanup: cleanupSocket } = startAskSocketServer(agentName);
+
+  // Build CLI args
+  const args: string[] = ["--mode", "json", "--no-session", "-p"];
+
+  // Model: agent.model > options.model > options.activeModel
+  const model = options.agent?.model ?? options.model ?? options.activeModel;
+  if (model) {
+    args.push("--model", model);
+  }
+
+  // Thinking level from agent config
+  if (options.agent?.thinking) {
+    args.push("--thinking", options.agent.thinking);
+  }
+
+  // Tool allowlist from agent config
+  if (options.agent?.tools && options.agent.tools.length > 0) {
+    args.push("--tools", options.agent.tools.join(","));
+  }
+
+  // Always exclude the subagent tool itself to prevent infinite recursion
+  args.push("--exclude-tools", "subagent");
+
+  // Agent system prompt
+  const systemPrompt = options.agent?.systemPrompt?.trim();
+  if (systemPrompt) {
+    args.push("--system-prompt", systemPrompt);
+  }
+
+  // The task is the final positional argument
+  args.push(options.task);
+
+  const child = spawn(piBinary, args, {
+    cwd: options.cwd || process.cwd(),
+    env: {
+      ...process.env,
+      PI_SUBAGENT_SOCKET: socketPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  // Clean up socket server when child exits
+  child.on("exit", cleanupSocket);
+  child.on("error", cleanupSocket);
+
   // Handle abort signal
-  let abortHandler: (() => void) | undefined;
   if (options.signal) {
-    abortHandler = () => {
-      // Send abort message to child before killing
-      child.send({ type: "abort" });
+    const abortHandler = () => {
       if (child.pid && !child.killed) {
         child.kill("SIGTERM");
         const forceKill = setTimeout(() => {
@@ -106,19 +225,8 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
       }
     };
     options.signal.addEventListener("abort", abortHandler, { once: true });
+    child.on("exit", () => options.signal!.removeEventListener("abort", abortHandler));
   }
-
-  // Clean up on exit
-  const exitCleanup = (): void => {
-    child.removeListener("exit", exitCleanup);
-    child.removeListener("error", exitCleanup);
-    if (abortHandler && options.signal) {
-      options.signal.removeEventListener("abort", abortHandler);
-    }
-    unsubAskResponse();
-  };
-  child.on("exit", exitCleanup);
-  child.on("error", exitCleanup);
 
   return child;
 }
