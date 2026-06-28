@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| [Notify package](plans/2026-06-28-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
 | [Fork + IPC subagent communication](plans/2025-06-17-fork-ipc-subagent.md) | ✅ COMPLETED (PR #10) | 2026-06-17 |
 | [Ask tool](plans/2025-06-17-ask-tool.md) | ✅ COMPLETED (PR #9) | 2025-06-17 |
 | [Todo list with auto-clear + subagent visibility](plans/2026-06-15-todo-plan.md) | ✅ COMPLETED (PR #8) | 2026-06-15 |
@@ -17,5 +18,5 @@ _None_
 
 ## Quick Stats
 
-- Total Plans: 7
-- Completed: 7
+- Total Plans: 8
+- Completed: 8

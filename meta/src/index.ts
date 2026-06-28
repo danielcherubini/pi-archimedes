@@ -7,6 +7,7 @@ import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@
 import { registerSubagent, registerAgentsCommand } from "@pi-archimedes/subagent";
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
+import { registerNotify } from "@pi-archimedes/notify";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js";
 
@@ -26,6 +27,9 @@ export default function (pi: ExtensionAPI): void {
 
   // Register ask tool
   registerAsk(pi);
+
+  // Register notify
+  registerNotify(pi);
 
   // Register /agents command
   registerAgentsCommand(pi);

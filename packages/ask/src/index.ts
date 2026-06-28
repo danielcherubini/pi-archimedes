@@ -201,6 +201,9 @@ export function registerAsk(pi: ExtensionAPI) {
 			questions: AskQuestion[];
 		};
 
+		// Skip main agent — it shows its own UI in the tool handler
+		if (data.source === "main") return;
+
 		if (!data.questions || data.questions.length === 0) return;
 
 		// Defer to next tick so TUI can process current state
@@ -383,6 +386,9 @@ export function registerAsk(pi: ExtensionAPI) {
 					details: {},
 				};
 			}
+
+			// Emit bus event so notify (if installed) can schedule a desktop notification
+			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions });
 
 			if (params.questions.length === 1) {
 				const q = params.questions[0]!;
