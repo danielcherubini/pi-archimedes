@@ -111,6 +111,15 @@ Most question tools only work when the main agent calls them. Ask works everywhe
 
 ![ask from a subagent](docs/images/ask-subagent.png)
 
+### 🔔 Notify ([`@pi-archimedes/notify`](packages/notify/README.md))
+
+Desktop notifications when you've stepped away — with a circuit breaker that cancels if you interact.
+
+- Delayed notification on task complete or unanswered questions
+- Terminal-aware dispatch: Ghostty, WezTerm, iTerm2, Kitty, Windows Terminal
+- tmux passthrough for all OSC sequences
+- Configurable delay and per-trigger toggles
+
 ## Quick Start
 
 ```bash
@@ -128,6 +137,7 @@ That's it. Reload Pi and you're set.
 - `pi install @pi-archimedes/subagent`
 - `pi install @pi-archimedes/todo`
 - `pi install @pi-archimedes/ask`
+- `pi install @pi-archimedes/notify`
 
 ## Settings
 
@@ -171,6 +181,15 @@ No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the
 
 No settings yet.
 
+### [`@pi-archimedes/notify`](packages/notify/README.md)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable desktop notifications |
+| `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
+| `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
+| `delayMs` | number | `60000` | Seconds to wait before sending notification |
+
 ## Architecture
 
 ### Monorepo layout
@@ -184,8 +203,9 @@ pi-archimedes/
 │   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
 │   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
 │   ├── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
-│   └── todo/         # @pi-archimedes/todo — todo list with auto-clear
-└── meta/             # pi-archimedes — meta-package bundling all seven
+│   ├── todo/         # @pi-archimedes/todo — todo list with auto-clear
+│   └── notify/       # @pi-archimedes/notify — delayed desktop notifications
+└── meta/             # pi-archimedes — meta-package bundling all eight
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.

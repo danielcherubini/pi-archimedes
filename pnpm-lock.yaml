@@ -31,6 +31,9 @@ importers:
       '@pi-archimedes/image-paste':
         specifier: workspace:*
         version: link:../packages/image-paste
+      '@pi-archimedes/notify':
+        specifier: workspace:*
+        version: link:../packages/notify
       '@pi-archimedes/subagent':
         specifier: workspace:*
         version: link:../packages/subagent
