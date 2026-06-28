@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { scheduleNotify } from "@pi-archimedes/notify";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection";
@@ -229,6 +230,9 @@ export function registerAsk(pi: ExtensionAPI) {
 	}) {
 		if (!currentCtx?.ui) return;
 
+		// Schedule notification — user may be away when a subagent asks
+		scheduleNotify("ask_request");
+
 		const questions = data.questions;
 		let cancelled = true;
 		let selections: AskSelection[] = [];
@@ -376,6 +380,9 @@ export function registerAsk(pi: ExtensionAPI) {
 					details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,
 				};
 			}
+
+			// Schedule notification — user may be away
+			scheduleNotify("ask_request");
 
 			if (params.questions.length === 0) {
 				return {

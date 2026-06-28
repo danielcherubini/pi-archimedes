@@ -1,7 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
-import { getBus, Events } from "@pi-archimedes/core/bus";
 import { execFile } from "node:child_process";
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -186,14 +185,7 @@ export function registerNotify(pi: ExtensionAPI): void {
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
 
-  const unsubAskRequest = getBus().on(Events.ASK_REQUEST, () =>
-    scheduleNotify("ask_request"),
-  );
-
-  pi.on("session_shutdown", () => {
-    cancelPending();
-    unsubAskRequest();
-  });
+  pi.on("session_shutdown", () => cancelPending());
 }
 
 // ── Settings UI ─────────────────────────────────────────────────────────────
