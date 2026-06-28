@@ -1,0 +1,22 @@
+{
+  "name": "@pi-archimedes/notify",
+  "version": "1.3.4",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Delayed desktop notifications with circuit breaker — notify only when you've stepped away",
+  "files": ["src"],
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
