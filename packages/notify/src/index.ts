@@ -183,6 +183,7 @@ function fireNotification(trigger: "agent_end" | "ask_request" | null): void {
 export function registerNotify(pi: ExtensionAPI): void {
   pi.on("agent_end", () => scheduleNotify("agent_end"));
   pi.on("input", () => cancelPending());
+  pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
 
   const unsubAskRequest = getBus().on(Events.ASK_REQUEST, () =>
