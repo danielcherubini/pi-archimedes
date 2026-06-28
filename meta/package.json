@@ -17,7 +17,8 @@
     "@pi-archimedes/ask": "workspace:*",
     "@pi-archimedes/image-paste": "workspace:*",
     "@pi-archimedes/subagent": "workspace:*",
-    "@pi-archimedes/todo": "workspace:*"
+    "@pi-archimedes/todo": "workspace:*",
+    "@pi-archimedes/notify": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

@@ -6,15 +6,18 @@ import { SettingsList, type SettingItem, TUI } from "@earendil-works/pi-tui";
 import { getCoreSettingsItems } from "@pi-archimedes/core";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 import { getDiffSettingsItems } from "@pi-archimedes/diff";
+import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import {
   loadAllConfig,
   saveCoreConfig,
   saveFooterConfig,
   saveDiffConfig,
+  saveNotifyConfig,
   ANIMATION_STYLES,
   type CoreConfig,
   type FooterConfig,
   type DiffConfig,
+  type NotifyConfig,
 } from "./config.js";
 
 // ── Factory: text submenu ───────────────────────────────────────────────
@@ -97,11 +100,13 @@ export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
   const coreConfig: CoreConfig = { ...allConfig.core };
   const footerConfig: FooterConfig = { ...allConfig.footer };
   const diffConfig: DiffConfig = { ...allConfig.diff };
+  const notifyConfig: NotifyConfig = { ...allConfig.notify };
 
   // Build composed items from sub-packages
   const coreItems = getCoreSettingsItems(coreConfig);
   const footerItems = getFooterSettingsItems();
   const diffItems = getDiffSettingsItems();
+  const notifyItems = getNotifySettingsItems(notifyConfig);
 
   // Add submenus for text/number fields
   const addSubmenus = (items: SettingItem[]) => {
@@ -145,6 +150,13 @@ export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
           confirmHint: "min 80",
           min: 80,
         });
+      } else if (item.id === "delayMs") {
+        item.submenu = createNumberSubmenu({
+          label: "Enter delay in seconds (ESC to cancel):",
+          cancelHint: "ESC: cancel",
+          confirmHint: "min 1",
+          min: 1,
+        });
       }
     }
   };
@@ -152,11 +164,13 @@ export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
   addSubmenus(coreItems);
   addSubmenus(diffItems);
   addSubmenus(footerItems);
+  addSubmenus(notifyItems);
 
   const items: SettingItem[] = [
     ...coreItems,
     ...footerItems,
     ...diffItems,
+    ...notifyItems,
     {
       id: "save",
       label: "Save",
@@ -196,11 +210,22 @@ export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
           break;
         }
 
+        // ── Notify settings ──
+        case "enabled": notifyConfig.enabled = newValue === "On"; break;
+        case "notifyOnAgentEnd": notifyConfig.notifyOnAgentEnd = newValue === "On"; break;
+        case "notifyOnQuestion": notifyConfig.notifyOnQuestion = newValue === "On"; break;
+        case "delayMs": {
+          const v = parseInt(newValue, 10);
+          if (Number.isFinite(v) && v >= 1) notifyConfig.delayMs = v * 1000;
+          break;
+        }
+
         // ── Save ──
         case "save": {
           saveCoreConfig(coreConfig);
           saveFooterConfig(footerConfig);
           saveDiffConfig(diffConfig);
+          saveNotifyConfig(notifyConfig);
           done(undefined);
           return;
         }

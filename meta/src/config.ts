@@ -52,16 +52,33 @@ export function saveDiffConfig(config: DiffConfig): void {
   saveConfig(NAMESPACE, config);
 }
 
+// ── Re-export notify config ────────────────────────────────────────────
+
+import {
+  loadNotifyConfig,
+  saveNotifyConfig,
+  DEFAULT_NOTIFY_CONFIG,
+  type NotifyConfig,
+} from "@pi-archimedes/notify";
+export {
+  loadNotifyConfig,
+  saveNotifyConfig,
+  DEFAULT_NOTIFY_CONFIG,
+  type NotifyConfig,
+} from "@pi-archimedes/notify";
+
 // ── Composed config loader ─────────────────────────────────────────────
 
 export function loadAllConfig(): {
   core: CoreConfig;
   footer: FooterConfig;
   diff: DiffConfig;
+  notify: NotifyConfig;
 } {
   return {
     core: loadCoreConfig(),
     footer: loadFooterConfig(),
     diff: loadDiffConfig(),
+    notify: loadNotifyConfig(),
   };
 }
