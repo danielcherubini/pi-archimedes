@@ -380,15 +380,15 @@ export function registerAsk(pi: ExtensionAPI) {
 				};
 			}
 
-			// Emit bus event so notify (if installed) can schedule a desktop notification
-			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions });
-
 			if (params.questions.length === 0) {
 				return {
 					content: [{ type: "text", text: "Error: questions must not be empty" }],
 					details: {},
 				};
 			}
+
+			// Emit bus event so notify (if installed) can schedule a desktop notification
+			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions });
 
 			if (params.questions.length === 1) {
 				const q = params.questions[0]!;

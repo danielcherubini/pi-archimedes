@@ -201,7 +201,6 @@ export function registerNotify(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", () => {
     cancelPending();
-    unsubAskRequest();
     unsubTerminalInput?.();
   });
 }
