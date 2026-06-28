@@ -201,6 +201,9 @@ export function registerAsk(pi: ExtensionAPI) {
 			questions: AskQuestion[];
 		};
 
+		// Skip main agent — it shows its own UI in the tool handler
+		if (data.source === "main") return;
+
 		if (!data.questions || data.questions.length === 0) return;
 
 		// Defer to next tick so TUI can process current state
@@ -228,9 +231,6 @@ export function registerAsk(pi: ExtensionAPI) {
 		questions: AskQuestion[];
 	}) {
 		if (!currentCtx?.ui) return;
-
-		// Emit bus event so notify (if installed) can schedule a desktop notification
-		getBus().emit(Events.ASK_REQUEST, { source: "subagent", requestId: data.requestId, questions: data.questions });
 
 		const questions = data.questions;
 		let cancelled = true;
