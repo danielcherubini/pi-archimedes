@@ -165,9 +165,7 @@ export function scheduleNotify(trigger: "agent_end" | "ask_request"): void {
   }, config.delayMs);
 
   // Don't block process exit
-  if (notifyTimer && typeof (notifyTimer as any).unref === "function") {
-    (notifyTimer as any).unref();
-  }
+  notifyTimer.unref();
 }
 
 /** Fire the actual notification based on the pending trigger. */
