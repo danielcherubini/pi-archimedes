@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
+import { getBus, Events } from "@pi-archimedes/core/bus";
 import { execFile } from "node:child_process";
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -185,6 +186,11 @@ export function registerNotify(pi: ExtensionAPI): void {
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
 
+  // Listen for ask requests from the bus (ask package emits this)
+  const unsubAskRequest = getBus().on(Events.ASK_REQUEST, () =>
+    scheduleNotify("ask_request"),
+  );
+
   // Listen for raw terminal keystrokes — cancel on any key press
   let unsubTerminalInput: (() => void) | null = null;
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
@@ -195,6 +201,7 @@ export function registerNotify(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", () => {
     cancelPending();
+    unsubAskRequest();
     unsubTerminalInput?.();
   });
 }

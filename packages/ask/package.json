@@ -11,8 +11,7 @@
   ],
   "main": "./src/index.ts",
   "dependencies": {
-    "@pi-archimedes/core": "workspace:*",
-    "@pi-archimedes/notify": "workspace:*"
+    "@pi-archimedes/core": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",
