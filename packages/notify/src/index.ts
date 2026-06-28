@@ -17,7 +17,7 @@ export const DEFAULT_NOTIFY_CONFIG: NotifyConfig = {
   enabled: true,
   notifyOnAgentEnd: true,
   notifyOnQuestion: true,
-  delayMs: 60_000,
+  delayMs: 30_000,
 };
 
 const NAMESPACE = "archimedes.notify";
