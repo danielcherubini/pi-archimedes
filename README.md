@@ -188,7 +188,7 @@ No settings yet.
 | `enabled` | bool | `true` | Enable desktop notifications |
 | `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
 | `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `60000` | Seconds to wait before sending notification |
+| `delayMs` | number | `60` | Seconds to wait before sending notification (stored as ms) |
 
 ## Architecture
 
