@@ -81,13 +81,15 @@ export function notifyWindows(title: string, body: string): void {
 export function windowsToastScript(title: string, body: string): string {
   // Escape single quotes for PowerShell string interpolation
   const escapedTitle = title.replace(/'/g, "''");
+  const escapedBody = body.replace(/'/g, "''");
 
   return [
     "Add-Type -AssemblyName System.Runtime.WindowsRuntime",
     "Add-Type -AssemblyName System.Runtime.InteropServices.WindowsRuntime",
-    '$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText01)',
-    '$text = $xml.GetElementsByTagName("text")[0]',
-    "$text.InnerText = '" + escapedTitle + "'",
+    '$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)',
+    '$textNodes = $xml.GetElementsByTagName("text")',
+    "$textNodes.Item(0).InnerText = '" + escapedTitle + "'",
+    "$textNodes.Item(1).InnerText = '" + escapedBody + "'",
     '$toast = New-Object Windows.UI.Notifications.ToastNotification $xml',
     "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Pi').Show($toast)",
   ].join(";");
