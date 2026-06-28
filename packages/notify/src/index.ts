@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
 import { execFile } from "node:child_process";
@@ -185,7 +185,18 @@ export function registerNotify(pi: ExtensionAPI): void {
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
 
-  pi.on("session_shutdown", () => cancelPending());
+  // Listen for raw terminal keystrokes — cancel on any key press
+  let unsubTerminalInput: (() => void) | null = null;
+  pi.on("session_start", (_event, ctx: ExtensionContext) => {
+    unsubTerminalInput = ctx.ui.onTerminalInput((_data) => {
+      cancelPending();
+    });
+  });
+
+  pi.on("session_shutdown", () => {
+    cancelPending();
+    unsubTerminalInput?.();
+  });
 }
 
 // ── Settings UI ─────────────────────────────────────────────────────────────
