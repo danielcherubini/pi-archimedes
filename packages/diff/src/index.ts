@@ -72,6 +72,28 @@ export function getDiffSettingsItems(): SettingItem[] {
 // Extension entry point
 // ---------------------------------------------------------------------------
 
+// Load SDK dependencies at module evaluation time (top-level await) so they are
+// ready before any session_start event fires. If these imports fail the
+// extension will skip diff tool registration gracefully.
+let _sdk: { createWriteTool: any; createEditTool: any } | null = null;
+let _TextComponent: any = null;
+
+try {
+	const [sdk, tui] = await Promise.all([
+		import("@earendil-works/pi-coding-agent"),
+		import("@earendil-works/pi-tui"),
+	]);
+	_sdk = {
+		createWriteTool: sdk.createWriteTool,
+		createEditTool: sdk.createEditTool,
+	};
+	_TextComponent = tui.Text;
+} catch (error) {
+	console.error(
+		`[diff] failed to load Pi SDK: ${error instanceof Error ? error.message : String(error)}`,
+	);
+}
+
 export function registerDiffTools(
 	pi: ExtensionAPI,
 	_getTheme: () => Theme,
@@ -86,29 +108,17 @@ export function registerDiffTools(
 	setShikiConfig(() => getConfig());
 	setRenderConfig(() => getConfig());
 
-	(async () => {
-		let createWriteTool: any, createEditTool: any, TextComponent: any;
-		try {
-			const sdk = await import("@earendil-works/pi-coding-agent");
-			const tui = await import("@earendil-works/pi-tui");
-			createWriteTool = sdk.createWriteTool;
-			createEditTool = sdk.createEditTool;
-			TextComponent = tui.Text;
-		} catch (error) {
-			console.error(
-				`[diff] failed to load Pi SDK: ${error instanceof Error ? error.message : String(error)}`,
-			);
-			return;
-		}
-		if (!createWriteTool || !createEditTool || !TextComponent) return;
+	if (!_sdk?.createWriteTool || !_sdk?.createEditTool || !_TextComponent) {
+		console.warn("[diff] SDK not available, skipping diff tool registration");
+		return;
+	}
 
-		const cwd = process.cwd();
-		const home = process.env.HOME ?? "";
+	const cwd = process.cwd();
+	const home = process.env.HOME ?? "";
 
-		// Register write tool override
-		registerWriteTool(pi, cwd, home, createWriteTool, TextComponent);
+	// Register write tool override
+	registerWriteTool(pi, cwd, home, _sdk.createWriteTool, _TextComponent);
 
-		// Register edit tool override
-		registerEditTool(pi, cwd, home, createEditTool);
-	})().catch(console.error);
+	// Register edit tool override
+	registerEditTool(pi, cwd, home, _sdk.createEditTool);
 }
