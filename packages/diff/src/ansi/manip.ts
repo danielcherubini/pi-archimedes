@@ -2,6 +2,7 @@
 
 import { relative } from "node:path";
 import * as C from "./codes.js";
+import { tokenize } from "./width.js";
 
 // ---------------------------------------------------------------------------
 // ANSI manipulation
@@ -17,26 +18,27 @@ export function tabs(s: string): string {
 	return s.replace(/\t/g, "  ");
 }
 
-/** Pad/truncate `s` to exactly `w` visible chars. ANSI-aware. */
+/** Pad/truncate `s` to exactly `w` visible columns. ANSI + grapheme-aware. */
 export function fit(s: string, w: number): string {
 	if (w <= 0) return "";
-	const plain = strip(s);
-	if (plain.length <= w) return s + " ".repeat(w - plain.length);
+	const tokens = tokenize(s);
+	const total = tokens.reduce((sum, t) => sum + t.width, 0);
+	if (total <= w) return s + " ".repeat(w - total);
 	const showW = w > 2 ? w - 1 : w;
 	let vis = 0,
-		i = 0;
-	while (i < s.length && vis < showW) {
-		if (s[i] === "\x1b") {
-			const e = s.indexOf("m", i);
-			if (e !== -1) {
-				i = e + 1;
-				continue;
-			}
-		}
-		vis++;
-		i++;
+		out = "";
+	for (const tok of tokens) {
+		// A grapheme cluster is atomic — never split it mid-render. A cluster
+		// wider than the entire budget (only possible when showW is 1 and the
+		// grapheme is wide) is dropped rather than overflowing the target width.
+		if (tok.width > showW) continue;
+		if (vis + tok.width > showW) break;
+		out += tok.ansi + tok.text;
+		vis += tok.width;
 	}
-	return w > 2 ? `${s.slice(0, i)}${C.RST}${C.FG_DIM}›${C.RST}` : `${s.slice(0, i)}${C.RST}`;
+	return w > 2
+		? `${out}${C.RST}${" ".repeat(Math.max(0, showW - vis))}${C.FG_DIM}›${C.RST}`
+		: `${out}${C.RST}${" ".repeat(Math.max(0, w - vis))}`;
 }
 
 /** Extract last active fg + bg ANSI codes from a string. Used for wrapping continuations. */
