@@ -15,10 +15,10 @@ import {
 	buildSingleSelectionResult,
 	type AskOption,
 	type AskSelection,
-} from "./selection";
-import { getLinearCursorIndexFromEditor } from "./cursor";
-import { INLINE_NOTE_WRAP_PADDING, buildWrappedOptionLabelWithInlineNote } from "./note";
-import { appendWrappedTextLines } from "./wrap";
+} from "./selection.js";
+import { getLinearCursorIndexFromEditor } from "./cursor.js";
+import { INLINE_NOTE_WRAP_PADDING, buildWrappedOptionLabelWithInlineNote } from "./note.js";
+import { appendWrappedTextLines } from "./wrap.js";
 
 interface SingleQuestionInput {
 	question: string;

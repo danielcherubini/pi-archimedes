@@ -3,9 +3,9 @@ import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
-import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection";
-import { askSingleQuestionWithInlineNote } from "./picker";
-import { askQuestionsWithTabs } from "./dialog";
+import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection.js";
+import { askSingleQuestionWithInlineNote } from "./picker.js";
+import { askQuestionsWithTabs } from "./dialog.js";
 
 const OptionItemSchema = Type.Object({
 	label: Type.String({ description: "Display label" }),
