@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| Diff wide-character width overflow fix (PR #14) | ✅ COMPLETED (PR #14) | 2026-07-03 |
 | [Notify package](plans/2026-06-28-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
 | [Fork + IPC subagent communication](plans/2025-06-17-fork-ipc-subagent.md) | ✅ COMPLETED (PR #10) | 2026-06-17 |
 | [Ask tool](plans/2025-06-17-ask-tool.md) | ✅ COMPLETED (PR #9) | 2025-06-17 |
@@ -18,5 +19,5 @@ _None_
 
 ## Quick Stats
 
-- Total Plans: 8
-- Completed: 8
+- Total Plans: 9
+- Completed: 9
