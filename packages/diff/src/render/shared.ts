@@ -1,6 +1,7 @@
 /** Shared constants, config, and helpers for diff rendering. */
 
 import * as Ansi from "../ansi/index.js";
+import { tokenize } from "../ansi/width.js";
 import type { ParsedDiff } from "../core/diff.js";
 
 // ---------------------------------------------------------------------------
@@ -42,61 +43,55 @@ export function adaptiveWrapRows(w: number): number {
 	return MAX_WRAP_ROWS_NARROW;
 }
 
-/** Wrap ANSI-encoded string into rows of `w` visible chars. */
+/** Wrap ANSI-encoded string into rows of `w` visible columns. Grapheme + east-asian-width aware. */
 export function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(w), fillBg = "", rst = Ansi.RST): string[] {
 	if (w <= 0) return [""];
-	const plain = Ansi.strip(s);
-	if (plain.length <= w) {
-		const pad = w - plain.length;
+	const tokens = tokenize(s);
+	const total = tokens.reduce((sum, t) => sum + t.width, 0);
+	if (total <= w) {
+		const pad = w - total;
 		return pad > 0 ? [s + fillBg + " ".repeat(pad) + (fillBg ? rst : "")] : [s];
 	}
 
 	const rows: string[] = [];
-	let row = "", vis = 0, i = 0;
+	let row = "", vis = 0, ti = 0;
 	let onLastRow = false;
 	let effW = w;
 
-	while (i < s.length) {
+	while (ti < tokens.length) {
 		if (!onLastRow && rows.length >= maxRows - 1) {
 			onLastRow = true;
 			effW = w > 2 ? w - 1 : w;
 		}
-		if (s[i] === "\x1b") {
-			const end = s.indexOf("m", i);
-			if (end !== -1) {
-				row += s.slice(i, end + 1);
-				i = end + 1;
-				continue;
-			}
+		const tok = tokens[ti]!;
+		// A grapheme cluster is atomic — never split it mid-render. If it's wider
+		// than the row even on its own (only possible when effW < its width,
+		// e.g. a wide emoji in a 1-column row), drop it rather than overflow.
+		if (tok.width > effW) {
+			ti++;
+			continue;
 		}
-		if (vis >= effW) {
+		if (vis + tok.width > effW) {
 			if (onLastRow) {
-				let hasMore = false;
-				for (let j = i; j < s.length; j++) {
-					if (s[j] === "\x1b") {
-						const e2 = s.indexOf("m", j);
-						if (e2 !== -1) { j = e2; continue; }
-					}
-					hasMore = true;
-					break;
-				}
+				const hasMore = ti < tokens.length;
 				if (hasMore && w > 2) row += `${rst}${Ansi.FG_DIM}›${rst}`;
 				else row += fillBg + " ".repeat(Math.max(0, w - vis)) + rst;
 				rows.push(row);
 				return rows;
 			}
 			const state = Ansi.ansiState(row);
-			rows.push(row + rst);
+			rows.push(row + fillBg + " ".repeat(Math.max(0, w - vis)) + rst);
 			row = state + fillBg;
 			vis = 0;
 			if (rows.length >= maxRows - 1) {
 				onLastRow = true;
 				effW = w > 2 ? w - 1 : w;
 			}
+			continue;
 		}
-		row += s[i];
-		vis++;
-		i++;
+		row += tok.ansi + tok.text;
+		vis += tok.width;
+		ti++;
 	}
 	if (row.length > 0 || rows.length === 0) {
 		rows.push(row + fillBg + " ".repeat(Math.max(0, w - vis)) + rst);

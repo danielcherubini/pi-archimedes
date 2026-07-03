@@ -69,7 +69,9 @@ export async function renderSplitLines(
 	const half = Math.floor((width - 1) / 2);
 	const nw = Math.max(2, String(Math.max(...diff.lines.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const gw = nw + 5;
-	const cw = Math.max(12, half - gw);
+	// Never let the content column exceed what's actually available — on very
+	// narrow terminals the gutter alone can approach `half`.
+	const cw = Math.max(1, half - gw);
 	const canHL = diff.chars <= MAX_HL_CHARS && vis.length * 2 <= MAX_RENDER_LINES * 2;
 
 	const leftSrc: string[] = [], rightSrc: string[] = [];

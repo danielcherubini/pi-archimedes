@@ -16,7 +16,8 @@
   "dependencies": {
     "diff": "^8.0.0",
     "shiki": "^4.0.0",
-    "@shikijs/cli": "^4.0.2"
+    "@shikijs/cli": "^4.0.2",
+    "get-east-asian-width": "^1.6.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

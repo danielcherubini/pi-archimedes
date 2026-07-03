@@ -48,7 +48,9 @@ export async function renderUnifiedLines(
 	const vis = diff.lines.slice(0, max);
 	const nw = Math.max(2, String(Math.max(...vis.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const gw = nw + 5;
-	const cw = Math.max(20, width - gw);
+	// Never let the content column exceed what's actually available — on very
+	// narrow terminals the gutter alone can approach `width`.
+	const cw = Math.max(1, width - gw);
 	const canHL = diff.chars <= MAX_HL_CHARS && vis.length <= MAX_RENDER_LINES;
 	const rst = dbg.rst;
 	const bgBase = dbg.bgBase;
