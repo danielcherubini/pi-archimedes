@@ -79,6 +79,13 @@ export function tokenize(s: string): WidthToken[] {
 				i = end + 1;
 				continue;
 			}
+			// Bare ESC with no "m" terminator anywhere after it — not a valid
+			// SGR sequence. Treat it as a zero-width literal char so `i` always
+			// advances (otherwise this would loop forever).
+			tokens.push({ ansi: pendingAnsi, text: "", width: 0 });
+			pendingAnsi = "";
+			i++;
+			continue;
 		}
 		let end = i;
 		while (end < s.length && s[end] !== "\x1b") end++;

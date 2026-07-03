@@ -107,7 +107,9 @@ export function shouldUseSplit(diff: ParsedDiff, tw: number, maxRows = MAX_PREVI
 	const nw = Math.max(2, String(Math.max(...diff.lines.map((l) => l.oldNum ?? l.newNum ?? 0), 0)).length);
 	const half = Math.floor((tw - 1) / 2);
 	const gw = nw + 5;
-	const cw = Math.max(12, half - gw);
+	// Keep in sync with renderSplitLines' cw formula so this heuristic agrees
+	// with what the renderer will actually use.
+	const cw = Math.max(1, half - gw);
 	if (cw < cfg.diffSplitMinCodeWidth) return false;
 
 	const vis = diff.lines.slice(0, maxRows);
