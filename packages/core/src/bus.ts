@@ -34,12 +34,18 @@ function createBus(): Bus {
       if (subs) {
         for (const fn of subs) {
           try {
-            fn(payload);
+            Promise.resolve(fn(payload)).catch((err) =>
+              console.error(`[archimedes:bus] Async error in listener for "${event}":`, err));
           } catch (err) {
             // Listener errors should not crash other listeners
             console.error(`[archimedes:bus] Error in listener for "${event}":`, err);
           }
         }
+      } else {
+        // Queue event for future subscribers
+        const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY) ?? [];
+        queue.push({ event, payload });
+        setGlobal(QUEUE_KEY, queue);
       }
     },
     on(event: string, listener: (payload: unknown) => void): () => void {
@@ -48,6 +54,22 @@ function createBus(): Bus {
       }
       const subs = listeners.get(event)!;
       subs.push(listener);
+
+      // Drain any queued events for this specific event
+      const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY);
+      if (queue) {
+        for (const { event: queuedEvent, payload } of queue) {
+          if (queuedEvent === event) {
+            try {
+              Promise.resolve(listener(payload)).catch((err) =>
+                console.error(`[archimedes:bus] Async error in listener for "${event}":`, err));
+            } catch (err) {
+              console.error(`[archimedes:bus] Error in listener for "${event}":`, err);
+            }
+          }
+        }
+      }
+
       return () => {
         const idx = subs.indexOf(listener);
         if (idx !== -1) subs.splice(idx, 1);
@@ -68,12 +90,11 @@ export function getBus(): Bus {
 export function initBus(): void {
   const bus = getBus();
   // Flush queued events (if any were emitted before init)
-  const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY);
-  if (queue && queue.length > 0) {
-    for (const { event, payload } of queue) {
-      bus.emit(event, payload);
-    }
-    setGlobal(QUEUE_KEY, []);
+  // Snapshot and clear before iterating to prevent infinite loops from re-queueing
+  const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY) ?? [];
+  setGlobal(QUEUE_KEY, []);
+  for (const { event, payload } of queue) {
+    bus.emit(event, payload);
   }
 }
 
