@@ -287,10 +287,9 @@ export function registerAsk(pi: ExtensionAPI) {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
-			// DEPRECATED: Socket-based headless mode.
-			// The fork-based subagent child (child.ts) now uses an IPC ask tool (ipc-ask-tool.ts)
-			// that communicates directly via process.send()/process.on('message').
-			// This socket-based path is kept for backward compatibility during transition.
+			// Headless/subagent path: the child's ask tool connects to the parent's
+			// PI_SUBAGENT_SOCKET bridge (created in subagent/spawn.ts:startAskSocketServer)
+			// and exchanges ask_request/ask_response JSON lines.
 			if (!ctx.hasUI) {
 				const requestId = randomUUID();
 				const socketPath = process.env.PI_SUBAGENT_SOCKET;
