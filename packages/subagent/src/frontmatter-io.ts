@@ -5,12 +5,12 @@
 import type { AgentConfig } from "./agents.js";
 
 /**
- * Regex for valid agentspec names: lowercase alphanumeric + hyphens, 3-50 chars.
+ * Regex for valid agentspec names: lowercase alphanumeric + hyphens, 2-50 chars.
  * Alphanumeric start/end. Also allows single-char names.
  */
-export const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
+export const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
 
-const SINGLE_CHAR_NAME_REGEX = /^[a-z0-9]$/;
+export const SINGLE_CHAR_NAME_REGEX = /^[a-z0-9]$/;
 
 /**
  * Validate an agent name against agentspec format rules.
@@ -26,7 +26,7 @@ export function validateAgentName(name: string): string | null {
   if (AGENT_NAME_REGEX.test(name)) {
     return null;
   }
-  return "Name must be 3-50 lowercase alphanumeric characters or hyphens, starting and ending with alphanumeric";
+  return "Name must be 2-50 lowercase alphanumeric characters or hyphens, starting and ending with alphanumeric";
 }
 
 function needsYamlQuoting(value: string): boolean {

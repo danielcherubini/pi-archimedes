@@ -55,9 +55,10 @@ function createBus(): Bus {
       const subs = listeners.get(event)!;
       subs.push(listener);
 
-      // Drain any queued events for this specific event
+      // Drain any queued events for this specific event, removing them from the queue
       const queue = getGlobal<Array<{ event: string; payload: unknown }>>(QUEUE_KEY);
       if (queue) {
+        const remaining: Array<{ event: string; payload: unknown }> = [];
         for (const { event: queuedEvent, payload } of queue) {
           if (queuedEvent === event) {
             try {
@@ -66,8 +67,11 @@ function createBus(): Bus {
             } catch (err) {
               console.error(`[archimedes:bus] Error in listener for "${event}":`, err);
             }
+          } else {
+            remaining.push({ event: queuedEvent, payload });
           }
         }
+        setGlobal(QUEUE_KEY, remaining);
       }
 
       return () => {

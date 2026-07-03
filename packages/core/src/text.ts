@@ -34,6 +34,11 @@ export function clampLines(lines: string[], maxW: number): string[] {
 }
 
 // isParentBorder uses the narrow SGR-only strip (no trim) for char-level checks
+/** Calculate the visible width of a string with ANSI escapes. */
+export function visibleWidth(s: string): number {
+  return stripSgr(s).length;
+}
+
 export const isParentBorder = (s: string) => {
   const clean = stripSgr(s);
   return clean.length > 0 && clean[0] === "─";

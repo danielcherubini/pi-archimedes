@@ -24,6 +24,9 @@
     "typebox": "^1.1.38",
     "typescript": "^6.0.3"
   },
+  "scripts": {
+    "test": "node --import tsx --test src/__tests__/*.test.ts"
+  },
   "pi": {
     "extensions": [
       "./src/index.ts"

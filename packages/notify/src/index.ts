@@ -32,6 +32,14 @@ export function saveNotifyConfig(config: NotifyConfig): void {
 
 // ── Terminal detection helpers ──────────────────────────────────────────────
 
+/** Remove characters that would break OSC sequence boundaries. */
+function sanitizeOSC(value: string): string {
+  return value
+    .replace(/\x1b/g, "")    // Strip ESC (0x1B) — breaks OSC
+    .replace(/\x07/g, "")    // Strip BEL (0x07) — terminates OSC
+    .replace(/\x9d/g, "");   // Strip OSC intro (0x9D) — alternate OSC start
+}
+
 /** Wrap an OSC sequence for tmux passthrough. */
 export function wrapForTmux(sequence: string): string {
   if (!process.env.TMUX) {
@@ -46,20 +54,20 @@ export function wrapForTmux(sequence: string): string {
 
 /** OSC 777 — generic notify (used as fallback) */
 export function notifyOSC777(title: string, body: string): void {
-  const seq = `\x1b]777;notify;${title};${body}\x07`;
+  const seq = `\x1b]777;notify;${sanitizeOSC(title)};${sanitizeOSC(body)}\x07`;
   process.stderr.write(wrapForTmux(seq));
 }
 
 /** OSC 9 — Konsole / generic terminal */
 export function notifyOSC9(message: string): void {
-  const seq = `\x1b]9;${message}\x07`;
+  const seq = `\x1b]9;${sanitizeOSC(message)}\x07`;
   process.stderr.write(wrapForTmux(seq));
 }
 
 /** OSC 99 — Kitty terminal */
 export function notifyOSC99(title: string, body: string): void {
-  const seq1 = `\x1b]99;i=1:d=0;${title}\x1b\\`;
-  const seq2 = `\x1b]99;i=1:p=${body}\x1b\\`;
+  const seq1 = `\x1b]99;i=1:d=0;${sanitizeOSC(title)}\x1b\\`;
+  const seq2 = `\x1b]99;i=1:p=${sanitizeOSC(body)}\x1b\\`;
   process.stderr.write(wrapForTmux(seq1));
   process.stderr.write(wrapForTmux(seq2));
 }

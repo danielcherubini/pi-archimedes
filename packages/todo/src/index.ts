@@ -14,8 +14,10 @@ export function registerTodo(pi: ExtensionAPI): void {
   const subagentTodos = new Map<string, TodoItem[]>();
   const unsubscribes: Array<() => void> = [];
   let currentCtx: ExtensionContext | undefined;
+  let widgetDirty = true; // Force initial render
 
   const refreshWidget = () => {
+    widgetDirty = true;
     if (currentCtx) {
       updateWidget(state, currentCtx, subagentTodos);
     }
@@ -41,7 +43,7 @@ export function registerTodo(pi: ExtensionAPI): void {
   const reconstructState = (ctx: ExtensionContext) => {
     currentCtx = ctx;
     state.loadFromSession(ctx);
-    updateWidget(state, ctx, subagentTodos);
+    refreshWidget();
   };
 
   pi.on("session_start", async (_event, ctx) => reconstructState(ctx));
@@ -52,10 +54,13 @@ export function registerTodo(pi: ExtensionAPI): void {
     currentCtx = ctx;
   });
 
-  // Update widget after each turn (in case tool was called)
+  // Update widget after each turn only if dirty (tool call or state change)
   pi.on("turn_end", async (_event, ctx) => {
     currentCtx = ctx;
-    updateWidget(state, ctx, subagentTodos);
+    if (widgetDirty) {
+      updateWidget(state, ctx, subagentTodos);
+      widgetDirty = false;
+    }
   });
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)

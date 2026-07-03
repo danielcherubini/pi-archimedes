@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| [Fix all code review issues](plans/2026-07-03-fix-all-review-issues.md) | ✅ COMPLETED | 2026-07-03 |
 | [Fix Core Bus Bug and Standardize Ask Package](plans/2026-07-03-fix-core-and-ask.md) | ✅ COMPLETED | 2026-07-03 |
 | Diff wide-character width overflow fix (PR #14) | ✅ COMPLETED (PR #14) | 2026-07-03 |
 | [Notify package](plans/2026-06-28-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
@@ -16,9 +17,10 @@
 
 ## In Progress
 
-_None_
+| Plan | Status | Created |
+| [Code review completion documentation](plans/2026-07-03-code-review-completion.md) | 🚧 IN PROGRESS | 2026-07-03 |
 
 ## Quick Stats
 
-- Total Plans: 10
-- Completed: 10
+- Total Plans: 12
+- Completed: 11

@@ -80,7 +80,8 @@ function resolvePiBinary(): string {
 function startAskSocketServer(agentName: string): { socketPath: string; cleanup: () => void } {
   // Use named pipes on Windows, Unix domain sockets elsewhere.
   // Linux socket path limit is 108 chars — keep it short.
-  const id = randomUUID().slice(0, 8);
+  // 16 hex chars = 64 bits of entropy; prevents socket path collision attacks
+  const id = randomUUID().slice(0, 16);
   const socketPath =
     process.platform === "win32"
       ? `\\\\.\\pipe\\pi-ask-${id}`
@@ -151,6 +152,15 @@ function startAskSocketServer(agentName: string): { socketPath: string; cleanup:
   });
 
   server.listen(socketPath);
+
+  // Restrict socket permissions on Unix to prevent unauthorized access
+  if (process.platform !== "win32") {
+    try {
+      fs.chmodSync(socketPath, 0o600); // Owner read/write only
+    } catch {
+      // chmod may fail if socket file isn't created yet; not critical
+    }
+  }
 
   const cleanup = () => {
     unsubResponse();

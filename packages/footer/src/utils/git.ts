@@ -34,19 +34,16 @@ interface FileStates {
   workTreeField: string;
 }
 
-function parseGitStatusLine(line: string): FileStates | null {
+export function parseGitStatusLine(line: string): FileStates | null {
   // Scored format: "<score> XY..."
   const scoredMatch = line.match(/^\d+ (..) /);
   if (scoredMatch) return { indexField: scoredMatch[1]![0]!, workTreeField: scoredMatch[1]![1]! };
 
-  // Unscored format: "XY..."
+  // Unscored format: "XY..." — includes untracked (??), staged, unstaged
   const noScoreMatch = line.match(/^(..) /);
   if (noScoreMatch) return { indexField: noScoreMatch[1]![0]!, workTreeField: noScoreMatch[1]![1]! };
 
-  // Untracked format: "? ..."
-  const untrackedMatch = line.match(/^(.) (.)/);
-  if (!untrackedMatch) return null;
-  return { indexField: untrackedMatch[1]!, workTreeField: untrackedMatch[2]! };
+  return null;
 }
 
 function parseGitOutput(output: string): GitStatus {

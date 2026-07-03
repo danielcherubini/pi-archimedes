@@ -8,14 +8,14 @@ import { unindentCodeBlocks } from "./unindent.js";
  * not just after thinking completes.
  */
 export function transformThinkingContent(
-	message: { role: string; content: Array<{ type: string; thinking?: string }> },
+  message: { role: string; content: Array<{ type: string; thinking?: string }> },
 ): void {
-	if (message.role !== "assistant") return;
+  if (message.role !== "assistant") return;
 
-	for (const content of message.content) {
-		if (content.type === "thinking" && content.thinking?.trim()) {
-			const trimmed = content.thinking.trim();
-			content.thinking = unindentCodeBlocks(trimmed);
-		}
-	}
+  for (const content of message.content) {
+    if (content.type === "thinking" && content.thinking?.trim()) {
+      const trimmed = content.thinking.trim();
+      content.thinking = unindentCodeBlocks(trimmed);
+    }
+  }
 }

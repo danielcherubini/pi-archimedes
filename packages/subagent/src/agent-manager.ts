@@ -5,6 +5,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   matchesKey,
   Key,
@@ -14,6 +15,7 @@ import {
 import type { AgentConfig } from "./agents.js";
 import { discoverAgentsAll } from "./agents.js";
 import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
+import { visibleWidth as coreVisibleWidth } from "@pi-archimedes/core/text";
 
 // ── Screen constants ────────────────────────────────────────────────────────
 
@@ -168,17 +170,13 @@ function wrapText(text: string, width: number): string[] {
 
 function padEnd(text: string, width: number): string {
   if (width <= 0) return "";
-  const vw = visibleWidth(text);
+  const vw = coreVisibleWidth(text);
   if (vw >= width) return text;
   return text + " ".repeat(width - vw);
 }
 
-function visibleWidth(text: string): number {
-  // Strip ANSI escape sequences for width calculation
-  return text.replace(/\x1b\[[0-9;]*m/g, "").length;
-}
 
-function row(text: string, width: number, theme: Theme): string {
+function row(text: string, width: number): string {
   return padEnd(text, width);
 }
 
@@ -215,7 +213,7 @@ function filterModels(models: ModelInfo[], query: string): ModelInfo[] {
 
 /** Hard-truncate by visible width — no "..." suffix. Strips ANSI, truncates, rebuilds. */
 function hardTruncate(text: string, maxVisible: number): string {
-  if (visibleWidth(text) <= maxVisible) return text;
+  if (coreVisibleWidth(text) <= maxVisible) return text;
   // Strip ANSI codes, truncate, then re-apply any trailing reset codes
   const plain = text.replace(/\x1b\[[0-9;]*m/g, "");
   const truncated = plain.slice(0, maxVisible);
@@ -653,7 +651,7 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
     if (isCurrent && state.editInField) {
       // In-field editing
       const label = `${key}: `;
-      const labelWidth = visibleWidth(label);
+      const labelWidth = coreVisibleWidth(label);
       const availWidth = width - labelWidth - 2; // prefix takes 2
 
       if (key === "description") {
@@ -680,7 +678,7 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
       const label = `${key}: `;
       const displayValue = empty
         ? theme.fg("dim", "(not set)")
-        : truncateToWidth(value, width - visibleWidth(prefix + label));
+        : truncateToWidth(value, width - coreVisibleWidth(prefix + label));
       const display = isCurrent
         ? theme.fg("accent", `${prefix}${label}`) + displayValue
         : `${prefix}${label}${displayValue}`;
@@ -1245,11 +1243,37 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
     // Ensure directory exists
     fs.mkdirSync(dir, { recursive: true });
 
-    // Serialize and write
+    // Serialize agent content
     const content = serializeAgent(agent);
-    fs.writeFileSync(newPath, content, "utf-8");
 
-    // Handle rename if name changed
+    // Write to temp file first (atomic on same filesystem)
+    const tmpPath = newPath + ".tmp." + randomUUID();
+    try {
+      fs.writeFileSync(tmpPath, content, "utf-8");
+    } catch (writeErr) {
+      // Clean up temp file if write fails
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+      throw writeErr;
+    }
+
+    // Check for filesystem collision (untracked file not in state)
+    if (fs.existsSync(newPath)) {
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+      state.editError = `File \"${newName}\" already exists`;
+      requestRender();
+      return;
+    }
+
+    // Atomically move temp file to final path
+    try {
+      fs.renameSync(tmpPath, newPath);
+    } catch (renameErr) {
+      // Clean up temp file
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+      throw renameErr;
+    }
+
+    // Handle old file removal after successful save
     if (oldPath && oldPath !== newPath) {
       try {
         fs.unlinkSync(oldPath);

@@ -28,30 +28,30 @@ const BG_DEFAULT = "\x1b[49m"; // reset to terminal default background
 
 /** All background colors needed for diff rendering, derived from a theme. */
 export interface DiffBg {
-	bgAdd: string;
-	bgDel: string;
-	bgAddW: string; // word-level emphasis
-	bgDelW: string;
-	bgGutterAdd: string;
-	bgGutterDel: string;
-	bgEmpty: string;
-	bgBase: string; // tool box base bg
-	rst: string; // reset + base bg
-	divider: string;
+  bgAdd: string;
+  bgDel: string;
+  bgAddW: string; // word-level emphasis
+  bgDelW: string;
+  bgGutterAdd: string;
+  bgGutterDel: string;
+  bgEmpty: string;
+  bgBase: string; // tool box base bg
+  rst: string; // reset + base bg
+  divider: string;
 }
 
 /** Hardcoded fallback backgrounds. */
 export const DEFAULT_DIFF_BG: DiffBg = {
-	bgAdd: "\x1b[48;2;22;38;32m",
-	bgDel: "\x1b[48;2;45;25;25m",
-	bgAddW: "\x1b[48;2;35;75;50m",
-	bgDelW: "\x1b[48;2;80;35;35m",
-	bgGutterAdd: "\x1b[48;2;18;32;26m",
-	bgGutterDel: "\x1b[48;2;38;22;22m",
-	bgEmpty: "\x1b[48;2;18;18;18m",
-	bgBase: BG_DEFAULT,
-	rst: "\x1b[0m",
-	divider: `${FG_RULE}│\x1b[0m`,
+  bgAdd: "\x1b[48;2;22;38;32m",
+  bgDel: "\x1b[48;2;45;25;25m",
+  bgAddW: "\x1b[48;2;35;75;50m",
+  bgDelW: "\x1b[48;2;80;35;35m",
+  bgGutterAdd: "\x1b[48;2;18;32;26m",
+  bgGutterDel: "\x1b[48;2;38;22;22m",
+  bgEmpty: "\x1b[48;2;18;18;18m",
+  bgBase: BG_DEFAULT,
+  rst: "\x1b[0m",
+  divider: `${FG_RULE}│\x1b[0m`,
 };
 
 // Theme cache key state — lives here since it's used by resolveDiffColors.
@@ -71,9 +71,9 @@ export const ANSI_PARAM_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([0-9;]*)m`, "g");
 // ---------------------------------------------------------------------------
 
 export interface DiffColors {
-	fgAdd: string;
-	fgDel: string;
-	fgCtx: string;
+  fgAdd: string;
+  fgDel: string;
+  fgCtx: string;
 }
 
 export const DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, fgCtx: FG_DIM };
@@ -84,43 +84,43 @@ export const DEFAULT_DIFF_COLORS: DiffColors = { fgAdd: FG_ADD, fgDel: FG_DEL, f
 
 /** Reset auto-derived colors — call when theme changes. */
 export function resetDiffColors(): void {
-	_lastThemeKey = undefined;
+  _lastThemeKey = undefined;
 }
 
 export function themeCacheKey(theme?: any): string {
-	if (!theme?.fg) return "no-theme";
-	const fgKeys = [
-		"toolTitle", "accent", "muted", "success", "error",
-		"toolDiffAdded", "toolDiffRemoved", "toolDiffContext",
-	];
-	const bgKeys = ["toolSuccessBg", "toolErrorBg"];
-	const parts: string[] = [];
-	for (const key of fgKeys) {
-		try { parts.push(theme.fg(key, key)); } catch { parts.push(key); }
-	}
-	for (const key of bgKeys) {
-		try { parts.push(theme.bg ? theme.bg(key, key) : key); } catch { parts.push(key); }
-	}
-	return parts.join("|");
+  if (!theme?.fg) return "no-theme";
+  const fgKeys = [
+    "toolTitle", "accent", "muted", "success", "error",
+    "toolDiffAdded", "toolDiffRemoved", "toolDiffContext",
+  ];
+  const bgKeys = ["toolSuccessBg", "toolErrorBg"];
+  const parts: string[] = [];
+  for (const key of fgKeys) {
+    try { parts.push(theme.fg(key, key)); } catch { parts.push(key); }
+  }
+  for (const key of bgKeys) {
+    try { parts.push(theme.bg ? theme.bg(key, key) : key); } catch { parts.push(key); }
+  }
+  return parts.join("|");
 }
 
 export { deriveBgFromTheme };
 
 export function resolveDiffColors(theme?: any): DiffColors {
-	const themeKey = themeCacheKey(theme);
+  const themeKey = themeCacheKey(theme);
 
-	// Re-derive theme key cache (bg colors are now passed explicitly via DiffBg)
-	if (themeKey !== _lastThemeKey) {
-		_lastThemeKey = themeKey;
-	}
-	if (!theme?.getFgAnsi) return DEFAULT_DIFF_COLORS;
-	try {
-		return {
-			fgAdd: theme.getFgAnsi("toolDiffAdded") || FG_ADD,
-			fgDel: theme.getFgAnsi("toolDiffRemoved") || FG_DEL,
-			fgCtx: theme.getFgAnsi("toolDiffContext") || FG_DIM,
-		};
-	} catch {
-		return DEFAULT_DIFF_COLORS;
-	}
+  // Re-derive theme key cache (bg colors are now passed explicitly via DiffBg)
+  if (themeKey !== _lastThemeKey) {
+    _lastThemeKey = themeKey;
+  }
+  if (!theme?.getFgAnsi) return DEFAULT_DIFF_COLORS;
+  try {
+    return {
+      fgAdd: theme.getFgAnsi("toolDiffAdded") || FG_ADD,
+      fgDel: theme.getFgAnsi("toolDiffRemoved") || FG_DEL,
+      fgCtx: theme.getFgAnsi("toolDiffContext") || FG_DIM,
+    };
+  } catch {
+    return DEFAULT_DIFF_COLORS;
+  }
 }

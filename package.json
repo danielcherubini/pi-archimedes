@@ -7,6 +7,9 @@
   ],
   "type": "module",
   "packageManager": "pnpm@10.0.0",
+  "devDependencies": {
+    "tsx": "^4.0.0"
+  },
   "scripts": {
     "preinstall": "node -e \"if (!/pnpm/.test(process.env.npm_execpath || '')) { console.error('\\n  This project uses pnpm. Please use: pnpm install\\n'); process.exit(1); }\""
   },

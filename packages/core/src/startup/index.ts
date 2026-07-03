@@ -10,7 +10,6 @@ import { Text, Spacer, Container, TUI, truncateToWidth, visibleWidth, type Compo
 const LISTING_REF = Symbol.for("splashscreen:listingRef");
 const ANIM_INTERVAL = Symbol.for("splashscreen:animInterval");
 const DEBOUNCE_TIMER = Symbol.for("splashscreen:debounceTimer");
-const PATCHED_CLEAR = Symbol.for("splashscreen:clearPatched");
 const PATCHED_LISTING = Symbol.for("splashscreen:listingPatched");
 const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
 
@@ -22,6 +21,7 @@ const RAMP_FRAMES = 22;
 const STAGGER_FRAMES = 0;
 const BASE_FADE_DELAY = 3;
 const MAX_STAGGER = BASE_FADE_DELAY + 5 * STAGGER_FRAMES;
+const MAX_ANIM_FRAMES = 300; // Hard cap to prevent indefinite intervals (≈5s at 60fps)
 
 export interface ListingRef {
   sections: ParsedSection[];
@@ -192,41 +192,41 @@ export function patchStartupListing(
       const current: ListingRef = cc[LISTING_REF];
       if (!current) {
         clearInterval(interval);
+        cc[ANIM_INTERVAL] = null;
         return;
       }
       current.frame++;
-      if (current.settled && current.frame >= LOGO_SETTLE_FRAME) {
+      // Clear interval when settled and logo animation complete, or after hard cap
+      if ((current.settled && current.frame >= LOGO_SETTLE_FRAME) || current.frame >= MAX_ANIM_FRAMES) {
         clearInterval(interval);
         cc[ANIM_INTERVAL] = null;
         return;
       }
       tui.requestRender();
-    } catch {
+    } catch (err) {
+      // Log error for debugging, then clear interval
+      console.error("[archimedes:splashscreen] Interval error:", err);
       clearInterval(interval);
+      cc[ANIM_INTERVAL] = null;
     }
   }, 16);
 
   cc[ANIM_INTERVAL] = interval;
 
-  // Fetch latest version from npm
+  // Fetch latest version from npm (guard against stale ref / interval cleanup)
   fetchLatestVersion().then(v => {
-    if (v) {
-      const current: ListingRef = cc[LISTING_REF];
+    const current: ListingRef | undefined = cc[LISTING_REF];
+    // Only update if this is still the current ref and animation hasn't capped
+    if (v && current && cc[ANIM_INTERVAL] !== null && current.frame < MAX_ANIM_FRAMES) {
       current.latestVersion = v;
       // Invalidate cache so version updates on next render
       delete current.cachedLines;
-      current.settled = false;
+      // Only reset settled if we haven't already cleared interval
+      if (cc[ANIM_INTERVAL] !== null) {
+        current.settled = false;
+      }
     }
   });
-
-  // Patch clear() to intercept container rebuild
-  if (!cc[PATCHED_CLEAR]) {
-    cc[PATCHED_CLEAR] = true;
-    const origClear = chat.clear.bind(chat);
-    chat.clear = () => {
-      return origClear();
-    };
-  }
 
   // Only patch addChild once — the closure reads cc[LISTING_REF] dynamically
   if (cc[PATCHED_LISTING]) {

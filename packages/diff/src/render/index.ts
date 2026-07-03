@@ -2,16 +2,16 @@
 
 // Shared constants, config, and helpers
 export {
-	MAX_PREVIEW_LINES,
-	MAX_RENDER_LINES,
-	MAX_HL_CHARS,
-	WORD_DIFF_MIN_SIM,
-	DEFAULT_TERM_WIDTH,
-	getConfig,
-	setConfigGetter,
-	adaptiveWrapRows,
-	wrapAnsi,
-	shouldUseSplit,
+  MAX_PREVIEW_LINES,
+  MAX_RENDER_LINES,
+  MAX_HL_CHARS,
+  WORD_DIFF_MIN_SIM,
+  DEFAULT_TERM_WIDTH,
+  getConfig,
+  setConfigGetter,
+  adaptiveWrapRows,
+  wrapAnsi,
+  shouldUseSplit,
 } from "./shared.js";
 
 // Unified view

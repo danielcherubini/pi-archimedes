@@ -15,6 +15,14 @@ export async function fetchLatestVersion(): Promise<string | undefined> {
   }
 }
 
+/**
+ * Compare two semver version strings.
+ * Strips leading `v` prefix. Compares major, minor, patch numerically.
+ * Ignores prerelease and build metadata (e.g., "1.2.3-beta" compares equal to "1.2.3").
+ * @param a - First version string (e.g., "1.2.3" or "v1.2.3")
+ * @param b - Second version string
+ * @returns Positive if `a` > `b`, negative if `a` < `b`, 0 if equal.
+ */
 export function compareVersions(a: string, b: string): number {
   const pa = a.replace(/^v/, "").split(".").map(Number);
   const pb = b.replace(/^v/, "").split(".").map(Number);

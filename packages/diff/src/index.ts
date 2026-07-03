@@ -26,15 +26,15 @@ export type { DiffBg, DiffColors } from "./ansi/index.js";
 // ---------------------------------------------------------------------------
 
 export interface DiffConfig {
-	diffTheme: string;
-	diffSplitMinWidth: number;
-	diffSplitMinCodeWidth: number;
+  diffTheme: string;
+  diffSplitMinWidth: number;
+  diffSplitMinCodeWidth: number;
 }
 
 const DEFAULT_DIFF_CONFIG: DiffConfig = {
-	diffTheme: "github-dark",
-	diffSplitMinWidth: 150,
-	diffSplitMinCodeWidth: 60,
+  diffTheme: "github-dark",
+  diffSplitMinWidth: 150,
+  diffSplitMinCodeWidth: 60,
 };
 
 let _readConfig: () => DiffConfig = () => DEFAULT_DIFF_CONFIG;
@@ -45,27 +45,27 @@ function getConfig(): DiffConfig { return _readConfig(); }
 // ---------------------------------------------------------------------------
 
 export function getDiffSettingsItems(): SettingItem[] {
-	const config = getConfig();
-	return [
-		{
-			id: "diffTheme",
-			label: "Diff Theme",
-			description: "Shiki theme for diff syntax highlighting",
-			currentValue: config.diffTheme,
-		},
-		{
-			id: "diffSplitMinWidth",
-			label: "Split Min Width",
-			description: "Minimum terminal width for split diff view",
-			currentValue: String(config.diffSplitMinWidth),
-		},
-		{
-			id: "diffSplitMinCodeWidth",
-			label: "Split Min Code Width",
-			description: "Minimum code column width for split diff view",
-			currentValue: String(config.diffSplitMinCodeWidth),
-		},
-	];
+  const config = getConfig();
+  return [
+    {
+      id: "diffTheme",
+      label: "Diff Theme",
+      description: "Shiki theme for diff syntax highlighting",
+      currentValue: config.diffTheme,
+    },
+    {
+      id: "diffSplitMinWidth",
+      label: "Split Min Width",
+      description: "Minimum terminal width for split diff view",
+      currentValue: String(config.diffSplitMinWidth),
+    },
+    {
+      id: "diffSplitMinCodeWidth",
+      label: "Split Min Code Width",
+      description: "Minimum code column width for split diff view",
+      currentValue: String(config.diffSplitMinCodeWidth),
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -79,46 +79,46 @@ let _sdk: { createWriteTool: any; createEditTool: any } | null = null;
 let _TextComponent: any = null;
 
 try {
-	const [sdk, tui] = await Promise.all([
-		import("@earendil-works/pi-coding-agent"),
-		import("@earendil-works/pi-tui"),
-	]);
-	_sdk = {
-		createWriteTool: sdk.createWriteTool,
-		createEditTool: sdk.createEditTool,
-	};
-	_TextComponent = tui.Text;
+  const [sdk, tui] = await Promise.all([
+    import("@earendil-works/pi-coding-agent"),
+    import("@earendil-works/pi-tui"),
+  ]);
+  _sdk = {
+    createWriteTool: sdk.createWriteTool,
+    createEditTool: sdk.createEditTool,
+  };
+  _TextComponent = tui.Text;
 } catch (error) {
-	console.error(
-		`[diff] failed to load Pi SDK: ${error instanceof Error ? error.message : String(error)}`,
-	);
+  console.error(
+    `[diff] failed to load Pi SDK: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 export function registerDiffTools(
-	pi: ExtensionAPI,
-	_getTheme: () => Theme,
-	readConfig: () => DiffConfig,
+  pi: ExtensionAPI,
+  _getTheme: () => Theme,
+  readConfig: () => DiffConfig,
 ): void {
-	_readConfig = readConfig;
+  _readConfig = readConfig;
 
-	// Reset theme-derived colors so they are re-derived from the current theme
-	resetDiffColors();
+  // Reset theme-derived colors so they are re-derived from the current theme
+  resetDiffColors();
 
-	// Wire config getters into submodules
-	setShikiConfig(() => getConfig());
-	setRenderConfig(() => getConfig());
+  // Wire config getters into submodules
+  setShikiConfig(() => getConfig());
+  setRenderConfig(() => getConfig());
 
-	if (!_sdk?.createWriteTool || !_sdk?.createEditTool || !_TextComponent) {
-		console.warn("[diff] SDK not available, skipping diff tool registration");
-		return;
-	}
+  if (!_sdk?.createWriteTool || !_sdk?.createEditTool || !_TextComponent) {
+    console.warn("[diff] SDK not available, skipping diff tool registration");
+    return;
+  }
 
-	const cwd = process.cwd();
-	const home = process.env.HOME ?? "";
+  const cwd = process.cwd();
+  const home = process.env.HOME ?? "";
 
-	// Register write tool override
-	registerWriteTool(pi, cwd, home, _sdk.createWriteTool, _TextComponent);
+  // Register write tool override
+  registerWriteTool(pi, cwd, home, _sdk.createWriteTool, _TextComponent);
 
-	// Register edit tool override
-	registerEditTool(pi, cwd, home, _sdk.createEditTool);
+  // Register edit tool override
+  registerEditTool(pi, cwd, home, _sdk.createEditTool);
 }

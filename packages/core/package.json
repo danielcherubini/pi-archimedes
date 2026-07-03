@@ -26,6 +26,9 @@
   "devDependencies": {
     "typescript": "^6.0.0"
   },
+  "scripts": {
+    "test": "node --import tsx --test src/__tests__/*.test.ts"
+  },
   "pi": {
     "extensions": [
       "./src/index.ts"

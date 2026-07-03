@@ -40,125 +40,125 @@ import type { ParsedDiff } from "./core/diff.js";
  * ```
  */
 export class DiffComponent implements Component {
-	private diff: ParsedDiff;
-	private language: BundledLanguage | undefined;
-	private theme: Theme;
-	private maxLines: number;
+  private diff: ParsedDiff;
+  private language: BundledLanguage | undefined;
+  private theme: Theme;
+  private maxLines: number;
 
-	/** Box wrapper with base background — makes the diff self-contained. */
-	private shell: Box;
+  /** Box wrapper with base background — makes the diff self-contained. */
+  private shell: Box;
 
-	/** Pending render promise — reused across width changes. */
-	private _renderPromise: Promise<string[]> | null = null;
-	/** Resolved raw diff lines (without box wrapping). */
-	private _rawLines: string[] | null = null;
-	/** Width at which output was last computed. */
-	private _cachedWidth: number | undefined;
-	/** Final cached output (box-wrapped). */
-	private _cachedLines: string[] | undefined;
+  /** Pending render promise — reused across width changes. */
+  private _renderPromise: Promise<string[]> | null = null;
+  /** Resolved raw diff lines (without box wrapping). */
+  private _rawLines: string[] | null = null;
+  /** Width at which output was last computed. */
+  private _cachedWidth: number | undefined;
+  /** Final cached output (box-wrapped). */
+  private _cachedLines: string[] | undefined;
 
-	/** Theme cache key — invalidates derived colors on theme change. */
-	private _themeKey: string | undefined;
+  /** Theme cache key — invalidates derived colors on theme change. */
+  private _themeKey: string | undefined;
 
-	constructor(
-		diff: ParsedDiff,
-		language: BundledLanguage | undefined,
-		theme: Theme,
-		maxLines: number = MAX_RENDER_LINES,
-	) {
-		this.diff = diff;
-		this.language = language;
-		this.theme = theme;
-		this.maxLines = maxLines;
+  constructor(
+    diff: ParsedDiff,
+    language: BundledLanguage | undefined,
+    theme: Theme,
+    maxLines: number = MAX_RENDER_LINES,
+  ) {
+    this.diff = diff;
+    this.language = language;
+    this.theme = theme;
+    this.maxLines = maxLines;
 
-		// Box provides base background so the diff is self-contained.
-		// Background function is re-derived on each render via _deriveBg().
-		this.shell = new Box(0, 0, (s: string) => this._deriveBg().bgBase + s + this._deriveBg().rst);
-	}
+    // Box provides base background so the diff is self-contained.
+    // Background function is re-derived on each render via _deriveBg().
+    this.shell = new Box(0, 0, (s: string) => this._deriveBg().bgBase + s + this._deriveBg().rst);
+  }
 
-	/** Re-derive colors from the current theme — handles theme changes. */
-	private _deriveColors(): { dc: DiffColors; dbg: DiffBg } {
-		const themeKey = Ansi.themeCacheKey(this.theme);
-		if (themeKey === this._themeKey && this._cachedDc && this._cachedDbg) {
-			return { dc: this._cachedDc, dbg: this._cachedDbg };
-		}
-		this._themeKey = themeKey;
-		this._cachedDc = Ansi.resolveDiffColors(this.theme);
-		this._cachedDbg = deriveBgFromTheme(this.theme);
-		return { dc: this._cachedDc, dbg: this._cachedDbg };
-	}
+  /** Re-derive colors from the current theme — handles theme changes. */
+  private _deriveColors(): { dc: DiffColors; dbg: DiffBg } {
+    const themeKey = Ansi.themeCacheKey(this.theme);
+    if (themeKey === this._themeKey && this._cachedDc && this._cachedDbg) {
+      return { dc: this._cachedDc, dbg: this._cachedDbg };
+    }
+    this._themeKey = themeKey;
+    this._cachedDc = Ansi.resolveDiffColors(this.theme);
+    this._cachedDbg = deriveBgFromTheme(this.theme);
+    return { dc: this._cachedDc, dbg: this._cachedDbg };
+  }
 
-	private _cachedDc: DiffColors | undefined;
-	private _cachedDbg: DiffBg | undefined;
+  private _cachedDc: DiffColors | undefined;
+  private _cachedDbg: DiffBg | undefined;
 
-	private _deriveBg(): DiffBg {
-		return this._deriveColors().dbg;
-	}
+  private _deriveBg(): DiffBg {
+    return this._deriveColors().dbg;
+  }
 
-	render(width: number): string[] {
-		// Use cached output if width unchanged
-		if (this._cachedLines && this._cachedWidth === width) {
-			return this._cachedLines;
-		}
+  render(width: number): string[] {
+    // Use cached output if width unchanged
+    if (this._cachedLines && this._cachedWidth === width) {
+      return this._cachedLines;
+    }
 
-		// If we have resolved raw lines, wrap them in the box
-		if (this._rawLines) {
-			this._updateShell(this._rawLines);
-			const lines = this.shell.render(width);
-			this._cachedWidth = width;
-			this._cachedLines = lines;
-			return lines;
-		}
+    // If we have resolved raw lines, wrap them in the box
+    if (this._rawLines) {
+      this._updateShell(this._rawLines);
+      const lines = this.shell.render(width);
+      this._cachedWidth = width;
+      this._cachedLines = lines;
+      return lines;
+    }
 
-		// If we have a pending promise, we haven't resolved yet — show placeholder
-		if (this._renderPromise) {
-			this._updateShell([Ansi.FG_DIM + "  rendering diff…" + Ansi.RST]);
-			return this.shell.render(width);
-		}
+    // If we have a pending promise, we haven't resolved yet — show placeholder
+    if (this._renderPromise) {
+      this._updateShell([Ansi.FG_DIM + "  rendering diff…" + Ansi.RST]);
+      return this.shell.render(width);
+    }
 
-		// Start async render for this width
-		const { dc, dbg } = this._deriveColors();
-		const promise = renderSplitLines(
-			this.diff,
-			this.language,
-			width,
-			this.maxLines,
-			dc,
-			dbg,
-		);
-		this._renderPromise = promise;
+    // Start async render for this width
+    const { dc, dbg } = this._deriveColors();
+    const promise = renderSplitLines(
+      this.diff,
+      this.language,
+      width,
+      this.maxLines,
+      dc,
+      dbg,
+    );
+    this._renderPromise = promise;
 
-		// Store resolved lines
-		promise.then((lines) => {
-			this._rawLines = lines;
-			this._renderPromise = null;
-			this.invalidate();
-		}).catch(() => {
-			this._rawLines = [Ansi.FG_DIM + "  diff render failed" + Ansi.RST];
-			this._renderPromise = null;
-			this.invalidate();
-		});
+    // Store resolved lines
+    promise.then((lines) => {
+      this._rawLines = lines;
+      this._renderPromise = null;
+      this.invalidate();
+    }).catch(() => {
+      this._rawLines = [Ansi.FG_DIM + "  diff render failed" + Ansi.RST];
+      this._renderPromise = null;
+      this.invalidate();
+    });
 
-		// Show placeholder while waiting
-		this._updateShell([Ansi.FG_DIM + "  rendering diff…" + Ansi.RST]);
-		return this.shell.render(width);
-	}
+    // Show placeholder while waiting
+    this._updateShell([Ansi.FG_DIM + "  rendering diff…" + Ansi.RST]);
+    return this.shell.render(width);
+  }
 
-	private _updateShell(lines: string[]): void {
-		this.shell.clear();
-		// Join lines into a single text block; each line is a row.
-		const textComponent = new (class implements Component {
-			render(_w: number): string[] { return lines; }
-			invalidate(): void {}
-		})();
-		this.shell.addChild(textComponent);
-	}
+  private _updateShell(lines: string[]): void {
+    this.shell.clear();
+    // Join lines into a single text block; each line is a row.
+    const textComponent = new (class implements Component {
+      render(_w: number): string[] { return lines; }
+      invalidate(): void {}
+    })();
+    this.shell.addChild(textComponent);
+  }
 
-	invalidate(): void {
-		this._cachedWidth = undefined;
-		this._cachedLines = undefined;
-		this._themeKey = undefined; // Force re-derive on theme change
-		this._cachedDc = undefined;
-		this._cachedDbg = undefined;
-	}
+  invalidate(): void {
+    this._cachedWidth = undefined;
+    this._cachedLines = undefined;
+    this._themeKey = undefined; // Force re-derive on theme change
+    this._cachedDc = undefined;
+    this._cachedDbg = undefined;
+  }
 }
