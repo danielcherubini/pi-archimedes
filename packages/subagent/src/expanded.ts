@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult } from "./types.js";
-import { formatTokens, formatDuration, truncLine, buildStatsLine } from "./format.js";
+import { formatTokens, formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 
@@ -12,6 +12,9 @@ export function buildExpandedText(
   theme: Theme,
 ): string {
   const lines: string[] = [];
+
+  lines.push(buildAgentLabel(result.agent, result.task, theme));
+  lines.push("");
 
   // Stats line (same as compact view)
   const modelName = progress?.model ?? result.model;
@@ -85,6 +88,9 @@ export function renderProgressExpanded(
 ): Text {
   const lines: string[] = [];
 
+  lines.push(buildAgentLabel(progress.agent, progress.task, theme));
+  lines.push("");
+
   // Stats line (same as compact view)
   const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
   const statsLine = buildStatsLine({
@@ -157,6 +163,9 @@ export function buildProgressExpandedText(
   theme: Theme,
 ): string {
   const lines: string[] = [];
+
+  lines.push(buildAgentLabel(progress.agent, progress.task, theme));
+  lines.push("");
 
   // Stats line (same as compact view)
   const modelLabel = progress.model ? theme.fg("accent", progress.model) : "";
