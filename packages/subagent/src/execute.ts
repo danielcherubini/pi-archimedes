@@ -95,7 +95,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const durationMs = Date.now() - startTime;
-    return {
+    const result: SubagentResult = {
       agent: agentName,
       task: options.task,
       exitCode: 1,
@@ -135,6 +135,10 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       },
       progressSummary: { toolCount: 0, tokens: 0, durationMs },
     };
+    // Emit final failure progress so executeParallel's progress slot updates
+    // from the pending placeholder to "failed" (prevents stale "Starting..." display).
+    options.onUpdate?.(result.progress!);
+    return result;
   }
 }
 
