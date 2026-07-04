@@ -16,7 +16,7 @@ export interface ExecuteOptions {
 }
 
 /**
- * Execute a single subagent synchronously — blocks until completion.
+ * Execute a single subagent — waits for completion before resolving.
  */
 export async function executeSubagent(options: ExecuteOptions): Promise<SubagentResult> {
   const agentName = options.agent ?? "subagent";
