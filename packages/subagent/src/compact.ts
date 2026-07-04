@@ -90,6 +90,7 @@ export function renderCompactSingle(
   theme: Theme,
   context: RenderContext,
 ): Text {
+  // agentName sourced from result; defaults to "subagent"
   const agentName = result.agent ?? "subagent";
   const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
   const isRunning = progress?.status === "running";
@@ -209,6 +210,7 @@ export function renderCompactProgress(
   theme: Theme,
   context: RenderContext,
 ): Text {
+  // agentName sourced from progress; defaults to "subagent"
   const agentName = progress.agent ?? "subagent";
   const status = progress.status;
   const isRunning = status === "running";

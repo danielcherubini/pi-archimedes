@@ -58,6 +58,9 @@ export function buildStatsLine(
   return parts.map(p => theme.fg("dim", "· " + p)).join(" ");
 }
 
+// Build an agent label for display: "agentName: truncated task preview".
+// Truncation width of 60 keeps compact rows readable on standard terminal widths
+// while still showing meaningful task context.
 export function buildAgentLabel(
   agent: string,
   task: string | undefined,
