@@ -151,7 +151,7 @@ export function renderCompactParallel(
 ): Text {
   const lines = details.results.map((result, i) => {
     const progress = details.progress?.[i];
-    const agentName = result.agent ?? "agent-" + i;
+    const agentName = result.agent ?? "subagent";
     const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
     const isRunning = progress?.status === "running";
     // Prefer result.exitCode as the source of truth for completion status
@@ -271,7 +271,7 @@ export function renderCompactParallelProgress(
   context: RenderContext,
 ): Text {
   const lines = (details.progress ?? []).map((progress, i) => {
-    const agentName = progress.agent ?? "agent-" + i;
+    const agentName = progress.agent ?? "subagent";
     const status = progress.status;
     const isRunning = status === "running";
 
