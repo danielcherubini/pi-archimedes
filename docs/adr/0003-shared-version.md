@@ -1,0 +1,3 @@
+# Shared version across all 9 packages
+
+All 9 packages (`core`, `ask`, `footer`, `diff`, `image-paste`, `notify`, `subagent`, `todo`, `meta`) share a single semver version bumped together on every release. This was chosen because the packages are tightly coupled to a single pi API surface and released atomically via a GitHub Actions workflow triggered by git tag. Independent versioning was considered but rejected: the packages are not consumed independently in practice (most users install the meta package), and independent versions would add changelog coordination overhead without real benefit. The consequence is that every release touches 9 `package.json` files, and the release workflow publishes all 9 in dependency order.

@@ -1,0 +1,3 @@
+# Ask/Notify decoupled via bus events
+
+The `ask` package emits `ASK_REQUEST` on the bus when a structured question is dispatched. The `notify` package listens for `ASK_REQUEST` and schedules a delayed desktop notification. Notify is optional — ask works correctly without it installed. This was chosen after an initial tight coupling where ask imported notify directly, which caused circular dependency issues and made notify a hard requirement. The bus event pattern lets each package evolve independently: ask doesn't know notify exists, and notify can be installed/uninstalled without affecting ask. The trade-off is that the coupling is implicit (discoverable only by reading bus event names) rather than explicit in imports.

@@ -1,0 +1,3 @@
+# No build step — jiti runtime loader
+
+All packages ship `.ts` source files directly (`"files": ["src"]`) with `"type": "module"` and `.ts` entry points. Pi's jiti loader handles TypeScript compilation at runtime. There is no build step, no `dist/` directory, and no bundler. Verification is `npx tsc --noEmit` only. This was chosen because pi extensions are loaded dynamically at runtime — a build step would add friction to local development (symlink → rebuild → reload) without meaningful benefit, since pi already runs a TS loader. The trade-off is that type errors are caught at dev-time via `tsc --noEmit` rather than at build-time, and runtime performance pays a small jiti compilation cost on first load.

@@ -1,0 +1,3 @@
+# pnpm workspaces over npm workspaces
+
+The monorepo uses pnpm workspaces (not npm workspaces) because pnpm's `workspace:*` protocol is strict — it refuses to resolve workspace dependencies through the registry, preventing accidental publication of packages with unresolved `workspace:` protocols. This was learned the hard way: `todo@1.2.0` was published via `npm publish` directly, which did not rewrite `workspace:*` to real versions, leaking the protocol spec into the published tarball and breaking `pi install` with `Unsupported URL Type "workspace"`. npm workspaces would have allowed the same mistake silently. All publishing must go through `pnpm publish` (or the release workflow), which rewrites `workspace:*` to real versions.

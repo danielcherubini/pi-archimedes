@@ -1,0 +1,3 @@
+# Barrel files dissolved into text.ts and color.ts
+
+The `utils/index.ts` barrel file was eliminated — its exports were split into `text.ts` (string manipulation: `clampLine`, `stripAnsi`, `formatKey`) and `color.ts` (ANSI color helpers: `gray`, `rgb`, `extractRgb`, `lerp`). Cross-package imports must target the specific file (`@pi-archimedes/core/text` or `@pi-archimedes/core/color`), never a barrel. Within a package, relative imports are required. This was chosen because barrel files hide dependencies (importers don't see which specific module is used), complicate tree-shaking, and caused confusion during the monorepo split when utils were split across packages. The convention is enforced in AGENTS.md: "Never import `../utils/...`."
