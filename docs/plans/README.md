@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
 | [Fix Core Bus Bug and Standardize Ask Package](plans/2026-07-03-fix-core-and-ask.md) | ✅ COMPLETED | 2026-07-03 |
 | Diff wide-character width overflow fix (PR #14) | ✅ COMPLETED (PR #14) | 2026-07-03 |
 | [Notify package](plans/2026-06-28-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
@@ -17,9 +18,7 @@
 ## In Progress
 
 | Plan | Status | Created |
-| [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | 🚧 IN PROGRESS | 2026-07-04 |
-
 ## Quick Stats
 
 - Total Plans: 11
-- Completed: 10
+- Completed: 11
