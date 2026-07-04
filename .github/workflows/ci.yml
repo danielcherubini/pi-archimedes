@@ -26,3 +26,6 @@ jobs:
 
       - name: Type-check all packages
         run: pnpm -r exec -- tsc --noEmit
+
+      - name: Test
+        run: pnpm test
