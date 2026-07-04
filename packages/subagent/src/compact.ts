@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
-import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine } from "./format.js";
+import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
@@ -39,7 +39,7 @@ export function buildActivityLine(
   if (data.currentTool) {
     const arrow = theme.fg("muted", "↳ ");
     const argsPreview = data.currentToolArgs
-      ? truncLine(data.currentToolArgs ?? "", 60)
+      ? truncLine(data.currentToolArgs, 60)
       : "";
     const durationPart = data.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - data.currentToolStartedAt)
@@ -90,6 +90,7 @@ export function renderCompactSingle(
   theme: Theme,
   context: RenderContext,
 ): Text {
+  // agentName sourced from result; defaults to "subagent"
   const agentName = result.agent ?? "subagent";
   const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
   const isRunning = progress?.status === "running";
@@ -133,7 +134,8 @@ export function renderCompactSingle(
     ? theme.fg("accent", modelName)
     : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  const agentLabel = buildAgentLabel(agentName, result.task, theme);
+  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -150,7 +152,7 @@ export function renderCompactParallel(
 ): Text {
   const lines = details.results.map((result, i) => {
     const progress = details.progress?.[i];
-    const agentName = result.agent ?? "agent-" + i;
+    const agentName = result.agent ?? "subagent";
     const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
     const isRunning = progress?.status === "running";
     // Prefer result.exitCode as the source of truth for completion status
@@ -189,7 +191,7 @@ export function renderCompactParallel(
     };
     const activityLine = buildActivityLine(activityData, theme);
 
-    let line = `${glyphColored} ${agentName}${statsPart}`;
+    let line = `${glyphColored} ${buildAgentLabel(agentName, result.task, theme)}${statsPart}`;
     if (activityLine) {
       line += "\n" + activityLine;
     }
@@ -208,6 +210,7 @@ export function renderCompactProgress(
   theme: Theme,
   context: RenderContext,
 ): Text {
+  // agentName sourced from progress; defaults to "subagent"
   const agentName = progress.agent ?? "subagent";
   const status = progress.status;
   const isRunning = status === "running";
@@ -253,7 +256,8 @@ export function renderCompactProgress(
     : "";
   const statsPart = statsLine;
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  const agentLabel = buildAgentLabel(agentName, progress.task, theme);
+  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -269,7 +273,7 @@ export function renderCompactParallelProgress(
   context: RenderContext,
 ): Text {
   const lines = (details.progress ?? []).map((progress, i) => {
-    const agentName = progress.agent ?? "agent-" + i;
+    const agentName = progress.agent ?? "subagent";
     const status = progress.status;
     const isRunning = status === "running";
 
@@ -301,7 +305,7 @@ export function renderCompactParallelProgress(
     };
     const activityLine = buildActivityLine(activityData, theme);
 
-    let line = `${glyphColored} ${agentName}${statsPart}`;
+    let line = `${glyphColored} ${buildAgentLabel(agentName, progress.task, theme)}${statsPart}`;
     if (activityLine) {
       line += "\n" + activityLine;
     }

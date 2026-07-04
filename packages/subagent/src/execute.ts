@@ -16,7 +16,7 @@ export interface ExecuteOptions {
 }
 
 /**
- * Execute a single subagent synchronously — blocks until completion.
+ * Execute a single subagent — waits for completion before resolving.
  */
 export async function executeSubagent(options: ExecuteOptions): Promise<SubagentResult> {
   const agentName = options.agent ?? "subagent";
@@ -95,7 +95,7 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const durationMs = Date.now() - startTime;
-    return {
+    const result: SubagentResult = {
       agent: agentName,
       task: options.task,
       exitCode: 1,
@@ -135,6 +135,10 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       },
       progressSummary: { toolCount: 0, tokens: 0, durationMs },
     };
+    // Emit final failure progress so executeParallel's progress slot updates
+    // from the pending placeholder to "failed" (prevents stale "Starting..." display).
+    options.onUpdate?.(result.progress!);
+    return result;
   }
 }
 
@@ -146,19 +150,41 @@ export async function executeParallel(options: {
   signal: AbortSignal | undefined;
   onUpdate: ((progress: SubagentProgress[]) => void) | undefined;
 }): Promise<SubagentResult[]> {
-  // Collect latest progress per agent for aggregated reporting
-  const latestProgress = new Map<string, SubagentProgress>();
+  // Pre-fill one pending slot per task, keyed by task index (NOT agent name).
+  // This keeps all N lines stacked from t=0 in stable task order, with no
+  // collisions when multiple subagents share an agent name (e.g. 8 x "general").
+  const latestProgress: SubagentProgress[] = options.tasks.map((taskDef) => ({
+    agent: taskDef.agent ?? "subagent",
+    status: "running" as const,
+    task: taskDef.task,
+    currentTool: undefined,
+    currentToolArgs: undefined,
+    currentToolStartedAt: undefined,
+    toolCount: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    tokens: 0,
+    cost: 0,
+    durationMs: 0,
+    error: undefined,
+    output: undefined,
+    recentOutput: undefined,
+    toolCalls: undefined,
+    // Match the model executeSubagent will report for this task, so the
+    // pending placeholder's model label matches the streaming label exactly.
+    model: taskDef.model,
+  }));
 
   const results = await Promise.all(
-    options.tasks.map((taskDef) =>
+    options.tasks.map((taskDef, index) =>
       executeSubagent({
         ...taskDef,
         signal: options.signal,
         onUpdate: (progress: SubagentProgress) => {
-          // Store latest progress keyed by agent name
-          latestProgress.set(progress.agent, progress);
-          // Emit aggregated progress across ALL agents
-          options.onUpdate?.([...latestProgress.values()]);
+          // Store latest progress in this task's stable slot (by index).
+          latestProgress[index] = progress;
+          // Emit all N entries in stable task order.
+          options.onUpdate?.([...latestProgress]);
         },
       }),
     ),

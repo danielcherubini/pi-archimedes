@@ -1,5 +1,3 @@
-import { clampLine } from "@pi-archimedes/core/text";
-
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return Math.round(n / 1_000) + "k";
@@ -22,8 +20,17 @@ export function formatCost(cost: number): string {
   return "$" + cost.toFixed(2);
 }
 
-export function truncLine(text: string, width: number): string {
-  return clampLine(text, width);
+/**
+ * Truncate plain text to a max character length, appending "..." if truncated.
+ *
+ * Unlike truncateToWidth from pi-tui, this does not handle wide characters or
+ * measure ANSI display width. The benefit: the "..." is plain text so it
+ * inherits any ANSI color wrapper applied around the result (pi-tui's
+ * truncateToWidth appends "..." after closing color codes, leaving it unstyled).
+ */
+export function truncLine(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen - 3) + "...";
 }
 
 export interface StatsData {
@@ -56,4 +63,19 @@ export function buildStatsLine(
   if (cost > 0) parts.push(formatCost(cost));
 
   return parts.map(p => theme.fg("dim", "· " + p)).join(" ");
+}
+
+// Build an agent label for display: "agentName: truncated task preview".
+// Truncation width of 60 keeps compact rows readable on standard terminal widths
+// while still showing meaningful task context.
+export function buildAgentLabel(
+  agent: string,
+  task: string | undefined,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+): string {
+  const name = theme.bold(agent);
+  if (task) {
+    return name + theme.fg("dim", ": " + truncLine(task, 60));
+  }
+  return name;
 }
