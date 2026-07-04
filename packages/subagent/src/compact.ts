@@ -39,7 +39,7 @@ export function buildActivityLine(
   if (data.currentTool) {
     const arrow = theme.fg("muted", "↳ ");
     const argsPreview = data.currentToolArgs
-      ? truncLine(data.currentToolArgs ?? "", 60)
+      ? truncLine(data.currentToolArgs, 60)
       : "";
     const durationPart = data.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - data.currentToolStartedAt)
