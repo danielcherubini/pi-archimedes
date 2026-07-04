@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
-import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine } from "./format.js";
+import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
@@ -133,7 +133,8 @@ export function renderCompactSingle(
     ? theme.fg("accent", modelName)
     : "";
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  const agentLabel = buildAgentLabel(agentName, result.task, theme);
+  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -189,7 +190,7 @@ export function renderCompactParallel(
     };
     const activityLine = buildActivityLine(activityData, theme);
 
-    let line = `${glyphColored} ${agentName}${statsPart}`;
+    let line = `${glyphColored} ${buildAgentLabel(agentName, result.task, theme)}${statsPart}`;
     if (activityLine) {
       line += "\n" + activityLine;
     }
@@ -253,7 +254,8 @@ export function renderCompactProgress(
     : "";
   const statsPart = statsLine;
   const expandHint = theme.fg("muted", "(ctrl+o)");
-  let output = [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  const agentLabel = buildAgentLabel(agentName, progress.task, theme);
+  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -301,7 +303,7 @@ export function renderCompactParallelProgress(
     };
     const activityLine = buildActivityLine(activityData, theme);
 
-    let line = `${glyphColored} ${agentName}${statsPart}`;
+    let line = `${glyphColored} ${buildAgentLabel(agentName, progress.task, theme)}${statsPart}`;
     if (activityLine) {
       line += "\n" + activityLine;
     }

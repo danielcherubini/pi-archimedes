@@ -57,3 +57,15 @@ export function buildStatsLine(
 
   return parts.map(p => theme.fg("dim", "· " + p)).join(" ");
 }
+
+export function buildAgentLabel(
+  agent: string,
+  task: string | undefined,
+  theme: { fg: (token: string, text: string) => string; bold: (text: string) => string },
+): string {
+  const name = theme.bold(agent);
+  if (task) {
+    return name + theme.fg("dim", ": " + truncLine(task, 60));
+  }
+  return name;
+}
