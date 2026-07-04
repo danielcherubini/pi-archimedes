@@ -16,9 +16,10 @@
 
 ## In Progress
 
-_None_
+| Plan | Status | Created |
+| [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | 🚧 IN PROGRESS | 2026-07-04 |
 
 ## Quick Stats
 
-- Total Plans: 10
+- Total Plans: 11
 - Completed: 10
