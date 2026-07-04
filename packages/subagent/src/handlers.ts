@@ -15,14 +15,17 @@ export interface JsonEvent {
  * Generic: no hardcoded tool names.
  */
 export function extractArgsPreview(args: unknown): string {
-  if (typeof args === "string") return args.slice(0, ARGS_PREVIEW_MAX);
+  if (typeof args === "string") {
+    // Replace newlines so previews stay single-line
+    return args.replace(/\n/g, " ").slice(0, ARGS_PREVIEW_MAX);
+  }
   if (args && typeof args === "object" && !Array.isArray(args)) {
     const obj = args as Record<string, unknown>;
     const keys = Object.keys(obj);
     // Single-key object: show the value directly (or serialize if complex)
     if (keys.length === 1) {
       const v = obj[keys[0]!];
-      if (typeof v === "string") return v.slice(0, ARGS_PREVIEW_MAX);
+      if (typeof v === "string") return v.replace(/\n/g, " ").slice(0, ARGS_PREVIEW_MAX);
       if (typeof v === "number" || typeof v === "boolean") return String(v);
       // Complex value (array/nested object) — serialize just this value
       const serialized = JSON.stringify(v);
@@ -35,7 +38,7 @@ export function extractArgsPreview(args: unknown): string {
         best = v;
       }
     }
-    if (best) return best.slice(0, ARGS_PREVIEW_MAX);
+    if (best) return best.replace(/\n/g, " ").slice(0, ARGS_PREVIEW_MAX);
   }
   const serialized = JSON.stringify(args);
   return serialized?.slice(0, ARGS_PREVIEW_MAX) ?? "";

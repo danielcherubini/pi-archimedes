@@ -27,8 +27,16 @@ export function formatCost(cost: number): string {
  * measure ANSI display width. The benefit: the "..." is plain text so it
  * inherits any ANSI color wrapper applied around the result (pi-tui's
  * truncateToWidth appends "..." after closing color codes, leaving it unstyled).
+ *
+ * If the text contains newlines, truncates at the first newline boundary
+ * rather than bleeding into the next line.
  */
 export function truncLine(text: string, maxLen: number): string {
+  // Check for newline first — it's a hard boundary regardless of length
+  const nlIdx = text.indexOf("\n");
+  if (nlIdx !== -1) {
+    return text.slice(0, nlIdx).slice(0, maxLen - 3) + "...";
+  }
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen - 3) + "...";
 }
