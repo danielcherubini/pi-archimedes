@@ -18,7 +18,9 @@
 ## In Progress
 
 | Plan | Status | Created |
+| [Add Tests](plans/2026-07-05-add-tests.md) | 🚧 IN PROGRESS | 2026-07-05 |
+
 ## Quick Stats
 
-- Total Plans: 11
+- Total Plans: 12
 - Completed: 11
