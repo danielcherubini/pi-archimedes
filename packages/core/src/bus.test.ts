@@ -89,27 +89,55 @@ describe("late subscriber queue", () => {
 // ── initBus ─────────────────────────────────────────────────────────────────
 
 describe("initBus", () => {
-  it("flushes queued events", () => {
-    // Emit before bus exists — queues event
+  it("flushes queued events to subscribers that registered before init", () => {
+    // Emit before any subscriber exists — queues the event
     const bus = getBus();
-    bus.emit("init:event", "queued-before-init");
+    bus.emit("init:test", "queued-value");
 
-    // Create a new subscriber after init
-    // First, reset to simulate fresh start
-    delete (globalThis as Record<symbol, unknown>)[BUS_KEY];
-    delete (globalThis as Record<symbol, unknown>)[QUEUE_KEY];
-
-    // Emit before init — this queues
-    const preBus = getBus();
-    preBus.emit("init:event2", "queued");
-
-    // Now subscribe and init
+    // Subscribe — on() drains queue and delivers
     const received: unknown[] = [];
-    const freshBus = getBus();
-    freshBus.on("init:event2", (p) => received.push(p));
+    bus.on("init:test", (p) => received.push(p));
+    expect(received).toEqual(["queued-value"]);
+  });
 
-    // The event should be delivered when subscribing (queue drain on on())
+  it("initBus re-emits queued events through the bus", () => {
+    // Emit with no subscriber — queues
+    const bus = getBus();
+    bus.emit("init:test2", "queued");
+
+    // initBus re-emits through the bus
+    initBus();
+
+    // Since no subscriber for test2, re-emit goes back to queue.
+    // Now subscribe — on() drains the re-queued event
+    const received: unknown[] = [];
+    bus.on("init:test2", (p) => received.push(p));
     expect(received).toEqual(["queued"]);
+  });
+
+  it("initBus snapshots and clears queue before iterating", () => {
+    // Emit with no subscriber — queues
+    const bus = getBus();
+    bus.emit("snapshot:test", "a");
+    bus.emit("snapshot:test", "b");
+
+    // Subscribe — on() drains queue and delivers (but queue array persists)
+    const received: unknown[] = [];
+    bus.on("snapshot:test", (p) => received.push(p));
+    expect(received).toEqual(["a", "b"]);
+
+    // Queue array still has items (on() delivers but doesn't remove)
+    const queueBefore = (globalThis as Record<symbol, unknown>)[QUEUE_KEY] as Array<unknown>;
+    expect(queueBefore.length).toBe(2);
+
+    // initBus snapshots, clears queue, and re-emits
+    initBus();
+    // Re-emits go to existing subscriber (not re-queued)
+    expect(received).toEqual(["a", "b", "a", "b"]);
+
+    // Queue is now empty (initBus cleared it)
+    const queueAfter = (globalThis as Record<symbol, unknown>)[QUEUE_KEY] as Array<unknown>;
+    expect(queueAfter.length).toBe(0);
   });
 });
 
