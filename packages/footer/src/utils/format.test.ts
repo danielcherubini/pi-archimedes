@@ -53,8 +53,11 @@ describe("formatContextBar", () => {
     expect(result).not.toBe("");
     // Should contain the context window icon and "0%"
     expect(result).toContain("0%");
-    // Should contain empty segments (━) but no filled segments
+    // Should contain bar segments (━) — all empty, no filled portion
     expect(result).toContain("━━━");
+    // Must NOT contain higher percentage labels (50%, 100%, etc.)
+    expect(result).not.toContain("50%");
+    expect(result).not.toContain("100%");
   });
 
   it("50% produces half-filled bar", () => {
