@@ -208,14 +208,27 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   // The task is the final positional argument
   args.push(options.task);
 
-  const child = spawn(piBinary, args, {
-    cwd: options.cwd || process.cwd(),
-    env: {
-      ...process.env,
-      PI_SUBAGENT_SOCKET: socketPath,
+  // On Windows, spawn `node <resolved-js-path>` instead of the raw binary.
+  // The resolved path is a .js file which cannot be spawned directly on Windows.
+  // Using process.execPath avoids shell: true (no escaping risks, kill() works).
+  const isWindowsResolved = process.platform === "win32" && piBinary !== "pi";
+
+  const child = spawn(
+    isWindowsResolved ? process.execPath : piBinary,
+    [
+      ...(isWindowsResolved ? [piBinary] : []),
+      ...args,
+    ],
+    {
+      cwd: options.cwd || process.cwd(),
+      env: {
+        ...process.env,
+        PI_SUBAGENT_SOCKET: socketPath,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
 
   // Clean up socket server when child exits
   child.on("exit", cleanupSocket);
