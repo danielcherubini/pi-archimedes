@@ -9,7 +9,7 @@
 ### Task 1: Fix Windows subagent spawn (`spawn EFTYPE` / `EINVAL`)
 
 **Context:**
-The `@pi-archimedes/subagent` package fails to spawn subagents on Windows because `resolvePiBinary()` resolves to a `.js` file (`dist/cli.js`), which `child_process.spawn()` cannot execute directly on Windows (`.js` is not a recognized executable). The fix uses `process.execPath` (the running Node binary) to spawn the resolved JS entry as `node <path>`, avoiding shell invocation entirely. This means no `shell: true`, no shell escaping risks, and `child.kill()` works directly on the node process. The fallback case (`piBinary === "pi"`) is left unchanged — on Windows it remains best-effort and may still fail if resolution falls back, since invoking a PATH-resolved shim requires shell support."pi.cmd"` on Windows and enables `shell: true` so `cmd.exe` properly handles the `.cmd` file. Also adds `windowsHide: true` to prevent a console window flash.
+The `@pi-archimedes/subagent` package fails to spawn subagents on Windows because `resolvePiBinary()` resolves to a `.js` file (`dist/cli.js`), which `child_process.spawn()` cannot execute directly on Windows (`.js` is not a recognized executable). The fix uses `process.execPath` (the running Node binary) to spawn the resolved JS entry as `node <path>`, avoiding shell invocation entirely. This means no `shell: true`, no shell escaping risks, and `child.kill()` works directly on the node process. Also adds `windowsHide: true` to prevent a console window flash. The fallback case (`piBinary === "pi"`) is left unchanged — on Windows it remains best-effort and may still fail if resolution falls back, since invoking a PATH-resolved shim requires shell support.
 
 **Files:**
 - Modify: `packages/subagent/src/spawn.ts`
