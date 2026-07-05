@@ -240,7 +240,8 @@ export function formatColumns(sections: RenderSection[], theme: Theme, maxW: num
       const currentW = visibleWidth(currentLine);
 
       if (currentLine && currentW + 2 + itemW > availableW) {
-        lines.push(firstLine ? `${paddedHeader} ${currentStyled}` : " ".repeat(headerW + 1) + currentStyled);
+        const rawLine = firstLine ? `${paddedHeader} ${currentStyled}` : " ".repeat(headerW + 1) + currentStyled;
+        lines.push(clampLine(rawLine, maxW));
         currentLine = item;
         currentStyled = styleItem(item);
         firstLine = false;
