@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| [Fix Windows Spawn and Terminal Clamping](plans/2026-07-05-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
 | [Add Tests](plans/2026-07-05-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
 | [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
 | [Fix Core Bus Bug and Standardize Ask Package](plans/2026-07-03-fix-core-and-ask.md) | ✅ COMPLETED | 2026-07-03 |
@@ -18,9 +19,9 @@
 
 ## In Progress
 
-| Plan | Status | Created |
+| Plan | Status | Created | |
 
 ## Quick Stats
 
-- Total Plans: 12
-- Completed: 12
+- Total Plans: 13
+- Completed: 13
