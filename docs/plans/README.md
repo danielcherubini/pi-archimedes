@@ -19,8 +19,9 @@
 ## In Progress
 
 | Plan | Status | Created |
+| [Fix Windows Spawn and Terminal Clamping](plans/2026-07-05-fix-windows-spawn-and-terminal-clamp.md) | 🚧 IN PROGRESS | 2026-07-05 | |
 
 ## Quick Stats
 
-- Total Plans: 12
+- Total Plans: 13
 - Completed: 12
