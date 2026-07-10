@@ -19,9 +19,11 @@
 
 ## In Progress
 
-| Plan | Status | Created | |
+| Plan | Status | Created |
+|---|---|---|
+| [Ask RPC fallback](2026-07-10-ask-rpc-fallback.md) | 🚧 IN PROGRESS | 2026-07-10 |
 
 ## Quick Stats
 
-- Total Plans: 13
+- Total Plans: 14
 - Completed: 13
