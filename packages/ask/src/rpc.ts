@@ -50,6 +50,11 @@ async function askMulti(ui: ExtensionUIContext, question: AskQuestion): Promise<
 		}
 		const index = choices.indexOf(choice) - (selected.size > 0 ? 1 : 0);
 		if (index < 0 || index >= labels.length) continue;
+		if (selected.has(index)) {
+			selected.delete(index);
+			notes[index] = "";
+			continue;
+		}
 		if (index === otherIndex) {
 			const custom = await ui.input(question.question, "Type your answer");
 			if (custom?.trim()) {
@@ -58,8 +63,7 @@ async function askMulti(ui: ExtensionUIContext, question: AskQuestion): Promise<
 			}
 			continue;
 		}
-		if (selected.has(index)) selected.delete(index);
-		else selected.add(index);
+		selected.add(index);
 	}
 }
 

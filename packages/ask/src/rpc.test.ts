@@ -67,6 +67,28 @@ describe("askQuestionsWithRpcUi", () => {
 		});
 	});
 
+	it("toggles a checked RPC multi-select option off", async () => {
+		const multi = { ...single, multi: true };
+		const { ui } = fakeUi(["☐ Minimal (Recommended)", "☑ Minimal (Recommended)", "☐ Broad", "✓ Done"]);
+		await expect(askQuestionsWithRpcUi(ui, [multi])).resolves.toEqual({
+			cancelled: false,
+			selections: [{ selectedOptions: ["Broad"] }],
+		});
+	});
+
+	it("toggles checked Other off without prompting again", async () => {
+		const multi = { ...single, multi: true };
+		const { ui, inputCalls } = fakeUi(
+			["☐ Other (type your own)", "☑ Other (type your own)", "☐ Broad", "✓ Done"],
+			["Custom"],
+		);
+		await expect(askQuestionsWithRpcUi(ui, [multi])).resolves.toEqual({
+			cancelled: false,
+			selections: [{ selectedOptions: ["Broad"] }],
+		});
+		expect(inputCalls).toHaveLength(1);
+	});
+
 	it("collects Other text during RPC multi-select", async () => {
 		const multi = { ...single, multi: true };
 		const { ui } = fakeUi(["☐ Other (type your own)", "✓ Done"], ["Custom"]);
