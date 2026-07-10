@@ -3,6 +3,8 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+|---|---|---|
+| [Ask RPC fallback](2026-07-10-ask-rpc-fallback.md) | ✅ COMPLETED | 2026-07-10 |
 | [Fix Windows Spawn and Terminal Clamping](plans/2026-07-05-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
 | [Add Tests](plans/2026-07-05-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
 | [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
@@ -21,9 +23,8 @@
 
 | Plan | Status | Created |
 |---|---|---|
-| [Ask RPC fallback](2026-07-10-ask-rpc-fallback.md) | 🚧 IN PROGRESS | 2026-07-10 |
 
 ## Quick Stats
 
 - Total Plans: 14
-- Completed: 13
+- Completed: 14

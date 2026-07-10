@@ -19,6 +19,12 @@ pi install @pi-archimedes/ask
 
 ![ask from a subagent](../../docs/images/ask-subagent.png)
 
+## RPC clients
+
+In Pi RPC mode, `ask` uses Pi's standard extension UI protocol so embedding clients can render native question controls. Single-choice questions use `select`, custom answers use `input`, multiple questions are shown sequentially, and multi-select questions use a toggle-and-Done flow.
+
+Interactive terminal sessions keep the richer tabbed interface with inline note editing. RPC mode does not provide the custom terminal component API, so ordinary-option inline notes are not available there.
+
 ## Dependencies
 
 Depends on [`@pi-archimedes/core`](../core) for the shared event bus used to relay subagent questions.

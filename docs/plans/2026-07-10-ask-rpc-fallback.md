@@ -32,7 +32,7 @@
 - Produces: `askQuestionsWithRpcUi(ui, questions): Promise<{ cancelled: boolean; selections: AskSelection[] }>`.
 - Preserves: the existing `ask` tool schema and `buildAskSessionContent()` result format.
 
-- [ ] **Step 1: Write failing RPC fallback tests**
+- [x] **Step 1: Write failing RPC fallback tests**
 
 Create `packages/ask/src/rpc.test.ts` with a queue-backed fake UI and these durable cases:
 
@@ -115,7 +115,7 @@ describe("askQuestionsWithRpcUi", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm the missing-module failure**
+- [x] **Step 2: Run the focused test and confirm the missing-module failure**
 
 Run:
 
@@ -126,7 +126,7 @@ corepack pnpm exec vitest run src/rpc.test.ts
 
 Expected: FAIL because `./rpc.js` does not exist.
 
-- [ ] **Step 3: Implement the minimal RPC flow**
+- [x] **Step 3: Implement the minimal RPC flow**
 
 Create `packages/ask/src/rpc.ts` with:
 
@@ -215,7 +215,7 @@ export async function askQuestionsWithRpcUi(
 
 If the exact `ExtensionUIContext.select()` option type in the installed Pi peer rejects `string[]`, retain the same behavior while using the repository's accepted option type; do not widen with `any`.
 
-- [ ] **Step 4: Route only RPC contexts through the fallback**
+- [x] **Step 4: Route only RPC contexts through the fallback**
 
 In `packages/ask/src/index.ts`:
 
@@ -248,7 +248,7 @@ async function collectSelections(
 }
 ```
 
-- [ ] **Step 5: Run focused tests and type-check the package**
+- [x] **Step 5: Run focused tests and type-check the package**
 
 Run independently:
 
@@ -260,7 +260,7 @@ npx tsc --noEmit
 
 Expected: 5 tests pass; TypeScript exits 0.
 
-- [ ] **Step 6: Run the full JavaScript test suite**
+- [x] **Step 6: Run the full JavaScript test suite**
 
 Run from the repository root:
 
@@ -270,7 +270,7 @@ corepack pnpm test
 
 Expected: all existing 180 tests plus the new RPC tests pass.
 
-- [ ] **Step 7: Commit the implementation**
+- [x] **Step 7: Commit the implementation**
 
 ```bash
 git add packages/ask/src/index.ts packages/ask/src/rpc.ts packages/ask/src/rpc.test.ts
@@ -290,7 +290,7 @@ git commit -m "fix: support ask prompts in RPC clients"
 - Consumes: the RPC behavior delivered by Task 1.
 - Produces: user-facing compatibility documentation and a reviewable pull request.
 
-- [ ] **Step 1: Document RPC behavior and limitations**
+- [x] **Step 1: Document RPC behavior and limitations**
 
 Add a `## RPC clients` section to `packages/ask/README.md`:
 
@@ -302,7 +302,7 @@ In Pi RPC mode, `ask` uses Pi's standard extension UI protocol so embedding clie
 Interactive terminal sessions keep the richer tabbed interface with inline note editing. RPC mode does not provide the custom terminal component API, so ordinary-option inline notes are not available there.
 ```
 
-- [ ] **Step 2: Verify docs and final diff**
+- [x] **Step 2: Verify docs and final diff**
 
 Run:
 
@@ -314,18 +314,18 @@ git status --short
 
 Expected: no whitespace errors; only ask implementation/tests/docs and plan tracking files are changed.
 
-- [ ] **Step 3: Mark the plan complete**
+- [x] **Step 3: Mark the plan complete**
 
 Move the plan's row in `docs/plans/README.md` from In Progress to Completed, update its status to `✅ COMPLETED`, and check every completed checkbox in this plan.
 
-- [ ] **Step 4: Commit documentation**
+- [x] **Step 4: Commit documentation**
 
 ```bash
 git add packages/ask/README.md docs/plans/README.md docs/plans/2026-07-10-ask-rpc-fallback.md
 git commit -m "docs: describe ask RPC fallback"
 ```
 
-- [ ] **Step 5: Push and open the upstream PR**
+- [x] **Step 5: Push and open the upstream PR**
 
 ```bash
 git push -u origin fix/ask-rpc-fallback
