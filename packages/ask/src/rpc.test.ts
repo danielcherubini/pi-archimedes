@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ExtensionUIContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { registerAsk } from "./index.js";
 import { askQuestionsWithRpcUi } from "./rpc.js";
 import { hasAnsweredSelections, type AskQuestion } from "./selection.js";
 
 function fakeUi(selectAnswers: Array<string | undefined>, inputAnswers: Array<string | undefined> = []) {
 	const selectCalls: Array<{ title: string; options: string[] }> = [];
 	const inputCalls: Array<{ title: string; placeholder?: string }> = [];
+	let customCalls = 0;
 	const ui = {
 		async select(title: string, options: string[]) {
 			selectCalls.push({ title, options });
@@ -18,10 +20,11 @@ function fakeUi(selectAnswers: Array<string | undefined>, inputAnswers: Array<st
 			return inputAnswers.shift();
 		},
 		async custom() {
+			customCalls += 1;
 			throw new Error("RPC fallback must not call custom()");
 		},
 	} as unknown as ExtensionUIContext;
-	return { ui, selectCalls, inputCalls };
+	return { ui, selectCalls, inputCalls, get customCalls() { return customCalls; } };
 }
 
 const single: AskQuestion = {
@@ -31,6 +34,39 @@ const single: AskQuestion = {
 	options: [{ label: "Minimal" }, { label: "Broad" }],
 	recommended: 0,
 };
+
+describe("registered ask tool RPC routing", () => {
+	it("uses native select and input without calling custom UI in RPC mode", async () => {
+		let askTool: ToolDefinition<any, any, any> | undefined;
+		const pi = {
+			on() {},
+			registerTool(tool: ToolDefinition<any, any, any>) {
+				askTool = tool;
+			},
+		};
+		registerAsk(pi as unknown as ExtensionAPI);
+
+		const fake = fakeUi(["Other (type your own)"], ["Use the RPC-native path"]);
+		const rpcCtx = { mode: "rpc" as const, hasUI: true, ui: fake.ui } satisfies Pick<ExtensionContext, "mode" | "hasUI" | "ui">;
+
+		const result = await askTool?.execute(
+			"tool-call-1",
+			{ questions: [single] },
+			undefined,
+			undefined,
+			rpcCtx as unknown as ExtensionContext,
+		);
+
+		expect(result?.content[0]).toEqual(expect.objectContaining({ type: "text" }));
+		expect(fake.selectCalls).toHaveLength(1);
+		expect(fake.inputCalls).toHaveLength(1);
+		expect(fake.customCalls).toBe(0);
+		expect(result?.details).toEqual(expect.objectContaining({
+			customInput: "Use the RPC-native path",
+			selectedOptions: [],
+		}));
+	});
+});
 
 describe("askQuestionsWithRpcUi", () => {
 	it("returns a single native selection and preserves description context", async () => {

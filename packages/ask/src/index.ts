@@ -194,7 +194,7 @@ async function collectSelections(
 	ctx: ExtensionContext,
 	questions: AskQuestion[],
 ): Promise<{ cancelled: boolean; selections: AskSelection[] }> {
-	if ("mode" in ctx && ctx.mode === "rpc") return askQuestionsWithRpcUi(ctx.ui, questions);
+	if (ctx.mode === "rpc") return askQuestionsWithRpcUi(ctx.ui, questions);
 	if (questions.length === 1) {
 		const question = questions[0]!;
 		if (question.multi) return askQuestionsWithTabs(ctx.ui, questions);
