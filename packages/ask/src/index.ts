@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection.js";
 import { askSingleQuestionWithInlineNote } from "./picker.js";
 import { askQuestionsWithTabs } from "./dialog.js";
+import { askQuestionsWithRpcUi } from "./rpc.js";
 
 const OptionItemSchema = Type.Object({
 	label: Type.String({ description: "Display label" }),
@@ -189,6 +190,23 @@ Ask the user for clarification when a choice materially affects the outcome.
 - Do NOT include an 'Other' option; UI adds it automatically.
 `.trim();
 
+async function collectSelections(
+	ctx: ExtensionContext,
+	questions: AskQuestion[],
+): Promise<{ cancelled: boolean; selections: AskSelection[] }> {
+	if ("mode" in ctx && ctx.mode === "rpc") return askQuestionsWithRpcUi(ctx.ui, questions);
+	if (questions.length === 1) {
+		const question = questions[0]!;
+		if (question.multi) return askQuestionsWithTabs(ctx.ui, questions);
+		const selection = await askSingleQuestionWithInlineNote(ctx.ui, question);
+		return {
+			cancelled: selection.selectedOptions.length === 0 && !selection.customInput,
+			selections: [selection],
+		};
+	}
+	return askQuestionsWithTabs(ctx.ui, questions);
+}
+
 export function registerAsk(pi: ExtensionAPI) {
 	const unsubscribes: Array<() => void> = [];
 	let currentCtx: ExtensionContext | undefined;
@@ -237,29 +255,9 @@ export function registerAsk(pi: ExtensionAPI) {
 		let selections: AskSelection[] = [];
 
 		try {
-			if (questions.length === 1) {
-				const q = questions[0]!;
-				if (q.multi) {
-					// Multi-select single question routes to the tabs dialog (picker doesn't support multi)
-					const res = await askQuestionsWithTabs(currentCtx.ui, questions);
-					cancelled = res.cancelled;
-					selections = res.selections;
-				} else {
-					const input: { question: string; description?: string; options: typeof q.options; recommended?: number } = {
-						question: q.question,
-						options: q.options,
-					};
-					if (q.description && q.description.trim().length > 0) input.description = q.description;
-					if (q.recommended != null) input.recommended = q.recommended;
-					const sel = await askSingleQuestionWithInlineNote(currentCtx.ui, input);
-					selections = [sel];
-					cancelled = sel.selectedOptions.length === 0 && !sel.customInput;
-				}
-			} else {
-				const res = await askQuestionsWithTabs(currentCtx.ui, questions);
-				cancelled = res.cancelled;
-				selections = res.selections;
-			}
+			const result = await collectSelections(currentCtx, questions);
+			cancelled = result.cancelled;
+			selections = result.selections;
 		} catch {
 			cancelled = true;
 			selections = questions.map(() => ({ selectedOptions: [] }));
@@ -389,11 +387,12 @@ export function registerAsk(pi: ExtensionAPI) {
 			// Emit bus event so notify (if installed) can schedule a desktop notification
 			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions });
 
+			const questions = params.questions as AskQuestion[];
+			const collected = await collectSelections(ctx, questions);
+
 			if (params.questions.length === 1) {
 				const q = params.questions[0]!;
-				const selection = q.multi
-					? (await askQuestionsWithTabs(ctx.ui, [q as AskQuestion])).selections[0] ?? { selectedOptions: [] }
-					: await askSingleQuestionWithInlineNote(ctx.ui, q as AskQuestion);
+				const selection = collected.selections[0] ?? { selectedOptions: [] };
 				const optionLabels = q.options.map((option) => option.label);
 				const desc = q.description && q.description.trim().length > 0 ? q.description : undefined;
 
@@ -425,10 +424,9 @@ export function registerAsk(pi: ExtensionAPI) {
 			}
 
 			const results: QuestionResult[] = [];
-			const tabResult = await askQuestionsWithTabs(ctx.ui, params.questions as AskQuestion[]);
 			for (let i = 0; i < params.questions.length; i++) {
 				const q = params.questions[i]!;
-				const selection = tabResult.selections[i] ?? { selectedOptions: [] };
+				const selection = collected.selections[i] ?? { selectedOptions: [] };
 				const desc = q.description && q.description.trim().length > 0 ? q.description : undefined;
 				results.push({
 					id: q.id,
