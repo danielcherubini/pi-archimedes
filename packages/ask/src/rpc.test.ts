@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { askQuestionsWithRpcUi } from "./rpc.js";
-import type { AskQuestion } from "./selection.js";
+import { hasAnsweredSelections, type AskQuestion } from "./selection.js";
 
 function fakeUi(selectAnswers: Array<string | undefined>, inputAnswers: Array<string | undefined> = []) {
 	const selectCalls: Array<{ title: string; options: string[] }> = [];
@@ -56,6 +56,18 @@ describe("askQuestionsWithRpcUi", () => {
 			cancelled: true,
 			selections: [{ selectedOptions: ["Minimal"] }, { selectedOptions: [] }],
 		});
+	});
+
+	it("treats an earlier custom-only answer as answered when a later RPC question is cancelled", async () => {
+		const second = { ...single, id: "second", question: "Second?" };
+		const { ui } = fakeUi(["Other (type your own)", undefined], ["Use a custom approach"]);
+		const result = await askQuestionsWithRpcUi(ui, [single, second]);
+
+		expect(result).toEqual({
+			cancelled: true,
+			selections: [{ selectedOptions: [], customInput: "Use a custom approach" }, { selectedOptions: [] }],
+		});
+		expect(hasAnsweredSelections(result.selections)).toBe(true);
 	});
 
 	it("toggles RPC multi-select options and finishes explicitly", async () => {

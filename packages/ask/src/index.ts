@@ -3,7 +3,7 @@ import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
-import { OTHER_OPTION, type AskQuestion, type AskSelection } from "./selection.js";
+import { OTHER_OPTION, hasAnsweredSelections, type AskQuestion, type AskSelection } from "./selection.js";
 import { askSingleQuestionWithInlineNote } from "./picker.js";
 import { askQuestionsWithTabs } from "./dialog.js";
 import { askQuestionsWithRpcUi } from "./rpc.js";
@@ -364,7 +364,7 @@ export function registerAsk(pi: ExtensionAPI) {
 					};
 				});
 
-				if (response.cancelled && results.every((r) => r.selectedOptions.length === 0)) {
+				if (response.cancelled && !hasAnsweredSelections(results)) {
 					return {
 						content: [{ type: "text", text: "User cancelled the question." }],
 						details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,

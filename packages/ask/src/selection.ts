@@ -19,6 +19,19 @@ export interface AskSelection {
 	customInput?: string;
 }
 
+interface AnsweredSelectionLike {
+	selectedOptions: readonly string[];
+	customInput?: string | undefined;
+}
+
+export function hasAnsweredSelection(selection: AnsweredSelectionLike): boolean {
+	return selection.selectedOptions.length > 0 || Boolean(selection.customInput?.trim());
+}
+
+export function hasAnsweredSelections(selections: ReadonlyArray<AnsweredSelectionLike>): boolean {
+	return selections.some(hasAnsweredSelection);
+}
+
 export function appendRecommendedTagToOptionLabels(
 	optionLabels: string[],
 	recommendedOptionIndex?: number,
