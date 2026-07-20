@@ -1,10 +1,9 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Text, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { executeSubagent, executeParallel } from "./execute.js";
+// execute.js + agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
 import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";
-import { createAgentManager } from "./agent-manager.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -73,7 +72,8 @@ export function registerSubagent(pi: ExtensionAPI): void {
       onUpdate: ((update: SubagentToolResult) => void) | undefined,
       ctx: ExtensionContext,
     ): Promise<SubagentToolResult> {
-      // Discover available agents
+      // Lazy-load executor (spawn/stream/cost) — only when tool is actually invoked
+      const { executeSubagent, executeParallel } = await import("./execute.js");
       const agents = discoverAgents(ctx.cwd);
 
       // Parallel mode
@@ -268,6 +268,8 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
   pi.registerCommand("agents", {
     description: "Open the Agents Manager",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
+      // Lazy-load: 1689-line TUI component only needed when /agents is invoked
+      const { createAgentManager } = await import("./agent-manager.js");
       const { global: globalAgents, user, project, globalDir, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
 
       const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
