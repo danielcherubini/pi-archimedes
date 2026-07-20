@@ -16,6 +16,11 @@ import { openSettings } from "./settings.js"
 
 // Module-level refs for shutdown (survive hot-reloads)
 let imagePasteShutdown: (() => void) | undefined;
+// Guard: tracks which lazy-loaded packages have been registered.
+// session_start fires for /new, /resume, /fork, /reload — each tears down the
+// old runtime and rebuilds, but pi itself stays loaded, so this module is
+// evaluated once and these guards prevent handler accumulation on reload.
+const registeredLazy = new Set<string>();
 
 export default function (pi: ExtensionAPI): void {
   archResetTimings();
@@ -61,17 +66,26 @@ export default function (pi: ExtensionAPI): void {
     ]);
     archTime("3 packages loaded in parallel");
 
-    if (diffMod) {
+    if (diffMod && !registeredLazy.has("diff")) {
       diffMod.registerDiffTools(pi, () => ctx.ui.theme, () => loadDiffConfig());
+      registeredLazy.add("diff");
     }
     if (ipMod) {
-      ipMod.registerImagePaste(pi);
-      imagePasteShutdown = ipMod.shutdownImagePaste;
+      // initImagePasteSession must run every session_start (it captures the new ctx)
+      // but the actual handler registration via pi.on("input", ...) must only happen once.
+      if (!registeredLazy.has("image-paste")) {
+        ipMod.registerImagePaste(pi);
+        imagePasteShutdown = ipMod.shutdownImagePaste;
+        registeredLazy.add("image-paste");
+      }
       ipMod.initImagePasteSession(ctx);
     }
     if (saMod) {
-      saMod.registerSubagent(pi);
-      saMod.registerAgentsCommand(pi);
+      if (!registeredLazy.has("subagent")) {
+        saMod.registerSubagent(pi);
+        saMod.registerAgentsCommand(pi);
+        registeredLazy.add("subagent");
+      }
     }
   });
 
