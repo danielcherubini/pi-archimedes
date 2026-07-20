@@ -19,9 +19,10 @@
 
 ## In Progress
 
-| Plan | Status | Created | |
+| Plan | Status | Created |
+| [Lazy-load and profile startup](plans/2026-07-20-lazy-load-and-profiling.md) | 🔄 IN PROGRESS | 2026-07-20 |
 
 ## Quick Stats
 
-- Total Plans: 13
+- Total Plans: 14
 - Completed: 13

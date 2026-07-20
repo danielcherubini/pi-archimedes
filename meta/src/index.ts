@@ -1,58 +1,99 @@
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import { time as archTime, print as archPrintTimings, reset as archResetTimings } from "@pi-archimedes/core/profiler";
 import { registerCore, unpatchConsoleLog } from "@pi-archimedes/core";
 import { registerFooter } from "@pi-archimedes/footer";
-import { registerDiffTools } from "@pi-archimedes/diff";
-import { registerImagePaste, initImagePasteSession, shutdownImagePaste } from "@pi-archimedes/image-paste";
-import { registerSubagent, registerAgentsCommand } from "@pi-archimedes/subagent";
+
+// Mark when module finishes evaluating (before factory runs) for gap analysis
+const _moduleEvalAt = Date.now();
+// diff — lazy-loaded in session_start to avoid pulling @shikijs/cli at startup
+// image-paste & subagent — also lazy-loaded below (heavy deps, only needed on use)
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
 import { registerNotify } from "@pi-archimedes/notify";
 import { loadDiffConfig } from "./config.js";
-import { openSettings } from "./settings.js";
+import { openSettings } from "./settings.js"
+
+// Module-level refs for shutdown (survive hot-reloads)
+let imagePasteShutdown: (() => void) | undefined;
+// Guard: tracks which lazy-loaded packages have been registered.
+// session_start fires for /new, /resume, /fork, /reload — each tears down the
+// old runtime and rebuilds, but pi itself stays loaded, so this module is
+// evaluated once and these guards prevent handler accumulation on reload.
+const registeredLazy = new Set<string>();
 
 export default function (pi: ExtensionAPI): void {
-  // Register all component extensions
+  archResetTimings();
+  archTime(`factory start (module eval was ${Date.now() - _moduleEvalAt}ms ago)`);
+
+  // Register all component extensions (static imports already compiled by jiti above)
   registerCore(pi);
+  archTime("registerCore");
   registerFooter(pi);
+  archTime("registerFooter");
 
-  // Register image paste (shortcuts, input handler, preview renderer)
-  registerImagePaste(pi);
+  // image-paste & subagent lazy-loaded in session_start below — not here
 
-  // Register subagent tool
-  registerSubagent(pi);
-
-  // Register todo
+  // Register todo (lightweight, registers tool + bus listener)
   registerTodo(pi);
+  archTime("registerTodo");
 
   // Register ask tool
   registerAsk(pi);
+  archTime("registerAsk");
 
   // Register notify
   registerNotify(pi);
+  archTime("registerNotify");
 
-  // Register /agents command
-  registerAgentsCommand(pi);
+  archTime("factory end");
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
-    shutdownImagePaste();
+    imagePasteShutdown?.();
     unpatchConsoleLog();
+    archPrintTimings();
   });
 
-  pi.on("session_start", (_event, ctx: ExtensionContext) => {
-    // Register diff tools (needs getTheme + readConfig callbacks)
-    registerDiffTools(pi, () => ctx.ui.theme, () => loadDiffConfig());
+  pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+    archTime(`session_start (factory was ${Date.now() - _moduleEvalAt}ms ago)`);
 
-    // Initialize image paste for this session
-    initImagePasteSession(ctx);
+    // ── Parallel lazy-load all three packages (saves ~100ms vs sequential) ──
+    const [diffMod, ipMod, saMod] = await Promise.all([
+      import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; }),
+      import("@pi-archimedes/image-paste").catch((e) => { console.error("[archimedes] image-paste load failed:", e); return null; }),
+      import("@pi-archimedes/subagent").catch((e) => { console.error("[archimedes] subagent load failed:", e); return null; }),
+    ]);
+    archTime("3 packages loaded in parallel");
+
+    if (diffMod && !registeredLazy.has("diff")) {
+      diffMod.registerDiffTools(pi, () => ctx.ui.theme, () => loadDiffConfig());
+      registeredLazy.add("diff");
+    }
+    if (ipMod) {
+      // initImagePasteSession must run every session_start (it captures the new ctx)
+      // but the actual handler registration via pi.on("input", ...) must only happen once.
+      if (!registeredLazy.has("image-paste")) {
+        ipMod.registerImagePaste(pi);
+        imagePasteShutdown = ipMod.shutdownImagePaste;
+        registeredLazy.add("image-paste");
+      }
+      ipMod.initImagePasteSession(ctx);
+    }
+    if (saMod) {
+      if (!registeredLazy.has("subagent")) {
+        saMod.registerSubagent(pi);
+        saMod.registerAgentsCommand(pi);
+        registeredLazy.add("subagent");
+      }
+    }
   });
 
   // Register /archimedes command
   pi.registerCommand("archimedes", {
     description: "Open Archimedes settings",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      openSettings(pi, ctx);
+      await openSettings(pi, ctx);
     },
   });
 }

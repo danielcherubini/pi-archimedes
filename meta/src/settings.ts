@@ -5,7 +5,7 @@ import { SettingsList, type SettingItem, TUI } from "@earendil-works/pi-tui";
 
 import { getCoreSettingsItems } from "@pi-archimedes/core";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
-import { getDiffSettingsItems } from "@pi-archimedes/diff";
+// diff (shiki) is lazy-loaded below to keep shiki out of the startup import chain
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import {
   loadAllConfig,
@@ -94,7 +94,9 @@ function createNumberSubmenu(opts: {
 
 // ── Settings UI ─────────────────────────────────────────────────────────
 
-export function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): void {
+export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  // Lazy-load diff (pulls in shiki) — only needed when /archimedes is opened
+  const { getDiffSettingsItems } = await import("@pi-archimedes/diff");
   const allConfig = loadAllConfig();
 
   const coreConfig: CoreConfig = { ...allConfig.core };
