@@ -3,6 +3,7 @@
 ## Completed Plans
 
 | Plan | Status | Created |
+| [Lazy-load and profile startup](plans/2026-07-20-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
 | [Fix Windows Spawn and Terminal Clamping](plans/2026-07-05-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
 | [Add Tests](plans/2026-07-05-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
 | [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
@@ -19,10 +20,9 @@
 
 ## In Progress
 
-| Plan | Status | Created |
-| [Lazy-load and profile startup](plans/2026-07-20-lazy-load-and-profiling.md) | 🔄 IN PROGRESS | 2026-07-20 |
+| Plan | Status | Created | |
 
 ## Quick Stats
 
 - Total Plans: 14
-- Completed: 13
+- Completed: 14
