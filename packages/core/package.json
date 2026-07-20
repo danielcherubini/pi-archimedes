@@ -17,7 +17,8 @@
     "./text": "./src/text.ts",
     "./color": "./src/color.ts",
     "./config": "./src/config.ts",
-    "./settings-io": "./src/settings-io.ts"
+    "./settings-io": "./src/settings-io.ts",
+    "./profiler": "./src/profiler.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",
