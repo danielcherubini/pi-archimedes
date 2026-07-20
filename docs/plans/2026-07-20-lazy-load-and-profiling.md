@@ -19,7 +19,7 @@ The wins:
 | Lazy-load `diff` (skips shiki compile) | ~200ms | session_start |
 | Lazy-load `image-paste` (skips clipboard.ts compile) | ~40ms | session_start |
 | Lazy-load `subagent` (skips most subagent compile) | ~480ms | session_start |
-| Split `subagent` `execute.js` (spawn/stream/cost/compact) | ~500ms | First subagent tool call |
+| Split `subagent` `execute.js` (spawn/stream/cost) | ~500ms | First subagent tool call |
 | Split `subagent` `agent-manager.js` (1689-line TUI) | ~100ms | First `/agents` command |
 | Parallel lazy-loads (Promise.all) | ~0ms total, but bounded by slowest | n/a |
 
@@ -125,6 +125,12 @@ import { executeSubagent, executeParallel } from "./execute.js";
 import { createAgentManager } from "./agent-manager.js";
 ```
 
+Add `discoverAgentsAll` to the existing static import from `./agents.js` (it's only used by the `/agents` command, but the module is already loaded statically via `discoverAgents`/`findAgent` so adding the third name is free):
+
+```ts
+import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";
+```
+
 (Keep `renderSubagentResult` from `./render.js` and `discoverAgents`, `findAgent` from `./agents.js` — those are used inside `renderResult` and the error path of `execute()`, so they're cheap and needed at registration time.)
 
 Add a lazy import **inside the tool's `execute()` callback** (search for the line `const agents = discoverAgents(ctx.cwd);` inside the existing `execute` async function and insert the lazy import above it):
@@ -141,22 +147,22 @@ Add a lazy import **inside the `/agents` command handler** (replace the existing
 handler: async (_args: string, ctx: ExtensionCommandContext) => {
   // Lazy-load: 1689-line TUI component only needed when /agents is invoked
   const { createAgentManager } = await import("./agent-manager.js");
-  const { discoverAgentsAll } = await import("./agents.js");
   const { global: globalAgents, user, project, globalDir, userDir, projectDir } = discoverAgentsAll(ctx.cwd);
   // ... rest unchanged
 }
 ```
 
-The `discoverAgentsAll` import is moved here too because it's only used by the `/agents` command — the `discoverAgents` import stays at the top for the tool's `execute()` error-path call to `findAgent(agents, ...)`.
+`discoverAgentsAll` is already in the static import (see above) since `./agents.js` is loaded for `discoverAgents`/`findAgent` anyway — no need to dynamically import it again.
 
 **Steps:**
 - [ ] Remove static `import { executeSubagent, executeParallel } from "./execute.js"` and `import { createAgentManager } from "./agent-manager.js"` from `packages/subagent/src/index.ts`
+- [ ] Add `discoverAgentsAll` to the existing `import { discoverAgents, findAgent } from "./agents.js";` so it becomes `import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";`
 - [ ] Add `const { executeSubagent, executeParallel } = await import("./execute.js");` as the first line inside the tool's `execute()` async function
-- [ ] Add `const { createAgentManager } = await import("./agent-manager.js");` and `const { discoverAgentsAll } = await import("./agents.js");` as the first two lines inside the `/agents` command handler
+- [ ] Add `const { createAgentManager } = await import("./agent-manager.js");` as the first line inside the `/agents` command handler (no need to re-import `discoverAgentsAll` — it's in the static import)
 - [ ] Run `pnpm exec tsc --noEmit` in `packages/subagent`
   - Did it succeed?
 - [ ] Run `PI_TIMING=1 pi` and verify:
-  - `archimedes: subagent lazy-import:` line is now ~100-150ms (was ~500-630ms before this change)
+  - The `pi-archimedes ... module import` line in Pi's own `Startup Timings: extensions` block is now ~1000-1200ms (was 2271ms before this plan)
   - No errors at startup
   - The `/agents` command still works (open it, list agents, close — no crash)
   - The `subagent` tool still works when the LLM calls it (verify the executor code path is reachable)
@@ -174,8 +180,11 @@ The `discoverAgentsAll` import is moved here too because it's only used by the `
 
 **Context:** The factory function in `meta/src/index.ts` currently imports all 8 packages at the top level, forcing jiti to compile all of them before the factory even runs. Most of them just call `register*` (synchronous, cheap) but the imports themselves trigger the full transitive compile. Moving the heaviest three (diff, image-paste, subagent) to dynamic `import()` inside `session_start` defers their compile to after the splash screen, and wrapping them in `Promise.all` makes the total wait bounded by the slowest single package instead of the sum.
 
+**CRITICAL:** `meta/src/settings.ts` also statically imports `getDiffSettingsItems from "@pi-archimedes/diff"`, which would pull shiki into the startup import chain even after diff is removed from `meta/src/index.ts`'s top-level imports. This file must also be updated to make `openSettings` async and lazy-load the diff settings items inside it. Without this fix, the diff lazy-loading is defeated (shiki still compiles at startup).
+
 **Files:**
 - Modify: `meta/src/index.ts`
+- Modify: `meta/src/settings.ts` (make `openSettings` async, lazy-load diff settings items)
 
 **What to implement:**
 
@@ -272,7 +281,9 @@ import { time as archTime, print as archPrintTimings, reset as archResetTimings 
 - [ ] Add `import { time as archTime, print as archPrintTimings, reset as archResetTimings } from "@pi-archimedes/core/profiler";` to the top of `meta/src/index.ts`
 - [ ] Add `const _moduleEvalAt = Date.now();` and `let imagePasteShutdown: (() => void) | undefined;` after the imports
 - [ ] Remove the static imports for `image-paste` and `subagent` (keep `diff` comment, drop the actual import statement)
-- [ ] Restructure the factory body to add `archTime` checkpoints and remove the three lazy register calls
+- [ ] In `meta/src/settings.ts`: remove the static `import { getDiffSettingsItems } from "@pi-archimedes/diff";`, change the `openSettings` signature to `export async function openSettings(...)`, and add `const { getDiffSettingsItems } = await import("@pi-archimedes/diff");` as the first line of the function body
+- [ ] In `meta/src/index.ts`: update the `/archimedes` command handler to `await openSettings(pi, ctx)` (the function is now async)
+- [ ] Restructure the factory body in `meta/src/index.ts` to add `archTime` checkpoints and remove the three lazy register calls
 - [ ] Replace the `session_start` handler with the `Promise.all` version above
 - [ ] Update the `session_shutdown` handler to use `imagePasteShutdown?.()` instead of calling the function directly
 - [ ] Run `pnpm exec tsc --noEmit` in `meta`
