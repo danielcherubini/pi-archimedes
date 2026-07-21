@@ -16,6 +16,8 @@ import { openSettings } from "./settings.js"
 
 // Module-level refs for shutdown (survive hot-reloads)
 let imagePasteShutdown: (() => void) | undefined;
+// Module-level ref for current session context (survives /reload, /new, /fork)
+let currentCtx: ExtensionContext | undefined;
 // Guard: tracks which lazy-loaded packages have been registered.
 // session_start fires for /new, /resume, /fork, /reload — each tears down the
 // old runtime and rebuilds, but pi itself stays loaded, so this module is
@@ -58,6 +60,9 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     archTime(`session_start (factory was ${Date.now() - _moduleEvalAt}ms ago)`);
 
+    // Update module-level context ref so lazy-loaded callbacks always see current session
+    currentCtx = ctx;
+
     // ── Parallel lazy-load all three packages (saves ~100ms vs sequential) ──
     const [diffMod, ipMod, saMod] = await Promise.all([
       import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; }),
@@ -67,7 +72,8 @@ export default function (pi: ExtensionAPI): void {
     archTime("3 packages loaded in parallel");
 
     if (diffMod && !registeredLazy.has("diff")) {
-      diffMod.registerDiffTools(pi, () => ctx.ui.theme, () => loadDiffConfig());
+      // currentCtx is set above before lazy loads, so it's always defined when this runs
+      diffMod.registerDiffTools(pi, () => currentCtx!.ui.theme, () => loadDiffConfig());
       registeredLazy.add("diff");
     }
     if (ipMod) {
