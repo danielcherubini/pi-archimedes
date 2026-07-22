@@ -14,15 +14,12 @@ import { registerNotify } from "@pi-archimedes/notify";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 
-// Module-level refs for shutdown (survive hot-reloads)
+// Module-level ref for shutdown (survives session replacements)
 let imagePasteShutdown: (() => void) | undefined;
 // Module-level ref for current session context (survives /reload, /new, /fork)
+// Used by diff's theme getter callback — updated every session_start so the
+// getter always returns the latest ctx's theme even after session replacement.
 let currentCtx: ExtensionContext | undefined;
-// Guard: tracks which lazy-loaded packages have been registered.
-// session_start fires for /new, /resume, /fork, /reload — each tears down the
-// old runtime and rebuilds, but pi itself stays loaded, so this module is
-// evaluated once and these guards prevent handler accumulation on reload.
-const registeredLazy = new Set<string>();
 
 export default function (pi: ExtensionAPI): void {
   archResetTimings();
@@ -71,27 +68,28 @@ export default function (pi: ExtensionAPI): void {
     ]);
     archTime("3 packages loaded in parallel");
 
-    if (diffMod && !registeredLazy.has("diff")) {
-      // currentCtx is set above before lazy loads, so it's always defined when this runs
+    // Each session_start fires on a fresh Extension (pi creates a new
+    // ExtensionRunner per session). Registration is safe to — and must —
+    // run every time. The registeredLazy guard was removed because it
+    // prevented subagent/diff/image-paste from being registered after
+    // /new, /fork, /resume: jiti caches the compiled module, so the guard
+    // persisted across sessions while each new session creates a fresh
+    // Extension with empty tools/commands maps.
+    if (diffMod) {
       diffMod.registerDiffTools(pi, () => currentCtx!.ui.theme, () => loadDiffConfig());
-      registeredLazy.add("diff");
     }
     if (ipMod) {
-      // initImagePasteSession must run every session_start (it captures the new ctx)
-      // but the actual handler registration via pi.on("input", ...) must only happen once.
-      if (!registeredLazy.has("image-paste")) {
-        ipMod.registerImagePaste(pi);
-        imagePasteShutdown = ipMod.shutdownImagePaste;
-        registeredLazy.add("image-paste");
-      }
+      // registerImagePaste calls pi.on("input", ...) and pi.registerShortcut()
+      // on the current Extension. Since each session replacement creates a
+      // new Extension with its own handler list, there is no accumulation.
+      ipMod.registerImagePaste(pi);
+      imagePasteShutdown = ipMod.shutdownImagePaste;
+      // initImagePasteSession must run every session_start (captures fresh ctx)
       ipMod.initImagePasteSession(ctx);
     }
     if (saMod) {
-      if (!registeredLazy.has("subagent")) {
-        saMod.registerSubagent(pi);
-        saMod.registerAgentsCommand(pi);
-        registeredLazy.add("subagent");
-      }
+      saMod.registerSubagent(pi);
+      saMod.registerAgentsCommand(pi);
     }
   });
 
