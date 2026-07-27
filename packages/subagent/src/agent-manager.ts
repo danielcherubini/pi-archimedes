@@ -1205,7 +1205,7 @@ function setFieldValue(agent: AgentConfig, field: EditField, value: string): voi
 
 // ── Save logic ──────────────────────────────────────────────────────────────
 
-function saveAgent(state: ManagerState, requestRender: () => void): void {
+export function saveAgent(state: ManagerState, requestRender: () => void): void {
   if (!state.editAgent) return;
 
   const agent = state.editAgent;
@@ -1249,12 +1249,6 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
     // Capture model before stripping from .md serialization
     const model = agent.model;
 
-    // Handle rename: delete old JSON entry keyed by original name
-    const originalName = state.editOriginal?.name;
-    if (originalName && originalName !== agent.name) {
-      deleteLocalModel(originalName);
-    }
-
     // Build a shallow copy without the model for .md serialization so the
     // live edit object is NOT mutated during serialization. If the .md
     // write fails below, the live object stays intact for a retry.
@@ -1266,19 +1260,28 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
     const content = serializeAgent(mdAgent);
     fs.writeFileSync(newPath, content, "utf-8");
 
-    // Only after the .md write succeeds, write to the JSON store (or remove
-    // stale entry). JSON is the source of truth for the model field.
+    // Only after the .md write succeeds, perform JSON store mutations.
+    // Write/remove the NEW name entry first, then clean up the OLD name.
     if (model !== undefined) {
       writeLocalModel(agent.name, model);
     } else {
       deleteLocalModel(agent.name);
     }
 
-    // Now that both writes have succeeded, strip the model from the live
-    // edit object so it is no longer carried alongside the .md on disk.
-    delete agent.model;
+    // Handle rename: delete old JSON entry keyed by original name (after
+    // the new entry is safely written). Wrapped in try-catch so a failure
+    // here does not leave the .md written but the live object un-stripped.
+    const originalName = state.editOriginal?.name;
+    if (originalName && originalName !== agent.name) {
+      try {
+        deleteLocalModel(originalName);
+      } catch {
+        // Best-effort: stale entry is harmless and will be cleaned up on
+        // a subsequent save/rename
+      }
+    }
 
-    // Handle rename if name changed
+    // Handle rename: delete old .md file if name changed
     if (oldPath && oldPath !== newPath) {
       try {
         fs.unlinkSync(oldPath);
@@ -1286,6 +1289,11 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
         // Old file may not exist (e.g., new agent)
       }
     }
+
+    // Now that all writes and cleanup have succeeded, strip the model from
+    // the live edit object so it is no longer carried alongside the .md on
+    // disk.
+    delete agent.model;
 
     // Update filePath
     agent.filePath = newPath;
