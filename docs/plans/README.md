@@ -21,8 +21,9 @@
 ## In Progress
 
 | Plan | Status | Created | |
+| [Agents local JSON for model overrides](plans/2026-07-27-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 | |
 
 ## Quick Stats
 
-- Total Plans: 14
+- Total Plans: 15
 - Completed: 14
