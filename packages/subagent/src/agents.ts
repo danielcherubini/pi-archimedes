@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { readLocalConfig } from "./local-config.js";
 
 export interface AgentConfig {
   name: string;
@@ -137,6 +138,20 @@ export interface AgentsDiscoveryResult {
 }
 
 /**
+ * Apply local model overrides from agents.local.json to a list of agents.
+ * Reads the config once and mutates matching agents in place.
+ */
+export function applyLocalOverrides(agents: AgentConfig[]): void {
+  const config = readLocalConfig();
+  for (const agent of agents) {
+    const local = config[agent.name];
+    if (local?.model !== undefined) {
+      agent.model = local.model;
+    }
+  }
+}
+
+/**
  * Discover all available agents from global, user and/or project directories.
  * Precedence (highest last): global < user < project
  */
@@ -155,7 +170,9 @@ export function discoverAgents(cwd: string): AgentConfig[] {
   for (const agent of userAgents) agentMap.set(agent.name, agent);
   for (const agent of projectAgents) agentMap.set(agent.name, agent);
 
-  return Array.from(agentMap.values());
+  const all = Array.from(agentMap.values());
+  applyLocalOverrides(all);
+  return all;
 }
 
 /**
@@ -169,6 +186,10 @@ export function discoverAgentsAll(cwd: string): AgentsDiscoveryResult {
   const globalAgents = globalDir ? loadAgentsFromDir(globalDir, "global") : [];
   const userAgents = loadAgentsFromDir(userDir, "user");
   const projectAgents = projectDir ? loadAgentsFromDir(projectDir, "project") : [];
+
+  applyLocalOverrides(globalAgents);
+  applyLocalOverrides(userAgents);
+  applyLocalOverrides(projectAgents);
 
   return {
     global: globalAgents,

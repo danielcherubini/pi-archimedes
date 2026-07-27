@@ -16,17 +16,13 @@
 | 11 | [Add Tests](done/plan-012-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
 | 12 | [Fix Windows Spawn and Terminal Clamping](done/plan-013-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
 | 13 | [Lazy-load and profile startup](done/plan-014-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
+| 14 | [Agents local JSON for model overrides](plan-015-agents-local-json.md) | ✅ COMPLETED | 2026-07-27 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
 > - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
 
-## In Progress
-
-| # | Plan | Status | Created |
-| 015 | [Agents local JSON for model overrides](plan-015-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 |
-
 ## Quick Stats
 
 - Total Plans: 15
-- Completed: 14
+- Completed: 15
