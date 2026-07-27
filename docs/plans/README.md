@@ -21,7 +21,7 @@
 ## In Progress
 
 | Plan | Status | Created | |
-| [Agents local JSON for model overrides](plans/2026-07-27-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 | |
+| [Agents local JSON for model overrides](plans/plan-015-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 | |
 
 ## Quick Stats
 
