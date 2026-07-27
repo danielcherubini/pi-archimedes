@@ -67,3 +67,8 @@ export function deleteLocalModel(agentName: string): void {
   delete config[agentName];
   writeConfigAtomic(config);
 }
+
+/** Write the full local config atomically (backup+restore safe). */
+export function setLocalConfig(config: LocalConfig): void {
+  writeConfigAtomic(config);
+}

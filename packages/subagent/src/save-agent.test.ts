@@ -8,17 +8,19 @@ import { writeLocalModel } from "./local-config.js";
 
 // Mock writeLocalModel to always throw (simulating a JSON store write
 // failure). deleteLocalModel is a no-op since it's never reached in
-// these tests. readLocalConfig / getLocalConfigPath are stubs for any
-// indirect imports via agents.ts → discoverAgentsAll (which is never
-// called when a save fails).
-vi.mock("./local-config.js", () => ({
-  writeLocalModel: vi.fn(() => {
-    throw new Error("JSON write failed");
-  }),
-  deleteLocalModel: vi.fn(),
-  readLocalConfig: () => ({}),
-  getLocalConfigPath: () => "",
-}));
+// these tests. readLocalConfig / setLocalConfig / getLocalConfigPath
+// use their REAL implementations (via importOriginal) so the saveAgent
+// JSON backup/restore logic can be exercised end-to-end.
+vi.mock("./local-config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./local-config.js")>();
+  return {
+    ...actual,
+    writeLocalModel: vi.fn(() => {
+      throw new Error("JSON write failed");
+    }),
+    deleteLocalModel: vi.fn(),
+  };
+});
 
 // Partial mock of ./agents.js: keep all original exports but replace
 // discoverAgentsAll with a vi.fn() so individual tests can control its
@@ -310,5 +312,77 @@ describe("saveAgent retry safety when re-discovery fails", () => {
 
     // editError should contain the discovery failure message.
     expect(state.editError).toContain("discovery failed");
+  });
+
+  it("rolls back both .md and JSON when re-discovery fails", () => {
+    // Allow writeLocalModel to succeed so execution proceeds past the JSON
+    // write to discoverAgentsAll, which will throw.
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+
+    // Pre-create the .md file with original content (including old model).
+    const originalMd = [
+      "---",
+      "name: codex",
+      "description: original description",
+      "model: old-model",
+      "---",
+      "",
+      "original prompt",
+      "",
+    ].join("\n");
+    writeFileSync(join(testDir, "codex.md"), originalMd, "utf-8");
+
+    // Pre-create agents.local.json with the old model override.
+    writeFileSync(
+      join(testDir, "agents.local.json"),
+      JSON.stringify({ codex: { model: "old-model" } }),
+      "utf-8",
+    );
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "new description",
+        systemPrompt: "new prompt",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "new-model",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "original description",
+        systemPrompt: "original prompt",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // .md file should be restored to original content (model: old-model).
+    const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(mdContent).toContain("model: old-model");
+    expect(mdContent).not.toContain("new description");
+
+    // agents.local.json should be restored to old-model via setLocalConfig.
+    const jsonContent = JSON.parse(
+      readFileSync(join(testDir, "agents.local.json"), "utf-8"),
+    );
+    expect(jsonContent.codex).toEqual({ model: "old-model" });
+
+    // The live edit object should still have the new model (retained for retry).
+    expect(state.editAgent!.model).toBe("new-model");
+
+    // editError should be set.
+    expect(state.editError).toBeTruthy();
   });
 });

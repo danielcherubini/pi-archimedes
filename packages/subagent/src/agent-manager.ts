@@ -14,7 +14,13 @@ import {
 import type { AgentConfig } from "./agents.js";
 import { discoverAgentsAll } from "./agents.js";
 import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
-import { writeLocalModel, deleteLocalModel } from "./local-config.js";
+import {
+  writeLocalModel,
+  deleteLocalModel,
+  readLocalConfig,
+  setLocalConfig,
+  type LocalConfig,
+} from "./local-config.js";
 
 // ── Screen constants ────────────────────────────────────────────────────────
 
@@ -1259,6 +1265,13 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   // Track whether the old .md file was already removed during a rename so
   // the catch block knows whether newPath is the sole surviving copy.
   let oldPathDeleted = false;
+  // Track whether the JSON config write succeeded so the catch block can
+  // roll it back if a later step (re-discovery, etc.) fails.
+  let jsonWritten = false;
+  // Snapshot of the JSON config captured before the write so the catch
+  // block can restore it. Declared here (not inside try) so it is
+  // accessible in the catch block.
+  let jsonConfigBefore: LocalConfig = {};
 
   try {
     // Ensure directory exists
@@ -1277,12 +1290,16 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     mdWritten = true;
 
     // Only after the .md write succeeds, perform JSON store mutations.
+    // Capture a backup of the current JSON config so we can roll it back
+    // if a later step (re-discovery, etc.) fails after this write succeeds.
+    jsonConfigBefore = readLocalConfig();
     // Write/remove the NEW name entry first, then clean up the OLD name.
     if (model !== undefined) {
       writeLocalModel(agent.name, model);
     } else {
       deleteLocalModel(agent.name);
     }
+    jsonWritten = true;
 
     // Handle rename: delete old JSON entry keyed by original name (after
     // the new entry is safely written). Wrapped in try-catch so a failure
@@ -1356,6 +1373,10 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
       } else if (model !== undefined) {
         try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
       }
+    }
+    // Roll back JSON if it was written but a later step failed
+    if (jsonWritten) {
+      try { setLocalConfig(jsonConfigBefore); } catch { /* best-effort */ }
     }
     state.editError = err instanceof Error ? err.message : "Failed to save agent";
     requestRender();
