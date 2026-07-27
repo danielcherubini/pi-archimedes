@@ -148,7 +148,7 @@ When an agent is saved via the Agents Manager TUI, the model must be written to 
 
 2. Inside the `try` block in `saveAgent()`, after `fs.mkdirSync(dir, { recursive: true })` and before `const content = serializeAgent(agent)`:
    - Capture the model: `const model = agent.model;`
-   - Handle rename: use `state.editOriginal?.name` to get the original agent name; if it differs from `agent.name`, call `deleteLocalModel(state.editOriginal.name)`
+   - Handle rename: `const originalName = state.editOriginal?.name; if (originalName && originalName !== agent.name) deleteLocalModel(originalName)`
    - If `model` is defined, call `writeLocalModel(agent.name, model)`
    - If `model` is undefined (e.g. user cleared it), call `deleteLocalModel(agent.name)` to remove any stale JSON entry
    - Call `delete agent.model` (NOT `agent.model = undefined`, which is a TypeScript error under `exactOptionalPropertyTypes: true`) to strip from `.md` serialization
