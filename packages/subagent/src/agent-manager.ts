@@ -1255,19 +1255,28 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
       deleteLocalModel(originalName);
     }
 
-    // Write model to agents.local.json if set, otherwise remove stale entry
+    // Build a shallow copy without the model for .md serialization so the
+    // live edit object is NOT mutated during serialization. If the .md
+    // write fails below, the live object stays intact for a retry.
+    const mdAgent = { ...agent };
+    delete mdAgent.model;
+
+    // Serialize and write the .md file FIRST. If this fails, no JSON state
+    // is persisted and the live edit object is untouched.
+    const content = serializeAgent(mdAgent);
+    fs.writeFileSync(newPath, content, "utf-8");
+
+    // Only after the .md write succeeds, write to the JSON store (or remove
+    // stale entry). JSON is the source of truth for the model field.
     if (model !== undefined) {
       writeLocalModel(agent.name, model);
     } else {
       deleteLocalModel(agent.name);
     }
 
-    // Strip model from .md serialization (JSON is now the source of truth)
+    // Now that both writes have succeeded, strip the model from the live
+    // edit object so it is no longer carried alongside the .md on disk.
     delete agent.model;
-
-    // Serialize and write
-    const content = serializeAgent(agent);
-    fs.writeFileSync(newPath, content, "utf-8");
 
     // Handle rename if name changed
     if (oldPath && oldPath !== newPath) {
