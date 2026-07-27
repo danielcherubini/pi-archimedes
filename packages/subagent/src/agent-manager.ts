@@ -1246,6 +1246,17 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   // catch block for .md rollback if a later step (JSON write, etc.) fails.
   const model = agent.model;
 
+  // Track whether the .md write succeeded so the catch block knows whether
+  // to restore or clean up the on-disk file.
+  const isRename = oldPath && oldPath !== newPath;
+  let originalContent: string | undefined;
+  if (!isRename && fs.existsSync(newPath)) {
+    // Read existing .md content so we can restore it verbatim if a later
+    // step (JSON write, re-discovery, etc.) fails.
+    originalContent = fs.readFileSync(newPath, "utf-8");
+  }
+  let mdWritten = false;
+
   try {
     // Ensure directory exists
     fs.mkdirSync(dir, { recursive: true });
@@ -1260,6 +1271,7 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     // is persisted and the live edit object is untouched.
     const content = serializeAgent(mdAgent);
     fs.writeFileSync(newPath, content, "utf-8");
+    mdWritten = true;
 
     // Only after the .md write succeeds, perform JSON store mutations.
     // Write/remove the NEW name entry first, then clean up the OLD name.
@@ -1321,19 +1333,22 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     // live object retains it for a safe retry.
     delete agent.model;
   } catch (err) {
-    // If the .md was written but a later step (JSON write, etc.) failed,
-    // restore the model to the .md file so the agent's config is not lost.
-    // The live edit object still has the model (delete agent.model only runs
-    // after all operations succeed), but we spread the captured `model`
-    // variable to be extra safe in case the live object was already mutated.
-    if (model !== undefined) {
-      try {
-        const restored = serializeAgent({ ...agent, model });
-        fs.writeFileSync(newPath, restored, "utf-8");
-      } catch {
-        // Best-effort: the .md may already be on disk or unwritable.
-        // On retry, the live object (which retains the model) will
-        // re-attempt both writes.
+    // Restore prior .md state if the write succeeded but a later step
+    // (JSON write, re-discovery, etc.) failed:
+    //   - rename: the new path didn't exist before, so remove the file we
+    //     just created.
+    //   - existing file: write the original content back verbatim.
+    //   - new file with a model: keep a frontmatter fallback so the model
+    //     override survives for the next retry.
+    // If the .md write itself failed (mdWritten is false) there is nothing
+    // to restore on disk.
+    if (mdWritten) {
+      if (isRename) {
+        try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
+      } else if (originalContent !== undefined) {
+        try { fs.writeFileSync(newPath, originalContent, "utf-8"); } catch { /* best-effort */ }
+      } else if (model !== undefined) {
+        try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
       }
     }
     state.editError = err instanceof Error ? err.message : "Failed to save agent";

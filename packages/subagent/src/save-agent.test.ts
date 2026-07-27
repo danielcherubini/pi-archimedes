@@ -141,8 +141,62 @@ describe("saveAgent rollback model to .md", () => {
     // editError should be set.
     expect(state.editError).toBeTruthy();
 
-    // The live edit object should still have the model (not deleted).
+    // The live edit in-memory object should still have the model (not deleted).
     expect(state.editAgent!.model).toBe("openai/gpt-4o");
+  });
+
+  it("restores original .md content when JSON write fails", () => {
+    // writeLocalModel is mocked (vi.mock at top of file) to always throw,
+    // so the .md write succeeds but the JSON store write fails, triggering
+    // the catch-block restore-original path.
+    // Pre-create the .md file with original content (including an old model
+    // override in frontmatter) so saveAgent can capture and restore it.
+    const originalMd = [
+      "---",
+      "name: codex",
+      "description: original description",
+      "model: old-model",
+      "---",
+      "",
+      "original prompt",
+      "",
+    ].join("\n");
+    writeFileSync(join(testDir, "codex.md"), originalMd, "utf-8");
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "new description",
+        systemPrompt: "new prompt",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "new-model",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "original description",
+        systemPrompt: "original prompt",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // The .md file should have been restored to the original content
+    // verbatim (including the old model), NOT left with the new edit.
+    const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(mdContent).toContain("model: old-model");
+    expect(mdContent).not.toContain("new description");
+
+    // editError should be set.
+    expect(state.editError).toBeTruthy();
   });
 });
 
