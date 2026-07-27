@@ -1,27 +1,30 @@
 # Plans
 
-## Completed Plans
+## Done
 
-| Plan | Status | Created |
-| [Lazy-load and profile startup](plans/2026-07-20-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
-| [Fix Windows Spawn and Terminal Clamping](plans/2026-07-05-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
-| [Add Tests](plans/2026-07-05-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
-| [Stacked, flicker-free parallel subagent rendering](plans/2026-07-04-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
-| [Fix Core Bus Bug and Standardize Ask Package](plans/2026-07-03-fix-core-and-ask.md) | ✅ COMPLETED | 2026-07-03 |
-| Diff wide-character width overflow fix (PR #14) | ✅ COMPLETED (PR #14) | 2026-07-03 |
-| [Notify package](plans/2026-06-28-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
-| [Fork + IPC subagent communication](plans/2025-06-17-fork-ipc-subagent.md) | ✅ COMPLETED (PR #10) | 2026-06-17 |
-| [Ask tool](plans/2025-06-17-ask-tool.md) | ✅ COMPLETED (PR #9) | 2025-06-17 |
-| [Todo list with auto-clear + subagent visibility](plans/2026-06-15-todo-plan.md) | ✅ COMPLETED (PR #8) | 2026-06-15 |
-| [README overhaul + hephaestus deprecation](plans/2026-06-14-readme-overhaul.md) | ✅ COMPLETED (PRs #7 and #4) | 2026-06-14 |
-| [/agents command](plans/2026-06-13-agents-command.md) | ✅ COMPLETED (PR #6) | 2026-06-13 |
-| [Subagent package](plans/2026-06-04-subagent.md) | ✅ COMPLETED (PR #1) | 2026-06-04 |
-| [Create pi-archimedes](plans/2026-06-04-create-pi-archimedes.md) | ✅ COMPLETED | 2026-06-04 |
+| # | Plan | Status | Created |
+| 01 | [Create pi-archimedes](done/plan-001-create-pi-archimedes.md) | ✅ COMPLETED | 2026-06-04 |
+| 02 | [Subagent package](done/plan-002-subagent.md) | ✅ COMPLETED (PR #1) | 2026-06-04 |
+| 03 | [/agents command](done/plan-003-agents-command.md) | ✅ COMPLETED (PR #6) | 2026-06-13 |
+| 04 | [README overhaul + hephaestus deprecation](done/plan-004-readme-overhaul.md) | ✅ COMPLETED (PRs #7 and #4) | 2026-06-14 |
+| 05 | [Todo list with auto-clear + subagent visibility](done/plan-006-todo-plan.md) | ✅ COMPLETED (PR #8) | 2026-06-15 |
+| 06 | [Ask tool](done/plan-007-ask-tool.md) | ✅ COMPLETED (PR #9) | 2025-06-17 |
+| 07 | [Fork + IPC subagent communication](done/plan-008-fork-ipc-subagent.md) | ✅ COMPLETED (PR #10) | 2026-06-17 |
+| 08 | [Notify package](done/plan-009-notify.md) | ✅ COMPLETED (PR #11) | 2026-06-28 |
+| 09 | [Fix Core Bus Bug and Standardize Ask Package](done/plan-010-fix-core-and-ask.md) | ✅ COMPLETED | 2026-07-03 |
+| 10 | [Stacked, flicker-free parallel subagent rendering](done/plan-011-stacked-parallel-subagents.md) | ✅ COMPLETED (PR #16) | 2026-07-04 |
+| 11 | [Add Tests](done/plan-012-add-tests.md) | ✅ COMPLETED (PR #17) | 2026-07-05 |
+| 12 | [Fix Windows Spawn and Terminal Clamping](done/plan-013-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
+| 13 | [Lazy-load and profile startup](done/plan-014-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
+
+> **Notes:**
+> - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
+> - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
 
 ## In Progress
 
-| Plan | Status | Created | |
-| [Agents local JSON for model overrides](plans/plan-015-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 | |
+| # | Plan | Status | Created |
+| 015 | [Agents local JSON for model overrides](plan-015-agents-local-json.md) | 🔄 IN PROGRESS | 2026-07-27 |
 
 ## Quick Stats
 
