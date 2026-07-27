@@ -386,3 +386,98 @@ describe("saveAgent retry safety when re-discovery fails", () => {
     expect(state.editError).toBeTruthy();
   });
 });
+
+describe("saveAgent double-delete prevention on retry", () => {
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("does not delete newPath when old file already absent on retry", () => {
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+    writeFileSync(join(testDir, "oldcodex.md"), "original rename content", "utf-8");
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "new description",
+        systemPrompt: "new prompt",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"),
+        model: "openai/gpt-4o",
+      },
+      editOriginal: {
+        name: "oldcodex",
+        description: "original description",
+        systemPrompt: "original prompt",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+    saveAgent(state as any, () => {});
+    expect(existsSync(join(testDir, "oldcodex.md"))).toBe(false);
+    const newPath = join(testDir, "codex.md");
+    expect(existsSync(newPath)).toBe(true);
+    saveAgent(state as any, () => {});
+    expect(existsSync(newPath)).toBe(true);
+    expect(state.editError).toContain("discovery failed");
+  });
+});
+
+describe("saveAgent cleanup of model-less new files", () => {
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("deletes new file on failure when no model", () => {
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+    const state = {
+      editAgent: {
+        name: "newagent",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: undefined,
+      },
+      editOriginal: {
+        name: "newagent",
+        description: "",
+        systemPrompt: "",
+        source: "user",
+        filePath: undefined,
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+    saveAgent(state as any, () => {});
+    const newPath = join(testDir, "newagent.md");
+    expect(existsSync(newPath)).toBe(false);
+    expect(state.editError).toBeTruthy();
+  });
+});
+

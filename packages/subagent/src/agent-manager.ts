@@ -1356,8 +1356,11 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   } catch (err) {
     // Restore prior .md state if the write succeeded but a later step
     // (JSON write, re-discovery, etc.) failed:
-    //   - rename (old file not yet unlinked): remove the new file we just
-    //     created so only the original file remains.
+    //   - rename (old file not yet unlinked): check whether the old file
+    //     still exists. If so, delete newPath so only the original remains.
+    //     If the old file is gone (deleted externally or by a prior attempt),
+    //     newPath may be the sole copy — keep it with a model fallback, or
+    //     delete it when there is no model to fall back on.
     //   - existing file: write the original content back verbatim.
     //   - new file with a model: keep a frontmatter fallback so the model
     //     override survives for the next retry.
@@ -1367,11 +1370,23 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     // to restore on disk.
     if (mdWritten) {
       if (isRename && !oldPathDeleted) {
-        try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
+        if (oldPath && fs.existsSync(oldPath)) {
+          // Old file still exists — safe to delete newPath and restore prior state
+          try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
+        } else if (model !== undefined) {
+          // Old file is gone — keep newPath with model as fallback
+          try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
+        } else {
+          // Old file is gone and no model — delete newPath (no prior state to restore)
+          try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
+        }
       } else if (originalContent !== undefined) {
         try { fs.writeFileSync(newPath, originalContent, "utf-8"); } catch { /* best-effort */ }
       } else if (model !== undefined) {
         try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
+      } else {
+        // New file without model — delete it (no prior state to restore)
+        try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
       }
     }
     // Roll back JSON if it was written but a later step failed
