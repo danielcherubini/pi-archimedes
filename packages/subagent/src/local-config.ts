@@ -63,6 +63,7 @@ export function writeLocalModel(agentName: string, model: string): void {
 /** Delete the local model override for a given agent (no-op if absent). */
 export function deleteLocalModel(agentName: string): void {
   const config = readLocalConfig();
+  if (!(agentName in config)) return;
   delete config[agentName];
   writeConfigAtomic(config);
 }

@@ -1256,6 +1256,9 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     originalContent = fs.readFileSync(newPath, "utf-8");
   }
   let mdWritten = false;
+  // Track whether the old .md file was already removed during a rename so
+  // the catch block knows whether newPath is the sole surviving copy.
+  let oldPathDeleted = false;
 
   try {
     // Ensure directory exists
@@ -1298,6 +1301,7 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     if (oldPath && oldPath !== newPath) {
       try {
         fs.unlinkSync(oldPath);
+        oldPathDeleted = true;
       } catch {
         // Old file may not exist (e.g., new agent)
       }
@@ -1335,15 +1339,17 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   } catch (err) {
     // Restore prior .md state if the write succeeded but a later step
     // (JSON write, re-discovery, etc.) failed:
-    //   - rename: the new path didn't exist before, so remove the file we
-    //     just created.
+    //   - rename (old file not yet unlinked): remove the new file we just
+    //     created so only the original file remains.
     //   - existing file: write the original content back verbatim.
     //   - new file with a model: keep a frontmatter fallback so the model
     //     override survives for the next retry.
+    // If the old .md was already unlinked during rename (oldPathDeleted),
+    // newPath is the sole surviving copy — leave it in place.
     // If the .md write itself failed (mdWritten is false) there is nothing
     // to restore on disk.
     if (mdWritten) {
-      if (isRename) {
+      if (isRename && !oldPathDeleted) {
         try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
       } else if (originalContent !== undefined) {
         try { fs.writeFileSync(newPath, originalContent, "utf-8"); } catch { /* best-effort */ }

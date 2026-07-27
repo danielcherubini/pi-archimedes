@@ -93,6 +93,13 @@ describe("local-config", () => {
       deleteLocalModel("codex");
       expect(readLocalConfig()).toEqual({ claude: { model: "claude-3.7" } });
     });
+
+    it("does not create file when deleting absent agent on clean install", () => {
+      // No agents.local.json exists yet. Deleting an absent agent should
+      // be a true no-op — it must NOT materialise an empty file on disk.
+      deleteLocalModel("nonexistent");
+      expect(existsSync(join(testDir, "agents.local.json"))).toBe(false);
+    });
   });
 
   it("leaves no .tmp file behind after successful write", () => {

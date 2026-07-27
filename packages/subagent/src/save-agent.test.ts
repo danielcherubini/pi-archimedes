@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { saveAgent } from "./agent-manager.js";
@@ -257,5 +257,58 @@ describe("saveAgent retry safety when re-discovery fails", () => {
     // rollback (serializeAgent({ ...agent, model })).
     const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
     expect(mdContent).toContain("model: openai/gpt-4o");
+  });
+
+  it("does not delete renamed .md when re-discovery fails after old file removed", () => {
+    // Allow writeLocalModel to succeed, then make discoverAgentsAll throw
+    // after the rename unlinkSync has already run (oldPath is gone).
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+
+    // Pre-create the old .md file (the original agent at oldPath).
+    writeFileSync(
+      join(testDir, "oldcodex.md"),
+      "original rename content",
+      "utf-8",
+    );
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "new description",
+        systemPrompt: "new prompt",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"), // oldPath
+        model: "openai/gpt-4o",
+      },
+      editOriginal: {
+        name: "oldcodex",
+        description: "original description",
+        systemPrompt: "original prompt",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // The old file was deleted during the save (rename unlinkSync succeeded).
+    // newPath should NOT be deleted in the catch block — it is the only
+    // surviving copy of the agent.
+    const newPath = join(testDir, "codex.md");
+    expect(existsSync(newPath)).toBe(true);
+    const newContent = readFileSync(newPath, "utf-8");
+    expect(newContent).toContain("model: openai/gpt-4o");
+
+    // editError should contain the discovery failure message.
+    expect(state.editError).toContain("discovery failed");
   });
 });
