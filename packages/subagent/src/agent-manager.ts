@@ -1242,12 +1242,13 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   const newName = agent.name.endsWith(".md") ? agent.name : `${agent.name}.md`;
   const newPath = path.join(dir, newName);
 
+  // Capture model before entering the try block so it is available in the
+  // catch block for .md rollback if a later step (JSON write, etc.) fails.
+  const model = agent.model;
+
   try {
     // Ensure directory exists
     fs.mkdirSync(dir, { recursive: true });
-
-    // Capture model before stripping from .md serialization
-    const model = agent.model;
 
     // Build a shallow copy without the model for .md serialization so the
     // live edit object is NOT mutated during serialization. If the .md
@@ -1290,11 +1291,6 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
       }
     }
 
-    // Now that all writes and cleanup have succeeded, strip the model from
-    // the live edit object so it is no longer carried alongside the .md on
-    // disk.
-    delete agent.model;
-
     // Update filePath
     agent.filePath = newPath;
 
@@ -1318,7 +1314,28 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     state.editDirty = false;
     state.editError = null;
     requestRender();
+
+    // Only strip model from the live edit object AFTER all operations
+    // (including re-discovery) have succeeded. This ensures that if any
+    // step fails, the catch block can restore the model to .md and the
+    // live object retains it for a safe retry.
+    delete agent.model;
   } catch (err) {
+    // If the .md was written but a later step (JSON write, etc.) failed,
+    // restore the model to the .md file so the agent's config is not lost.
+    // The live edit object still has the model (delete agent.model only runs
+    // after all operations succeed), but we spread the captured `model`
+    // variable to be extra safe in case the live object was already mutated.
+    if (model !== undefined) {
+      try {
+        const restored = serializeAgent({ ...agent, model });
+        fs.writeFileSync(newPath, restored, "utf-8");
+      } catch {
+        // Best-effort: the .md may already be on disk or unwritable.
+        // On retry, the live object (which retains the model) will
+        // re-attempt both writes.
+      }
+    }
     state.editError = err instanceof Error ? err.message : "Failed to save agent";
     requestRender();
   }
