@@ -11,7 +11,7 @@
 ### Task 1: Create local-config.ts module with tests
 
 **Context:**
-This task creates the new `agents.local.json` I/O module. It reads/writes a JSON file at `~/.pi/agent/agents.local.json` (path resolved via `getAgentDir()` from `@earendil-workes/pi-coding-agent`). The file stores per-agent model overrides in the format `{ "agent-name": { "model": "provider/model-id" } }`. Atomic writes use the tmp+rename pattern established by `packages/core/src/settings-io.ts`. The path is resolved via a **function** (not a module-level constant) so tests can redirect it via the `PI_CODING_AGENT_DIR` environment variable.
+This task creates the new `agents.local.json` I/O module. It reads/writes a JSON file at `~/.pi/agent/agents.local.json` (path resolved via `getAgentDir()` from `@earendil-works/pi-coding-agent`). The file stores per-agent model overrides in the format `{ "agent-name": { "model": "provider/model-id" } }`. Atomic writes use the tmp+rename pattern established by `packages/core/src/settings-io.ts`. The path is resolved via a **function** (not a module-level constant) so tests can redirect it via the `PI_CODING_AGENT_DIR` environment variable.
 
 **Files:**
 - Create: `packages/subagent/src/local-config.ts`
@@ -22,7 +22,7 @@ This task creates the new `agents.local.json` I/O module. It reads/writes a JSON
 1. In `local-config.ts`:
    - Import `readFileSync`, `writeFileSync`, `existsSync`, `renameSync`, `unlinkSync` from `node:fs`
    - Import `join` from `node:path`
-   - Import `getAgentDir` from `@earendil-workes/pi-coding-agent`
+   - Import `getAgentDir` from `@earendil-works/pi-coding-agent`
    - Export type `LocalConfig = Record<string, { model?: string }>`
    - Export `getLocalConfigPath(): string` — returns `join(getAgentDir(), "agents.local.json")` (function, not constant, for testability)
    - Export `readLocalConfig(): LocalConfig` — reads file, returns `{}` if missing or corrupt
@@ -39,7 +39,7 @@ This task creates the new `agents.local.json` I/O module. It reads/writes a JSON
      - `readLocalConfig` parses valid JSON correctly
      - `writeLocalModel` creates file and writes model entry
      - `writeLocalModel` preserves other agent entries when updating one
-     - `writeLocalConfig` handles model values with special characters (e.g. `openai/gpt-4.1`)
+     - `writeLocalModel` handles model values with special characters (e.g. `openai/gpt-4.1`)
      - `deleteLocalModel` removes the specified agent entry
      - `deleteLocalModel` is a no-op when agent does not exist
      - `deleteLocalModel` preserves other entries
@@ -134,7 +134,7 @@ After loading agent configs from `.md` files, `discoverAgents()` and `discoverAg
 ### Task 3: Modify saveAgent in agent-manager.ts for JSON write
 
 **Context:**
-When an agent is saved via the Agents Manager TUI, the model must be written to `agents.local.json` (primary store) and **stripped** from the `.md` serialization. This happens in `saveAgent()` in `agent-manager.ts`. The model is captured before stripping, written to JSON via `writeLocalModel()`, and then `agent.model` is set to `undefined` so `serializeAgent()` omits the `model:` frontmatter line. On agent rename, the old JSON entry (keyed by old agent name) is deleted via `deleteLocalModel()` before writing the new one. After saving, `saveAgent()` re-discovers all agents via `discoverAgentsAll()`, which re-applies the JSON override — so the in-memory config and TUI display still show the correct model.
+When an agent is saved via the Agents Manager TUI, the model must be written to `agents.local.json` (primary store) and **stripped** from the `.md` serialization. This happens in `saveAgent()` in `agent-manager.ts`. The model is captured before stripping, written to JSON via `writeLocalModel()`, and then `delete agent.model` is called so `serializeAgent()` omits the `model:` frontmatter line (note: `agent.model = undefined` is a TypeScript error under `exactOptionalPropertyTypes: true`, so `delete` must be used). On agent rename, the old JSON entry (keyed by the original agent name from `state.editOriginal?.name`) is deleted via `deleteLocalModel()` before writing the new one. If the model is cleared (undefined), `deleteLocalModel()` is also called to remove any stale JSON entry. After saving, `saveAgent()` re-discovers all agents via `discoverAgentsAll()`, which re-applies the JSON override — so the in-memory config and TUI display still show the correct model.
 
 **Files:**
 - Modify: `packages/subagent/src/agent-manager.ts`
@@ -146,14 +146,15 @@ When an agent is saved via the Agents Manager TUI, the model must be written to 
    import { writeLocalModel, deleteLocalModel } from "./local-config.js";
    ```
 
-2. Inside `saveAgent()`, after validation passes and before `serializeAgent(agent)`:
+2. Inside the `try` block in `saveAgent()`, after `fs.mkdirSync(dir, { recursive: true })` and before `const content = serializeAgent(agent)`:
    - Capture the model: `const model = agent.model;`
-   - Handle rename: if `agent.filePath` exists, extract old name via `path.basename(agent.filePath, ".md")`, and if it differs from `agent.name`, call `deleteLocalModel(oldName)`
+   - Handle rename: use `state.editOriginal?.name` to get the original agent name; if it differs from `agent.name`, call `deleteLocalModel(state.editOriginal.name)`
    - If `model` is defined, call `writeLocalModel(agent.name, model)`
-   - Set `agent.model = undefined` to strip from `.md` serialization
+   - If `model` is undefined (e.g. user cleared it), call `deleteLocalModel(agent.name)` to remove any stale JSON entry
+   - Call `delete agent.model` (NOT `agent.model = undefined`, which is a TypeScript error under `exactOptionalPropertyTypes: true`) to strip from `.md` serialization
 
 3. **What NOT to change:**
-   - Do not modify `serializeAgent()` in `frontmatter-io.ts` — the `if (config.model)` guard already skips undefined models
+   - Do not modify `serializeAgent()` in `frontmatter-io.ts` — the `if (config.model)` guard already skips when the model property is absent (deleted)
    - Do not add delete-on-agent-delete cleanup (orphan entries are harmless; can be added later)
    - Do not change the re-discovery logic (it already re-applies JSON overrides via `discoverAgentsAll`)
 
@@ -165,7 +166,7 @@ When an agent is saved via the Agents Manager TUI, the model must be written to 
 - [ ] Commit with message: "feat(subagent): write model to agents.local.json on save, strip from .md"
 
 **Acceptance criteria:**
-- [ ] `tpc --noEmit` passes
+- [ ] `tsc --noEmit` passes
 - [ ] Saving an agent with a model writes to `agents.local.json`
 - [ ] The `.md` file does NOT contain a `model:` field after save
 - [ ] Loading agents after save shows the correct model (from JSON override)
