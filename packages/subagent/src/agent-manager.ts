@@ -14,6 +14,7 @@ import {
 import type { AgentConfig } from "./agents.js";
 import { discoverAgentsAll } from "./agents.js";
 import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
+import { writeLocalModel, deleteLocalModel } from "./local-config.js";
 
 // ── Screen constants ────────────────────────────────────────────────────────
 
@@ -1244,6 +1245,25 @@ function saveAgent(state: ManagerState, requestRender: () => void): void {
   try {
     // Ensure directory exists
     fs.mkdirSync(dir, { recursive: true });
+
+    // Capture model before stripping from .md serialization
+    const model = agent.model;
+
+    // Handle rename: delete old JSON entry keyed by original name
+    const originalName = state.editOriginal?.name;
+    if (originalName && originalName !== agent.name) {
+      deleteLocalModel(originalName);
+    }
+
+    // Write model to agents.local.json if set, otherwise remove stale entry
+    if (model !== undefined) {
+      writeLocalModel(agent.name, model);
+    } else {
+      deleteLocalModel(agent.name);
+    }
+
+    // Strip model from .md serialization (JSON is now the source of truth)
+    delete agent.model;
 
     // Serialize and write
     const content = serializeAgent(agent);
