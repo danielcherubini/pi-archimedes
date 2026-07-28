@@ -1,5 +1,11 @@
 # Plans
 
+## In Progress
+
+| # | Plan | Status | Created |
+| ---- | ---- | ------ | ------- |
+| 16 | [Subagent agent→model mirror fix + agent discovery](plan-016-subagent-model-mirror.md) | 🚧 IN PROGRESS | 2026-07-28 |
+
 ## Done
 
 | # | Plan | Status | Created |
@@ -24,5 +30,6 @@
 
 ## Quick Stats
 
-- Total Plans: 15
+- Total Plans: 16
 - Completed: 15
+- In Progress: 1
