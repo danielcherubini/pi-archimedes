@@ -1,11 +1,5 @@
 # Plans
 
-## In Progress
-
-| # | Plan | Status | Created |
-| ---- | ---- | ------ | ------- |
-| 16 | [Subagent agent→model mirror fix + agent discovery](plan-016-subagent-model-mirror.md) | 🚧 IN PROGRESS | 2026-07-28 |
-
 ## Done
 
 | # | Plan | Status | Created |
@@ -23,6 +17,7 @@
 | 12 | [Fix Windows Spawn and Terminal Clamping](done/plan-013-fix-windows-spawn-and-terminal-clamp.md) | ✅ COMPLETED (PR #18) | 2026-07-05 |
 | 13 | [Lazy-load and profile startup](done/plan-014-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
 | 14 | [Agents local JSON for model overrides](done/plan-015-agents-local-json.md) | ✅ COMPLETED | 2026-07-27 |
+| 16 | [Subagent agent→model mirror fix + agent discovery](done/plan-016-subagent-model-mirror.md) | ✅ COMPLETED (squash `9ae002a`) | 2026-07-28 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -31,5 +26,5 @@
 ## Quick Stats
 
 - Total Plans: 16
-- Completed: 15
-- In Progress: 1
+- Completed: 16
+- In Progress: 0
