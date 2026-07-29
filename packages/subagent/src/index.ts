@@ -3,7 +3,8 @@ import { Text, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 // execute.js + agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
-import { discoverAgents, discoverAgentsAll, findAgent } from "./agents.js";
+import { discoverAgents, discoverAgentsAll, findAgent, formatAgentList } from "./agents.js";
+import { validateModel, firstError } from "./model-validation.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -14,7 +15,9 @@ import type {
 // ── JSON Schema for tool parameters (TypeBox) ──────────────────────────────
 
 const TaskItem = Type.Object({
-  agent: Type.Optional(Type.String()),
+  agent: Type.Optional(Type.String({
+    description: "Agent name for this task (optional). If omitted, runs config-less.",
+  })),
   task: Type.String(),
   model: Type.Optional(Type.String()),
   cwd: Type.Optional(Type.String()),
@@ -22,7 +25,7 @@ const TaskItem = Type.Object({
 
 const SUBAGENT_PARAMS_SCHEMA = Type.Object({
   agent: Type.Optional(Type.String({
-    description: "Agent name/identifier (optional, defaults to 'general')",
+    description: "Agent name (optional). If omitted, the subagent runs config-less — parent's current model, all tools, no system-prompt override. Call list_agents to see available agents.",
   })),
   task: Type.Optional(Type.String({
     description: "Task description for the subagent. Required when not using 'tasks' array.",
@@ -55,7 +58,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
     name: "subagent",
     label: "Subagent",
     description:
-      "Delegate tasks to subagents. Provide either 'task' (single) or 'tasks' (parallel). Never omit both. Options: agent, model, cwd.",
+      "Delegate tasks to subagents. Provide either 'task' (single) or 'tasks' (parallel). Agent is optional — omit for a config-less run with the parent's model and all tools. Model override is rarely needed; the agent config or parent model is used by default.",
     parameters: SUBAGENT_PARAMS_SCHEMA,
 
     async execute(
@@ -78,12 +81,34 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
       // Parallel mode
       if (params.tasks && params.tasks.length > 0) {
-        const missingAgents = params.tasks.filter((t) => t.agent && !findAgent(agents, t.agent));
-        if (missingAgents.length > 0) {
+        // Combined pre-spawn checks for parallel mode: unknown agents + invalid
+        // models. If ANY task is invalid, abort the whole batch with a single
+        // tool result listing all errors (no tasks spawn).
+        const errors: string[] = [];
+        const unknownAgents = params.tasks
+          .filter((t) => t.agent && !findAgent(agents, t.agent!))
+          .map((t) => `"${t.agent}"`);
+        if (unknownAgents.length > 0) {
           const available = agents.map((a) => a.name).join(", ") || "none";
-          const unknown = missingAgents.map((t) => `"${t.agent}"`).join(", ");
+          errors.push(`Unknown agent(s): ${unknownAgents.join(", ")}. Available: ${available}. Call list_agents for details.`);
+        }
+        const unknownAgentSet = new Set(unknownAgents.map((n) => n.replace(/"/g, '')));
+        for (const t of params.tasks) {
+          // Skip model validation for tasks already caught by unknown-agent check
+          if (t.agent && unknownAgentSet.has(t.agent)) continue;
+          const taskAgentConfig = t.agent ? findAgent(agents, t.agent) : undefined;
+          const me = firstError(
+            validateModel(t.model, ctx.modelRegistry, { agentName: t.agent }),
+            validateModel(taskAgentConfig?.model, ctx.modelRegistry, {
+              agentName: t.agent,
+              agentFilePath: taskAgentConfig?.filePath,
+            }),
+          );
+          if (me) errors.push(me);
+        }
+        if (errors.length > 0) {
           return {
-            content: [{ type: "text", text: `Unknown agent(s): ${unknown}. Available: ${available}` }],
+            content: [{ type: "text", text: errors.join("\n") }],
             details: {
               mode: "parallel",
               results: [],
@@ -134,12 +159,28 @@ export function registerSubagent(pi: ExtensionAPI): void {
         if (params.agent && !agentConfig) {
           const available = agents.map((a) => a.name).join(", ") || "none";
           return {
-            content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${available}` }],
+            content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${available}. Call list_agents for details.` }],
             details: {
               mode: "single",
               results: [],
               progress: undefined,
             },
+            isError: true,
+          };
+        }
+        // Pre-spawn model validation (P2): fail fast with a friendly error
+        // instead of spawning a child that will crash on a bogus --model.
+        const modelError = firstError(
+          validateModel(params.model, ctx.modelRegistry, { agentName: params.agent }),
+          validateModel(agentConfig?.model, ctx.modelRegistry, {
+            agentName: params.agent,
+            agentFilePath: agentConfig?.filePath,
+          }),
+        );
+        if (modelError) {
+          return {
+            content: [{ type: "text", text: modelError }],
+            details: { mode: "single", results: [], progress: undefined },
             isError: true,
           };
         }
@@ -234,9 +275,28 @@ export function registerSubagent(pi: ExtensionAPI): void {
       }
     },
   });
+
+  registerListAgentsTool(pi);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+export function registerListAgentsTool(pi: ExtensionAPI): void {
+  pi.registerTool({
+    name: "list_agents",
+    label: "Agents",
+    description:
+      "List available subagent configurations (name, description, source, model/tools overrides). Call before dispatching if unsure which agents exist or which fits the task.",
+    parameters: Type.Object({}),
+    async execute(_id, _params, _signal, _onUpdate, ctx) {
+      const agents = discoverAgents(ctx.cwd);
+      return {
+        content: [{ type: "text" as const, text: formatAgentList(agents) }],
+        details: { count: agents.length },
+      };
+    },
+  });
+}
 
 function formatProgressSummary(progress: SubagentProgress[]): string {
   if (progress.length === 0) return "";

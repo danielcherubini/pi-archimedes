@@ -207,3 +207,23 @@ export function discoverAgentsAll(cwd: string): AgentsDiscoveryResult {
 export function findAgent(agents: AgentConfig[], name: string): AgentConfig | undefined {
   return agents.find((a) => a.name === name);
 }
+
+/**
+ * Format discovered agents as a compact, readable listing for the `list_agents`
+ * tool. Standard detail: name, source, description, and model/tools overrides
+ * only when set.
+ */
+export function formatAgentList(agents: AgentConfig[]): string {
+  if (agents.length === 0) {
+    return "No agents configured. Create one in ~/.pi/agent/agents/ or .agents/agents/.";
+  }
+  const lines = agents.map((a) => {
+    let line = `• ${a.name} [${a.source}] — ${a.description}`;
+    const extras: string[] = [];
+    if (a.model) extras.push(`model: ${a.model}`);
+    if (a.tools && a.tools.length > 0) extras.push(`${a.tools.length} tools`);
+    if (extras.length > 0) line += ` (${extras.join(", ")})`;
+    return line;
+  });
+  return `${agents.length} agent${agents.length === 1 ? "" : "s"}:\n${lines.join("\n")}`;
+}
