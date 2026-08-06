@@ -127,6 +127,12 @@ export function streamEvents(
       clearStartupTimer();
 
       switch (event.type) {
+        case "session": {
+          if (typeof event.id === "string" && event.id) {
+            state.childSessionId = event.id;
+          }
+          break;
+        }
         case "tool_execution_start": {
           handleToolStart(state, event);
           emitProgress();
@@ -163,7 +169,7 @@ export function streamEvents(
           handleAgentEnd(state, event);
           break;
         }
-        // Ignore: session, agent_start, message_start, message_update, turn_end, tool_execution_update
+        // Ignore: agent_start, message_start, message_update, turn_end, tool_execution_update
       }
     });
 
@@ -183,6 +189,7 @@ export function streamEvents(
       const result: SubagentResult = {
         agent: callbacks.agent ?? "subagent",
         task: callbacks.task ?? "",
+        ...(state.childSessionId ? { childSessionId: state.childSessionId } : {}),
         exitCode,
         model: state.model,
         usage: {

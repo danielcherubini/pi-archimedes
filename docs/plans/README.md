@@ -18,6 +18,7 @@
 | 13 | [Lazy-load and profile startup](done/plan-014-lazy-load-and-profiling.md) | ✅ COMPLETED (PR #21) | 2026-07-20 |
 | 14 | [Agents local JSON for model overrides](done/plan-015-agents-local-json.md) | ✅ COMPLETED | 2026-07-27 |
 | 16 | [Subagent agent→model mirror fix + agent discovery](done/plan-016-subagent-model-mirror.md) | ✅ COMPLETED (squash `9ae002a`) | 2026-07-28 |
+| 17 | [Expose subagent Pi session IDs](done/2026-08-05-subagent-session-id.md) | ✅ COMPLETED | 2026-08-05 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -25,6 +26,6 @@
 
 ## Quick Stats
 
-- Total Plans: 16
-- Completed: 16
+- Total Plans: 17
+- Completed: 17
 - In Progress: 0

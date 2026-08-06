@@ -34,6 +34,8 @@ export interface SubagentProgress {
 export interface SubagentResult {
   agent: string;
   task: string;
+  /** Logical Pi session UUID for this spawned subagent process. */
+  childSessionId?: string;
   exitCode: number;
   usage: SubagentUsage;
   model: string | undefined;
@@ -57,6 +59,7 @@ export interface SubagentDetails {
 
 /** Mutable state during streaming — shared between stream.ts and handlers.ts */
 export interface StreamState {
+  childSessionId?: string;
   toolCount: number;
   turnCount: number;
   totalInput: number;

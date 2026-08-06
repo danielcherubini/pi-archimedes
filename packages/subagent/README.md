@@ -9,6 +9,7 @@ Subagent dispatch with live TUI streaming and cost tracking for the [Pi coding a
 - **Agent discovery** — auto-discovers agents from `.pi/agents/*.md` files at project, user, and global scope
 - **Per-agent model override** — each subagent can use its own model, falling back to the parent's selection
 - **Cost tracking** — detailed token usage (input, output, cache read/write) and cost per subagent, emitted through the core bus for the footer to consume
+- **Trace correlation** — results expose the ephemeral child's logical Pi session UUID as optional `childSessionId` when Pi emits a valid session event
 - **`/agents` command** — full CRUD TUI for managing agent definitions with model picker, tool picker, and cross-scope collision warnings (available via the meta package)
 
 ## Screenshots
