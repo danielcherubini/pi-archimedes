@@ -2,7 +2,7 @@
 
 **Goal:** Restore the centered splash screen (logo + resource sections) after Pi 0.84.0 moved resource sections from `chatContainer` to `loadedResourcesContainer`.
 
-**Architecture:** Navigate the new TUI hierarchy (`documentContainer` → `loadedResourcesContainer`) to find and patch the correct container. Patch its `addChild` to intercept `ExpandableText` section components and render them in archimedes' custom centered header.
+**Architecture:** Navigate the new TUI hierarchy (`documentContainer` → `loadedResourcesContainer`) to find and patch the correct container. Capture the TUI reference during `session_start` (via header factory) for shutdown cleanup. Patch `loadedResourcesContainer.addChild` to intercept `ExpandableText` section components and render them in archimedes' custom centered header.
 
 **Tech Stack:** TypeScript, Pi Extension API (`ctx.ui.setHeader`), pi-tui Component types
 
@@ -10,7 +10,7 @@
 
 ### Task 1: Add `findLoadedResourcesContainer` and update `patchStartupListing`
 
-**Why:** Pi 0.84.0 moved resource sections (`[Context]`, `[Skills]`, `[Extensions]`, `[Themes]`) from `chatContainer` to a new `loadedResourcesContainer` (child of `documentContainer`). The existing `findChatContainer()` searches `tui.children` using heuristics (Scrollable name, middle child, most children) that break with the new 8-child TUI layout. Resource sections are now `ExpandableText` components (extends `Text`) added via `loadedResourcesContainer.addChild()`.
+**Why:** Pi 0.84.0 moved resource sections (`[Context]`, `[Skills]`, `[Extensions]`, `[Themes]`) from `chatContainer` to a new `loadedResourcesContainer` (child of `documentContainer`). The existing `findChatContainer()` searches `tui.children` using heuristics (Scrollable name, middle child, most children) that break with the new 7-child TUI layout. Resource sections are now `ExpandableText` components (extends `Text`) added via `loadedResourcesContainer.addChild()`.
 
 **Files:**
 - Modify: `packages/core/src/startup/index.ts`
@@ -19,14 +19,14 @@
 
 1. **New `findLoadedResourcesContainer(tui: TUI): Container | undefined` function** (place after `findChatContainer`):
 
-   Strategy:
+   Strategy (Pi 0.84.0+ has 7 top-level TUI children in regular mode):
    - Find `documentContainer`: iterate `tui.children`, find the first `Container` that has sub-children of type `Container` (this is `documentContainer` which contains `headerContainer`, `loadedResourcesContainer`, `chatContainer`)
-   - If `documentContainer` found, iterate its children:
-     - Skip the first child (header container — contains the built-in header ExpandableText)
-     - Search remaining children recursively (depth-first) for a Container whose constructor name includes `"Scrollable"` — this is the chat/transcript container
-     - Return the first Container child that is neither the header (index 0) nor the scrollable/chat container
-     - If no scrollable found, return the second Container child (index 1 = `loadedResourcesContainer` by convention)
+   - If `documentContainer` found, filter its children for `Container` instances
+   - Return `containerChildren[1]` (second Container child = `loadedResourcesContainer` by convention: header=0, resources=1, chat=2)
+   - If fewer than 2 Container children, return `undefined`
    - If `documentContainer` not found, return `undefined` (fallback to old behavior)
+
+   Note: the scrollable-heuristic from `findChatContainer` does NOT apply here — on Pi 0.84+, `ScrollView` wraps `documentContainer` as a fullscreen layout root and is never inside `documentContainer`'s subtree. The simple index-based approach (second Container child) is sufficient and matches Pi's initialization order (`interactive-mode.js:347-352`).
 
    ```typescript
    function findLoadedResourcesContainer(tui: TUI): Container | undefined {
@@ -39,31 +39,9 @@
      const containerChildren = docContainer.children.filter(
        (c): c is Container => c instanceof Container
      );
+     // Pi 0.84+: [headerContainer(0), loadedResourcesContainer(1), chatContainer(2)]
      if (containerChildren.length < 2) return undefined;
-
-     // Find scrollable/chat container (recursive search)
-     let scrollable: Container | undefined;
-     function findScrollable(container: Container): void {
-       for (const child of container.children) {
-         const cc = child as any;
-         if (cc.constructor?.name?.includes("Scrollable")) {
-           scrollable = container;
-           return;
-         }
-         if (child instanceof Container) findScrollable(child);
-       }
-     }
-     findScrollable(docContainer);
-
-     // First non-header, non-chat Container = loadedResourcesContainer
-     const headerContainer = containerChildren[0];
-     for (const child of containerChildren) {
-       if (child !== headerContainer && child !== scrollable) {
-         return child;
-       }
-     }
-     // Fallback: second Container child
-     return containerChildren[1];
+     return containerChildren[1]; // loadedResourcesContainer
    }
    ```
 
@@ -105,58 +83,105 @@
 
 ---
 
-### Task 2: Update shutdown cleanup to scan nested containers
+### Task 2: Capture TUI reference and fix shutdown cleanup
 
-**Why:** The `session_shutdown` handler in `packages/core/src/index.ts` iterates `tui.children` to find patched containers and restore their `addChild`. With Pi 0.84.0, `loadedResourcesContainer` is a child of `documentContainer` (a child of `tui`), not a direct `tui.child`. The cleanup scan must also check nested containers.
+**Why:** The `session_shutdown` handler in `packages/core/src/index.ts` needs the TUI reference to find and restore patched containers. Two problems: (1) `(coreCtx.ui as any).tui` is `undefined` on Pi 0.84+ — `createExtensionUIContext()` does NOT expose `tui` on the extension UI context (the existing shutdown loop is already a silent no-op for this reason). (2) `TUI` is a type-only interface in pi-tui 0.84 (no runtime value), so `instanceof TUI` would throw `TypeError`. Fix: capture the real TUI reference during `session_start` (the header factory receives it as a parameter) and store it in module scope for shutdown use.
 
 **Files:**
 - Modify: `packages/core/src/index.ts`
 
 **What to implement:**
 
-In the `session_shutdown` handler, after the existing `tui.children` loop, add a second loop that scans `documentContainer.children`:
+1. **Add module-level `coreTui` variable** (next to existing `coreRef` and `coreCtx`):
+   ```typescript
+   let coreRef: ListingRef | undefined;
+   let coreCtx: ExtensionContext | undefined;
+   let coreTui: TUI | undefined;
+   ```
 
-```typescript
-// After the existing tui.children loop:
-// Also scan documentContainer.children (Pi 0.84.0+ nested structure)
-try {
-  const tui = (coreCtx.ui as any).tui;
-  if (tui?.children) {
-    for (const topChild of tui.children) {
-      const tc = topChild as any;
-      if (tc instanceof (TUI as any) || !tc.children) continue;
-      // This is documentContainer or similar nested Container
-      for (const child of tc.children) {
-        const cc = child as any;
-        if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
-          child.addChild = cc[ORIG_ADD_CHILD];
-          cc[PATCHED_LISTING] = false;
-          cc[ORIG_ADD_CHILD] = undefined;
-        }
-      }
-    }
-  }
-} catch {
-  /* TUI structure may have changed — ignore */
-}
-```
+2. **Capture TUI in header factory** — the header factory receives `tui` as its first parameter. Store it:
+   ```typescript
+   const headerFactory = (tui: TUI, theme: Theme): Component & { dispose?(): void } => {
+     coreTui = tui; // Capture for shutdown cleanup
+     const comp: Component & { dispose?(): void } = {
+       // ... existing render logic
+     };
+     patchStartupListing(tui, theme, ref);
+     return comp;
+   };
+   ```
 
-The existing `tui.children` loop stays unchanged (backward compat for older Pi).
+3. **Rewrite `session_shutdown` handler** — replace the entire handler body. Use `coreTui` instead of `(coreCtx.ui as any).tui`. Scan both direct TUI children (old Pi) AND nested children (Pi 0.84+):
+   ```typescript
+   pi.on("session_shutdown", (_event, _ctx) => {
+     if (coreRef) { coreRef.settled = true; }
+     const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
+     const listingRef = g["listingRef"] as ListingRef | undefined;
+     if (listingRef) { listingRef.settled = true; }
+
+     // Restore patched addChild
+     const PATCHED_LISTING = Symbol.for("splashscreen:listingPatched");
+     const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
+     if (coreTui) {
+       try {
+         // Direct TUI children (old Pi: chatContainer was a direct child)
+         for (const child of coreTui.children) {
+           const cc = child as any;
+           if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
+             child.addChild = cc[ORIG_ADD_CHILD];
+             cc[PATCHED_LISTING] = false;
+             cc[ORIG_ADD_CHILD] = undefined;
+           }
+         }
+         // Nested children (Pi 0.84+: loadedResourcesContainer is inside documentContainer)
+         for (const topChild of coreTui.children) {
+           const tc = topChild as any;
+           if (!tc.children) continue;
+           for (const child of tc.children) {
+             const cc = child as any;
+             if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
+               child.addChild = cc[ORIG_ADD_CHILD];
+               cc[PATCHED_LISTING] = false;
+               cc[ORIG_ADD_CHILD] = undefined;
+             }
+           }
+         }
+       } catch {
+         /* TUI structure may have changed — ignore */
+       }
+     }
+
+     // Clear editor component override
+     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
+   });
+   ```
+
+   Key changes from existing code:
+   - Use `coreTui` (captured at session_start) instead of `(coreCtx.ui as any).tui` (which is undefined)
+   - Added nested scan: iterate `topChild.children` for each direct TUI child
+   - NO `instanceof TUI` check (TUI is type-only in pi-tui 0.84, would throw TypeError)
+   - Keep `coreRef.settled`, global listingRef settle, and `setEditorComponent(undefined)` unchanged
 
 **Do NOT change:**
 - `coreRef.settled = true` marking
 - Global `listingRef` settling
 - Editor component clearing (`coreCtx.ui.setEditorComponent(undefined)`)
+- Do NOT use `instanceof TUI` — TUI is a type-only interface in pi-tui 0.84+ (no runtime constructor)
 
 **Steps:**
-- [ ] Add nested container scan to `session_shutdown` handler in `packages/core/src/index.ts`
+- [ ] Add `let coreTui: TUI | undefined` module-level variable (next to `coreRef` and `coreCtx`)
+- [ ] Capture TUI in header factory: add `coreTui = tui` as first line
+- [ ] Rewrite `session_shutdown` handler: use `coreTui` instead of `(coreCtx.ui as any).tui`, add nested container scan, remove `instanceof TUI` check
 - [ ] Run `npx tsc --noEmit` in `packages/core/`
   - Did it succeed? If not, fix type errors and re-run
-- [ ] Commit with message: "fix(core): scan nested containers in shutdown cleanup for Pi 0.84.0+"
+- [ ] Update `docs/plans/README.md`: add plan-017 row to Done table with status "🔄 IN PROGRESS", increment Total Plans to 17
+- [ ] Commit with message: "fix(core): capture TUI reference and fix shutdown cleanup for Pi 0.84.0+"
 
 **Acceptance criteria:**
-- [ ] Shutdown cleanup finds and restores `loadedResourcesContainer.addChild` on Pi 0.84.0+
-- [ ] Shutdown cleanup still works for older Pi versions (tui.children scan unchanged)
+- [ ] `coreTui` is captured during `session_start` via header factory
+- [ ] Shutdown cleanup uses `coreTui` (not `(coreCtx.ui as any).tui`) and finds nested containers
+- [ ] No `instanceof TUI` checks that would throw TypeError
+- [ ] Shutdown cleanup still works for older Pi versions (direct tui.children scan unchanged)
 - [ ] No errors thrown if TUI structure is unrecognized
 - [ ] Type-check passes with `npx tsc --noEmit`
 
