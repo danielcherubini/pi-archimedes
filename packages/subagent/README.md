@@ -5,7 +5,7 @@ Subagent dispatch with live TUI streaming and cost tracking for the [Pi coding a
 ## Features
 
 - **Single & parallel execution** — dispatch one task or fan out multiple tasks across different agents simultaneously
-- **Live TUI streaming** — watch subagent progress in real-time with tool calls, token counts, and cost updates
+- **Live TUI streaming** — watch subagent progress in real-time with color-coded tool calls (grey while running, green/red on completion), readable argument previews, token counts, and cost updates
 - **Agent discovery** — auto-discovers agents from `.pi/agents/*.md` files at project, user, and global scope
 - **Per-agent model override** — each subagent can use its own model, falling back to the parent's selection
 - **Cost tracking** — detailed token usage (input, output, cache read/write) and cost per subagent, emitted through the core bus for the footer to consume

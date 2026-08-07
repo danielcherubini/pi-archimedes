@@ -70,6 +70,8 @@ Dispatch work to other agents and watch them work in real time.
 - Parallel execution mode
 - Per-subagent tool counts and token usage
 - Unified cost summary
+- Color-coded tool calls — grey while running, green/red on completion
+- Readable argument previews (no raw JSON)
 
 ![subagents main view](docs/images/subagents-main-view.png)
 
