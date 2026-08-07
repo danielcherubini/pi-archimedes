@@ -19,7 +19,7 @@ I was using the subagent plugin and wanted one thing — the cost of a subagent 
 
 So pi-archimedes is the set of extensions that actually cooperate — and because I was building them together, I also gave them a single point of view: minimal, but designed. Matching chrome, a footer that says what matters, diffs that fit the theme. Install once, stop thinking about it.
 
-It's also a door. Want only the footer? `pi install @pi-archimedes/footer`. Only the diff renderer? `pi install @pi-archimedes/diff`. Mix and match.
+It's also a door. Want only the footer? `pi install npm:@pi-archimedes/footer`. Only the diff renderer? `pi install npm:@pi-archimedes/diff`. Mix and match.
 
 This is the only Pi package I run. If you took it apart and put it back together differently, that'd be exactly what I want.
 
@@ -61,6 +61,12 @@ Syntax-highlighted diffs that read at a glance.
 Paste screenshots straight into the chat.
 
 - Paste images from clipboard (Ctrl+V on Linux, Alt+V on Windows) with inline preview
+
+> **⚠️ Shortcut conflict:** On Linux, `ctrl+v` is also Pi's built-in shortcut for `app.clipboard.pasteImage`. To resolve the conflict, clear the built-in binding in `~/.pi/agent/keybindings.json`:
+> ```json
+> { "app.clipboard.pasteImage": [] }
+> ```
+> This lets archimedes' handler (which adds inline previews) take over without the warning.
 
 ### 🤖 Subagent ([`@pi-archimedes/subagent`](packages/subagent/README.md))
 
@@ -125,21 +131,21 @@ Desktop notifications when you've stepped away — with a circuit breaker that c
 ## Quick Start
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 That's it. Reload Pi and you're set.
 
 ### Or install selectively
 
-- `pi install @pi-archimedes/core`
-- `pi install @pi-archimedes/footer`
-- `pi install @pi-archimedes/diff`
-- `pi install @pi-archimedes/image-paste`
-- `pi install @pi-archimedes/subagent`
-- `pi install @pi-archimedes/todo`
-- `pi install @pi-archimedes/ask`
-- `pi install @pi-archimedes/notify`
+- `pi install npm:@pi-archimedes/core`
+- `pi install npm:@pi-archimedes/footer`
+- `pi install npm:@pi-archimedes/diff`
+- `pi install npm:@pi-archimedes/image-paste`
+- `pi install npm:@pi-archimedes/subagent`
+- `pi install npm:@pi-archimedes/todo`
+- `pi install npm:@pi-archimedes/ask`
+- `pi install npm:@pi-archimedes/notify`
 
 ## Settings
 
