@@ -50,11 +50,16 @@ export function extractArgsPreview(args: unknown): string {
 export function handleToolStart(state: StreamState, event: JsonEvent): void {
   state.toolCount++;
   state.currentTool = event.toolName as string;
-  state.currentToolArgs = JSON.stringify(event.args);
+  // Use extractArgsPreview instead of JSON.stringify for readable display
+  const argsPreview = extractArgsPreview(event.args);
+  state.currentToolArgs = argsPreview;
   state.currentToolStartedAt = Date.now();
   // Record tool call with args preview
-  const argsPreview = extractArgsPreview(event.args);
-  state.toolCalls.push(`${state.currentTool}: ${argsPreview}`);
+  state.toolCalls.push({
+    name: state.currentTool,
+    argsPreview,
+    error: false,
+  });
   if (state.toolCalls.length > TOOL_CALLS_MAX) {
     state.toolCalls.splice(0, state.toolCalls.length - TOOL_CALLS_MAX);
   }
@@ -75,6 +80,14 @@ export function handleToolEnd(state: StreamState): void {
  */
 export function handleToolResult(state: StreamState, event: JsonEvent): void {
   const result = event.result as Record<string, unknown> | undefined;
+
+  // Mark the last tool call as errored if the result indicates an error
+  const lastCall = state.toolCalls[state.toolCalls.length - 1];
+  const isError = event.isError === true || result?.isError === true;
+  if (lastCall && lastCall.name === (event.toolName as string) && isError) {
+    lastCall.error = true;
+  }
+
   if (!result) return;
 
   const toolName = (event.toolName as string) ?? "tool";
