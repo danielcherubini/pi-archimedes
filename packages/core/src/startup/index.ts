@@ -159,22 +159,46 @@ function findChatContainer(tui: TUI): Container | undefined {
   return undefined;
 }
 
+// Pi 0.84+ moved resource sections from chatContainer to loadedResourcesContainer
+// (child of documentContainer). Find it by locating documentContainer (the first TUI
+// child that contains Container sub-children), then taking its second Container child.
+//
+// Pi 0.84+ TUI layout (regular mode, 7 top-level children):
+//   documentContainer → [headerContainer(0), loadedResourcesContainer(1), chatContainer(2)]
+function findLoadedResourcesContainer(tui: TUI): Container | undefined {
+  // Only run this heuristic on Pi >= 0.84.0 where loadedResourcesContainer exists.
+  // On older Pi versions, return undefined so the caller falls back to findChatContainer().
+  if (compareVersions(VERSION, "0.84.0") < 0) return undefined;
+
+  // Find documentContainer: first tui child that has Container sub-children
+  const docContainer = tui.children.find(
+    (c) => c instanceof Container && c.children.some((child) => child instanceof Container)
+  ) as Container | undefined;
+  if (!docContainer) return undefined;
+
+  const containerChildren = docContainer.children.filter(
+    (c): c is Container => c instanceof Container
+  );
+  // Pi 0.84+: [headerContainer(0), loadedResourcesContainer(1), chatContainer(2)]
+  // The index [1] assumption is load-bearing — tied to Pi 0.84+ initialization order.
+  if (containerChildren.length < 2) return undefined;
+  return containerChildren[1]; // loadedResourcesContainer
+}
+
 export function patchStartupListing(
   tui: TUI,
   _theme: Theme,
   ref: ListingRef,
 ): void {
-  const chat = findChatContainer(tui);
-  if (!chat) {
-    // Graceful degradation: if we can't find the chat container,
-    // the startup listing won't render but the extension continues.
-    console.warn("[archimedes] Could not find chat container — startup listing disabled. This may indicate a pi TUI structure change.");
+  const resourcesContainer = findLoadedResourcesContainer(tui) ?? findChatContainer(tui);
+  if (!resourcesContainer) {
+    console.warn("[archimedes] Could not find resources container — startup listing disabled. This may indicate a pi TUI structure change.");
     return;
   }
-  const cc = chat as any;
+  const rc = resourcesContainer as any;
 
   // Always update ref + restart animation (critical for /reload)
-  cc[LISTING_REF] = ref;
+  rc[LISTING_REF] = ref;
   ref.frame = 0;
   ref.revealed = false;
   ref.revealedAt = 0;
@@ -184,12 +208,12 @@ export function patchStartupListing(
   delete ref.cachedWidth;
   delete ref.maxHeaderHeight;
 
-  if (cc[ANIM_INTERVAL]) clearInterval(cc[ANIM_INTERVAL]);
-  if (cc[DEBOUNCE_TIMER]) clearTimeout(cc[DEBOUNCE_TIMER]);
+  if (rc[ANIM_INTERVAL]) clearInterval(rc[ANIM_INTERVAL]);
+  if (rc[DEBOUNCE_TIMER]) clearTimeout(rc[DEBOUNCE_TIMER]);
 
   const interval = setInterval(() => {
     try {
-      const current: ListingRef = cc[LISTING_REF];
+      const current: ListingRef = rc[LISTING_REF];
       if (!current) {
         clearInterval(interval);
         return;
@@ -197,7 +221,7 @@ export function patchStartupListing(
       current.frame++;
       if (current.settled && current.frame >= LOGO_SETTLE_FRAME) {
         clearInterval(interval);
-        cc[ANIM_INTERVAL] = null;
+        rc[ANIM_INTERVAL] = null;
         return;
       }
       tui.requestRender();
@@ -206,12 +230,12 @@ export function patchStartupListing(
     }
   }, 16);
 
-  cc[ANIM_INTERVAL] = interval;
+  rc[ANIM_INTERVAL] = interval;
 
   // Fetch latest version from npm
   fetchLatestVersion().then(v => {
     if (v) {
-      const current: ListingRef = cc[LISTING_REF];
+      const current: ListingRef = rc[LISTING_REF];
       current.latestVersion = v;
       // Invalidate cache so version updates on next render
       delete current.cachedLines;
@@ -220,28 +244,28 @@ export function patchStartupListing(
   });
 
   // Patch clear() to intercept container rebuild
-  if (!cc[PATCHED_CLEAR]) {
-    cc[PATCHED_CLEAR] = true;
-    const origClear = chat.clear.bind(chat);
-    chat.clear = () => {
+  if (!rc[PATCHED_CLEAR]) {
+    rc[PATCHED_CLEAR] = true;
+    const origClear = resourcesContainer.clear.bind(resourcesContainer);
+    resourcesContainer.clear = () => {
       return origClear();
     };
   }
 
-  // Only patch addChild once — the closure reads cc[LISTING_REF] dynamically
-  if (cc[PATCHED_LISTING]) {
-    chat.clear();
+  // Only patch addChild once — the closure reads rc[LISTING_REF] dynamically
+  if (rc[PATCHED_LISTING]) {
+    resourcesContainer.clear();
     return;
   }
-  cc[PATCHED_LISTING] = true;
+  rc[PATCHED_LISTING] = true;
 
-  const origAddChild = chat.addChild.bind(chat);
-  cc[ORIG_ADD_CHILD] = origAddChild; // Store for cleanup on shutdown
-  chat.clear();
+  const origAddChild = resourcesContainer.addChild.bind(resourcesContainer);
+  rc[ORIG_ADD_CHILD] = origAddChild; // Store for cleanup on shutdown
+  resourcesContainer.clear();
 
-  chat.addChild = (component: Component) => {
+  resourcesContainer.addChild = (component: Component) => {
     try {
-      const currentRef: ListingRef = cc[LISTING_REF];
+      const currentRef: ListingRef = rc[LISTING_REF];
 
       if (component instanceof Text) {
       // pi ≥0.67.6 wraps startup sections in ExpandableText; collapsed body
@@ -270,14 +294,14 @@ export function patchStartupListing(
           tui.requestRender();
         } else {
           // Batch initial sections — reset debounce on each arrival
-          if (cc[DEBOUNCE_TIMER]) clearTimeout(cc[DEBOUNCE_TIMER]);
-          cc[DEBOUNCE_TIMER] = setTimeout(() => {
-            const ref: ListingRef = cc[LISTING_REF];
+          if (rc[DEBOUNCE_TIMER]) clearTimeout(rc[DEBOUNCE_TIMER]);
+          rc[DEBOUNCE_TIMER] = setTimeout(() => {
+            const ref: ListingRef = rc[LISTING_REF];
             ref.revealed = true;
             ref.revealedAt = ref.frame;
             ref.scaffoldAt = ref.frame;
             tui.requestRender();
-            cc[DEBOUNCE_TIMER] = null;
+            rc[DEBOUNCE_TIMER] = null;
           }, REVEAL_DEBOUNCE_MS);
         }
 
@@ -297,7 +321,7 @@ export function patchStartupListing(
     try {
       origAddChild(component);
     } catch (err) {
-      console.error("[archimedes] Error in chat.addChild:", err);
+      console.error("[archimedes] Error in resourcesContainer.addChild:", err);
     }
   } catch (err) {
     console.error("[archimedes] Error in startup listing addChild handler:", err);

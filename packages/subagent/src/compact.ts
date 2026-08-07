@@ -1,5 +1,5 @@
 import { Text } from "@earendil-works/pi-tui";
-import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolResult } from "./types.js";
+import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall, SubagentToolResult } from "./types.js";
 import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
@@ -14,7 +14,7 @@ interface ActivityData {
   finalOutput: string | undefined;
   status: "running" | "completed" | "failed" | undefined;
   error: string | undefined;
-  toolCalls?: string[] | undefined;
+  toolCalls?: (SubagentToolCall | string)[] | undefined;
 }
 
 export function buildActivityLine(
@@ -35,7 +35,7 @@ export function buildActivityLine(
     return theme.fg("error", "✗ Failed");
   }
 
-  // Running: show the current tool with live duration
+  // Running: show the current tool with live duration (grey while running)
   if (data.currentTool) {
     const arrow = theme.fg("muted", "↳ ");
     const argsPreview = data.currentToolArgs
@@ -44,7 +44,7 @@ export function buildActivityLine(
     const durationPart = data.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - data.currentToolStartedAt)
       : "";
-    let line = theme.fg("syntaxFunction", data.currentTool);
+    let line = theme.fg("muted", data.currentTool);
     if (argsPreview) {
       line += theme.fg("dim", ": " + argsPreview);
     }
@@ -55,9 +55,21 @@ export function buildActivityLine(
   }
 
   // Running, no active tool: show the most recently completed tool call
+  // Color only the tool name green (success) or red (error)
   if (data.toolCalls && data.toolCalls.length > 0) {
     const lastCall = data.toolCalls[data.toolCalls.length - 1];
-    if (lastCall) return theme.fg("muted", "↳ " + lastCall);
+    if (lastCall) {
+      if (typeof lastCall === "string") {
+        return theme.fg("dim", "↳ " + truncLine(lastCall, 60));
+      }
+      const color = lastCall.error ? "error" : "success";
+      const arrow = theme.fg("muted", "↳ ");
+      const name = theme.fg(color, lastCall.name);
+      const argsPart = lastCall.argsPreview
+        ? theme.fg("dim", ": " + truncLine(lastCall.argsPreview, 60))
+        : "";
+      return arrow + name + argsPart;
+    }
   }
 
   // Running, no tool history: show first line of streamed output if any

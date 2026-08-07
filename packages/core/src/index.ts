@@ -59,6 +59,7 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
 // Module-level state for session lifecycle (shared between session_start and session_shutdown)
 let coreRef: ListingRef | undefined;
 let coreCtx: ExtensionContext | undefined;
+let coreTui: TUI | undefined;
 
 export function registerCore(pi: ExtensionAPI): void {
   // Patch console.log for model scope capture
@@ -72,26 +73,56 @@ export function registerCore(pi: ExtensionAPI): void {
     const listingRef = g["listingRef"] as ListingRef | undefined;
     if (listingRef) { listingRef.settled = true; }
 
-    // Restore patched chat.addChild to prevent closure accumulation across reloads
-    const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
+    // Restore patched addChild to prevent closure accumulation across reloads
     const PATCHED_LISTING = Symbol.for("splashscreen:listingPatched");
-    if (coreCtx) {
+    const ORIG_ADD_CHILD = Symbol.for("splashscreen:origAddChild");
+    if (coreTui) {
       try {
-        const tui = (coreCtx.ui as any).tui;
-        if (tui?.children) {
-          for (const child of tui.children) {
+        // Direct TUI children (old Pi: chatContainer was a direct child)
+        for (const child of coreTui.children) {
+          const cc = child as any;
+          if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
+            cc.addChild = cc[ORIG_ADD_CHILD];
+            cc[PATCHED_LISTING] = false;
+            cc[ORIG_ADD_CHILD] = undefined;
+          }
+        }
+        // Nested children (Pi 0.84+: loadedResourcesContainer is inside documentContainer)
+        for (const topChild of coreTui.children) {
+          const tc = topChild as any;
+          if (!tc.children) continue;
+          for (const child of tc.children) {
             const cc = child as any;
             if (cc[PATCHED_LISTING] && cc[ORIG_ADD_CHILD]) {
-              child.addChild = cc[ORIG_ADD_CHILD];
+              cc.addChild = cc[ORIG_ADD_CHILD];
               cc[PATCHED_LISTING] = false;
               cc[ORIG_ADD_CHILD] = undefined;
             }
           }
         }
-      } catch {
-        /* TUI structure may have changed — ignore */
+
+      // Clear animation interval and debounce timer for prompt cleanup
+      const ANIM_INTERVAL = Symbol.for("splashscreen:animInterval");
+      const DEBOUNCE_TIMER = Symbol.for("splashscreen:debounceTimer");
+      for (const child of coreTui.children) {
+        const cc = child as any;
+        if (cc[ANIM_INTERVAL]) clearInterval(cc[ANIM_INTERVAL]);
+        if (cc[DEBOUNCE_TIMER]) clearTimeout(cc[DEBOUNCE_TIMER]);
       }
+      // Nested children (Pi 0.84+: loadedResourcesContainer is inside documentContainer)
+      for (const topChild of coreTui.children) {
+        const tc = topChild as any;
+        if (!tc.children) continue;
+        for (const child of tc.children) {
+          const cc = child as any;
+          if (cc[ANIM_INTERVAL]) clearInterval(cc[ANIM_INTERVAL]);
+          if (cc[DEBOUNCE_TIMER]) clearTimeout(cc[DEBOUNCE_TIMER]);
+        }
+      }
+    } catch {
+      /* TUI structure may have changed — ignore */
     }
+  }
 
     // Clear editor component override
     if (coreCtx) { coreCtx.ui.setEditorComponent(undefined); }
@@ -116,6 +147,7 @@ export function registerCore(pi: ExtensionAPI): void {
     };
     const ref = coreRef;
     const headerFactory = (tui: TUI, theme: Theme): Component & { dispose?(): void } => {
+      coreTui = tui; // Capture for shutdown cleanup
       const comp: Component & { dispose?(): void } = {
         invalidate(): void { /* no-op */ },
         render(width: number): string[] {

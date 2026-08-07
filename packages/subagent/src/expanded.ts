@@ -1,8 +1,24 @@
 import { Text } from "@earendil-works/pi-tui";
-import type { SubagentDetails, SubagentProgress, SubagentResult } from "./types.js";
+import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall } from "./types.js";
 import { formatTokens, formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatToolCall(call: SubagentToolCall | string, theme: Theme): string {
+  // Backward compat: old persisted sessions may have toolCalls as string[]
+  if (typeof call === "string") {
+    return theme.fg("dim", "↳ " + call);
+  }
+  const arrow = theme.fg("muted", "↳ ");
+  const color = call.error ? "error" : "success";
+  const name = theme.fg(color, call.name);
+  const argsPart = call.argsPreview
+    ? theme.fg("dim", ": " + call.argsPreview)
+    : "";
+  return arrow + name + argsPart;
+}
 
 // ── Expanded completed result ───────────────────────────────────────────────
 
@@ -43,7 +59,7 @@ export function buildExpandedText(
   if (toolCalls && toolCalls.length > 0) {
     lines.push("");
     for (const call of toolCalls) {
-      lines.push(theme.fg("dim", "↳ " + call));
+      lines.push(formatToolCall(call, theme));
     }
   }
 
@@ -116,7 +132,7 @@ export function renderProgressExpanded(
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "↳ " + call));
+      lines.push(formatToolCall(call, theme));
     }
   }
 
@@ -129,7 +145,7 @@ export function renderProgressExpanded(
     const durationPart = progress.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
       : "";
-    let line = theme.fg("syntaxFunction", progress.currentTool);
+    let line = theme.fg("muted", progress.currentTool);
     if (argsPreview) {
       line += theme.fg("dim", ": " + argsPreview);
     }
@@ -192,7 +208,7 @@ export function buildProgressExpandedText(
   if (progress.toolCalls && progress.toolCalls.length > 0) {
     lines.push("");
     for (const call of progress.toolCalls) {
-      lines.push(theme.fg("dim", "↳ " + call));
+      lines.push(formatToolCall(call, theme));
     }
   }
 
@@ -204,7 +220,7 @@ export function buildProgressExpandedText(
     const durationPart = progress.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
       : "";
-    let line = theme.fg("syntaxFunction", progress.currentTool);
+    let line = theme.fg("muted", progress.currentTool);
     if (argsPreview) {
       line += theme.fg("dim", ": " + argsPreview);
     }

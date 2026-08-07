@@ -7,6 +7,12 @@ export interface SubagentUsage {
   turns: number;
 }
 
+export interface SubagentToolCall {
+  name: string;
+  argsPreview: string;
+  error: boolean;
+}
+
 export interface SubagentProgress {
   agent: string;
   status: "running" | "completed" | "failed";
@@ -27,8 +33,8 @@ export interface SubagentProgress {
   output: string | undefined;
   /** Last N lines of assistant text for live display */
   recentOutput: string[] | undefined;
-  /** History of tool calls: "toolName: args_preview" */
-  toolCalls: string[] | undefined;
+  /** History of tool calls with status tracking */
+  toolCalls: SubagentToolCall[] | undefined;
 }
 
 export interface SubagentResult {
@@ -73,7 +79,7 @@ export interface StreamState {
   model: string | undefined;
   accumulatedOutput: string[];
   recentOutput: string[];
-  toolCalls: string[];
+  toolCalls: SubagentToolCall[];
   finalOutput: string | undefined;
 }
 

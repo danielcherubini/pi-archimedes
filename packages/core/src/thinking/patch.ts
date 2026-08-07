@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
-import { Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Markdown, type MarkdownOptions, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // The label we prepend to visible thinking content.
@@ -99,12 +99,52 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
       return mutedTheme;
     };
 
+    // Pi's native updateContent passes a `transform` (createMarkdownTransform)
+    // to Markdown so the markdown-transformer pipeline runs — that is what
+    // renders Mermaid blocks to ASCII and applies any extension transformers.
+    // We must preserve it here, otherwise those transformers are silently
+    // dropped when this patch replaces updateContent.
+    //
+    // NOTE: the `transform` option was added to @earendil-works/pi-tui in
+    // 0.84.1. The repo's lockfile pins 0.78.0 whose types lack the field, so we
+    // extend the options type locally; at runtime the field is ignored by very
+    // old pi-tui and honored by 0.84.1+ (which is where Mermaid rendering and
+    // the bug both exist).
+    type MarkdownOptionsWithTransform = MarkdownOptions & {
+      transform?: (markdown: string, availableWidth: number) => string;
+    };
+    const transformFor =
+      (messageType: "assistant" | "assistant-thinking") =>
+      (markdown: string, availableWidth: number): string => {
+        let out = markdown;
+        for (const transformer of (this as any).markdownTransformers ?? []) {
+          try {
+            const transformed = transformer(out, {
+              messageType,
+              isStreaming: this.isStreaming,
+              availableWidth,
+            });
+            if (typeof transformed === "string") out = transformed;
+          } catch {
+            // Keep the current markdown and continue with the next transformer.
+          }
+        }
+        return out;
+      };
+
     // Render content in order.
     for (let i = 0; i < message.content.length; i++) {
       const content = message.content[i];
       if (content.type === "text" && content.text.trim()) {
         this.contentContainer.addChild(
-          new Markdown(content.text.trim(), 1, 0, this.markdownTheme),
+          new Markdown(
+            content.text.trim(),
+            1,
+            0,
+            this.markdownTheme,
+            undefined,
+            { transform: transformFor("assistant") } as MarkdownOptionsWithTransform,
+          ),
         );
       } else if (content.type === "thinking" && content.thinking.trim()) {
         const hasVisibleContentAfter = message.content
@@ -133,10 +173,17 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
           if (!t) continue;
           const muted = ensureMuted();
           this.contentContainer.addChild(
-            new Markdown(thinkingContent, 1, 0, muted ?? this.markdownTheme, {
-              color: (text: string) => t.fg("thinkingText", text),
-              italic: true,
-            }),
+            new Markdown(
+              thinkingContent,
+              1,
+              0,
+              muted ?? this.markdownTheme,
+              {
+                color: (text: string) => t.fg("thinkingText", text),
+                italic: true,
+              },
+              { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
+            ),
           );
           if (hasVisibleContentAfter) {
             this.contentContainer.addChild(new Spacer(1));
