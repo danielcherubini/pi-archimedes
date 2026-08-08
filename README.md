@@ -13,21 +13,19 @@
 
 ## Why pi-archimedes?
 
-Pi's plugin ecosystem is great, and none of this is a criticism of the people who built pieces of it. But there's a gap: on Pi, plugins don't talk to each other. Install one and it has no idea another exists. That was the problem that started this.
+Pi's extension ecosystem is powerful, but extensions don't talk to each other. Install one and it has no idea another exists.
 
-I was using the subagent plugin and wanted one thing — the cost of a subagent to show in my footer, tracked across the whole session. To get that I had to build both the footer and the subagent, and a bus for them to share. Once they were connected, the rest followed: subagent todos that flow back into the main agent. And the hardest one — a subagent asking the user a question, and the parent hearing the answer and routing it back. All of that is solved now.
+pi-archimedes is a set of extensions that actually cooperate. Subagent costs flow into the footer. Subagent todos appear alongside yours. When a subagent needs to ask you a question, the prompt surfaces in your TUI and the answer routes back. The diff renderer matches your theme. The splash screen sets the tone.
 
-So pi-archimedes is the set of extensions that actually cooperate — and because I was building them together, I also gave them a single point of view: minimal, but designed. Matching chrome, a footer that says what matters, diffs that fit the theme. Install once, stop thinking about it.
+Everything shares a single point of view: minimal, but designed. Install once, stop thinking about it.
 
-It's also a door. Want only the footer? `pi install npm:@pi-archimedes/footer`. Only the diff renderer? `pi install npm:@pi-archimedes/diff`. Mix and match.
-
-This is the only Pi package I run. If you took it apart and put it back together differently, that'd be exactly what I want.
+Want only one piece? Each package works standalone. Want only the footer? `pi install npm:@pi-archimedes/footer`. Only the diff renderer? `pi install npm:@pi-archimedes/diff`. Mix and match.
 
 → [Open an issue](https://github.com/danielcherubini/pi-archimedes/issues) · [Start a discussion](https://github.com/danielcherubini/pi-archimedes/discussions)
 
 ## Features
 
-**When installed via the meta package, the seven components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+**When installed via the meta package, the eight components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 ### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
@@ -196,7 +194,7 @@ No settings yet.
 | `enabled` | bool | `true` | Enable desktop notifications |
 | `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
 | `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30` | Seconds to wait before sending notification (stored as ms) |
+| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
 
 ## Architecture
 

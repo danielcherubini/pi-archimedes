@@ -2,20 +2,22 @@
 
 Paste images from your clipboard directly into the Pi chat with inline previews.
 
-## Features
+Paste images directly from clipboard into Pi chats without manually saving files to disk first. Sharing visual context like UI mockups or error screenshots becomes instant, while inline previews keep your prompt clean and predictable.
+
+## What you get
 
 - **Clipboard image paste** — grab a screenshot and paste it straight into the prompt
 - **Inline previews** — images render in the TUI so you can see what you attached
 - **Marker-based attachment** — placeholder markers (`[Image #1]`) are matched and attached on submit
 - **Size guard** — rejects images over 20MB with a clear warning
 
-## Installation
+## Install
 
 ```bash
 pi install npm:@pi-archimedes/image-paste
 ```
 
-Or install the full meta package:
+Or install full meta package:
 
 ```bash
 pi install npm:pi-archimedes
@@ -56,3 +58,5 @@ Extension shortcut conflict: 'ctrl+v' is built-in shortcut for app.clipboard.pas
 ```
 
 This lets archimedes' handler take over (it does the same thing plus inline previews) without the warning.
+
+← Back to [pi-archimedes](../../README.md)

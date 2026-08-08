@@ -2,38 +2,32 @@
 
 Delayed desktop notifications with circuit breaker for the [Pi coding agent](https://github.com/earendil-works/pi).
 
-## Features
+Get notified when Pi finishes long tasks or needs an answer, without constant popup spam thanks to delayed firing and raw keypress circuit breaking. You can safely switch windows while long-running jobs execute, knowing a desktop alert will trigger only if you aren't already actively typing in the terminal.
+
+## What you get
 
 - **Delayed notification** — fires only after a configurable period of inactivity (default 30s), so you're not spammed when actively working
 - **Circuit breaker** — any keystroke immediately cancels a pending notification via raw terminal input listening
-- **Terminal-aware dispatch** — auto-detects your terminal and uses the optimal protocol:
-  - Kitty → OSC 99 (two-sequence title + body)
-  - iTerm2 → OSC 9
-  - Windows Terminal → PowerShell toast (ToastText02)
-  - Ghostty, WezTerm, others → OSC 777 fallback
+- **Terminal-aware dispatch** — auto-detects your terminal and uses the optimal protocol (OSC 99, OSC 9, OSC 777, or PowerShell toasts)
 - **tmux passthrough** — all sequences wrapped via DCS for correct rendering inside tmux
 - **Per-trigger toggles** — independently enable/disable notifications for task completion and unanswered questions
 - **Bus-driven** — listens for `agent_end` and `ASK_REQUEST` bus events, so it works with any package that emits them
 
-## Screenshots
-
-### Kitty notification
-
-Notification from Kitty terminal showing title and body via OSC 99:
-
-![notify kitty](../../docs/images/notify-kitty.png)
-
-## Installation
+## Install
 
 ```bash
-pi install @pi-archimedes/notify
+pi install npm:@pi-archimedes/notify
 ```
 
-Or install the full [pi-archimedes](../..) meta package for the integrated experience:
+Or install full meta package:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
+
+## Usage
+
+When the agent finishes a task (`agent_end`) or a question is asked (`ASK_REQUEST`), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
 
 ## Settings
 
@@ -42,13 +36,9 @@ pi install pi-archimedes
 | `enabled` | bool | `true` | Enable desktop notifications |
 | `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
 | `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30` | Seconds to wait before sending notification (stored as ms) |
+| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
 
 Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify` namespace.
-
-## How it works
-
-When the agent finishes a task (`agent_end`) or a question is asked (`ASK_REQUEST`), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
 
 ## Terminal compatibility
 
@@ -64,3 +54,5 @@ When the agent finishes a task (`agent_end`) or a question is asked (`ASK_REQUES
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), the notify package is automatically registered and its settings appear in the `/archimedes` settings panel. Standalone installs work independently — any package emitting `agent_end` or `ASK_REQUEST` bus events will trigger notifications.
+
+← Back to [pi-archimedes](../../README.md)
