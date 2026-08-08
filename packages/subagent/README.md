@@ -41,13 +41,13 @@ Toggle which tools are available to an agent from Pi's full toolset:
 ## Installation
 
 ```bash
-pi install @pi-archimedes/subagent
+pi install npm:@pi-archimedes/subagent
 ```
 
 Or install the full [pi-archimedes](../..) meta package for the integrated experience (cost tracking in footer, shared chrome, etc.):
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Usage

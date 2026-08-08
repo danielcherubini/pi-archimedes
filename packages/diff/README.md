@@ -21,13 +21,13 @@ Side-by-side diff with syntax highlighting, word-level emphasis on changed chara
 ## Installation
 
 ```bash
-pi install @pi-archimedes/diff
+pi install npm:@pi-archimedes/diff
 ```
 
 Or install the full [pi-archimedes](../..) meta package for the integrated experience:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Settings

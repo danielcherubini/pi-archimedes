@@ -5,7 +5,7 @@ Structured question tool with tabbed multi-question flow and inline note editing
 ## Install
 
 ```bash
-pi install @pi-archimedes/ask
+pi install npm:@pi-archimedes/ask
 ```
 
 ## Features

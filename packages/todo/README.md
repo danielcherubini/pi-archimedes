@@ -28,13 +28,13 @@ Main agent todos (left) alongside a subagent's todos (right), separated by a div
 ## Installation
 
 ```bash
-pi install @pi-archimedes/todo
+pi install npm:@pi-archimedes/todo
 ```
 
 Or install the full [pi-archimedes](../..) meta package for the integrated experience:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Usage

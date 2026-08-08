@@ -18,13 +18,13 @@ Delayed desktop notifications with circuit breaker for the [Pi coding agent](htt
 ## Installation
 
 ```bash
-pi install @pi-archimedes/notify
+pi install npm:@pi-archimedes/notify
 ```
 
 Or install the full [pi-archimedes](../..) meta package for the integrated experience:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Settings
