@@ -25,7 +25,7 @@ Want only one piece? Each package works standalone. Want only the footer? `pi in
 
 ## Features
 
-**When installed via the meta package, the seven components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+**When installed via the meta package, the eight components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 ### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
