@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Text, TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-// execute.js + agent-manager.js lazy-loaded below to keep subagent tool registration fast
+import { executeSubagent, executeParallel } from "./execute.js";
+// agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
 import { discoverAgents, discoverAgentsAll, findAgent, formatAgentList } from "./agents.js";
 import { validateModel, firstError } from "./model-validation.js";
@@ -75,8 +76,6 @@ export function registerSubagent(pi: ExtensionAPI): void {
       onUpdate: ((update: SubagentToolResult) => void) | undefined,
       ctx: ExtensionContext,
     ): Promise<SubagentToolResult> {
-      // Lazy-load executor (spawn/stream/cost) — only when tool is actually invoked
-      const { executeSubagent, executeParallel } = await import("./execute.js");
       const agents = discoverAgents(ctx.cwd);
 
       // Parallel mode
