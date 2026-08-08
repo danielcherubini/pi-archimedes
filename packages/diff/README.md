@@ -2,7 +2,9 @@
 
 Shiki-powered diff rendering for the [Pi coding agent](https://github.com/earendil-works/pi).
 
-## Features
+Syntax-highlighted, word-level diffs make reviewing code changes effortless. By rendering clear side-by-side or unified diffs directly in your terminal with themes matched to your environment, code modifications can be inspected at a glance before committing.
+
+## What you get
 
 - **Split and unified views** — side-by-side split diff or traditional unified view, auto-selected based on terminal width
 - **Shiki syntax highlighting** — full syntax highlighting powered by [Shiki](https://shiki.style), with auto-derived theme colors
@@ -18,16 +20,16 @@ Side-by-side diff with syntax highlighting, word-level emphasis on changed chara
 
 ![diff edit](../../docs/images/diff-edit.png)
 
-## Installation
+## Install
 
 ```bash
-pi install @pi-archimedes/diff
+pi install npm:@pi-archimedes/diff
 ```
 
-Or install the full [pi-archimedes](../..) meta package for the integrated experience:
+Or install full meta package:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Settings
@@ -43,3 +45,5 @@ Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.diff` n
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), the diff tools are registered with callbacks to the current theme and config, ensuring colors match your active Pi theme. Standalone installs use default dark theme colors.
+
+← Back to [pi-archimedes](../../README.md)

@@ -2,7 +2,9 @@
 
 Subagent dispatch with live TUI streaming and cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).
 
-## Features
+Dispatch specialized subagents to offload complex tasks with live TUI streaming, parallel execution, cost tracking, and per-agent model overrides. By fanning out work to dedicated subagents, complex workflows can be executed concurrently while maintaining full visibility into progress and token usage.
+
+## What you get
 
 - **Single & parallel execution** — dispatch one task or fan out multiple tasks across different agents simultaneously
 - **Live TUI streaming** — watch subagent progress in real-time with color-coded tool calls (grey while running, green/red on completion), readable argument previews, token counts, and cost updates
@@ -38,16 +40,16 @@ Toggle which tools are available to an agent from Pi's full toolset:
 
 ![subagents tool selection](../../docs/images/subagents-tool-selection.png)
 
-## Installation
+## Install
 
 ```bash
-pi install @pi-archimedes/subagent
+pi install npm:@pi-archimedes/subagent
 ```
 
-Or install the full [pi-archimedes](../..) meta package for the integrated experience (cost tracking in footer, shared chrome, etc.):
+Or install full meta package:
 
 ```bash
-pi install pi-archimedes
+pi install npm:pi-archimedes
 ```
 
 ## Usage
@@ -84,14 +86,16 @@ Run `/agents` to open the interactive Agents Manager for creating, editing, and 
 
 Agents are defined as `.md` files with YAML frontmatter, placed in one of:
 
-- **Project scope:** `<cwd>/.pi/agents/` — available only in this project
-- **User scope:** `~/.pi/agents/` — available across all projects
-- **Global scope:** installed via packages or extensions
+- **Project scope:** `<repo root>/.pi/agents/` — available only in this project
+- **User scope:** `~/.pi/agent/agents/` — available across all projects
+- **Global scope:** `<repo root>/.agents/agents/` or `~/.agents/agents/` — shared or installed subagents
 
-Frontmatter supports: `name`, `model`, `tools`, `thinking`, `inheritProjectContext`, `inheritSkills`, `systemPromptMode`, and `systemPrompt`.
+Frontmatter supports: `name`, `description`, `model`, `tools`, and `thinking`. The markdown body becomes the agent's system prompt. Unknown frontmatter fields are preserved on edit but not interpreted.
 
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), subagent cost events flow through `@pi-archimedes/core/bus` and are consumed by `@pi-archimedes/footer`'s `CostAccumulator`. This merges subagent tokens and cost into the main status bar for a unified view.
 
 The `/agents` command is also only registered by the meta package (not by standalone `@pi-archimedes/subagent`).
+
+← Back to [pi-archimedes](../../README.md)
