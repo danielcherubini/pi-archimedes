@@ -18,7 +18,7 @@ Core is what you see first — the animated splash screen, the framed editor, an
 pi install npm:@pi-archimedes/core
 ```
 
-Or install the full [pi-archimedes](../../README.md) meta package:
+Or install full meta package:
 
 ```bash
 pi install npm:pi-archimedes

@@ -36,7 +36,7 @@ When the agent finishes a task (`agent_end`) or a question is asked (`ASK_REQUES
 | `enabled` | bool | `true` | Enable desktop notifications |
 | `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
 | `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30` | Seconds to wait before sending notification (stored as ms) |
+| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
 
 Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify` namespace.
 

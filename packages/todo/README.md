@@ -75,7 +75,7 @@ The `manage_todo_list` tool accepts two operations:
 
 | Status | Icon | Description |
 |--------|------|-------------|
-| `not-started` | ◯ | Not yet begun |
+| `not-started` | ○ | Not yet begun |
 | `in-progress` | ◉ | Currently being worked on |
 | `completed` | ✓ | Fully finished |
 

@@ -86,11 +86,11 @@ Run `/agents` to open the interactive Agents Manager for creating, editing, and 
 
 Agents are defined as `.md` files with YAML frontmatter, placed in one of:
 
-- **Project scope:** `<cwd>/.pi/agents/` — available only in this project
-- **User scope:** `~/.pi/agents/` — available across all projects
-- **Global scope:** installed via packages or extensions
+- **Project scope:** `<repo root>/.pi/agents/` — available only in this project
+- **User scope:** `~/.pi/agent/agents/` — available across all projects
+- **Global scope:** `<repo root>/.agents/agents/` or `~/.agents/agents/` — shared or installed subagents
 
-Frontmatter supports: `name`, `model`, `tools`, `thinking`, `inheritProjectContext`, `inheritSkills`, `systemPromptModel`, and `systemPrompt`.
+Frontmatter supports: `name`, `description`, `model`, `tools`, and `thinking`. The markdown body becomes the agent's system prompt. Unknown frontmatter fields are preserved on edit but not interpreted.
 
 ## Integration
 
