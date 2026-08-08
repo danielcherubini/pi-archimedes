@@ -15,14 +15,6 @@ Delayed desktop notifications with circuit breaker for the [Pi coding agent](htt
 - **Per-trigger toggles** — independently enable/disable notifications for task completion and unanswered questions
 - **Bus-driven** — listens for `agent_end` and `ASK_REQUEST` bus events, so it works with any package that emits them
 
-## Screenshots
-
-### Kitty notification
-
-Notification from Kitty terminal showing title and body via OSC 99:
-
-![notify kitty](../../docs/images/notify-kitty.png)
-
 ## Installation
 
 ```bash
