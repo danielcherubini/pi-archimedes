@@ -2,7 +2,9 @@
 
 Subagent dispatch with live TUI streaming and cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).
 
-## Features
+Dispatch specialized subagents to offload complex tasks with live TUI streaming, parallel execution, cost tracking, and per-agent model overrides. By fanning out work to dedicated subagents, complex workflows can be executed concurrently while maintaining full visibility into progress and token usage.
+
+## What you get
 
 - **Single & parallel execution** — dispatch one task or fan out multiple tasks across different agents simultaneously
 - **Live TUI streaming** — watch subagent progress in real-time with color-coded tool calls (grey while running, green/red on completion), readable argument previews, token counts, and cost updates
@@ -38,13 +40,13 @@ Toggle which tools are available to an agent from Pi's full toolset:
 
 ![subagents tool selection](../../docs/images/subagents-tool-selection.png)
 
-## Installation
+## Install
 
 ```bash
 pi install npm:@pi-archimedes/subagent
 ```
 
-Or install the full [pi-archimedes](../..) meta package for the integrated experience (cost tracking in footer, shared chrome, etc.):
+Or install full meta package:
 
 ```bash
 pi install npm:pi-archimedes
@@ -88,10 +90,12 @@ Agents are defined as `.md` files with YAML frontmatter, placed in one of:
 - **User scope:** `~/.pi/agents/` — available across all projects
 - **Global scope:** installed via packages or extensions
 
-Frontmatter supports: `name`, `model`, `tools`, `thinking`, `inheritProjectContext`, `inheritSkills`, `systemPromptMode`, and `systemPrompt`.
+Frontmatter supports: `name`, `model`, `tools`, `thinking`, `inheritProjectContext`, `inheritSkills`, `systemPromptModel`, and `systemPrompt`.
 
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), subagent cost events flow through `@pi-archimedes/core/bus` and are consumed by `@pi-archimedes/footer`'s `CostAccumulator`. This merges subagent tokens and cost into the main status bar for a unified view.
 
 The `/agents` command is also only registered by the meta package (not by standalone `@pi-archimedes/subagent`).
+
+← Back to [pi-archimedes](../../README.md)

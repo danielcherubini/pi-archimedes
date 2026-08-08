@@ -2,7 +2,9 @@
 
 Todo list management with auto-clear and live subagent visibility for the [Pi coding agent](https://github.com/earendil-works/pi).
 
-## Features
+Track complex multi-step tasks structured in a todo list with automatic clearing on completion and live side-by-side visibility into subagent tasks. Having an active progress display keeps long tasks on track and gives both you and the model clear visibility into completed steps and next actions.
+
+## What you get
 
 - **`manage_todo_list` tool** — structured todo tracking with `read` and `write` operations
 - **Auto-clear** — when all todos are completed, the list clears itself after a brief 2-second delay
@@ -25,13 +27,13 @@ Main agent todos (left) alongside a subagent's todos (right), separated by a div
 
 ![todos and subagent](../../docs/images/todos-and-subagent.png)
 
-## Installation
+## Install
 
 ```bash
 pi install npm:@pi-archimedes/todo
 ```
 
-Or install the full [pi-archimedes](../..) meta package for the integrated experience:
+Or install full meta package:
 
 ```bash
 pi install npm:pi-archimedes
@@ -73,14 +75,16 @@ The `manage_todo_list` tool accepts two operations:
 
 | Status | Icon | Description |
 |--------|------|-------------|
-| `not-started` | ○ | Not yet begun |
+| `not-started` | ◯ | Not yet begun |
 | `in-progress` | ◉ | Currently being worked on |
 | `completed` | ✓ | Fully finished |
 
 ## Auto-clear
 
-When all todos in the list are marked `completed`, the widget shows the all-done state for 2 seconds, then auto-clears. No need to manually run `/todos clear`.
+When all todos in the list are marked as `completed`, the widget shows the all-done state for 2 seconds, then auto-clears. No need to manually run `/todos clear`.
 
-## Subagent integration
+## Integration
 
 When installed via `pi-archimedes` (the meta package), subagent todo events flow through `@pi-archimedes/core/bus` and appear as separate columns in the widget. Each subagent gets its own column labeled with its agent name. The column auto-removes when the subagent finishes.
+
+← Back to [pi-archimedes](../../README.md)
