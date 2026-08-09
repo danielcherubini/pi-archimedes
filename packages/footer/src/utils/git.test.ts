@@ -111,7 +111,7 @@ describe("getGitStatus", () => {
   });
 
   it("property: parseGitOutput handles arbitrary git porcelain output without throwing", async () => {
-    fc.assert(
+    await fc.assert(
       fc.asyncProperty(fc.string({ maxLength: 500 }), async (output) => {
         const mockExecSync = vi.fn(() => output);
         await loadModule(mockExecSync);
