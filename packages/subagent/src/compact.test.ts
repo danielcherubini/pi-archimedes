@@ -379,8 +379,8 @@ describe("buildActivityLine property tests", () => {
   it("truncated argsPreview never exceeds truncLine limit of 60 chars", () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 20 }),
-        fc.string({ minLength: 1, maxLength: 500 }),
+        fc.string({ minLength: 1, maxLength: 20 }).filter((s) => !s.includes(": ") && !s.includes("\n")),
+        fc.string({ minLength: 1, maxLength: 500 }).filter((s) => !s.includes(": ") && !s.includes("\n")),
         (currentTool, currentToolArgs) => {
           const { theme } = makeMockTheme();
           const result = buildActivityLine(
@@ -389,6 +389,7 @@ describe("buildActivityLine property tests", () => {
           );
           // Extract the args portion after ": "
           const argsMatch = result.match(/: (.+?)(?:\s\|.*|\[\/dim\].*)?$/);
+          expect(argsMatch).not.toBeNull();
           if (argsMatch && argsMatch[1]) {
             const argsText = argsMatch[1].replace(/\[\/dim\]$/, "").replace(/\[dim\]/, "");
             expect(argsText.length).toBeLessThanOrEqual(60);

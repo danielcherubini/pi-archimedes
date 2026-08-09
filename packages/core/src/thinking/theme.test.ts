@@ -195,15 +195,17 @@ describe("buildMutedMarkdownTheme", () => {
 		expect(joined).toMatch(/\x1b\[38;2;\d+;\d+;\d+m/);
 	});
 
-	it("accepts custom saturationFactor", () => {
-		const theme1 = buildMutedMarkdownTheme(mockTheme as any, { saturationFactor: 0.3 });
-		const theme2 = buildMutedMarkdownTheme(mockTheme as any, { saturationFactor: 0.7 });
-		// Different saturation factors should produce different outputs
-		const code1 = theme1.highlightCode!("test", "plaintext").join("");
-		const code2 = theme2.highlightCode!("test", "plaintext").join("");
-		// They may or may not differ depending on input, but both should be valid
-		expect(typeof code1).toBe("string");
-		expect(typeof code2).toBe("string");
+	it("different saturationFactor produces different dimmed output", () => {
+		const cache = new Map<string, string>();
+		const input = "\x1b[38;2;255;128;64mhello";
+		const resultLow = dimAnsiLine(input, 0.4, 0.3, cache);
+		const cache2 = new Map<string, string>();
+		const resultHigh = dimAnsiLine(input, 0.4, 0.7, cache2);
+		// Same input with different saturation factors must produce different escapes
+		expect(resultLow).not.toBe(resultHigh);
+		// Both must still be valid truecolor fg escapes
+		expect(resultLow).toMatch(/\x1b\[38;2;\d+;\d+;\d+mhello/);
+		expect(resultHigh).toMatch(/\x1b\[38;2;\d+;\d+;\d+mhello/);
 	});
 
 	it("accepts custom codeDefaultLightness", () => {

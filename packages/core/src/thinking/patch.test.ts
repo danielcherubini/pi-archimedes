@@ -40,7 +40,8 @@ describe("patchThinkingRenderer", () => {
 
 		const patch = await importPatch();
 		patch(() => ({} as any));
-		// No patching should occur — proto is null
+		// Prototype must still be null — no patching occurred
+		expect(MockClass.prototype).toBeNull();
 	});
 
 	it("returns early when updateContent is not a function", async () => {
@@ -55,6 +56,8 @@ describe("patchThinkingRenderer", () => {
 
 		const patch = await importPatch();
 		patch(() => ({} as any));
+		// PATCHED_KEY must NOT be set — early return before patching
+		expect(MockClass.prototype[PATCHED_KEY]).toBeUndefined();
 	});
 
 	it("returns early when class name does not match", async () => {
@@ -69,7 +72,8 @@ describe("patchThinkingRenderer", () => {
 
 		const patch = await importPatch();
 		patch(() => ({} as any));
-		// Name is "WrongName", not "AssistantMessageComponent" — should skip
+		// PATCHED_KEY must NOT be set — name mismatch causes early return
+		expect(WrongName.prototype[PATCHED_KEY]).toBeUndefined();
 	});
 
 	it("returns early when source lacks thinking check", async () => {
@@ -87,7 +91,8 @@ describe("patchThinkingRenderer", () => {
 
 		const patch = await importPatch();
 		patch(() => ({} as any));
-		// Signature mismatch — no thinking check in source
+		// PATCHED_KEY must NOT be set — signature mismatch causes early return
+		expect(MockClass.prototype[PATCHED_KEY]).toBeUndefined();
 	});
 
 	it("returns early when source lacks markdownTheme reference", async () => {
@@ -107,7 +112,8 @@ describe("patchThinkingRenderer", () => {
 
 		const patch = await importPatch();
 		patch(() => ({} as any));
-		// Signature mismatch — no markdownTheme in source
+		// PATCHED_KEY must NOT be set — signature mismatch causes early return
+		expect(MockClass.prototype[PATCHED_KEY]).toBeUndefined();
 	});
 
 	it("patches successfully when signature matches", async () => {
@@ -209,10 +215,13 @@ describe("patchThinkingRenderer", () => {
 		// First patch
 		patch(() => ({} as any));
 		expect(MockClass.prototype[PATCHED_KEY]).toBe(true);
+		const first = MockClass.prototype.updateContent;
 
-		// Second patch (same version) — should still re-patch the function
+		// Second patch (same version) — must produce a new function
 		patch(() => ({} as any));
 		expect(MockClass.prototype[PATCHED_KEY]).toBe(true);
 		expect(MockClass.prototype[PATCH_VERSION_KEY]).toBe("1.0.0");
+		// The patched function must be a new closure (not the same reference)
+		expect(MockClass.prototype.updateContent).not.toBe(first);
 	});
 });

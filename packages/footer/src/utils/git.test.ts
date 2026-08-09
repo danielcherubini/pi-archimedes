@@ -55,10 +55,13 @@ describe("getGitStatus", () => {
   });
 
   it("parse unscored format lines (note: trim() strips leading space)", async () => {
-    // NOTE: parseGitOutput calls output.trim() which strips leading whitespace.
-    // So " M file.txt" becomes "M file.txt" after trim, and the regex
-    // /^(..) / matches "M " → indexField='M' (staged), workTreeField='f'.
-    // This is a known quirk of the implementation. We test the actual behavior.
+    // TODO: parseGitOutput calls output.trim() which strips leading whitespace.
+    // This means unscored lines like " M file.txt" (index=space, workTree=M,
+    // meaning unstaged modification) become "M file.txt" after trim, and are
+    // incorrectly parsed as index=M (staged), workTree=space.
+    // This test codifies the current (buggy) behavior so future fixes to
+    // remove trim() won't break silently — update both the implementation
+    // and this test together when fixing.
     const mockExecSync = vi.fn(() => "M  file.txt\nA  staged.txt\n");
     await loadModule(mockExecSync);
     const result = getGitStatus();
