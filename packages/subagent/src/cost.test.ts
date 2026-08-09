@@ -1,32 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Events } from "@pi-archimedes/core/bus";
-
-// ── globalThis cleanup ──────────────────────────────────────────────────────
-
-const BUS_KEY = Symbol.for("archimedes:bus");
-const QUEUE_KEY = Symbol.for("archimedes:busQueue");
-
-afterEach(() => {
-  delete (globalThis as Record<symbol, unknown>)[BUS_KEY];
-  delete (globalThis as Record<symbol, unknown>)[QUEUE_KEY];
-});
 
 // ── mock bus ────────────────────────────────────────────────────────────────
 
 let mockEmit: ReturnType<typeof vi.fn>;
 
-vi.mock("@pi-archimedes/core/bus", () => ({
-  getBus: () => ({
-    emit: mockEmit,
-  }),
-  Events: {
-    COST_UPDATE: "archimedes:cost_update",
-    TODOS_UPDATE: "archimedes:todos_update",
-    TODOS_CLEAR: "archimedes:todos_clear",
-    ASK_REQUEST: "archimedes:ask_request",
-    ASK_RESPONSE: "archimedes:ask_response",
-  },
-}));
+vi.mock("@pi-archimedes/core/bus", async (importOriginal) => {
+  const actual = await importOriginal() as typeof import("@pi-archimedes/core/bus");
+  return {
+    ...actual,
+    getBus: () => ({
+      emit: mockEmit,
+    }),
+  };
+});
 
 const { emitCostUpdate } = await import("./cost.js");
 

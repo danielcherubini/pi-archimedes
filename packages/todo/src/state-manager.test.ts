@@ -20,7 +20,7 @@ describe("TodoStateManager", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe("read", () => {
@@ -48,7 +48,6 @@ describe("TodoStateManager", () => {
     });
 
     it("with all completed schedules auto-clear", () => {
-      let cleared = false;
       manager.write([makeTodo(1, "Done", "desc", "completed")]);
       expect(manager.read()).toHaveLength(1);
       vi.advanceTimersByTime(2000);

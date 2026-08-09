@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Force TRUECOLOR=false so formatColumns output is deterministic across envs
-vi.mock("./logo.js", () => ({ TRUECOLOR: false }));
+vi.mock("./logo.js", async (importOriginal) => ({ ...(await importOriginal()), TRUECOLOR: false }));
 
 // Mock pi-tui — visibleWidth and truncateToWidth
 vi.mock("@earendil-works/pi-tui", () => ({
