@@ -21,6 +21,7 @@
 | 17 | [Splash Screen Pi 0.84.0 Compatibility](done/plan-017-splash-screen-pi-084.md) | ✅ COMPLETED | 2026-07-29 |
 | 18 | [Expose subagent Pi session IDs](done/2026-08-05-subagent-session-id.md) | ✅ COMPLETED | 2026-08-05 |
 | 19 | [README overhaul](done/plan-019-readme-overhaul.md) | ✅ COMPLETED (PR #27) | 2026-08-09 |
+| 20 | [Pure logic tests](plan-020-pure-logic-tests.md) | ✅ COMPLETED (PR #28) | 2026-08-10 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -28,6 +29,6 @@
 
 ## Quick Stats
 
-- Total Plans: 18
-- Completed: 18
+- Total Plans: 19
+- Completed: 19
 - In Progress: 0
