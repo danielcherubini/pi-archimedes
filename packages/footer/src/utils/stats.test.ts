@@ -160,28 +160,24 @@ describe("getTokenUsageStats", () => {
           }),
         ),
         (usages) => {
-          // Reset module for fresh state
-          vi.resetModules();
-          import("./stats.js").then(async (mod) => {
-            const entries: SessionEntry[] = [];
-            let prev = { totalInput: 0, totalOutput: 0, totalCacheRead: 0, totalCacheWrite: 0, totalCost: 0 };
-            for (const u of usages) {
-              entries.push(makeAssistantEntry({ input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite, cost: { total: u.cost } }));
-              const ctx = makeCtx(entries);
-              const curr = mod.getTokenUsageStats(ctx);
-              // Monotonic: each total >= previous
-              if (
-                curr.totalInput < prev.totalInput ||
-                curr.totalOutput < prev.totalOutput ||
-                curr.totalCacheRead < prev.totalCacheRead ||
-                curr.totalCacheWrite < prev.totalCacheWrite ||
-                curr.totalCost < prev.totalCost
-              ) {
-                throw new Error(`Monotonicity violated: ${JSON.stringify(prev)} -> ${JSON.stringify(curr)}`);
-              }
-              prev = curr;
+          const entries: SessionEntry[] = [];
+          let prev = { totalInput: 0, totalOutput: 0, totalCacheRead: 0, totalCacheWrite: 0, totalCost: 0 };
+          for (const u of usages) {
+            entries.push(makeAssistantEntry({ input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite, cost: { total: u.cost } }));
+            const ctx = makeCtx(entries);
+            const curr = getTokenUsageStats(ctx);
+            // Monotonic: each total >= previous
+            if (
+              curr.totalInput < prev.totalInput ||
+              curr.totalOutput < prev.totalOutput ||
+              curr.totalCacheRead < prev.totalCacheRead ||
+              curr.totalCacheWrite < prev.totalCacheWrite ||
+              curr.totalCost < prev.totalCost
+            ) {
+              throw new Error(`Monotonicity violated: ${JSON.stringify(prev)} -> ${JSON.stringify(curr)}`);
             }
-          });
+            prev = curr;
+          }
         },
       ),
       { verbose: false },

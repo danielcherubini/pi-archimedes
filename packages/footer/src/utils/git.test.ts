@@ -109,11 +109,10 @@ describe("getGitStatus", () => {
 
   it("property: parseGitOutput handles arbitrary git porcelain output without throwing", async () => {
     fc.assert(
-      fc.property(fc.string({ maxLength: 500 }), (output) => {
+      fc.asyncProperty(fc.string({ maxLength: 500 }), async (output) => {
         const mockExecSync = vi.fn(() => output);
-        loadModule(mockExecSync).then(() => {
-          expect(() => getGitStatus()).not.toThrow();
-        });
+        await loadModule(mockExecSync);
+        expect(() => getGitStatus()).not.toThrow();
       }),
       { verbose: false },
     );
