@@ -11,7 +11,7 @@ const _moduleEvalAt = Date.now();
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
 import { registerNotify } from "@pi-archimedes/notify";
-import registerSessionName from "@pi-archimedes/session-name";
+import { registerSessionName } from "@pi-archimedes/session-name";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 

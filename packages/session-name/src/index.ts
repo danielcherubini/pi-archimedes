@@ -70,11 +70,13 @@ export function resolveModel<T extends { provider: string; id: string }>(
 
 // ── Registration ────────────────────────────────────────────────────────────
 
-export default function (pi: ExtensionAPI) {
+export function registerSessionName(pi: ExtensionAPI) {
   let hasNamed = false;
+  let failCount = 0;
 
   pi.on("session_start", () => {
     hasNamed = false;
+    failCount = 0;
   });
 
   pi.on("agent_end", async (_event, ctx: ExtensionContext) => {
@@ -86,13 +88,14 @@ export default function (pi: ExtensionAPI) {
     // Guard: already named this session
     if (hasNamed) return;
 
+    // Guard: too many transient failures — stop trying
+    if (failCount >= 3) return;
+
     // Guard: session already named via --name or /name
     if (pi.getSessionName()) return;
 
     // Guard: skip ephemeral sessions (no session file)
     if (!ctx.sessionManager.getSessionFile()) return;
-
-    hasNamed = true;
 
     // Generate and apply session title using AI
     try {
@@ -119,7 +122,8 @@ export default function (pi: ExtensionAPI) {
                   .map((b: any) => b.text)
               : [];
           if (texts.length > 0) {
-            userLines.push("User: " + texts.join("\n").trim());
+            const userText = texts.join("\n").trim().slice(0, 500);
+            userLines.push("User: " + userText);
             foundUser = true;
           }
         }
@@ -190,6 +194,7 @@ export default function (pi: ExtensionAPI) {
         .filter((c: any): c is { type: "text"; text: string } => c.type === "text")
         .map((c) => c.text)
         .join("\n")
+        .replace(/\s+/g, " ")
         .trim()
         .replace(/^(\"|')((?:(?!\1).)*)\1$/, "$2")
         .slice(0, 80);
@@ -201,8 +206,10 @@ export default function (pi: ExtensionAPI) {
 
       // 9. Set session name
       pi.setSessionName(title);
-    } catch {
-      // Silent skip on any error
+      hasNamed = true;
+    } catch (e) {
+      console.error("[archimedes] session-name failed:", e);
+      failCount++;
     }
   });
 }

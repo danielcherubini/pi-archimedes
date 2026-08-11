@@ -53,7 +53,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 
 ### Config
 - Each package reads its own namespace in `~/.pi/agent/settings.json`
-- Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`
+- Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`, Session-name: `archimedes.sessionName`
 - No migration from old `hephaestus` keys
 
 ### No Build Step
