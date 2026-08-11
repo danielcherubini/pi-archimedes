@@ -128,11 +128,13 @@ export function registerSessionName(pi: ExtensionAPI) {
         }
 
         if (msg.role === "assistant" && !foundAssistant && foundUser) {
-          const texts = Array.isArray(content)
-            ? content
-                .filter((b: any) => b?.type === "text" && typeof b.text === "string")
-                .map((b: any) => b.text)
-            : [];
+          const texts = typeof content === "string"
+            ? [content]
+            : Array.isArray(content)
+              ? content
+                  .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+                  .map((b: any) => b.text)
+              : [];
           if (texts.length > 0) {
             const assistantText = texts.join("\n").trim().slice(0, 500);
             assistantLines.push("Assistant: " + assistantText);
