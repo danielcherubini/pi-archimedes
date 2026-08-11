@@ -7,17 +7,20 @@ import { getCoreSettingsItems } from "@pi-archimedes/core";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 // diff (shiki) is lazy-loaded below to keep shiki out of the startup import chain
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
+import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
 import {
   loadAllConfig,
   saveCoreConfig,
   saveFooterConfig,
   saveDiffConfig,
   saveNotifyConfig,
+  saveSessionNameConfig,
   ANIMATION_STYLES,
   type CoreConfig,
   type FooterConfig,
   type DiffConfig,
   type NotifyConfig,
+  type SessionNameSettings,
 } from "./config.js";
 
 // ── Factory: text submenu ───────────────────────────────────────────────
@@ -103,12 +106,14 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
   const footerConfig: FooterConfig = { ...allConfig.footer };
   const diffConfig: DiffConfig = { ...allConfig.diff };
   const notifyConfig: NotifyConfig = { ...allConfig.notify };
+  const sessionNameConfig: SessionNameSettings = { ...allConfig.sessionName };
 
   // Build composed items from sub-packages
   const coreItems = getCoreSettingsItems(coreConfig);
   const footerItems = getFooterSettingsItems();
   const diffItems = getDiffSettingsItems();
   const notifyItems = getNotifySettingsItems(notifyConfig);
+  const sessionNameItems = getSessionNameSettingsItems(sessionNameConfig);
 
   // Add submenus for text/number fields
   const addSubmenus = (items: SettingItem[]) => {
@@ -167,12 +172,14 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
   addSubmenus(diffItems);
   addSubmenus(footerItems);
   addSubmenus(notifyItems);
+  addSubmenus(sessionNameItems);
 
   const items: SettingItem[] = [
     ...coreItems,
     ...footerItems,
     ...diffItems,
     ...notifyItems,
+    ...sessionNameItems,
     {
       id: "save",
       label: "Save",
@@ -222,12 +229,17 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           break;
         }
 
+        // ── Session name settings ──
+        case "sessionNameEnabled": sessionNameConfig.enabled = newValue === "On"; break;
+        case "sessionNameModel": sessionNameConfig.model = newValue === "(current model)" ? undefined : newValue; break;
+
         // ── Save ──
         case "save": {
           saveCoreConfig(coreConfig);
           saveFooterConfig(footerConfig);
           saveDiffConfig(diffConfig);
           saveNotifyConfig(notifyConfig);
+          saveSessionNameConfig(sessionNameConfig);
           done(undefined);
           return;
         }

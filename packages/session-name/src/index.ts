@@ -1,6 +1,7 @@
 import { complete } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "@pi-archimedes/core/settings-io";
+import type { SettingItem } from "@earendil-works/pi-tui";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -236,3 +237,24 @@ export function registerSessionName(pi: ExtensionAPI) {
 }
 
 export default registerSessionName;
+
+// ── Settings UI ─────────────────────────────────────────────────────────────
+
+/** Build settings UI items for the session-name package. */
+export function getSessionNameSettingsItems(config: SessionNameSettings): SettingItem[] {
+  return [
+    {
+      id: "sessionNameEnabled",
+      label: "Auto session naming",
+      description: "Auto-generate session titles after the first exchange",
+      currentValue: config.enabled ? "On" : "Off",
+      values: ["On", "Off"],
+    },
+    {
+      id: "sessionNameModel",
+      label: "Model for naming",
+      description: "Model used for title generation (leave empty for current model)",
+      currentValue: config.model || "(current model)",
+    },
+  ];
+}

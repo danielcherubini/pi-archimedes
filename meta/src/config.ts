@@ -74,11 +74,32 @@ export function loadAllConfig(): {
   footer: FooterConfig;
   diff: DiffConfig;
   notify: NotifyConfig;
+  sessionName: SessionNameSettings;
 } {
   return {
     core: loadCoreConfig(),
     footer: loadFooterConfig(),
     diff: loadDiffConfig(),
     notify: loadNotifyConfig(),
+    sessionName: loadSessionNameConfigWrapper(),
   };
+}
+
+// ── Session name config ─────────────────────────────────────────────────
+
+import type { SessionNameSettings } from "@pi-archimedes/session-name";
+import { loadSessionNameConfig } from "@pi-archimedes/session-name";
+export type { SessionNameSettings } from "@pi-archimedes/session-name";
+
+export const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
+  enabled: true,
+  model: undefined,
+};
+
+export function loadSessionNameConfigWrapper(): SessionNameSettings {
+  return loadSessionNameConfig();
+}
+
+export function saveSessionNameConfig(config: SessionNameSettings): void {
+  saveConfig("archimedes.sessionName", config);
 }
