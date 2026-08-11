@@ -44,6 +44,9 @@ importers:
       '@pi-archimedes/notify':
         specifier: workspace:*
         version: link:../packages/notify
+      '@pi-archimedes/session-name':
+        specifier: workspace:*
+        version: link:../packages/session-name
       '@pi-archimedes/subagent':
         specifier: workspace:*
         version: link:../packages/subagent

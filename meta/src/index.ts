@@ -11,6 +11,7 @@ const _moduleEvalAt = Date.now();
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
 import { registerNotify } from "@pi-archimedes/notify";
+import registerSessionName from "@pi-archimedes/session-name";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 
@@ -44,6 +45,10 @@ export default function (pi: ExtensionAPI): void {
   // Register notify
   registerNotify(pi);
   archTime("registerNotify");
+
+  // Register session-name
+  registerSessionName(pi);
+  archTime("registerSessionName");
 
   archTime("factory end");
 
