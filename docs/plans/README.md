@@ -22,7 +22,7 @@
 | 18 | [Expose subagent Pi session IDs](done/2026-08-05-subagent-session-id.md) | ✅ COMPLETED | 2026-08-05 |
 | 19 | [README overhaul](done/plan-019-readme-overhaul.md) | ✅ COMPLETED (PR #27) | 2026-08-09 |
 | 20 | [Pure logic tests](done/plan-020-pure-logic-tests.md) | ✅ COMPLETED (PR #28) | 2026-08-10 |
-| 21 | [Auto session naming](plan-021-session-name.md) | 📋 IN PROGRESS | 2026-08-13 |
+| 21 | [Auto session naming](plan-021-session-name.md) | ✅ COMPLETED (PR #29) | 2026-08-13 |
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -31,5 +31,5 @@
 ## Quick Stats
 
 - Total Plans: 21
-- Completed: 20
-- In Progress: 1
+- Completed: 21
+- In Progress: 0
