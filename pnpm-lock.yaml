@@ -44,6 +44,9 @@ importers:
       '@pi-archimedes/notify':
         specifier: workspace:*
         version: link:../packages/notify
+      '@pi-archimedes/session-name':
+        specifier: workspace:*
+        version: link:../packages/session-name
       '@pi-archimedes/subagent':
         specifier: workspace:*
         version: link:../packages/subagent
@@ -152,6 +155,22 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '>=0.1.0'
         version: 0.78.0
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+
+  packages/session-name:
+    dependencies:
+      '@earendil-works/pi-ai':
+        specifier: '>=0.1.0'
+        version: 0.78.0(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.1.0'
+        version: 0.78.0(ws@8.21.0)(zod@4.4.3)
       '@pi-archimedes/core':
         specifier: workspace:*
         version: link:../core

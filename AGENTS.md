@@ -12,7 +12,8 @@ Rules for AI agents working on this monorepo.
 - `packages/subagent` — subagent dispatch with live TUI streaming and cost tracking (depends on core)
 - `packages/todo` — todo list tool with auto-clear and subagent visibility (depends on core)
 - `packages/notify` — delayed desktop notifications with circuit breaker (depends on core)
-- `meta` — orchestrator + composed settings (depends on all eight)
+- `packages/session-name` — auto session naming (depends on core)
+- `meta` — orchestrator + composed settings (depends on all nine)
 
 ## Adding a New Package
 
@@ -52,7 +53,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 
 ### Config
 - Each package reads its own namespace in `~/.pi/agent/settings.json`
-- Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`
+- Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`, Session-name: `archimedes.sessionName`
 - No migration from old `hephaestus` keys
 
 ### No Build Step
@@ -98,15 +99,15 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 
 - All packages share the same version (bump all together)
 - `git tag v0.x.y && git push origin v0.x.y` triggers the release workflow
-- Publishes in dependency order: core → ask → todo → notify → footer → diff → image-paste → subagent → meta
+- Publishes in dependency order: core → ask → todo → notify → session-name → footer → diff → image-paste → subagent → meta
 
 ## Release Steps
 
 When releasing a new version, apply these steps after bumping versions but before tagging:
 
-1. **Bump all 9 package versions** — `packages/core`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+1. **Bump all 10 package versions** — `packages/core`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `packages/session-name`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
 
-2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 8 package directories (7 components + notify). Don't release if any check fails.
+2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 9 package directories (8 components + session-name). Don't release if any check fails.
 
 3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
 

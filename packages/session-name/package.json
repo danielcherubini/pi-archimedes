@@ -1,0 +1,23 @@
+{
+  "name": "@pi-archimedes/session-name",
+  "version": "2.0.1",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Auto-generate session names after the first exchange",
+  "files": ["src"],
+  "main": "./src/index.ts",
+  "exports": {".": "./src/index.ts"},
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-ai": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}
