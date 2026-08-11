@@ -68,6 +68,143 @@ export function resolveModel<T extends { provider: string; id: string }>(
   return findMatch(modelRef.trim(), models);
 }
 
+// ── Title generation (runs in background) ───────────────────────────────────
+
+/**
+ * Generate and set a session title. Runs asynchronously without blocking
+ * the agent_end handler so the UI stays responsive.
+ */
+async function generateTitle(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  onSuccess: () => void,
+  onFailure: () => void,
+) {
+  try {
+    const settings = loadSessionNameConfig();
+
+    // Guard: feature disabled
+    if (!settings.enabled) return;
+
+    // 1. Build conversation text — first user + assistant exchange only
+    const branch = ctx.sessionManager.getBranch();
+    const userLines: string[] = [];
+    const assistantLines: string[] = [];
+    let foundUser = false;
+    let foundAssistant = false;
+
+    for (const entry of branch) {
+      if (entry.type !== "message") continue;
+      const msg = entry.message;
+      if (msg.role !== "user" && msg.role !== "assistant") continue;
+
+      const content = msg.content;
+
+      if (msg.role === "user" && !foundUser) {
+        const texts = typeof content === "string"
+          ? [content]
+          : Array.isArray(content)
+            ? content
+                .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+                .map((b: any) => b.text)
+            : [];
+        if (texts.length > 0) {
+          const userText = texts.join("\n").trim().slice(0, 500);
+          userLines.push("User: " + userText);
+          foundUser = true;
+        }
+      }
+
+      if (msg.role === "assistant" && !foundAssistant && foundUser) {
+        const texts = typeof content === "string"
+          ? [content]
+          : Array.isArray(content)
+            ? content
+                .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+                .map((b: any) => b.text)
+            : [];
+        if (texts.length > 0) {
+          const assistantText = texts.join("\n").trim().slice(0, 500);
+          assistantLines.push("Assistant: " + assistantText);
+          foundAssistant = true;
+        }
+      }
+
+      if (foundUser && foundAssistant) break;
+    }
+
+    const conversationText = [...userLines, ...assistantLines].join("\n");
+    if (!conversationText.trim()) return;
+
+    // 2. Build title prompt
+    const titlePrompt = [
+      "Generate a concise title (3-8 words) for this conversation.",
+      "The title should capture what the user is working on.",
+      "Return only the title, nothing else.",
+      "",
+      "<conversation>",
+      conversationText,
+      "</conversation>",
+    ].join("\n");
+
+    // 3. Resolve model
+    const settingsModel = resolveModel(settings.model, ctx.modelRegistry.getAll());
+    const model = settingsModel ?? ctx.model;
+    if (!model) return;
+
+    // 4. Check auth
+    if (!ctx.modelRegistry.hasConfiguredAuth(model)) return;
+
+    // 5. Get API key and headers
+    const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (!auth.ok) return;
+
+    // 6. Make API call
+    const opts: { reasoning: "minimal"; cacheRetention: "none"; sessionId: string; apiKey?: string; headers?: Record<string, string> } = {
+      reasoning: "minimal",
+      cacheRetention: "none",
+      sessionId: crypto.randomUUID(),
+    };
+    if (auth.apiKey) opts.apiKey = auth.apiKey;
+    if (auth.headers) opts.headers = auth.headers;
+
+    const response = await complete(model, {
+      messages: [
+        {
+          role: "user" as const,
+          content: [{ type: "text" as const, text: titlePrompt }],
+          timestamp: Date.now(),
+        },
+      ],
+    }, opts);
+
+    // 7. Extract and clean title
+    const title = response.content
+      .filter((c: any): c is { type: "text"; text: string } => c.type === "text")
+      .map((c) => c.text)
+      .join("\n")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^(\"|')((?:(?!\1).)*)\1$/, "$2")
+      .slice(0, 80);
+
+    if (!title) {
+      onFailure();
+      return;
+    }
+
+    // 8. Race guard — re-check before setting
+    if (pi.getSessionName()) return;
+
+    // 9. Set session name
+    pi.setSessionName(title);
+    onSuccess();
+  } catch (e) {
+    console.error("[archimedes] session-name failed:", e);
+    onFailure();
+  }
+}
+
 // ── Registration ────────────────────────────────────────────────────────────
 
 export function registerSessionName(pi: ExtensionAPI) {
@@ -92,129 +229,9 @@ export function registerSessionName(pi: ExtensionAPI) {
     // Guard: skip ephemeral sessions (no session file)
     if (!ctx.sessionManager.getSessionFile()) return;
 
-    // Generate and apply session title using AI
-    try {
-      const settings = loadSessionNameConfig();
-
-      // Guard: feature disabled
-      if (!settings.enabled) return;
-      // 1. Build conversation text — first user + assistant exchange only
-      const branch = ctx.sessionManager.getBranch();
-      const userLines: string[] = [];
-      const assistantLines: string[] = [];
-      let foundUser = false;
-      let foundAssistant = false;
-
-      for (const entry of branch) {
-        if (entry.type !== "message") continue;
-        const msg = entry.message;
-        if (msg.role !== "user" && msg.role !== "assistant") continue;
-
-        const content = msg.content;
-
-        if (msg.role === "user" && !foundUser) {
-          const texts = typeof content === "string"
-            ? [content]
-            : Array.isArray(content)
-              ? content
-                  .filter((b: any) => b?.type === "text" && typeof b.text === "string")
-                  .map((b: any) => b.text)
-              : [];
-          if (texts.length > 0) {
-            const userText = texts.join("\n").trim().slice(0, 500);
-            userLines.push("User: " + userText);
-            foundUser = true;
-          }
-        }
-
-        if (msg.role === "assistant" && !foundAssistant && foundUser) {
-          const texts = typeof content === "string"
-            ? [content]
-            : Array.isArray(content)
-              ? content
-                  .filter((b: any) => b?.type === "text" && typeof b.text === "string")
-                  .map((b: any) => b.text)
-              : [];
-          if (texts.length > 0) {
-            const assistantText = texts.join("\n").trim().slice(0, 500);
-            assistantLines.push("Assistant: " + assistantText);
-            foundAssistant = true;
-          }
-        }
-
-        if (foundUser && foundAssistant) break;
-      }
-
-      const conversationText = [...userLines, ...assistantLines].join("\n");
-      if (!conversationText.trim()) return;
-
-      // 2. Build title prompt
-      const titlePrompt = [
-        "Generate a concise title (3-8 words) for this conversation.",
-        "The title should capture what the user is working on.",
-        "Return only the title, nothing else.",
-        "",
-        "<conversation>",
-        conversationText,
-        "</conversation>",
-      ].join("\n");
-
-      // 3. Resolve model
-      const settingsModel = resolveModel(settings.model, ctx.modelRegistry.getAll());
-      const model = settingsModel ?? ctx.model;
-      if (!model) return;
-
-      // 4. Check auth
-      if (!ctx.modelRegistry.hasConfiguredAuth(model)) return;
-
-      // 5. Get API key and headers
-      const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-      if (!auth.ok) return;
-
-      // 6. Make API call
-      const opts: { reasoning: "minimal"; cacheRetention: "none"; sessionId: string; apiKey?: string; headers?: Record<string, string> } = {
-        reasoning: "minimal",
-        cacheRetention: "none",
-        sessionId: crypto.randomUUID(),
-      };
-      if (auth.apiKey) opts.apiKey = auth.apiKey;
-      if (auth.headers) opts.headers = auth.headers;
-
-      const response = await complete(model, {
-        messages: [
-          {
-            role: "user" as const,
-            content: [{ type: "text" as const, text: titlePrompt }],
-            timestamp: Date.now(),
-          },
-        ],
-      }, opts);
-
-      // 7. Extract and clean title
-      const title = response.content
-        .filter((c: any): c is { type: "text"; text: string } => c.type === "text")
-        .map((c) => c.text)
-        .join("\n")
-        .replace(/\s+/g, " ")
-        .trim()
-        .replace(/^(\"|')((?:(?!\1).)*)\1$/, "$2")
-        .slice(0, 80);
-
-      if (!title) {
-        failCount++;
-        return;
-      }
-
-      // 8. Race guard — re-check before setting
-      if (pi.getSessionName()) return;
-
-      // 9. Set session name
-      pi.setSessionName(title);
-      hasNamed = true;
-    } catch (e) {
-      console.error("[archimedes] session-name failed:", e);
-      failCount++;
-    }
+    // Fire-and-forget: spawn title generation in background so handler
+    // returns immediately and the UI becomes responsive.
+    void generateTitle(pi, ctx, () => { hasNamed = true; }, () => { failCount++; });
   });
 }
 
