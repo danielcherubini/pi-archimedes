@@ -80,11 +80,6 @@ export function registerSessionName(pi: ExtensionAPI) {
   });
 
   pi.on("agent_end", async (_event, ctx: ExtensionContext) => {
-    const settings = loadSessionNameConfig();
-
-    // Guard: feature disabled
-    if (!settings.enabled) return;
-
     // Guard: already named this session
     if (hasNamed) return;
 
@@ -99,6 +94,10 @@ export function registerSessionName(pi: ExtensionAPI) {
 
     // Generate and apply session title using AI
     try {
+      const settings = loadSessionNameConfig();
+
+      // Guard: feature disabled
+      if (!settings.enabled) return;
       // 1. Build conversation text — first user + assistant exchange only
       const branch = ctx.sessionManager.getBranch();
       const userLines: string[] = [];
@@ -190,7 +189,7 @@ export function registerSessionName(pi: ExtensionAPI) {
       }, opts);
 
       // 7. Extract and clean title
-      let title = response.content
+      const title = response.content
         .filter((c: any): c is { type: "text"; text: string } => c.type === "text")
         .map((c) => c.text)
         .join("\n")
@@ -199,7 +198,10 @@ export function registerSessionName(pi: ExtensionAPI) {
         .replace(/^(\"|')((?:(?!\1).)*)\1$/, "$2")
         .slice(0, 80);
 
-      if (!title) return;
+      if (!title) {
+        failCount++;
+        return;
+      }
 
       // 8. Race guard — re-check before setting
       if (pi.getSessionName()) return;
@@ -213,3 +215,5 @@ export function registerSessionName(pi: ExtensionAPI) {
     }
   });
 }
+
+export default registerSessionName;
