@@ -37,7 +37,19 @@ A `[Image #N]` placeholder is inserted into your draft. When you submit, any ima
 
 ## Settings
 
-Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
+Uses Pi's core `terminal.showImages` setting to control inline previews.
+
+Image-paste shortcuts can be overridden in `~/.pi/agent/settings.json` under the existing Archimedes namespace. When omitted, the platform defaults above remain unchanged. An empty array disables image-paste shortcuts.
+
+```json
+{
+  "archimedes.imagePaste": {
+    "shortcuts": ["ctrl+shift+v", "ctrl+alt+v"]
+  }
+}
+```
+
+Invalid values fall back to the platform defaults.
 
 ## Troubleshooting
 

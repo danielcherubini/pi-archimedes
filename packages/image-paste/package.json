@@ -10,6 +10,9 @@
     "src"
   ],
   "main": "./src/index.ts",
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",
     "@earendil-works/pi-tui": ">=0.1.0"

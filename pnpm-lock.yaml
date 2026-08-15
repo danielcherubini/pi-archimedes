@@ -142,6 +142,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '>=0.1.0'
         version: 0.78.0
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       typescript:
         specifier: ^6.0.0

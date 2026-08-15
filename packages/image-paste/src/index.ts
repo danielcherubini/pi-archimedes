@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import type { KeyId } from "@earendil-works/pi-tui";
-
+import { loadImagePasteConfig, resolveImagePasteShortcuts } from "./config.js";
 import { readClipboardImage } from "./clipboard.js";
 import { registerImagePreview, sendPreviewMessage } from "./preview.js";
 import type { ClipboardImage, PendingImage, ImageMarker } from "./types.js";
@@ -58,11 +57,11 @@ function queueImage(
 
 // ── Registration ────────────────────────────────────────────────
 
-function getImagePasteShortcuts(): KeyId[] {
-  if (process.platform === "win32") {
-    return ["alt+v", "ctrl+alt+v"] as KeyId[];
-  }
-  return ["ctrl+v", "alt+v", "ctrl+alt+v"] as KeyId[];
+function getImagePasteShortcuts() {
+  return resolveImagePasteShortcuts(
+    process.platform,
+    loadImagePasteConfig().shortcuts,
+  );
 }
 
 // Module-level state — registered once, queue reset per session
