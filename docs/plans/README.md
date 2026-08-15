@@ -1,10 +1,5 @@
 # Plans
 
-## In Progress
-
-| # | Plan | Status | Created |
-| 22 | [Subagent: thinking level in agents.local.json](plan-022-subagent-thinking-local-json.md) | 🚧 IN PROGRESS | 2026-08-15 |
-
 ## Done
 
 | # | Plan | Status | Created |
@@ -28,6 +23,7 @@
 | 19 | [README overhaul](done/plan-019-readme-overhaul.md) | ✅ COMPLETED (PR #27) | 2026-08-09 |
 | 20 | [Pure logic tests](done/plan-020-pure-logic-tests.md) | ✅ COMPLETED (PR #28) | 2026-08-10 |
 | 21 | [Auto session naming](done/plan-021-session-name.md) | ✅ COMPLETED (PR #29) | 2026-08-13 |
+| 22 | [Subagent: thinking level in agents.local.json](done/plan-022-subagent-thinking-local-json.md) | ✅ COMPLETED (squash `c3cc7ab`) | 2026-08-15 |
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -36,5 +32,5 @@
 ## Quick Stats
 
 - Total Plans: 22
-- Completed: 21
-- In Progress: 1
+- Completed: 22
+- In Progress: 0
