@@ -1,5 +1,10 @@
 # Plans
 
+## In Progress
+
+| # | Plan | Status | Created |
+| 22 | [Subagent: thinking level in agents.local.json](plan-022-subagent-thinking-local-json.md) | 🚧 IN PROGRESS | 2026-08-15 |
+
 ## Done
 
 | # | Plan | Status | Created |
@@ -30,6 +35,6 @@
 
 ## Quick Stats
 
-- Total Plans: 21
+- Total Plans: 22
 - Completed: 21
-- In Progress: 0
+- In Progress: 1
