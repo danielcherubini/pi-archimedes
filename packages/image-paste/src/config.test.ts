@@ -38,8 +38,24 @@ describe("resolveImagePasteShortcuts", () => {
     expect(resolveImagePasteShortcuts("linux", [])).toEqual([]);
   });
 
-  it("falls back to platform defaults for invalid configuration", () => {
+  it("falls back to platform defaults for non-string configuration entries", () => {
     expect(resolveImagePasteShortcuts("linux", ["ctrl+shift+v", 42])).toEqual([
+      "ctrl+v",
+      "alt+v",
+      "ctrl+alt+v",
+    ]);
+  });
+
+  it("falls back to platform defaults for unsupported shortcut identifiers", () => {
+    expect(resolveImagePasteShortcuts("linux", ["ctrl+zzz"])).toEqual([
+      "ctrl+v",
+      "alt+v",
+      "ctrl+alt+v",
+    ]);
+  });
+
+  it("falls back to platform defaults when valid and invalid shortcuts are mixed", () => {
+    expect(resolveImagePasteShortcuts("linux", ["ctrl+shift+v", "ctrl+zzz"])).toEqual([
       "ctrl+v",
       "alt+v",
       "ctrl+alt+v",
