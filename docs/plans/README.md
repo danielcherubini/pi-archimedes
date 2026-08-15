@@ -1,5 +1,10 @@
 # Plans
 
+## In Progress
+
+| # | Plan | Status | Created |
+| 23 | [Center-screen /archimedes settings (matching /agents)](plan-023-settings-center-overlay.md) | 🔨 IN PROGRESS | 2026-08-15 |
+
 ## Done
 
 | # | Plan | Status | Created |
@@ -31,6 +36,6 @@
 
 ## Quick Stats
 
-- Total Plans: 22
+- Total Plans: 23
 - Completed: 22
-- In Progress: 0
+- In Progress: 1
