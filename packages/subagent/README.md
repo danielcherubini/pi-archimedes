@@ -92,6 +92,8 @@ Agents are defined as `.md` files with YAML frontmatter, placed in one of:
 
 Frontmatter supports: `name`, `description`, `model`, `tools`, and `thinking`. The markdown body becomes the agent's system prompt. Unknown frontmatter fields are preserved on edit but not interpreted.
 
+Per-agent `model` and `thinking` assignments made in the `/agents` TUI are stored in `~/.pi/agent/agents.local.json` (machine-local, not committed) and take precedence over frontmatter values; on save, the TUI also strips these fields from the `.md` frontmatter. Frontmatter `model:` and `thinking:` still work as a fallback for hand-written agent files.
+
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), subagent cost events flow through `@pi-archimedes/core/bus` and are consumed by `@pi-archimedes/footer`'s `CostAccumulator`. This merges subagent tokens and cost into the main status bar for a unified view.

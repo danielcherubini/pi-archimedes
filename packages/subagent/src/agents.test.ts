@@ -14,6 +14,7 @@ process.env.PI_CODING_AGENT_DIR = testDir;
 function makeAgent(
   name: string,
   model?: string,
+  thinking?: string,
 ): AgentConfig {
   return {
     name,
@@ -22,6 +23,7 @@ function makeAgent(
     source: "global" as const,
     filePath: join(testDir, `${name}.md`),
     ...(model !== undefined ? { model } : {}),
+    ...(thinking !== undefined ? { thinking } : {}),
   };
 }
 
@@ -60,6 +62,41 @@ describe("applyLocalOverrides", () => {
 
   it("handles empty agent list", () => {
     expect(() => applyLocalOverrides([])).not.toThrow();
+  });
+
+  it("sets thinking from JSON override", () => {
+    const path = join(testDir, "agents.local.json");
+    writeFileSync(path, JSON.stringify({ codex: { thinking: "high" } }), "utf-8");
+
+    const agent = makeAgent("codex");
+    applyLocalOverrides([agent]);
+    expect(agent.thinking).toBe("high");
+  });
+
+  it("leaves thinking unchanged when no JSON entry exists", () => {
+    const agent = makeAgent("codex", undefined, "low");
+    applyLocalOverrides([agent]);
+    expect(agent.thinking).toBe("low");
+  });
+
+  it("leaves thinking unchanged when JSON entry has no thinking field (model still applied)", () => {
+    const path = join(testDir, "agents.local.json");
+    writeFileSync(path, JSON.stringify({ codex: { model: "o1" } }), "utf-8");
+
+    const agent = makeAgent("codex", "M1", "low");
+    applyLocalOverrides([agent]);
+    expect(agent.thinking).toBe("low");
+    expect(agent.model).toBe("o1");
+  });
+
+  it("applies model and thinking together when both are present", () => {
+    const path = join(testDir, "agents.local.json");
+    writeFileSync(path, JSON.stringify({ codex: { model: "o1", thinking: "high" } }), "utf-8");
+
+    const agent = makeAgent("codex", "M1", "low");
+    applyLocalOverrides([agent]);
+    expect(agent.model).toBe("o1");
+    expect(agent.thinking).toBe("high");
   });
 
   it("works with corrupt JSON file (agent model stays unchanged)", () => {

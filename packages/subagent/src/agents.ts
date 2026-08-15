@@ -138,8 +138,10 @@ export interface AgentsDiscoveryResult {
 }
 
 /**
- * Apply local model overrides from agents.local.json to a list of agents.
- * Reads the config once and mutates matching agents in place.
+ * Apply local overrides from agents.local.json (model and thinking) to a list of agents.
+ * Reads the config once and mutates matching agents in place. JSON takes
+ * precedence over the agent's .md values; a missing entry or field leaves the
+ * agent's value untouched.
  */
 export function applyLocalOverrides(agents: AgentConfig[]): void {
   const config = readLocalConfig();
@@ -147,6 +149,9 @@ export function applyLocalOverrides(agents: AgentConfig[]): void {
     const local = config[agent.name];
     if (local?.model !== undefined) {
       agent.model = local.model;
+    }
+    if (local?.thinking !== undefined) {
+      agent.thinking = local.thinking;
     }
   }
 }

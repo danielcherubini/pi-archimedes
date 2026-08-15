@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { saveAgent } from "./agent-manager.js";
 import { discoverAgentsAll } from "./agents.js";
-import { writeLocalModel } from "./local-config.js";
+import {
+  writeLocalModel,
+  writeLocalThinking,
+  deleteLocalThinking,
+  deleteLocalAgent,
+} from "./local-config.js";
 
 // Mock writeLocalModel to always throw (simulating a JSON store write
 // failure). deleteLocalModel is a no-op since it's never reached in
@@ -19,6 +24,11 @@ vi.mock("./local-config.js", async (importOriginal) => {
       throw new Error("JSON write failed");
     }),
     deleteLocalModel: vi.fn(),
+    writeLocalThinking: vi.fn(() => {
+      throw new Error("JSON thinking write failed");
+    }),
+    deleteLocalThinking: vi.fn(),
+    deleteLocalAgent: vi.fn(),
   };
 });
 
@@ -478,6 +488,312 @@ describe("saveAgent cleanup of model-less new files", () => {
     const newPath = join(testDir, "newagent.md");
     expect(existsSync(newPath)).toBe(false);
     expect(state.editError).toBeTruthy();
+  });
+});
+
+describe("saveAgent thinking JSON round-trip", () => {
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("restores thinking to .md when the JSON thinking write fails", () => {
+    // writeLocalModel mocked to succeed for this call only (default throws),
+    // while writeLocalThinking keeps its default throwing implementation,
+    // simulating a failed JSON thinking write.
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "openai/gpt-4o",
+        thinking: "high",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // The .md should contain BOTH fields as rollback fallback.
+    const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(mdContent).toContain("model: openai/gpt-4o");
+    expect(mdContent).toContain("thinking: high");
+
+    // editError should be set.
+    expect(state.editError).toBeTruthy();
+
+    // The live edit object should retain both values for a safe retry.
+    expect(state.editAgent!.model).toBe("openai/gpt-4o");
+    expect(state.editAgent!.thinking).toBe("high");
+  });
+
+  it("retains thinking for retry when re-discovery fails", () => {
+    // Both JSON writes succeed for this call only, then re-discovery throws.
+    vi.mocked(writeLocalModel).mockImplementationOnce(() => {});
+    vi.mocked(writeLocalThinking).mockImplementationOnce(() => {});
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => {
+      throw new Error("discovery failed");
+    });
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "openai/gpt-4o",
+        thinking: "high",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // The live edit object should still have the thinking — delete only
+    // runs after requestRender() which never executed.
+    expect(state.editAgent!.thinking).toBe("high");
+
+    // editError should contain the discovery failure message.
+    expect(state.editError).toContain("discovery failed");
+
+    // The rolled-back .md should contain the thinking.
+    const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(mdContent).toContain("thinking: high");
+  });
+
+  it("clearing thinking on save removes only the thinking field from JSON", async () => {
+    // Pre-seed JSON with both fields; the save carries a model but NO
+    // thinking, so only the thinking field should be removed.
+    writeFileSync(
+      join(testDir, "agents.local.json"),
+      JSON.stringify({ codex: { model: "o1", thinking: "high" } }),
+      "utf-8",
+    );
+
+    // Delegate to the real implementations — the no-op mock default for
+    // deleteLocalThinking would leave thinking: "high" behind.
+    const actual = await vi.importActual<typeof import("./local-config.js")>(
+      "./local-config.js",
+    );
+    vi.mocked(writeLocalModel).mockImplementationOnce((name, value) =>
+      actual.writeLocalModel(name, value),
+    );
+    vi.mocked(deleteLocalThinking).mockImplementationOnce((name) =>
+      actual.deleteLocalThinking(name),
+    );
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => ({
+      global: [],
+      user: [],
+      project: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+    }));
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "o1",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // Thinking removed, model preserved.
+    const config = JSON.parse(
+      readFileSync(join(testDir, "agents.local.json"), "utf-8"),
+    );
+    expect(config).toEqual({ codex: { model: "o1" } });
+  });
+
+  it("writes thinking to agents.local.json and strips it from .md on a successful save", async () => {
+    const actual = await vi.importActual<typeof import("./local-config.js")>(
+      "./local-config.js",
+    );
+    vi.mocked(writeLocalModel).mockImplementationOnce((name, value) =>
+      actual.writeLocalModel(name, value),
+    );
+    vi.mocked(writeLocalThinking).mockImplementationOnce((name, value) =>
+      actual.writeLocalThinking(name, value),
+    );
+    vi.mocked(deleteLocalAgent).mockImplementationOnce((name) =>
+      actual.deleteLocalAgent(name),
+    );
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => ({
+      global: [],
+      user: [],
+      project: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+    }));
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+        model: "openai/gpt-4o",
+        thinking: "high",
+      },
+      editOriginal: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "codex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // Both fields landed in agents.local.json.
+    const config = JSON.parse(
+      readFileSync(join(testDir, "agents.local.json"), "utf-8"),
+    );
+    expect(config).toEqual({
+      codex: { model: "openai/gpt-4o", thinking: "high" },
+    });
+
+    // The .md has neither field in its frontmatter.
+    const mdContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(mdContent).not.toContain("model:");
+    expect(mdContent).not.toContain("thinking:");
+
+    // Both fields stripped from the live edit object.
+    expect(state.editAgent!.model).toBeUndefined();
+    expect(state.editAgent!.thinking).toBeUndefined();
+  });
+
+  it("migrates model and thinking JSON entries on rename", async () => {
+    // Pre-seed JSON under the OLD name with both fields.
+    writeFileSync(
+      join(testDir, "agents.local.json"),
+      JSON.stringify({ oldcodex: { model: "old-model", thinking: "high" } }),
+      "utf-8",
+    );
+    writeFileSync(
+      join(testDir, "oldcodex.md"),
+      "original rename content",
+      "utf-8",
+    );
+
+    const actual = await vi.importActual<typeof import("./local-config.js")>(
+      "./local-config.js",
+    );
+    vi.mocked(writeLocalModel).mockImplementationOnce((name, value) =>
+      actual.writeLocalModel(name, value),
+    );
+    vi.mocked(writeLocalThinking).mockImplementationOnce((name, value) =>
+      actual.writeLocalThinking(name, value),
+    );
+    vi.mocked(deleteLocalAgent).mockImplementationOnce((name) =>
+      actual.deleteLocalAgent(name),
+    );
+    vi.mocked(discoverAgentsAll).mockImplementationOnce(() => ({
+      global: [],
+      user: [],
+      project: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+    }));
+
+    const state = {
+      editAgent: {
+        name: "codex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"), // oldPath
+        model: "old-model",
+        thinking: "high",
+      },
+      editOriginal: {
+        name: "oldcodex",
+        description: "test agent",
+        systemPrompt: "hello world",
+        source: "user",
+        filePath: join(testDir, "oldcodex.md"),
+      },
+      agents: [],
+      globalDir: null,
+      userDir: testDir,
+      projectDir: null,
+      editError: null,
+      editDirty: false,
+    };
+
+    saveAgent(state as any, () => {});
+
+    // Both fields migrated to the new name; no stale entry under the old name.
+    const config = JSON.parse(
+      readFileSync(join(testDir, "agents.local.json"), "utf-8"),
+    );
+    expect(config).toEqual({ codex: { model: "old-model", thinking: "high" } });
+
+    // The old .md is unlinked and the new one has no model/thinking lines.
+    expect(existsSync(join(testDir, "oldcodex.md"))).toBe(false);
+    const newContent = readFileSync(join(testDir, "codex.md"), "utf-8");
+    expect(newContent).not.toContain("model:");
+    expect(newContent).not.toContain("thinking:");
   });
 });
 

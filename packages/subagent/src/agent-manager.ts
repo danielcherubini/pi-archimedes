@@ -17,6 +17,9 @@ import { serializeAgent, validateAgentName } from "./frontmatter-io.js";
 import {
   writeLocalModel,
   deleteLocalModel,
+  writeLocalThinking,
+  deleteLocalThinking,
+  deleteLocalAgent,
   readLocalConfig,
   setLocalConfig,
   type LocalConfig,
@@ -1248,9 +1251,11 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
   const newName = agent.name.endsWith(".md") ? agent.name : `${agent.name}.md`;
   const newPath = path.join(dir, newName);
 
-  // Capture model before entering the try block so it is available in the
-  // catch block for .md rollback if a later step (JSON write, etc.) fails.
+  // Capture model and thinking before entering the try block so they are
+  // available in the catch block for .md rollback if a later step
+  // (JSON write, etc.) fails.
   const model = agent.model;
+  const thinking = agent.thinking;
 
   // Track whether the .md write succeeded so the catch block knows whether
   // to restore or clean up the on-disk file.
@@ -1277,11 +1282,13 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     // Ensure directory exists
     fs.mkdirSync(dir, { recursive: true });
 
-    // Build a shallow copy without the model for .md serialization so the
-    // live edit object is NOT mutated during serialization. If the .md
-    // write fails below, the live object stays intact for a retry.
+    // Build a shallow copy without the model/thinking for .md serialization
+    // (both fields are stored in agents.local.json) so the live edit object
+    // is NOT mutated during serialization. If the .md write fails below, the
+    // live object stays intact for a retry.
     const mdAgent = { ...agent };
     delete mdAgent.model;
+    delete mdAgent.thinking;
 
     // Serialize and write the .md file FIRST. If this fails, no JSON state
     // is persisted and the live edit object is untouched.
@@ -1293,21 +1300,27 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     // Capture a backup of the current JSON config so we can roll it back
     // if a later step (re-discovery, etc.) fails after this write succeeds.
     jsonConfigBefore = readLocalConfig();
-    // Write/remove the NEW name entry first, then clean up the OLD name.
+    // Write/remove the NEW name entries first, then clean up the OLD name.
     if (model !== undefined) {
       writeLocalModel(agent.name, model);
     } else {
       deleteLocalModel(agent.name);
     }
+    if (thinking !== undefined) {
+      writeLocalThinking(agent.name, thinking);
+    } else {
+      deleteLocalThinking(agent.name);
+    }
     jsonWritten = true;
 
     // Handle rename: delete old JSON entry keyed by original name (after
-    // the new entry is safely written). Wrapped in try-catch so a failure
-    // here does not leave the .md written but the live object un-stripped.
+    // the new entries are safely written) — deleteLocalAgent covers all
+    // fields (model and thinking). Wrapped in try-catch so a failure here
+    // does not leave the .md written but the live object un-stripped.
     const originalName = state.editOriginal?.name;
     if (originalName && originalName !== agent.name) {
       try {
-        deleteLocalModel(originalName);
+        deleteLocalAgent(originalName);
       } catch {
         // Best-effort: stale entry is harmless and will be cleaned up on
         // a subsequent save/rename
@@ -1348,22 +1361,24 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
     state.editError = null;
     requestRender();
 
-    // Only strip model from the live edit object AFTER all operations
-    // (including re-discovery) have succeeded. This ensures that if any
-    // step fails, the catch block can restore the model to .md and the
-    // live object retains it for a safe retry.
+    // Only strip model/thinking from the live edit object AFTER all
+    // operations (including re-discovery) have succeeded. This ensures
+    // that if any step fails, the catch block can restore them to .md
+    // and the live object retains them for a safe retry.
     delete agent.model;
+    delete agent.thinking;
   } catch (err) {
     // Restore prior .md state if the write succeeded but a later step
     // (JSON write, re-discovery, etc.) failed:
     //   - rename (old file not yet unlinked): check whether the old file
     //     still exists. If so, delete newPath so only the original remains.
     //     If the old file is gone (deleted externally or by a prior attempt),
-    //     newPath may be the sole copy — keep it with a model fallback, or
-    //     delete it when there is no model to fall back on.
+    //     newPath may be the sole copy — keep it with a model/thinking
+    //     fallback, or delete it when there is no model/thinking to fall
+    //     back on.
     //   - existing file: write the original content back verbatim.
-    //   - new file with a model: keep a frontmatter fallback so the model
-    //     override survives for the next retry.
+    //   - new file with model/thinking: keep a frontmatter fallback so the
+    //     overrides survive for the next retry.
     // If the old .md was already unlinked during rename (oldPathDeleted),
     // newPath is the sole surviving copy — leave it in place.
     // If the .md write itself failed (mdWritten is false) there is nothing
@@ -1373,19 +1388,25 @@ export function saveAgent(state: ManagerState, requestRender: () => void): void 
         if (oldPath && fs.existsSync(oldPath)) {
           // Old file still exists — safe to delete newPath and restore prior state
           try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
-        } else if (model !== undefined) {
-          // Old file is gone — keep newPath with model as fallback
-          try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
+        } else if (model !== undefined || thinking !== undefined) {
+          // Old file is gone — keep newPath with model/thinking as fallback
+          const fallback: AgentConfig = { ...agent };
+          if (model !== undefined) fallback.model = model;
+          if (thinking !== undefined) fallback.thinking = thinking;
+          try { fs.writeFileSync(newPath, serializeAgent(fallback), "utf-8"); } catch { /* best-effort */ }
         } else {
-          // Old file is gone and no model — delete newPath (no prior state to restore)
+          // Old file is gone and no model/thinking — delete newPath (no prior state to restore)
           try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
         }
       } else if (originalContent !== undefined) {
         try { fs.writeFileSync(newPath, originalContent, "utf-8"); } catch { /* best-effort */ }
-      } else if (model !== undefined) {
-        try { fs.writeFileSync(newPath, serializeAgent({ ...agent, model }), "utf-8"); } catch { /* best-effort */ }
+      } else if (model !== undefined || thinking !== undefined) {
+        const fallback: AgentConfig = { ...agent };
+        if (model !== undefined) fallback.model = model;
+        if (thinking !== undefined) fallback.thinking = thinking;
+        try { fs.writeFileSync(newPath, serializeAgent(fallback), "utf-8"); } catch { /* best-effort */ }
       } else {
-        // New file without model — delete it (no prior state to restore)
+        // New file without model/thinking — delete it (no prior state to restore)
         try { fs.unlinkSync(newPath); } catch { /* best-effort */ }
       }
     }
