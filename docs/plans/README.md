@@ -1,10 +1,5 @@
 # Plans
 
-## In Progress
-
-| # | Plan | Status | Created |
-| 23 | [Center-screen /archimedes settings (matching /agents)](plan-023-settings-center-overlay.md) | 🔨 IN PROGRESS | 2026-08-15 |
-
 ## Done
 
 | # | Plan | Status | Created |
@@ -29,13 +24,15 @@
 | 20 | [Pure logic tests](done/plan-020-pure-logic-tests.md) | ✅ COMPLETED (PR #28) | 2026-08-10 |
 | 21 | [Auto session naming](done/plan-021-session-name.md) | ✅ COMPLETED (PR #29) | 2026-08-13 |
 | 22 | [Subagent: thinking level in agents.local.json](done/plan-022-subagent-thinking-local-json.md) | ✅ COMPLETED (squash `c3cc7ab`) | 2026-08-15 |
+| 23 | [Center-screen /archimedes settings (matching /agents)](done/plan-023-settings-center-overlay.md) | ✅ COMPLETED (squash `e535819`) | 2026-08-15 |
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
 > - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
+> - Plan-023 follow-up (deferred): Kitty keyboard-protocol CSI-u text decoding — pre-existing gap in both `/agents` search and `/archimedes` prompt/search input on CSI-u terminals (Kitty/Ghostty/WezTerm/iTerm2); consider a follow-up using pi-tui's `decodePrintableKey`.
 
 ## Quick Stats
 
 - Total Plans: 23
-- Completed: 22
-- In Progress: 1
+- Completed: 23
+- In Progress: 0
