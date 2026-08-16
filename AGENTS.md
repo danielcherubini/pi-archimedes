@@ -112,3 +112,5 @@ When releasing a new version, apply these steps after bumping versions but befor
 3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
 
 4. **Tag and push** — use annotated tag with `v` prefix: `git tag -a v0.x.y -m "Release v0.x.y"` then `git push origin v0.x.y`. The release workflow handles publishing to npm.
+
+5. **Create the GitHub Release** — after tagging, create a release with notes summarizing user-facing changes since the previous tag (use `git log --oneline v<prev>..v<cur>` to gather them): `gh release create v0.x.y --title "v0.x.y" --target main --notes "..."`. Backfill releases for any tags that were skipped.
