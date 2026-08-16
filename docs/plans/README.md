@@ -1,5 +1,10 @@
 # Plans
 
+## In Progress
+
+| # | Plan | Status | Created |
+| 24 | [Configurable image-paste shortcuts](2026-08-16-image-paste-shortcuts.md) | 🔄 IN PROGRESS (PR #30) | 2026-08-16 |
+
 ## Done
 
 | # | Plan | Status | Created |
@@ -33,6 +38,6 @@
 
 ## Quick Stats
 
-- Total Plans: 23
+- Total Plans: 24
 - Completed: 23
-- In Progress: 0
+- In Progress: 1
