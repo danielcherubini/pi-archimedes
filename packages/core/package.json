@@ -16,6 +16,7 @@
     "./chrome": "./src/chrome.ts",
     "./text": "./src/text.ts",
     "./color": "./src/color.ts",
+    "./overlay": "./src/overlay.ts",
     "./config": "./src/config.ts",
     "./settings-io": "./src/settings-io.ts",
     "./profiler": "./src/profiler.ts"

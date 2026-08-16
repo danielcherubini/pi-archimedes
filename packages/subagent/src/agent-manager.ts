@@ -24,6 +24,15 @@ import {
   setLocalConfig,
   type LocalConfig,
 } from "./local-config.js";
+import {
+  visibleWidth,
+  padEnd,
+  wrapText,
+  hardTruncate,
+  renderHeader,
+  renderFooter,
+  wrapWithBorder,
+} from "@pi-archimedes/core/overlay";
 
 // ── Screen constants ────────────────────────────────────────────────────────
 
@@ -151,55 +160,6 @@ function fuzzyFilter(items: AgentConfig[], query: string): AgentConfig[] {
   );
 }
 
-function wrapText(text: string, width: number): string[] {
-  if (width <= 0) return [];
-  const lines: string[] = [];
-  const paragraphs = text.split("\n");
-  for (const para of paragraphs) {
-    if (para.length === 0) {
-      lines.push("");
-      continue;
-    }
-    const words = para.split(/(\s+)/).filter(Boolean);
-    let current = "";
-    for (const word of words) {
-      const test = current === "" ? word : current + word;
-      if (test.length > width && current.length > 0) {
-        lines.push(current);
-        current = word;
-      } else {
-        current = test;
-      }
-    }
-    if (current) lines.push(current);
-  }
-  return lines;
-}
-
-function padEnd(text: string, width: number): string {
-  if (width <= 0) return "";
-  const vw = visibleWidth(text);
-  if (vw >= width) return text;
-  return text + " ".repeat(width - vw);
-}
-
-function visibleWidth(text: string): number {
-  // Strip ANSI escape sequences for width calculation
-  return text.replace(/\x1b\[[0-9;]*m/g, "").length;
-}
-
-function row(text: string, width: number, theme: Theme): string {
-  return padEnd(text, width);
-}
-
-function renderHeader(text: string, width: number, theme: Theme): string {
-  return theme.fg("accent", padEnd(text, width));
-}
-
-function renderFooter(text: string, width: number, theme: Theme): string {
-  return theme.fg("dim", padEnd(text, width));
-}
-
 function scopeLabel(source: "global" | "user" | "project"): string {
   if (source === "global") return "home";
   return source === "user" ? "user" : "proj";
@@ -220,57 +180,6 @@ function filterModels(models: ModelInfo[], query: string): ModelInfo[] {
   );
 }
 
-
-// ── Border wrapper ────────────────────────────────────────────────────────────
-
-/** Hard-truncate by visible width — no "..." suffix. Strips ANSI, truncates, rebuilds. */
-function hardTruncate(text: string, maxVisible: number): string {
-  if (visibleWidth(text) <= maxVisible) return text;
-  // Strip ANSI codes, truncate, then re-apply any trailing reset codes
-  const plain = text.replace(/\x1b\[[0-9;]*m/g, "");
-  const truncated = plain.slice(0, maxVisible);
-  // Restore any ANSI codes that were in the original up to this point
-  let result = "";
-  let plainPos = 0;
-  let i = 0;
-  let copiedSgr = false;
-  while (i < text.length && plainPos < maxVisible) {
-    if (text[i] === "\x1b" && text[i + 1] === "[") {
-      // Copy the escape sequence
-      let j = i;
-      while (j < text.length && text[j] !== "m") j++;
-      result += text.slice(i, j + 1);
-      copiedSgr = true;
-      i = j + 1;
-    } else {
-      result += text[i];
-      plainPos++;
-      i++;
-    }
-  }
-  // Ensure styling doesn't bleed: append reset if we copied SGR and result doesn't end with one
-  if (copiedSgr && !/\x1b\[0?m$/.test(result)) {
-    result += "\x1b[0m";
-  }
-  return result;
-}
-
-function wrapWithBorder(lines: string[], width: number, theme: Theme): string[] {
-  const innerWidth = Math.max(1, width - 2);
-  const contentWidth = Math.max(1, innerWidth - 2); // minus 1 space padding each side
-  const left = theme.fg("dim", "│");
-  const right = theme.fg("dim", "│");
-  const top = theme.fg("dim", `┌${"─".repeat(innerWidth)}┐`);
-  const bottom = theme.fg("dim", `└${"─".repeat(innerWidth)}┘`);
-  const result: string[] = [top];
-  for (const line of lines) {
-    const clamped = hardTruncate(line, contentWidth);
-    const padded = " " + padEnd(clamped, contentWidth) + " ";
-    result.push(left + padded + right);
-  }
-  result.push(bottom);
-  return result;
-}
 // ── List screen ─────────────────────────────────────────────────────────────
 
 function renderList(state: ManagerState, width: number, theme: Theme): string[] {

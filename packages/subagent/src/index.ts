@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { executeSubagent, executeParallel } from "./execute.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
+import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import { discoverAgents, discoverAgentsAll, findAgent, formatAgentList } from "./agents.js";
 import { validateModel, firstError } from "./model-validation.js";
 import type {
@@ -346,7 +347,7 @@ export function registerAgentsCommand(pi: ExtensionAPI): void {
         (tui: TUI, theme: Theme, _keybindings, done: () => void) => {
           return createAgentManager(globalAgents, user, project, globalDir, userDir, projectDir, tui, theme, done, availableModels, availableTools);
         },
-        { overlay: true, overlayOptions: { anchor: "center", width: 84, maxHeight: "80%" } },
+        { overlay: true, overlayOptions: OVERLAY_CHROME },
       );
     },
   });
