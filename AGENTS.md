@@ -13,7 +13,8 @@ Rules for AI agents working on this monorepo.
 - `packages/todo` — todo list tool with auto-clear and subagent visibility (depends on core)
 - `packages/notify` — delayed desktop notifications with circuit breaker (depends on core)
 - `packages/session-name` — auto session naming (depends on core)
-- `meta` — orchestrator + composed settings (depends on all nine)
+- `packages/mcp` — full MCP client adapter with pi-native TUI rendering (depends on core)
+- `meta` — orchestrator + composed settings (depends on all ten)
 
 ## Adding a New Package
 
@@ -99,15 +100,15 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 
 - All packages share the same version (bump all together)
 - `git tag v0.x.y && git push origin v0.x.y` triggers the release workflow
-- Publishes in dependency order: core → ask → todo → notify → session-name → footer → diff → image-paste → subagent → meta
+- Publishes in dependency order: core → ask → todo → notify → session-name → footer → diff → image-paste → subagent → mcp → meta
 
 ## Release Steps
 
 When releasing a new version, apply these steps after bumping versions but before tagging:
 
-1. **Bump all 10 package versions** — `packages/core`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `packages/session-name`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+1. **Bump all 11 package versions** — `packages/core`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `packages/session-name`, `packages/mcp`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
 
-2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 9 package directories (8 components + session-name). Don't release if any check fails.
+2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 10 package directories (9 components + session-name). Don't release if any check fails.
 
 3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
 

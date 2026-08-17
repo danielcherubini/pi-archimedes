@@ -42,4 +42,5 @@ jobs:
           pnpm --filter "@pi-archimedes/diff" publish --access public --no-git-checks
           pnpm --filter "@pi-archimedes/image-paste" publish --access public --no-git-checks
           pnpm --filter "@pi-archimedes/subagent" publish --access public --no-git-checks
+          pnpm --filter "@pi-archimedes/mcp" publish --access public --no-git-checks
           pnpm --filter "pi-archimedes" publish --access public --no-git-checks

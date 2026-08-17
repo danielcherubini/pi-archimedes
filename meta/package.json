@@ -19,7 +19,8 @@
     "@pi-archimedes/subagent": "workspace:*",
     "@pi-archimedes/todo": "workspace:*",
     "@pi-archimedes/notify": "workspace:*",
-    "@pi-archimedes/session-name": "workspace:*"
+    "@pi-archimedes/session-name": "workspace:*",
+    "@pi-archimedes/mcp": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",
