@@ -50,8 +50,22 @@ export function loadServerDefs(workingDir?: string): Record<string, ServerDef> {
     }
   }
 
-  // Filter out disabled servers
+  // Filter out disabled servers and warn about unsupported auth types
   return Object.fromEntries(
-    Object.entries(merged).filter(([, def]) => def.disabled !== true)
+    Object.entries(merged).filter(([name, def]) => {
+      if (def.disabled === true) return false;
+      // Warn on unsupported auth (e.g. legacy "oauth" string in existing configs)
+      if (
+        "auth" in def &&
+        def.auth !== undefined &&
+        typeof def.auth !== "object"
+      ) {
+        console.warn(
+          `[archimedes/mcp] Server "${name}" uses unsupported auth type "${String(def.auth)}". ` +
+          `Only { token: string } (bearer) is supported. The server will connect without auth.`
+        );
+      }
+      return true;
+    })
   );
 }
