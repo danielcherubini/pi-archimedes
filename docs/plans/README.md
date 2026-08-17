@@ -26,11 +26,11 @@
 | 22 | [Subagent: thinking level in agents.local.json](done/plan-022-subagent-thinking-local-json.md) | ✅ COMPLETED (squash `c3cc7ab`) | 2026-08-15 |
 | 23 | [Center-screen /archimedes settings (matching /agents)](done/plan-023-settings-center-overlay.md) | ✅ COMPLETED (squash `e535819`) | 2026-08-15 |
 | 24 | [MCP package — full MCP client adapter replacing pi-mcp-adapter](done/plan-024-mcp-package.md) | ✅ COMPLETED (PR #31, squash `2de1831`) | 2026-08-17 |
+| 25 | [MCP core reliability (port phase 1)](done/plan-025-mcp-core-reliability.md) | ✅ COMPLETED (squash `de324c6`) | 2026-08-17 |
 
 ## Backlog
 
 | # | Plan | Status | Created |
-| 25 | [MCP core reliability (port phase 1)](plan-025-mcp-core-reliability.md) | 🟡 IN PROGRESS | 2026-08-17 |
 | 26 | [MCP OAuth (port phase 2)](plan-026-mcp-oauth.md) | 🟡 BACKLOG | 2026-08-17 |
 | 27 | [MCP commands + panels (port phase 3)](plan-027-mcp-commands-panels.md) | 🟡 BACKLOG | 2026-08-17 |
 
@@ -42,8 +42,8 @@
 ## Quick Stats
 
 - Total Plans: 27
-- Completed: 24
-- In Progress: 1
+- Completed: 25
+- In Progress: 0
 - Backlog: 2
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
