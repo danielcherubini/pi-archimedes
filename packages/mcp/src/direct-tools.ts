@@ -4,6 +4,9 @@ import { Type } from "typebox";
 import type { ServerClient } from "./server-client.js";
 import { renderDirectCall, renderDirectResult } from "./renderer.js";
 
+/** Track which tool names have already been registered to avoid re-registration on /reload */
+const registeredDirectTools = new Set<string>();
+
 /** Sanitise a server name into a safe tool name prefix: keep [A-Za-z0-9_], replace rest with _ */
 export function sanitizePrefix(name: string): string {
   return name.replace(/[^A-Za-z0-9_]/g, "_");
@@ -21,11 +24,19 @@ export function buildDirectToolName(serverName: string, toolName: string): strin
 export function registerDirectTools(
   pi: ExtensionAPI,
   client: ServerClient,
+  getCollapsedLines: () => number,
 ): string[] {
   const registered: string[] = [];
 
   for (const tool of client.tools) {
     const prefixedName = buildDirectToolName(client.name, tool.name);
+
+    // Skip if already registered (prevents re-registration on /reload)
+    if (registeredDirectTools.has(prefixedName)) {
+      registered.push(prefixedName);
+      continue;
+    }
+    registeredDirectTools.add(prefixedName);
 
     // Accept any object — we let the MCP server validate args against its own schema
     const parameters = Type.Object({}, { additionalProperties: true });
@@ -53,7 +64,7 @@ export function registerDirectTools(
         };
         const typedOptions = options as { expanded?: boolean; isPartial?: boolean };
         const typedContext = context as { lastComponent?: Component; isError?: boolean };
-        return renderDirectResult(typedResult, typedOptions, theme, typedContext);
+        return renderDirectResult(typedResult, typedOptions, theme, typedContext, getCollapsedLines());
       },
 
       async execute(_toolCallId, params, signal) {
@@ -68,6 +79,7 @@ export function registerDirectTools(
         return {
           content,
           details: { server: client.name, tool: tool.name },
+          isError: result.isError,
         };
       },
     });

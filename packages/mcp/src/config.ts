@@ -21,7 +21,8 @@ export function parseFile(path: string): McpFileConfig | null {
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf-8")) as McpFileConfig;
-  } catch {
+  } catch (e) {
+    console.warn(`[archimedes/mcp] Failed to parse ${path}:`, e instanceof Error ? e.message : e);
     return null;
   }
 }

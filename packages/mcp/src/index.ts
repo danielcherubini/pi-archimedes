@@ -9,6 +9,7 @@ import { renderProxyCall, renderProxyResult } from "./renderer.js";
 // ── Module-level server manager (survives session restarts) ─────────────────
 
 const manager = new ServerManager();
+let _collapsedLines: 1 | 2 | 3 = 3; // updated in session_start from config
 
 // ── Tool registration ───────────────────────────────────────────────────────
 
@@ -25,13 +26,14 @@ export function registerMcp(pi: ExtensionAPI): void {
     manager.sync(defs);
 
     const config = loadMcpConfig();
+    _collapsedLines = config.collapsedResultLines;
     if (config.directTools) {
       // Connect all servers in parallel and register their direct tools
       await Promise.allSettled(
         manager.getClients().map(async (client) => {
           try {
             await client.connect();
-            registerDirectTools(pi, client);
+            registerDirectTools(pi, client, () => _collapsedLines);
           } catch {
             // Server failed to connect — skip direct tools, proxy will show error on use
           }
@@ -84,9 +86,6 @@ export function registerMcp(pi: ExtensionAPI): void {
       action: Type.Optional(
         Type.String({ description: "Action string (e.g. 'status')" }),
       ),
-      instructions: Type.Optional(
-        Type.String({ description: "Server name to show usage instructions for" }),
-      ),
     }),
 
     renderCall(args: unknown, theme: Theme, context: unknown) {
@@ -98,7 +97,7 @@ export function registerMcp(pi: ExtensionAPI): void {
       const typedResult = result as { content: Array<{ type: string; text?: string }>; details?: Record<string, unknown> };
       const typedOptions = options as { expanded?: boolean; isPartial?: boolean };
       const typedContext = context as { lastComponent?: Component; isError?: boolean };
-      return renderProxyResult(typedResult, typedOptions, theme, typedContext);
+      return renderProxyResult(typedResult, typedOptions, theme, typedContext, _collapsedLines);
     },
 
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
@@ -110,7 +109,6 @@ export function registerMcp(pi: ExtensionAPI): void {
         connect?: string;
         server?: string;
         action?: string;
-        instructions?: string;
       };
 
       // ── status (no meaningful params) ────────────────────────────────────
@@ -120,8 +118,7 @@ export function registerMcp(pi: ExtensionAPI): void {
         !p.describe &&
         !p.connect &&
         !p.action &&
-        !p.server &&
-        !p.instructions
+        !p.server
       ) {
         const clients = manager.getClients();
         const lines =
@@ -242,11 +239,21 @@ export function registerMcp(pi: ExtensionAPI): void {
           };
         }
 
-        // Parse args: string → JSON, object → use as-is, undefined → {}
-        const toolArgs: Record<string, unknown> =
-          typeof p.args === "string"
-            ? (JSON.parse(p.args) as Record<string, unknown>)
-            : (p.args ?? {}) as Record<string, unknown>;
+        // Parse args: string → JSON (with error handling), object → use as-is, undefined → {}
+        let toolArgs: Record<string, unknown>;
+        if (typeof p.args === "string") {
+          try {
+            toolArgs = JSON.parse(p.args) as Record<string, unknown>;
+          } catch (e) {
+            return {
+              content: [{ type: "text" as const, text: `Invalid JSON in args: ${e instanceof Error ? e.message : String(e)}` }],
+              isError: true,
+              details: {},
+            };
+          }
+        } else {
+          toolArgs = (p.args ?? {}) as Record<string, unknown>;
+        }
 
         const result = await client.callTool(p.tool, toolArgs, signal);
         // Cast MCP ContentBlock[] to pi's (TextContent | ImageContent)[]
@@ -254,7 +261,8 @@ export function registerMcp(pi: ExtensionAPI): void {
         const content = result.content as Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>;
         return {
           content,
-          details: { server: serverName, tool: p.tool, isError: result.isError },
+          details: { server: serverName, tool: p.tool },
+          isError: result.isError,
         };
       }
 

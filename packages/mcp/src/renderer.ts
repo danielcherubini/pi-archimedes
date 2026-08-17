@@ -96,6 +96,7 @@ export function renderProxyResult(
   options: { expanded?: boolean; isPartial?: boolean },
   theme: Theme,
   context: RenderContext,
+  maxCollapsedLines: number = 3,
 ): Component {
   const text = (context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0)) as Text;
 
@@ -127,7 +128,7 @@ export function renderProxyResult(
   }
 
   const expanded = options.expanded ?? context.expanded ?? false;
-  const maxLines = expanded ? lines.length : 3;
+  const maxLines = expanded ? lines.length : maxCollapsedLines;
   const shown = lines.slice(0, maxLines);
   const truncated = lines.length > maxLines;
 
@@ -188,8 +189,9 @@ export function renderDirectResult(
   options: { expanded?: boolean; isPartial?: boolean },
   theme: Theme,
   context: RenderContext,
+  maxCollapsedLines: number = 3,
 ): Component {
-  return renderProxyResult(result, options, theme, context);
+  return renderProxyResult(result, options, theme, context, maxCollapsedLines);
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────
