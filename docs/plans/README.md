@@ -29,7 +29,8 @@
 
 ## Backlog
 
-_No backlog items._
+| # | Plan | Status | Created |
+| 25 | [MCP core reliability (port phase 1)](plan-025-mcp-core-reliability.md) | 🟡 BACKLOG | 2026-08-17 |
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -38,7 +39,7 @@ _No backlog items._
 
 ## Quick Stats
 
-- Total Plans: 24
+- Total Plans: 25
 - Completed: 24
 - In Progress: 0
-- Backlog: 0
+- Backlog: 1
