@@ -25,6 +25,11 @@
 | 21 | [Auto session naming](done/plan-021-session-name.md) | ✅ COMPLETED (PR #29) | 2026-08-13 |
 | 22 | [Subagent: thinking level in agents.local.json](done/plan-022-subagent-thinking-local-json.md) | ✅ COMPLETED (squash `c3cc7ab`) | 2026-08-15 |
 | 23 | [Center-screen /archimedes settings (matching /agents)](done/plan-023-settings-center-overlay.md) | ✅ COMPLETED (squash `e535819`) | 2026-08-15 |
+| 24 | [MCP package — full MCP client adapter replacing pi-mcp-adapter](plan-024-mcp-package.md) | ✅ COMPLETED | 2026-08-17 |
+
+## Backlog
+
+_No backlog items._
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -33,6 +38,7 @@
 
 ## Quick Stats
 
-- Total Plans: 23
-- Completed: 23
+- Total Plans: 24
+- Completed: 24
 - In Progress: 0
+- Backlog: 0
