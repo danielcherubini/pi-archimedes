@@ -41,6 +41,9 @@ importers:
       '@pi-archimedes/image-paste':
         specifier: workspace:*
         version: link:../packages/image-paste
+      '@pi-archimedes/mcp':
+        specifier: workspace:*
+        version: link:../packages/mcp
       '@pi-archimedes/notify':
         specifier: workspace:*
         version: link:../packages/notify
