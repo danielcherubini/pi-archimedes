@@ -13,7 +13,7 @@ export function registerImagePreview(pi: ExtensionAPI): void {
   pi.registerMessageRenderer<PreviewDetails>(CUSTOM_TYPE, (message, _options, theme) => {
     try {
       // Theme.fg is runtime-available but not exposed in the Theme type definition
-      const fg = (theme as any).fg as ((color: string, text: string) => string) | undefined;
+      const fg = (theme as any).fg?.bind(theme) as ((color: string, text: string) => string) | undefined;
       if (!fg) return undefined;
 
       // Extract image data from content array
