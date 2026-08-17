@@ -11,7 +11,7 @@ export interface StdioServerDef {
 export interface HttpServerDef {
   type: "http" | "sse";
   url: string;
-  auth?: "oauth" | { token: string };
+  auth?: { token: string }; // OAuth flow not yet supported — use { token: string } for bearer auth
   disabled?: boolean;
 }
 

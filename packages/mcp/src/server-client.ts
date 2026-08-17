@@ -8,10 +8,10 @@ import type { StdioServerDef, HttpServerDef, ServerDef } from "./types.js";
 
 /**
  * Build Authorization headers for an HTTP server's auth config.
- * Returns an empty object for oauth (not yet implemented) or unset auth.
+ * Returns an empty object when auth is not configured.
  */
 function buildAuthHeaders(auth: HttpServerDef["auth"]): Record<string, string> {
-  if (!auth || auth === "oauth") return {};
+  if (!auth) return {};
   if (typeof auth === "object" && "token" in auth) {
     return { Authorization: `Bearer ${auth.token}` };
   }
