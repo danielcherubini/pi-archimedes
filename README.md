@@ -141,7 +141,8 @@ Full MCP client adapter that connects pi to any MCP server with pi-native TUI re
 
 - Gateway `mcp` proxy tool — search, describe, and call tools across all configured servers
 - Per-server direct tools registered as `{server}_{tool}` for token-efficient calls
-- Lazy stdio spawn / HTTP connect with auto-reconnect
+- Lifecycle management per server (`keep-alive` / `lazy` / `lazy-keep-alive` / `eager`) with configurable idle timeout
+- Metadata cache (`~/.pi/agent/mcp-cache.json`, 7-day validity) — search/describe work offline, and tools connect lazily per call
 - Cyan tool name + orange target rendering matching pi's Dracula theme
 - Config from `archimedes.mcp` in `settings.json`; server definitions from `~/.config/mcp/mcp.json`
 
@@ -230,6 +231,15 @@ No settings yet.
 |---------|------|---------|-------------|
 | `directTools` | bool | `true` | Register per-server direct tools (`{server}_{tool}`) in the tool list |
 | `collapsedResultLines` | 1\|2\|3 | `3` | Max lines shown in collapsed tool result view |
+| `toolPrefix` | string | `"server"` | Tool name prefix strategy (`"server"` \| `"none"` \| `"short"` \| `"mcp"`) |
+| `idleTimeout` | number | `10` | Idle timeout in minutes before open connections close (`0` disables) |
+| `warnOnLargeDirectTools` | bool | `true` | Reserved — parsed but not yet effective (see note below) |
+
+Per-server settings in the `mcp.json` server definitions override these defaults: `lifecycle` (`"keep-alive"` \| `"lazy"` \| `"lazy-keep-alive"` \| `"eager"`, default `"lazy"`), `idleTimeout`, `directTools`, `includeTools`, `excludeTools`, `toolPrefix`, `exposeResources`, `debug`, `requestTimeoutMs`, `protocolVersion`.
+
+> **Note on reserved settings:** `warnOnLargeDirectTools`, `exposeResources`, `requestTimeoutMs`, and `protocolVersion` are part of the planned port and are parsed (and, where applicable, folded into the metadata cache's config hash) but **not yet effective** — setting them has no runtime behaviour.
+
+A metadata cache at `~/.pi/agent/mcp-cache.json` (valid for 7 days) stores each server's tools/resources/prompts so the gateway can search and describe offline, connecting servers lazily per tool call.
 
 ## Architecture
 

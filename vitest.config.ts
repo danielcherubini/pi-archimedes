@@ -11,6 +11,7 @@ export default defineConfig({
       "packages/notify",
       "packages/ask",
       "packages/image-paste",
+      "packages/mcp",
     ],
     passWithNoTests: true,
   },
