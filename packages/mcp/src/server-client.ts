@@ -6,6 +6,18 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { StdioServerDef, HttpServerDef, ServerDef } from "./types.js";
 
+/**
+ * Build Authorization headers for an HTTP server's auth config.
+ * Returns an empty object for oauth (not yet implemented) or unset auth.
+ */
+function buildAuthHeaders(auth: HttpServerDef["auth"]): Record<string, string> {
+  if (!auth || auth === "oauth") return {};
+  if (typeof auth === "object" && "token" in auth) {
+    return { Authorization: `Bearer ${auth.token}` };
+  }
+  return {};
+}
+
 export type ServerStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export interface McpTool extends Tool {
@@ -59,11 +71,10 @@ export class ServerClient {
     this._status = "connecting";
     this._error = null;
     try {
-      const client = new Client(
+      this.client = new Client(
         { name: "pi-archimedes-mcp", version: "1.0.0" },
         {},
       );
-      this.client = client;
 
       const onclose = () => {
         this._status = "disconnected";
@@ -78,33 +89,48 @@ export class ServerClient {
           env: { ...process.env, ...(def.env ?? {}) } as Record<string, string>,
         });
         transport.onclose = onclose;
-        await client.connect(transport);
+        await this.client.connect(transport);
       } else {
         const def = this.def as HttpServerDef;
+        const authHeaders = buildAuthHeaders(def.auth);
+        const hasAuth = Object.keys(authHeaders).length > 0;
+
         // Try StreamableHTTP first (modern standard), fall back to SSE for legacy servers
         let connected = false;
         try {
-          const transport = new StreamableHTTPClientTransport(new URL(def.url));
+          const transport = new StreamableHTTPClientTransport(
+            new URL(def.url),
+            hasAuth ? { requestInit: { headers: authHeaders } } : undefined,
+          );
           transport.onclose = onclose;
           // StreamableHTTPClientTransport.sessionId is `string | undefined` which conflicts
           // with the Transport interface's `sessionId?: string` under exactOptionalPropertyTypes
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await client.connect(transport as any);
+          await (this.client as any).connect(transport);
           connected = true;
         } catch {
-          // Fall back to SSE
+          // Fall through to SSE fallback
         }
         if (!connected) {
-          const transport = new SSEClientTransport(new URL(def.url));
+          // Create a fresh Client for the SSE fallback — the previous instance may be in a
+          // partially-initialised or broken state after the failed StreamableHTTP attempt.
+          this.client = new Client(
+            { name: "pi-archimedes-mcp", version: "1.0.0" },
+            {},
+          );
+          const transport = new SSEClientTransport(
+            new URL(def.url),
+            hasAuth ? { requestInit: { headers: authHeaders } } : undefined,
+          );
           transport.onclose = onclose;
-          await client.connect(transport);
+          await this.client.connect(transport);
         }
       }
 
       this._status = "connected";
 
       // Discover tools immediately after connect
-      const result = await client.listTools();
+      const result = await this.client.listTools();
       this._tools = result.tools.map((t) => ({ ...t, serverName: this.name }));
     } catch (e) {
       this._status = "error";

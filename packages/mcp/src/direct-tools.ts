@@ -4,8 +4,21 @@ import { Type } from "typebox";
 import type { ServerClient } from "./server-client.js";
 import { renderDirectCall, renderDirectResult } from "./renderer.js";
 
-/** Track which tool names have already been registered to avoid re-registration on /reload */
-const registeredDirectTools = new Set<string>();
+/**
+ * Track which tool names have already been registered, keyed by pi instance.
+ * Using a WeakMap ensures each fresh ExtensionAPI object (new session after /reload, /new, /fork)
+ * gets its own clean Set — preventing stale dedup across sessions.
+ */
+const registrationsByPi = new WeakMap<ExtensionAPI, Set<string>>();
+
+function getRegistered(pi: ExtensionAPI): Set<string> {
+  let set = registrationsByPi.get(pi);
+  if (!set) {
+    set = new Set<string>();
+    registrationsByPi.set(pi, set);
+  }
+  return set;
+}
 
 /** Sanitise a server name into a safe tool name prefix: keep [A-Za-z0-9_], replace rest with _ */
 export function sanitizePrefix(name: string): string {
@@ -27,16 +40,18 @@ export function registerDirectTools(
   getCollapsedLines: () => number,
 ): string[] {
   const registered: string[] = [];
+  const piRegistered = getRegistered(pi);
 
   for (const tool of client.tools) {
     const prefixedName = buildDirectToolName(client.name, tool.name);
 
-    // Skip if already registered (prevents re-registration on /reload)
-    if (registeredDirectTools.has(prefixedName)) {
+    // Skip if already registered in this pi instance (prevents duplicate registerTool calls
+    // within the same session, e.g. when servers reconnect)
+    if (piRegistered.has(prefixedName)) {
       registered.push(prefixedName);
       continue;
     }
-    registeredDirectTools.add(prefixedName);
+    piRegistered.add(prefixedName);
 
     // Accept any object — we let the MCP server validate args against its own schema
     const parameters = Type.Object({}, { additionalProperties: true });
