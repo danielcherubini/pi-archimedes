@@ -5,17 +5,20 @@ import type { ServerClient } from "./server-client.js";
 import { renderDirectCall, renderDirectResult } from "./renderer.js";
 
 /**
- * Track which tool names have already been registered, keyed by pi instance.
- * Using a WeakMap ensures each fresh ExtensionAPI object (new session after /reload, /new, /fork)
- * gets its own clean Set — preventing stale dedup across sessions.
+ * Track which tool names have been registered, keyed by the ServerClient instance.
+ * ServerManager creates a new ServerClient on each sync when a server is removed and
+ * re-added — so a fresh client automatically gets a clean Set, meaning direct tools
+ * are re-registered in the new pi Extension registry after /reload or /new.
+ *
+ * WeakMap allows clients to be GC'd when closed/replaced without manual cleanup.
  */
-const registrationsByPi = new WeakMap<ExtensionAPI, Set<string>>();
+const registeredByClient = new WeakMap<ServerClient, Set<string>>();
 
-function getRegistered(pi: ExtensionAPI): Set<string> {
-  let set = registrationsByPi.get(pi);
+function getRegisteredForClient(client: ServerClient): Set<string> {
+  let set = registeredByClient.get(client);
   if (!set) {
     set = new Set<string>();
-    registrationsByPi.set(pi, set);
+    registeredByClient.set(client, set);
   }
   return set;
 }
@@ -32,6 +35,7 @@ export function buildDirectToolName(serverName: string, toolName: string): strin
 
 /**
  * Register all tools from a connected server as individual pi tools.
+ * Skips tools already registered for this specific client instance.
  * Returns the list of registered prefixed tool names so they can be tracked.
  */
 export function registerDirectTools(
@@ -40,18 +44,18 @@ export function registerDirectTools(
   getCollapsedLines: () => number,
 ): string[] {
   const registered: string[] = [];
-  const piRegistered = getRegistered(pi);
+  const clientRegistered = getRegisteredForClient(client);
 
   for (const tool of client.tools) {
     const prefixedName = buildDirectToolName(client.name, tool.name);
 
-    // Skip if already registered in this pi instance (prevents duplicate registerTool calls
-    // within the same session, e.g. when servers reconnect)
-    if (piRegistered.has(prefixedName)) {
+    // Skip if already registered for this client instance
+    // (guards against repeated session_start calls within the same session)
+    if (clientRegistered.has(prefixedName)) {
       registered.push(prefixedName);
       continue;
     }
-    piRegistered.add(prefixedName);
+    clientRegistered.add(prefixedName);
 
     // Accept any object — we let the MCP server validate args against its own schema
     const parameters = Type.Object({}, { additionalProperties: true });
