@@ -1,0 +1,27 @@
+{
+  "name": "@pi-archimedes/mcp",
+  "version": "2.2.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "description": "Full MCP client adapter with pi-native TUI rendering for pi-archimedes",
+  "files": ["src"],
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.0",
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0",
+    "typebox": ">=1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typebox": "^1.1.38",
+    "typescript": "^6.0.3"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
+}

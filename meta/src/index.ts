@@ -66,12 +66,13 @@ export default function (pi: ExtensionAPI): void {
     currentCtx = ctx;
 
     // ── Parallel lazy-load all three packages (saves ~100ms vs sequential) ──
-    const [diffMod, ipMod, saMod] = await Promise.all([
+    const [diffMod, ipMod, saMod, mcpMod] = await Promise.all([
       import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; }),
       import("@pi-archimedes/image-paste").catch((e) => { console.error("[archimedes] image-paste load failed:", e); return null; }),
       import("@pi-archimedes/subagent").catch((e) => { console.error("[archimedes] subagent load failed:", e); return null; }),
+      import("@pi-archimedes/mcp").catch((e) => { console.error("[archimedes] mcp load failed:", e); return null; }),
     ]);
-    archTime("3 packages loaded in parallel");
+    archTime("4 packages loaded in parallel");
 
     // Each session_start fires on a fresh Extension (pi creates a new
     // ExtensionRunner per session). Registration is safe to — and must —
@@ -95,6 +96,9 @@ export default function (pi: ExtensionAPI): void {
     if (saMod) {
       saMod.registerSubagent(pi);
       saMod.registerAgentsCommand(pi);
+    }
+    if (mcpMod) {
+      mcpMod.registerMcp(pi);
     }
   });
 
