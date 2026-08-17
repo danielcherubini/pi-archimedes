@@ -1,7 +1,8 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { loadServerDefs } from "./config.js";
+import { loadMcpConfig, loadServerDefs } from "./config.js";
+import { registerDirectTools } from "./direct-tools.js";
 import { ServerManager } from "./server-manager.js";
 import { renderProxyCall, renderProxyResult } from "./renderer.js";
 
@@ -22,7 +23,21 @@ export function registerMcp(pi: ExtensionAPI): void {
     // Re-sync server definitions on every session start (picks up config changes)
     const defs = loadServerDefs();
     manager.sync(defs);
-    // Direct tool registration (loadMcpConfig) will be added in Task 6
+
+    const config = loadMcpConfig();
+    if (config.directTools) {
+      // Connect all servers in parallel and register their direct tools
+      await Promise.allSettled(
+        manager.getClients().map(async (client) => {
+          try {
+            await client.connect();
+            registerDirectTools(pi, client);
+          } catch {
+            // Server failed to connect — skip direct tools, proxy will show error on use
+          }
+        }),
+      );
+    }
   });
 
   pi.registerTool({
