@@ -558,13 +558,14 @@ The current `config.ts` misses two precedence layers (`~/.agents/mcp.json`, `~/.
    <cwd>/.pi/mcp.json
    ```
 2. Add credential/url-binding security to the merge: when a higher-precedence source changes a server's `url`, DROP inherited `auth`/`headers`/`bearerToken` fields (prevent sending credentials to a new endpoint). Define `URL_BOUND_AUTH_FIELDS`.
-3. Add `stripJsonComments` support (JSON with `//` comments and trailing commas) so real-world configs parse.
+3. Add `stripJsonComments` support (JSON with `//` comments and trailing commas) so real-world configs parse. **Export `stripJsonComments`** (plan-027's config-write helpers reuse it).
 4. Add a `resolveServerSettings(def, globalConfig)` helper that merges per-server settings over global defaults (lifecycle, idleTimeout, toolPrefix, directTools, includeTools/excludeTools).
+5. **Refactor for disabled-server visibility:** extract the merge/precedence logic into `loadAllServerDefs(workingDir?): Record<string, ServerDef>` (returns ALL servers, disabled ones with their flag intact), and make `loadServerDefs = filter-out-disabled(loadAllServerDefs())`. Export BOTH. plan-027's `/mcp` status/enable/disable and the panel need `loadAllServerDefs` to see disabled servers.
 
 Reference adapter `config.ts` lines ~350–510.
 
 **Steps:**
-- [ ] Write failing test `packages/mcp/src/config.test.ts` — precedence: higher layer overrides lower; url change drops inherited auth; JSON-with-comments parses; `resolveServerSettings` merges correctly
+- [ ] Write failing test `packages/mcp/src/config.test.ts` — precedence: higher layer overrides lower; url change drops inherited auth; JSON-with-comments parses; `resolveServerSettings` merges correctly; `loadAllServerDefs` includes a `{ disabled: true }` server while `loadServerDefs` excludes it
 - [ ] Run `pnpm exec vitest run config` — must fail
 - [ ] Implement the layers, security merge, comment stripping, settings resolution
 - [ ] Run `pnpm exec vitest run config` — must pass
@@ -574,8 +575,9 @@ Reference adapter `config.ts` lines ~350–510.
 **Acceptance criteria:**
 - [ ] All six precedence layers load in correct order
 - [ ] Changing a server's url drops inherited credentials
-- [ ] JSON with comments/trailing commas parses
+- [ ] JSON with comments/trailing commas parses (and `stripJsonComments` is exported)
 - [ ] Per-server settings override global defaults
+- [ ] `loadAllServerDefs` (exported) includes disabled servers; `loadServerDefs` excludes them
 - [ ] Tests pass, `npx tsc --noEmit` clean
 
 ---
