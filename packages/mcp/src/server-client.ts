@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { StdioServerDef, HttpServerDef, ServerDef, ToolPrefix, CachedTool } from "./types.js";
 import {
   authenticate as runOAuthFlow,
@@ -405,20 +406,34 @@ export class ServerClient {
       const resources: DiscoveredResource[] = [];
       let resourceCursor: string | undefined;
       if (caps?.resources) {
-        do {
-          const r = await this.client.listResources(resourceCursor ? { cursor: resourceCursor } : undefined);
-          resources.push(...r.resources.map(toDiscoveredResource));
-          resourceCursor = r.nextCursor;
-        } while (resourceCursor);
+        try {
+          do {
+            const r = await this.client.listResources(resourceCursor ? { cursor: resourceCursor } : undefined);
+            resources.push(...r.resources.map(toDiscoveredResource));
+            resourceCursor = r.nextCursor;
+          } while (resourceCursor);
+        } catch (e) {
+          // Some servers advertise the resources capability but don't implement
+          // resources/list (e.g. Atlassian MCP returns -32601). Treat this as
+          // "no resources" rather than a fatal connection error.
+          if (!(e instanceof McpError && e.code === -32601)) throw e;
+          console.warn(`[archimedes/mcp] server "${this.name}" advertises resources but resources/list returned Method Not Found — ignoring`);
+        }
       }
       const prompts: DiscoveredPrompt[] = [];
       let promptCursor: string | undefined;
       if (caps?.prompts) {
-        do {
-          const r = await this.client.listPrompts(promptCursor ? { cursor: promptCursor } : undefined);
-          prompts.push(...r.prompts.map(toDiscoveredPrompt));
-          promptCursor = r.nextCursor;
-        } while (promptCursor);
+        try {
+          do {
+            const r = await this.client.listPrompts(promptCursor ? { cursor: promptCursor } : undefined);
+            prompts.push(...r.prompts.map(toDiscoveredPrompt));
+            promptCursor = r.nextCursor;
+          } while (promptCursor);
+        } catch (e) {
+          // Same defensive pattern: ignore -32601 for prompts/list.
+          if (!(e instanceof McpError && e.code === -32601)) throw e;
+          console.warn(`[archimedes/mcp] server "${this.name}" advertises prompts but prompts/list returned Method Not Found — ignoring`);
+        }
       }
       this._resources = resources;
       this._prompts = prompts;
