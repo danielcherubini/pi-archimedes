@@ -43,11 +43,11 @@ The persistent `~/.pi/agent/mcp-cache.json` storing tool/resource/prompt metadat
 _Avoid_: Tool cache, offline cache, schema cache
 
 **needs-auth**:
-A first-class `ServerClient` connection status meaning the server returned HTTP 401 and requires OAuth. Distinct from a generic `error`. Resolved by `/mcp-auth`.
+A first-class `ServerClient` connection status meaning the server returned HTTP 401 and requires OAuth. Distinct from a generic `error`. Resolved by `/mcp auth <server>` or in-panel auth (`[a]`/`enter` in `/mcp panel`).
 _Avoid_: Unauthorized, auth-required, unauthenticated
 
 **Callback server**:
-The singleton local HTTP server (default port 19876) that receives the OAuth browser redirect during `/mcp-auth`, validates the CSRF state, and hands the code back to the auth flow.
+The singleton local HTTP server (default port 19876) that receives the OAuth browser redirect during `/mcp auth`, in-panel auth, or auto-auth; validates the CSRF state, and hands the code back to the auth flow.
 _Avoid_: Redirect server, OAuth server, local server
 
 **Auth entry**:

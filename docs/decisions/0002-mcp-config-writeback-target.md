@@ -22,3 +22,4 @@ Because `.pi/mcp.json` is the highest-precedence layer, writing an override ther
 - Changes always take effect (highest precedence).
 - Documented divergence: users editing `.mcp.json` by hand won't see panel-written `directTools`/`disabled` overrides there — they live in `.pi/mcp.json`. This is called out in the README.
 - Provenance-based write-back can be added later if the split-file behavior proves annoying.
+- Out of scope: *new* server definitions written by `/mcp setup` (scaffold/import) target the project-shared layer <cwd>/.mcp.json instead — definitions are shared project data and do not belong in the Pi override.
