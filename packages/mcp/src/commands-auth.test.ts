@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import open from "open";
+import { isHttpDef } from "./config.js";
 import { registerAuthCommands } from "./commands-auth.js";
 import type { ServerManager } from "./server-manager.js";
 import type { HttpServerDef, ServerDef } from "./types.js";
@@ -17,6 +18,8 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
     }
     dispose() {}
   },
+  // core/settings-io builds its settings path at module load
+  getAgentDir: () => `${process.env.TMPDIR ?? "/tmp"}/pi-archimedes-mock-agent`,
 }));
 vi.mock("open", () => ({ default: vi.fn().mockResolvedValue({}) }));
 vi.mock("./auth-storage.js", () => ({ deleteAuthEntry: vi.fn() }));
@@ -149,22 +152,16 @@ function makeFakeClient(opts: FakeClientOpts = {}) {
 /** Deps mirroring the index.ts wiring: fresh config read, http/sse defs only. */
 function makeDeps(defs: Record<string, ServerDef>, client: unknown) {
   const manager = { getClient: vi.fn().mockReturnValue(client) } as unknown as ServerManager;
+  // Mirrors the production index.ts wiring: shape-based (url) classification
+  const getServerDef = (name: string): HttpServerDef | undefined => {
+    const def = defs[name];
+    return def !== undefined && isHttpDef(def) ? def : undefined;
+  };
   return {
-    deps: {
-      getServerDef: (name: string) => {
-        const def = defs[name];
-        return def !== undefined && (def.type === "http" || def.type === "sse") ? def : undefined;
-      },
-      getManager: () => manager,
-    },
+    deps: { getServerDef, getManager: () => manager },
     manager,
-    register: (pi: ExtensionAPI) => registerAuthCommands(pi, {
-      getServerDef: (name: string) => {
-        const def = defs[name];
-        return def !== undefined && (def.type === "http" || def.type === "sse") ? def : undefined;
-      },
-      getManager: () => manager,
-    }),
+    register: (pi: ExtensionAPI) =>
+      registerAuthCommands(pi, { getServerDef, getManager: () => manager }),
   };
 }
 
@@ -225,6 +222,19 @@ describe("/mcp-auth", () => {
     await commands["mcp-auth"]!.handler("cli", ctx);
     expect(state.notify).toHaveBeenCalledWith("Unknown server: cli", "error");
     expect(state.custom).not.toHaveBeenCalled();
+  });
+
+  it("finds a URL server without a type field (shape-based classification)", async () => {
+    const client = makeFakeClient({ outcome: "success" });
+    const { pi, commands } = makeFakePi();
+    makeDeps(
+      { srv: { url: "https://mcps.example/mcp", auth: "oauth" } },
+      client,
+    ).register(pi);
+    const { ctx, state } = makeCtx(true);
+    await commands["mcp-auth"]!.handler("srv", ctx);
+    expect(state.notify).not.toHaveBeenCalledWith("Unknown server: srv", "error");
+    expect(state.notify).toHaveBeenCalledWith("✓ srv authenticated — 2 tools available", "info");
   });
 
   it("notifies machines configured for a static bearer token as not-OAuth", async () => {

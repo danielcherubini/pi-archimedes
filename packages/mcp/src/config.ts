@@ -12,6 +12,7 @@ import {
   type McpFileConfig,
   type ServerDef,
   type HttpServerDef,
+  type StdioServerDef,
   type ToolPrefix,
 } from "./types.js";
 
@@ -97,7 +98,13 @@ export function parseFile(path: string): McpFileConfig | null {
   }
 }
 
-function isHttpDef(def: ServerDef): def is HttpServerDef {
+/**
+ * The SINGLE transport classification predicate: a def with a string `url`
+ * is an HTTP server (connected via StreamableHTTP, SSE fallback); anything
+ * else is stdio. The optional `type` field is informational only and never
+ * participates here — the standard mcpServers shape omits it on url servers.
+ */
+export function isHttpDef(def: ServerDef): def is HttpServerDef {
   return "url" in def && typeof (def as HttpServerDef).url === "string";
 }
 
@@ -237,14 +244,26 @@ export function loadAllServerDefs(workingDir?: string, options?: LoadServerDefsO
  * Load and merge all MCP server definitions from the standard config locations.
  * Higher-precedence files override lower ones per server (field-level merge,
  * with the url-bound credential drop rule). Disabled servers are excluded.
+ * Mangled defs (neither a string `url` nor a string `command`) are skipped
+ * with a warning — they could never connect.
  */
 export function loadServerDefs(workingDir?: string, options?: LoadServerDefsOptions): Record<string, ServerDef> {
   const merged = loadAllServerDefs(workingDir, options);
 
-  // Filter out disabled servers and warn about unsupported auth types
+  // Filter out disabled and mangled servers, and warn on unsupported auth types
   return Object.fromEntries(
     Object.entries(merged).filter(([name, def]) => {
       if (def.disabled === true) return false;
+      // Mangled def: neither a string url (http) nor a string command (stdio)
+      // — it could never connect, so skip it with a clear warning instead of
+      // crashing at connect time.
+      if (!isHttpDef(def) && typeof (def as StdioServerDef).command !== "string") {
+        console.warn(
+          `[archimedes/mcp] Server "${name}" has neither a "url" (http) nor a "command" (stdio) field — skipping it. ` +
+          `Add a "url" for an HTTP server or a "command" for a stdio server.`,
+        );
+        return false;
+      }
       // Warn on genuinely-unknown auth shapes (valid: { token } bearer,
       // the "oauth" string, or an OAuth config object)
       if ("auth" in def && def.auth !== undefined && !supportsAuthShape(def.auth)) {

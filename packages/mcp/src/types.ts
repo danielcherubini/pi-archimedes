@@ -62,7 +62,9 @@ export const OAUTH_CONFIG_FIELDS = [
 
 /** An HTTP-based MCP server (Streamable HTTP or SSE) */
 export interface HttpServerDef extends SharedServerSettings {
-  type: "http" | "sse";
+  /** Informational only — the transport is chosen by def shape: a `url` server
+   * connects via StreamableHTTP (with SSE fallback for legacy servers). */
+  type?: "http" | "sse";
   url: string;
   /** Bearer token, the "oauth" string (grant-type defaults), or a full OAuth config */
   auth?: { token: string } | "oauth" | McpOAuthConfig;

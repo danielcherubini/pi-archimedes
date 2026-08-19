@@ -405,4 +405,64 @@ describe("loadServerDefs (integration with temp dirs)", () => {
       expect(warnSpy.mock.calls.map((c) => c[0]).join("\n")).toContain("\"azure-ad\"");
     });
   });
+
+  describe("shape-based classification and mangled defs", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it("loads a url server without a type field and does not warn", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: {
+            api: { url: "https://api.example/mcp", headers: { Authorization: "Bearer x" } },
+          },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect(defs["api"]).toMatchObject({
+        url: "https://api.example/mcp",
+        headers: { Authorization: "Bearer x" },
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips a def with neither a url nor a command and warns", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: { broken: { foo: 1 }, ok: { url: "http://x" } },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect("broken" in defs).toBe(false);
+      expect(defs["ok"]).toMatchObject({ url: "http://x" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const msg = warnSpy.mock.calls[0]?.[0] as string;
+      expect(msg).toContain('Server "broken"');
+      expect(msg).toContain("url");
+      expect(msg).toContain("command");
+    });
+
+    it("loadAllServerDefs keeps mangled defs intact (flag-intact principle)", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: { broken: { foo: 1 } },
+        }),
+      );
+      const all = loadAllServerDefs(wd, { homeDir: home, agentDir });
+      expect(all["broken"]).toMatchObject({ foo: 1 });
+    });
+  });
 });

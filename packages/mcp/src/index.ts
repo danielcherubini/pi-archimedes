@@ -1,7 +1,7 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { loadMcpConfig, loadServerDefs, resolveServerSettings } from "./config.js";
+import { loadMcpConfig, loadServerDefs, resolveServerSettings, isHttpDef } from "./config.js";
 import { autoAuthenticate, needsAuthToolResult } from "./auto-auth.js";
 import { registerAuthCommands } from "./commands-auth.js";
 import {
@@ -109,9 +109,7 @@ export function registerMcp(pi: ExtensionAPI): void {
       const defs = loadDefs();
       manager.sync(defs);
       const def = defs[name];
-      return def !== undefined && (def.type === "http" || def.type === "sse")
-        ? def
-        : undefined;
+      return def !== undefined && isHttpDef(def) ? def : undefined;
     },
     getManager: () => manager,
   });

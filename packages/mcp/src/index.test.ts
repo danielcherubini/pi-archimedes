@@ -16,6 +16,22 @@ import { setCachePathForTest, saveServerCache } from "./metadata-cache.js";
 import { DEFAULT_MCP_CONFIG } from "./types.js";
 import type { McpConfig, ServerDef } from "./types.js";
 
+// ── mocks ──────────────────────────────────────────────────────────────────
+// The real BorderedLoader needs a live TUI; a stub with the same surface
+// (constructor message + onAbort) is enough to drive runAuthWithLoader.
+vi.mock("@earendil-works/pi-coding-agent", () => ({
+  BorderedLoader: class {
+    message: string;
+    onAbort?: () => void;
+    constructor(_tui: unknown, _theme: unknown, message: string) {
+      this.message = message;
+    }
+    dispose() {}
+  },
+  // core/settings-io builds its settings path at module load
+  getAgentDir: () => `${process.env.TMPDIR ?? "/tmp"}/pi-archimedes-mock-agent`,
+}));
+
 // ── fakes ────────────────────────────────────────────────────────────────────
 
 interface CapturedTool {
@@ -459,6 +475,62 @@ describe("mcp proxy — auth command wiring", () => {
     ) => Promise<void>;
     await handler("srv", ctx);
     expect(notify).toHaveBeenCalledWith("Unknown server: srv", "error");
+  });
+
+  it("finds a typeless url server configured for oauth (shape-based classification)", async () => {
+    const def: ServerDef = { url: "https://mcp.example.com/mcp", auth: "oauth" };
+    const manager = new ServerManager({
+      clientFactory: () => makeFakeSdkClient() as unknown as Client,
+    });
+    setIndexSeamsForTest({
+      manager,
+      loadServerDefs: () => ({ srv: def }),
+      loadMcpConfig: () => DEFAULT_MCP_CONFIG,
+    });
+    const { pi, commands } = makeFakePi();
+    registerMcp(pi);
+
+    const authSpy = vi.spyOn(ServerClient.prototype, "authenticate").mockResolvedValue(
+      undefined,
+    );
+    try {
+      const notify = vi.fn();
+      // ui.custom runs the loader factory and resolves when done() is called
+      const custom = vi.fn(
+        (factory: (
+          tui: unknown,
+          theme: unknown,
+          keybindings: unknown,
+          done: (result: unknown) => void,
+        ) => unknown) => {
+          let resolve!: (result: unknown) => void;
+          const pending = new Promise<unknown>((r) => (resolve = r));
+          let settled = false;
+          const done = (result: unknown) => {
+            if (!settled) {
+              settled = true;
+              resolve(result);
+            }
+          };
+          factory({}, {}, {}, done);
+          return pending;
+        },
+      );
+      const ctx = { hasUI: true, ui: { notify, custom } } as never;
+      const handler = commands["mcp-auth"]!.handler as (
+        args: string,
+        ctx: unknown,
+      ) => Promise<void>;
+      await handler("srv", ctx);
+
+      // Shape (url) classified it as HTTP: the OAuth entry point ran and the
+      // full flow completed — NOT "Unknown server".
+      expect(authSpy).toHaveBeenCalledTimes(1);
+      expect(notify).not.toHaveBeenCalledWith("Unknown server: srv", "error");
+      expect(notify).toHaveBeenCalledWith("✓ srv authenticated — 0 tools available", "info");
+    } finally {
+      authSpy.mockRestore();
+    }
   });
 });
 

@@ -3,13 +3,14 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StreamableHTTPError, StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { readFileSync } from "node:fs";
 import { ServerClient, buildAuthHeaders } from "./server-client.js";
 import { ServerManager } from "./server-manager.js";
 import { setCachePathForTest } from "./metadata-cache.js";
 import type { AuthStatus } from "./auth-flow.js";
-import type { StdioServerDef, HttpServerDef } from "./types.js";
+import type { StdioServerDef, HttpServerDef, ServerDef } from "./types.js";
 
 /**
  * Mocks the auth-flow module so ServerClient is exercised without the real
@@ -586,6 +587,48 @@ describe("ServerClient — OAuth bearer on connect", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("ServerClient — shape-based classification (typeless url defs)", () => {
+  it("connects a URL server without a type field via StreamableHTTP (never stdio)", async () => {
+    const seen: unknown[] = [];
+    // The user's real-config shape: url + headers, no `type` field at all
+    const def: ServerDef = { url: "http://127.0.0.1:1/mcp", auth: { token: "tok" } };
+    const client = new ServerClient("srv", def, {
+      clientFactory: () =>
+        makeFakeClient({
+          onConnect: (_fake, transport) => {
+            seen.push(transport);
+          },
+        }) as unknown as Client,
+    });
+
+    await client.connect();
+    expect(client.status).toBe("connected");
+    expect(seen).toHaveLength(1);
+    // The key assertion: HTTP transport, not StdioClientTransport
+    expect(seen[0]).toBeInstanceOf(StreamableHTTPClientTransport);
+    expect(seen[0]).not.toBeInstanceOf(StdioClientTransport);
+    // The http path must have attached the bearer token
+    const headers = (seen[0] as { _requestInit?: { headers?: Record<string, string> } })._requestInit
+      ?.headers;
+    expect(headers).toEqual({ Authorization: "Bearer tok" });
+  });
+
+  it("runs OAuth authenticate for a URL server without a type field", async () => {
+    const def: ServerDef = { url: "https://mcp.example.com/mcp", auth: "oauth" };
+    const client = new ServerClient("oauth-srv", def, {
+      clientFactory: () => makeFakeClient() as unknown as Client,
+    });
+    await client.authenticate();
+    expect(authFlow.authenticate).toHaveBeenCalledTimes(1);
+    expect(authFlow.authenticate).toHaveBeenCalledWith(
+      "oauth-srv",
+      "https://mcp.example.com/mcp",
+      { grantType: "authorization_code" },
+      undefined,
+    );
   });
 });
 

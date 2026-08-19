@@ -16,6 +16,7 @@ import {
 } from "./auth-flow.js";
 import { resolveNpxBinary } from "./npx-resolver.js";
 import { saveServerCache } from "./metadata-cache.js";
+import { isHttpDef } from "./config.js";
 
 /**
  * Build the request headers for an HTTP server from its full definition.
@@ -218,7 +219,7 @@ export class ServerClient {
    */
   async authenticate(options?: AuthenticateOptions): Promise<void> {
     const def = this._def;
-    if (def.type !== "http" && def.type !== "sse") {
+    if (!isHttpDef(def)) {
       throw new Error(
         `Server ${this.name} is not configured for OAuth (auth must be "oauth" or an oauth config object)`,
       );
@@ -293,7 +294,7 @@ export class ServerClient {
         }
       };
 
-      if (!this._def.type || this._def.type === "stdio") {
+      if (!isHttpDef(this._def)) {
         const def = this._def as StdioServerDef;
         // Resolve npx/npm wrappers to the actual binary so we spawn it
         // directly; null means "not an npx/npm command" → use the original.
