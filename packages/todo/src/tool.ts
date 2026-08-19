@@ -2,6 +2,7 @@ import { type Static, StringEnum, Type } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ExtensionContext, Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { renderToolHeader, renderStatusLabel } from "@pi-archimedes/core/tool-render";
 import type { TodoStateManager } from "./state-manager.js";
 import { STATUS_ICONS } from "./types.js";
 import type { TodoDetails } from "./types.js";
@@ -135,20 +136,12 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
     },
 
     renderCall(args: ManageTodoListInput, theme: Theme) {
-      let text = theme.fg("toolTitle", theme.bold("manage_todo_list "));
-      text += theme.fg("muted", args.operation);
-
-      if (args.operation === "write" && args.todoList) {
-        const count = args.todoList.length;
-        text += theme.fg("dim", ` (${count} item${count !== 1 ? "s" : ""})`);
-      }
-
-      return new Text(text, 0, 0);
+      return new Text(renderToolHeader("todo", args.operation, theme), 0, 0);
     },
 
     renderResult(
       result: AgentToolResult<TodoDetails | undefined>,
-      { expanded }: ToolRenderResultOptions,
+      { expanded, isPartial }: ToolRenderResultOptions,
       theme: Theme
     ) {
       const details = result.details;
@@ -158,18 +151,23 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
       }
 
       if (details.error) {
-        return new Text(theme.fg("error", `✗ ${details.error}`), 0, 0);
+        return new Text(renderStatusLabel("error", details.error, theme), 0, 0);
       }
 
       const todos = details.todos;
       const completed = todos.filter((t) => t.status === "completed").length;
       const total = todos.length;
+      const label = `${completed}/${total} completed`;
+
+      if (isPartial) {
+        return new Text(renderStatusLabel("running", label, theme), 0, 0);
+      }
 
       if (total === 0) {
         return new Text(theme.fg("dim", "No todos"), 0, 0);
       }
 
-      let text = theme.fg("success", "✓ ") + theme.fg("muted", `${completed}/${total} completed`);
+      let text = renderStatusLabel("success", label, theme);
 
       if (expanded) {
         for (const todo of todos) {

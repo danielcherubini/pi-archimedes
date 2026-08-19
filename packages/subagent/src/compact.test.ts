@@ -126,13 +126,15 @@ describe("buildActivityLine", () => {
     expect(result).toContain("bash");
   });
 
-  it("shows '↳ Starting...' when running with no info", () => {
+  it("shows '▸ Starting...' when running with no info", () => {
     const { theme } = makeMockTheme();
     const result = buildActivityLine(
       activityData({ status: "running" }),
       theme,
     );
-    expect(result).toContain("↳ Starting...");
+    // Glyph and label are rendered as separate themed fragments.
+    expect(result).toContain("▸ ");
+    expect(result).toContain("Starting...");
   });
 
   it("shows first line of final output when available", () => {
@@ -409,8 +411,8 @@ describe("buildActivityLine property tests", () => {
           );
           // Strip ANSI tags to get visible text
           const visible = result.replace(/\[muted\]/g, "").replace(/\[\/muted\]/g, "");
-          // The visible text after "↳ " should be <= 80
-          const afterArrow = visible.replace(/^↳ /, "");
+          // The visible text after the running glyph "▸ " should be <= 80
+          const afterArrow = visible.replace(/^▸ /, "");
           expect(afterArrow.length).toBeLessThanOrEqual(80);
         },
       ),
@@ -428,7 +430,7 @@ describe("buildActivityLine property tests", () => {
             theme,
           );
           const visible = result.replace(/\[dim\]/g, "").replace(/\[\/dim\]/g, "");
-          const afterArrow = visible.replace(/^↳ /, "");
+          const afterArrow = visible.replace(/^▸ /, "");
           expect(afterArrow.length).toBeLessThanOrEqual(60);
         },
       ),

@@ -203,7 +203,7 @@ export function registerDirectTools(
         };
         const typedOptions = options as { expanded?: boolean; isPartial?: boolean };
         const typedContext = context as RenderContext;
-        return renderDirectResult(typedResult, typedOptions, theme, typedContext);
+        return renderDirectResult(prefixedName, typedResult, typedOptions, theme, typedContext);
       },
 
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {

@@ -19,7 +19,8 @@
     "./overlay": "./src/overlay.ts",
     "./config": "./src/config.ts",
     "./settings-io": "./src/settings-io.ts",
-    "./profiler": "./src/profiler.ts"
+    "./profiler": "./src/profiler.ts",
+    "./tool-render": "./src/tool-render.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

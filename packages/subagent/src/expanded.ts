@@ -1,23 +1,22 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall } from "./types.js";
-import { formatTokens, formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import { formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import { renderToolCallLine } from "@pi-archimedes/core/tool-render";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+// A completed tool call renders with a status glyph (✓ ok / ✗ error) and its
+// name coloured to match. Legacy string-form calls (old persisted sessions)
+// carry no status, so they render as a neutral success line.
 function formatToolCall(call: SubagentToolCall | string, theme: Theme): string {
-  // Backward compat: old persisted sessions may have toolCalls as string[]
   if (typeof call === "string") {
-    return theme.fg("dim", "↳ " + call);
+    return renderToolCallLine("success", call, "", theme);
   }
-  const arrow = theme.fg("muted", "↳ ");
-  const color = call.error ? "error" : "success";
-  const name = theme.fg(color, call.name);
-  const argsPart = call.argsPreview
-    ? theme.fg("dim", ": " + call.argsPreview)
-    : "";
-  return arrow + name + argsPart;
+  const status = call.error ? "error" : "success";
+  const suffix = call.argsPreview ? ": " + call.argsPreview : "";
+  return renderToolCallLine(status, call.name, suffix, theme);
 }
 
 // ── Expanded completed result ───────────────────────────────────────────────
@@ -42,8 +41,7 @@ export function buildExpandedText(
     durationMs: result.progressSummary?.durationMs,
     cost: result.usage.cost,
   }, theme);
-  const expandHint = theme.fg("muted", "(ctrl+o)");
-  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  const statsParts = [modelLabel, statsLine].filter(Boolean);
   if (statsParts.length > 0) {
     lines.push(statsParts.join(" "));
   }
@@ -116,8 +114,7 @@ export function renderProgressExpanded(
     durationMs: progress.durationMs,
     cost: progress.cost,
   }, theme);
-  const expandHint = theme.fg("muted", "(ctrl+o)");
-  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  const statsParts = [modelLabel, statsLine].filter(Boolean);
   if (statsParts.length > 0) {
     lines.push(statsParts.join(" "));
   }
@@ -136,7 +133,7 @@ export function renderProgressExpanded(
     }
   }
 
-  // Activity (current tool with spinner)
+  // Activity (current tool, marked with the running glyph ▸)
   if (progress.currentTool) {
     lines.push("");
     const argsPreview = progress.currentToolArgs
@@ -145,14 +142,8 @@ export function renderProgressExpanded(
     const durationPart = progress.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - progress.currentToolStartedAt)
       : "";
-    let line = theme.fg("muted", progress.currentTool);
-    if (argsPreview) {
-      line += theme.fg("dim", ": " + argsPreview);
-    }
-    if (durationPart) {
-      line += theme.fg("dim", durationPart);
-    }
-    lines.push(line);
+    const suffix = (argsPreview ? ": " + argsPreview : "") + durationPart;
+    lines.push(renderToolCallLine("running", progress.currentTool, suffix, theme));
   }
 
   // Status at bottom
@@ -192,8 +183,7 @@ export function buildProgressExpandedText(
     durationMs: progress.durationMs,
     cost: progress.cost,
   }, theme);
-  const expandHint = theme.fg("muted", "(ctrl+o)");
-  const statsParts = [modelLabel, statsLine, expandHint].filter(Boolean);
+  const statsParts = [modelLabel, statsLine].filter(Boolean);
   if (statsParts.length > 0) {
     lines.push(statsParts.join(" "));
   }

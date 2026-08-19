@@ -5,7 +5,8 @@ import {
   renderDirectResult,
   renderProxyCall,
   renderProxyResult,
-  formatProxyCallTitle,
+  extractServerName,
+  formatProxyCallServer,
 } from "./renderer.js";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
@@ -56,36 +57,54 @@ const throwingTheme = {
 // ── Shared fixtures ─────────────────────────────────────────────────────────
 
 const TOOL = "postgres_describe_table";
+const SERVER = "postgres";
 const ARGS = { schema: "public", table: "model_files" };
 const RESULT = { content: [{ type: "text", text: "Hello\nWorld" }] };
 
-// Expected fragments (fake-theme markers; the dim fragment is ": value",
-// hence the doubled colon in `[dim:: …]`).
-const HEADER = `[toolTitle:**mcp**] [accent:${TOOL}]`;
-const SUMMARY_SUCCESS =
-  "[muted:→ ][success:table][dim:: model_files][muted: (ctrl+o)]";
-const SUMMARY_RUNNING = "[muted:→ ][muted:table][dim:: model_files]";
+// Line 1 header: blue bold "mcp" + orange server name.
+const HEADER = `[toolTitle:**mcp**] [accent:${SERVER}]`;
 
 function ctx(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return { ...extra };
 }
 
-// ── formatProxyCallTitle (unchanged behavior) ───────────────────────────────
+// ── extractServerName ────────────────────────────────────────────────────────
 
-describe("formatProxyCallTitle", () => {
-  it("formats the gateway action words", () => {
-    expect(formatProxyCallTitle({ tool: "t1", server: "s1" })).toBe(
-      "call t1 @ s1",
+describe("extractServerName", () => {
+  it("takes the first segment before the underscore", () => {
+    expect(extractServerName("atlassian_searchJiraIssuesUsingJql")).toBe(
+      "atlassian",
     );
-    expect(formatProxyCallTitle({ tool: "t1" })).toBe("call t1");
-    expect(formatProxyCallTitle({ search: "jira", server: "s1" })).toBe(
-      "search jira @ s1",
+    expect(extractServerName("postgres_describe_table")).toBe("postgres");
+  });
+
+  it("returns the whole name when there is no underscore", () => {
+    expect(extractServerName("mcp")).toBe("mcp");
+  });
+});
+
+// ── formatProxyCallServer ────────────────────────────────────────────────────
+
+describe("formatProxyCallServer", () => {
+  it("extracts the server from the tool name", () => {
+    expect(formatProxyCallServer({ tool: "atlassian_search" })).toBe(
+      "atlassian",
     );
-    expect(formatProxyCallTitle({ describe: "t1" })).toBe("describe t1");
-    expect(formatProxyCallTitle({ connect: "s1" })).toBe("connect s1");
-    expect(formatProxyCallTitle({ server: "s1" })).toBe("list s1");
-    expect(formatProxyCallTitle({})).toBe("status");
-    expect(formatProxyCallTitle({ action: "weird" })).toBe("weird");
+  });
+
+  it("prefers explicit args.server", () => {
+    expect(formatProxyCallServer({ tool: "atlassian_search", server: "s1" })).toBe(
+      "atlassian",
+    );
+    expect(formatProxyCallServer({ server: "s1" })).toBe("s1");
+  });
+
+  it("falls back to action words for non-tool calls", () => {
+    expect(formatProxyCallServer({ search: "jira" })).toBe("search");
+    expect(formatProxyCallServer({ describe: "t1" })).toBe("describe");
+    expect(formatProxyCallServer({ connect: "s1" })).toBe("connect");
+    expect(formatProxyCallServer({ action: "weird" })).toBe("weird");
+    expect(formatProxyCallServer({})).toBe("status");
   });
 });
 
@@ -94,71 +113,21 @@ describe("formatProxyCallTitle", () => {
 describe("renderDirectCall", () => {
   const content = (c: unknown) => (c as unknown as MockTextShim).getContent();
 
-  it("running with complete args: header + muted summary, no hint", () => {
-    const out = renderDirectCall(
-      TOOL,
-      { ...ARGS },
-      theme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
-    expect(content(out)).toBe(`${HEADER}\n${SUMMARY_RUNNING}`);
-  });
-
-  it("settled (isPartial false): header only — result renderer owns line 2", () => {
-    const out = renderDirectCall(
-      TOOL,
-      { ...ARGS },
-      theme,
-      ctx({ isPartial: false, argsComplete: true }),
-    );
-    expect(content(out)).toBe(HEADER);
-  });
-
-  it("args still streaming (argsComplete false): header only", () => {
-    const out = renderDirectCall(
-      TOOL,
-      { ...ARGS },
-      theme,
-      ctx({ isPartial: true, argsComplete: false }),
-    );
-    expect(content(out)).toBe(HEADER);
-  });
-
-  it("missing context fields (older pi): treated as running, summary shown", () => {
+  it("renders the header only: blue mcp + orange server name", () => {
     const out = renderDirectCall(TOOL, { ...ARGS }, theme, ctx());
-    expect(content(out)).toBe(`${HEADER}\n${SUMMARY_RUNNING}`);
-  });
-
-  it("no key arg: header only, even while running", () => {
-    const out = renderDirectCall(
-      TOOL,
-      {},
-      theme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
     expect(content(out)).toBe(HEADER);
   });
 
   it("never throws — degrades to plain text when the theme throws", () => {
-    const out = renderDirectCall(
-      TOOL,
-      { ...ARGS },
-      throwingTheme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
+    const out = renderDirectCall(TOOL, { ...ARGS }, throwingTheme, ctx());
     expect(content(out)).toBe(`mcp ${TOOL}`);
   });
 
   it("reuses the lastComponent instance", () => {
     const last = new MockText("stale");
-    const out = renderDirectCall(
-      TOOL,
-      { ...ARGS },
-      theme,
-      ctx({ isPartial: true, argsComplete: true, lastComponent: last }),
-    );
+    const out = renderDirectCall(TOOL, { ...ARGS }, theme, ctx({ lastComponent: last }));
     expect(out).toBe(last);
-    expect(content(out)).toBe(`${HEADER}\n${SUMMARY_RUNNING}`);
+    expect(content(out)).toBe(HEADER);
   });
 });
 
@@ -167,52 +136,43 @@ describe("renderDirectCall", () => {
 describe("renderDirectResult", () => {
   const content = (c: unknown) => (c as unknown as MockTextShim).getContent();
 
-  it("collapsed success: green summary + hint, NO result text", () => {
+  it("collapsed success: green tick + muted tool name, NO result text", () => {
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       { expanded: false },
       theme,
       ctx({ isError: false, args: { ...ARGS } }),
     );
-    expect(content(out)).toBe(SUMMARY_SUCCESS);
+    expect(content(out)).toBe(`[success:✓ ][muted:${TOOL}]`);
     expect(content(out)).not.toContain("Hello");
-    expect(content(out)).not.toContain("World");
   });
 
-  it("collapsed error (isError): red summary, same shape", () => {
+  it("collapsed error: red cross + muted tool name", () => {
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       { expanded: false },
       theme,
       ctx({ isError: true, args: { ...ARGS } }),
     );
-    expect(content(out)).toBe(
-      "[muted:→ ][error:table][dim:: model_files][muted: (ctrl+o)]",
-    );
+    expect(content(out)).toBe(`[error:✗ ][muted:${TOOL}]`);
   });
 
-  it("no key arg (empty args): empty collapsed result", () => {
+  it("isPartial: running glyph (muted) + muted tool name, no content", () => {
     const out = renderDirectResult(
-      RESULT,
-      { expanded: false },
-      theme,
-      ctx({ isError: false, args: {} }),
-    );
-    expect(content(out)).toBe("");
-  });
-
-  it("isPartial guard: running-state summary (muted, no hint), no content", () => {
-    const out = renderDirectResult(
+      TOOL,
       RESULT,
       { isPartial: true },
       theme,
       ctx({ isError: false, args: { ...ARGS } }),
     );
-    expect(content(out)).toBe(SUMMARY_RUNNING);
+    expect(content(out)).toBe(`[muted:▸ ][muted:${TOOL}]`);
   });
 
   it("expanded success: dim args JSON + blank line + full text", () => {
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       { expanded: true },
       theme,
@@ -226,6 +186,7 @@ describe("renderDirectResult", () => {
 
   it("expanded error: full text in error colour", () => {
     const out = renderDirectResult(
+      TOOL,
       { content: [{ type: "text", text: "boom" }] },
       { expanded: true },
       theme,
@@ -238,6 +199,7 @@ describe("renderDirectResult", () => {
 
   it("expanded empty content: (empty result) after the args block", () => {
     const out = renderDirectResult(
+      TOOL,
       { content: [] },
       { expanded: true },
       theme,
@@ -249,18 +211,9 @@ describe("renderDirectResult", () => {
     );
   });
 
-  it("expanded with empty args: text only, no args block", () => {
-    const out = renderDirectResult(
-      RESULT,
-      { expanded: true },
-      theme,
-      ctx({ isError: false, args: {} }),
-    );
-    expect(content(out)).toBe("[toolOutput:Hello]\n[toolOutput:World]");
-  });
-
   it("expanded honours context.expanded when options.expanded is unset", () => {
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       {},
       theme,
@@ -271,6 +224,7 @@ describe("renderDirectResult", () => {
 
   it("never throws — degrades to empty text when the theme throws", () => {
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       { expanded: false },
       throwingTheme,
@@ -282,13 +236,14 @@ describe("renderDirectResult", () => {
   it("reuses the lastComponent instance", () => {
     const last = new MockText("stale");
     const out = renderDirectResult(
+      TOOL,
       RESULT,
       { expanded: false },
       theme,
       ctx({ isError: false, args: { ...ARGS }, lastComponent: last }),
     );
     expect(out).toBe(last);
-    expect(content(out)).toBe(SUMMARY_SUCCESS);
+    expect(content(out)).toBe(`[success:✓ ][muted:${TOOL}]`);
   });
 });
 
@@ -297,54 +252,22 @@ describe("renderDirectResult", () => {
 describe("renderProxyCall", () => {
   const content = (c: unknown) => (c as unknown as MockTextShim).getContent();
   const PROXY_ARGS = {
-    tool: "describe_table",
-    server: "postgres",
+    tool: "postgres_describe_table",
     args: { table: "model_files" },
   };
-  const PROXY_HEADER = "[toolTitle:**mcp**] [accent:call describe_table @ postgres]";
 
-  it("running: action header + summary from the nested args.args", () => {
-    const out = renderProxyCall(
-      { ...PROXY_ARGS },
-      theme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
-    expect(content(out)).toBe(`${PROXY_HEADER}\n${SUMMARY_RUNNING}`);
+  it("renders the header: blue mcp + orange server (from tool name)", () => {
+    const out = renderProxyCall({ ...PROXY_ARGS }, theme, ctx());
+    expect(content(out)).toBe(HEADER);
   });
 
-  it("settled: header only", () => {
-    const out = renderProxyCall(
-      { ...PROXY_ARGS },
-      theme,
-      ctx({ isPartial: false, argsComplete: true }),
-    );
-    expect(content(out)).toBe(PROXY_HEADER);
-  });
-
-  it("no nested args.args (search action): header only", () => {
-    const out = renderProxyCall(
-      { search: "jira" },
-      theme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
-    expect(content(out)).toBe("[toolTitle:**mcp**] [accent:search jira]");
-  });
-
-  it("args.args as a JSON string: no summary (not a plain object)", () => {
-    const out = renderProxyCall(
-      { tool: "t1", args: '{"table":"x"}' },
-      theme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
-    expect(content(out)).toBe("[toolTitle:**mcp**] [accent:call t1]");
+  it("search action: header shows the action word", () => {
+    const out = renderProxyCall({ search: "jira" }, theme, ctx());
+    expect(content(out)).toBe("[toolTitle:**mcp**] [accent:search]");
   });
 
   it("never throws — degrades to plain 'mcp' when the theme throws", () => {
-    const out = renderProxyCall(
-      { ...PROXY_ARGS },
-      throwingTheme,
-      ctx({ isPartial: true, argsComplete: true }),
-    );
+    const out = renderProxyCall({ ...PROXY_ARGS }, throwingTheme, ctx());
     expect(content(out)).toBe("mcp");
   });
 });
@@ -354,21 +277,28 @@ describe("renderProxyCall", () => {
 describe("renderProxyResult", () => {
   const content = (c: unknown) => (c as unknown as MockTextShim).getContent();
   const PROXY_CONTEXT_ARGS = {
-    tool: "describe_table",
-    server: "postgres",
+    tool: "postgres_describe_table",
     args: { sql: "SELECT 1" },
   };
 
-  it("collapsed success: summary from the nested args.args, with hint", () => {
+  it("collapsed success: green tick + muted tool name", () => {
     const out = renderProxyResult(
       { content: [{ type: "text", text: "out" }] },
       { expanded: false },
       theme,
       ctx({ isError: false, args: { ...PROXY_CONTEXT_ARGS } }),
     );
-    expect(content(out)).toBe(
-      "[muted:→ ][success:sql][dim:: SELECT 1][muted: (ctrl+o)]",
+    expect(content(out)).toBe(`[success:✓ ][muted:postgres_describe_table]`);
+  });
+
+  it("collapsed error: red cross + muted tool name", () => {
+    const out = renderProxyResult(
+      { content: [{ type: "text", text: "out" }] },
+      { expanded: false },
+      theme,
+      ctx({ isError: true, args: { ...PROXY_CONTEXT_ARGS } }),
     );
+    expect(content(out)).toBe(`[error:✗ ][muted:postgres_describe_table]`);
   });
 
   it("expanded: formats ONLY the nested args.args (not the gateway args)", () => {
@@ -381,16 +311,16 @@ describe("renderProxyResult", () => {
     expect(content(out)).toBe(
       `[dim:{\n  "sql": "SELECT 1"\n}]\n\n[toolOutput:out]`,
     );
-    expect(content(out)).not.toContain("describe_table");
+    expect(content(out)).not.toContain("describe_table\"");
   });
 
-  it("no nested args.args: empty collapsed result", () => {
+  it("no tool name (search action): falls back to 'mcp'", () => {
     const out = renderProxyResult(
       { content: [{ type: "text", text: "ok" }] },
       { expanded: false },
       theme,
       ctx({ isError: false, args: { search: "jira" } }),
     );
-    expect(content(out)).toBe("");
+    expect(content(out)).toBe(`[success:✓ ][muted:mcp]`);
   });
 });

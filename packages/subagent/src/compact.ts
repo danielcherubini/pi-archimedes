@@ -1,6 +1,7 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall, SubagentToolResult } from "./types.js";
-import { formatTokens, formatDuration, formatCost, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import { formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import { renderToolCallLine, STATUS_GLYPH } from "@pi-archimedes/core/tool-render";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
@@ -35,52 +36,43 @@ export function buildActivityLine(
     return theme.fg("error", "✗ Failed");
   }
 
-  // Running: show the current tool with live duration (grey while running)
+  // Running: show the current tool with the running glyph ▸ + live duration.
   if (data.currentTool) {
-    const arrow = theme.fg("muted", "↳ ");
     const argsPreview = data.currentToolArgs
       ? truncLine(data.currentToolArgs, 60)
       : "";
     const durationPart = data.currentToolStartedAt
       ? " | " + formatDuration(Date.now() - data.currentToolStartedAt)
       : "";
-    let line = theme.fg("muted", data.currentTool);
-    if (argsPreview) {
-      line += theme.fg("dim", ": " + argsPreview);
-    }
-    if (durationPart) {
-      line += theme.fg("dim", durationPart);
-    }
-    return arrow + line;
+    const suffix = (argsPreview ? ": " + argsPreview : "") + durationPart;
+    return renderToolCallLine("running", data.currentTool, suffix, theme);
   }
 
-  // Running, no active tool: show the most recently completed tool call
-  // Color only the tool name green (success) or red (error)
+  // Running, no active tool: show the most recently completed tool call with
+  // its status glyph (✓ ok / ✗ error) and matching name colour.
   if (data.toolCalls && data.toolCalls.length > 0) {
     const lastCall = data.toolCalls[data.toolCalls.length - 1];
     if (lastCall) {
       if (typeof lastCall === "string") {
-        return theme.fg("dim", "↳ " + truncLine(lastCall, 60));
+        return renderToolCallLine("success", truncLine(lastCall, 60), "", theme);
       }
-      const color = lastCall.error ? "error" : "success";
-      const arrow = theme.fg("muted", "↳ ");
-      const name = theme.fg(color, lastCall.name);
-      const argsPart = lastCall.argsPreview
-        ? theme.fg("dim", ": " + truncLine(lastCall.argsPreview, 60))
+      const status = lastCall.error ? "error" : "success";
+      const suffix = lastCall.argsPreview
+        ? ": " + truncLine(lastCall.argsPreview, 60)
         : "";
-      return arrow + name + argsPart;
+      return renderToolCallLine(status, lastCall.name, suffix, theme);
     }
   }
 
-  // Running, no tool history: show first line of streamed output if any
+  // Running, no tool history: show first line of streamed output (▸, muted).
   if (data.finalOutput) {
     const firstLine = data.finalOutput.split("\n")[0] ?? "";
-    return theme.fg("muted", "↳ " + truncLine(firstLine, 80));
+    return renderToolCallLine("running", truncLine(firstLine, 80), "", theme);
   }
 
   // Running, no info yet
   if (data.status === "running") {
-    return theme.fg("muted", "↳ Starting...");
+    return renderToolCallLine("running", "Starting...", "", theme);
   }
 
   return "";
@@ -88,9 +80,11 @@ export function buildActivityLine(
 
 // ── Status glyph ────────────────────────────────────────────────────────────
 
+// Per-agent row prefix (shares the core glyph set: ▸ running, ✓ done, ✗
+// failed). Returns the raw character — callers colour it per status.
 function statusGlyph(isRunning: boolean, status: string): string {
-  if (isRunning) return "↳";
-  return status === "completed" ? "✓" : "✗";
+  if (isRunning) return STATUS_GLYPH.running;
+  return status === "completed" ? STATUS_GLYPH.success : STATUS_GLYPH.error;
 }
 
 // ── Compact single agent ────────────────────────────────────────────────────
@@ -145,9 +139,8 @@ export function renderCompactSingle(
   const modelLabel = modelName
     ? theme.fg("accent", modelName)
     : "";
-  const expandHint = theme.fg("muted", "(ctrl+o)");
   const agentLabel = buildAgentLabel(agentName, result.task, theme);
-  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  let output = agentLabel + "\n" + [modelLabel, statsPart].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
@@ -267,9 +260,8 @@ export function renderCompactProgress(
     ? theme.fg("accent", progress.model)
     : "";
   const statsPart = statsLine;
-  const expandHint = theme.fg("muted", "(ctrl+o)");
   const agentLabel = buildAgentLabel(agentName, progress.task, theme);
-  let output = agentLabel + "\n" + [modelLabel, statsPart, expandHint].filter(Boolean).join(" ");
+  let output = agentLabel + "\n" + [modelLabel, statsPart].filter(Boolean).join(" ");
   output += "\n" + activityLine;
 
   text.setText(output);
