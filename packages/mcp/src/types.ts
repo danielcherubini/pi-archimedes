@@ -91,8 +91,6 @@ export interface McpFileSettings {
 export interface McpConfig {
   /** Show direct tools per server in the tool list (default: true) */
   directTools: boolean;
-  /** Max collapsed result lines (default: 3) */
-  collapsedResultLines: 1 | 2 | 3;
   /** Tool name prefix strategy (default: "server") */
   toolPrefix: ToolPrefix;
   /** Idle timeout in minutes (default: 10) */
@@ -110,7 +108,6 @@ export interface McpConfig {
 
 export const DEFAULT_MCP_CONFIG: McpConfig = {
   directTools: true,
-  collapsedResultLines: 3,
   toolPrefix: "server",
   idleTimeout: 10,
   warnOnLargeDirectTools: true,

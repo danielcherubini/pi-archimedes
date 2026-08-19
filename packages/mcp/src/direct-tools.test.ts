@@ -124,7 +124,6 @@ describe("registerDirectTools", () => {
       serverName: "myserver",
       prefix: "server",
       tools: TOOLS,
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("myserver", calls)),
     });
 
@@ -147,7 +146,6 @@ describe("registerDirectTools", () => {
         { name: "read", description: "shadows builtin", inputSchema: {} },
         { name: "search", description: "fine", inputSchema: {} },
       ],
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("srv", calls)),
     });
 
@@ -169,7 +167,6 @@ describe("registerDirectTools", () => {
       serverName: "srv",
       prefix: "server" as const,
       tools: TOOLS,
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("srv", calls)),
     };
     const first = registerDirectTools(pi, opts);
@@ -186,7 +183,6 @@ describe("registerDirectTools", () => {
     const base = {
       serverName: "srv",
       prefix: "server" as const,
-      getCollapsedLines: () => 3,
     };
     // Pass 1: full tool list
     registerDirectTools(pi, {
@@ -218,7 +214,6 @@ describe("registerDirectTools", () => {
       serverName: "s1",
       prefix: "none",
       tools: [tool],
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("s1", [])),
     });
     // Same raw tool name from a different server, prefix "none" → identical
@@ -228,7 +223,6 @@ describe("registerDirectTools", () => {
       serverName: "s2",
       prefix: "none",
       tools: [tool],
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("s2", [])),
     });
     expect(registered).toEqual(["x"]);
@@ -243,7 +237,6 @@ describe("registerDirectTools", () => {
       serverName: "A",
       prefix: "none",
       tools: [tool],
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("A", [])),
     });
     expect(defs.map((d) => d.name)).toEqual(["foo"]);
@@ -258,7 +251,6 @@ describe("registerDirectTools", () => {
       serverName: "B",
       prefix: "none",
       tools: [tool],
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("B", [])),
     });
     expect(second).toEqual(["foo"]);
@@ -270,7 +262,6 @@ describe("registerDirectTools", () => {
       serverName: "A",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       resolveClient: async () => makeFakeClient("A", []),
     });
     pruneRegisteredNames(new Set(["A", "B"]));
@@ -289,7 +280,6 @@ describe("registerDirectTools", () => {
       serverName: "srv",
       prefix: "server" as const,
       tools,
-      getCollapsedLines: () => 3,
       resolveClient: resolveClient(makeFakeClient("srv", [])),
     };
     const collisionWarns = () =>
@@ -317,7 +307,6 @@ describe("registerDirectTools", () => {
       serverName: "srv",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       resolveClient: resolveSpy,
     });
 
@@ -346,7 +335,6 @@ describe("registerDirectTools", () => {
       serverName: "gone",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       resolveClient: async () => {
         throw new Error('Server "gone" is no longer configured');
       },
@@ -417,7 +405,6 @@ describe("registerDirectTools — needs-auth at call time", () => {
       serverName: "srv",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       autoAuth: () => false,
       resolveClient: resolveClient(client as unknown as ServerClient),
     });
@@ -442,7 +429,6 @@ describe("registerDirectTools — needs-auth at call time", () => {
       serverName: "srv",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       autoAuth: () => true,
       resolveClient: resolveClient(client as unknown as ServerClient),
     });
@@ -470,7 +456,6 @@ describe("registerDirectTools — needs-auth at call time", () => {
       serverName: "srv",
       prefix: "server",
       tools: [TOOLS[0]!],
-      getCollapsedLines: () => 3,
       autoAuth: () => true,
       resolveClient: resolveClient(client as unknown as ServerClient),
     });

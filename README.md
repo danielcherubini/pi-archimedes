@@ -145,7 +145,7 @@ Full-featured MCP client adapter (feature parity with pi-mcp-adapter): any MCP s
 - OAuth 2.1 + PKCE for protected servers — browser auth flow, OS credential-store persistence, SDK-driven token refresh
 - Lifecycle management per server (`keep-alive` / `lazy` / `lazy-keep-alive` / `eager`) with configurable idle timeout
 - Metadata cache (`~/.pi/agent/mcp-cache.json`, 7-day validity) — search/describe work offline, and tools connect lazily per call; also persists each server's last connection outcome, so `needs-auth`/error surfaces across sessions
-- Cyan tool name + orange target rendering matching pi's Dracula theme
+- Compact two-line tool rendering — `mcp <target>` header (cyan + orange, matching pi's Dracula theme) plus a key-arg summary (`→ table: model_files`) whose key word is grey while running, green on success, red on failure, with a `(ctrl+o)` hint; full args and result text stay hidden until expanded (ctrl+o)
 - Layered `mcp.json` server definitions (six layers, project `.pi` override wins) with safe single-field write-back — see Config files & write-back below
 
 #### `/mcp` command
@@ -314,7 +314,6 @@ No settings yet.
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `directTools` | bool | `true` | Register per-server direct tools (`{server}_{tool}`) in the tool list |
-| `collapsedResultLines` | 1\|2\|3 | `3` | Max lines shown in collapsed tool result view |
 | `toolPrefix` | string | `"server"` | Tool name prefix strategy (`"server"` \| `"none"` \| `"short"` \| `"mcp"`) |
 | `idleTimeout` | number | `10` | Idle timeout in minutes before open connections close (`0` disables) |
 | `warnOnLargeDirectTools` | bool | `true` | Reserved — parsed but not yet effective (see note below) |

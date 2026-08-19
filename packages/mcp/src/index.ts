@@ -1,5 +1,4 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { loadMcpConfig, loadServerDefs, loadAllServerDefs, resolveServerSettings } from "./config.js";
 import { autoAuthenticate, needsAuthToolResult } from "./auto-auth.js";
@@ -20,12 +19,11 @@ import {
   resolveServerRef,
 } from "./tool-naming.js";
 import type { CachedTool, McpConfig, ServerDef } from "./types.js";
-import { renderProxyCall, renderProxyResult } from "./renderer.js";
+import { renderProxyCall, renderProxyResult, type RenderContext } from "./renderer.js";
 
 // ── Module-level server manager (survives session restarts) ─────────────────
 
 let manager = new ServerManager();
-let _collapsedLines: 1 | 2 | 3 = 3; // updated in session_start from config
 let _idleTimeoutMinutes = 10; // updated in session_start from config
 
 // ── Test seams ──────────────────────────────────────────────────────────────
@@ -133,7 +131,6 @@ export function registerMcp(pi: ExtensionAPI): void {
     manager.sync(defs);
 
     const config = loadCfg();
-    _collapsedLines = config.collapsedResultLines;
     _idleTimeoutMinutes = config.idleTimeout;
     lifecycle.start(); // idempotent — safe across /reload
 
@@ -160,7 +157,6 @@ export function registerMcp(pi: ExtensionAPI): void {
         serverName,
         prefix: settings.toolPrefix,
         tools: filterDirectTools(tools, settings),
-        getCollapsedLines: () => _collapsedLines,
         autoAuth: () => loadCfg().autoAuth,
         resolveClient,
       });
@@ -276,15 +272,15 @@ export function registerMcp(pi: ExtensionAPI): void {
     }),
 
     renderCall(args: unknown, theme: Theme, context: unknown) {
-      const typedContext = context as { lastComponent?: Component; isError?: boolean };
+      const typedContext = context as RenderContext;
       return renderProxyCall(args as Record<string, unknown>, theme, typedContext);
     },
 
     renderResult(result: unknown, options: unknown, theme: Theme, context: unknown) {
       const typedResult = result as { content: Array<{ type: string; text?: string }>; details?: Record<string, unknown> };
       const typedOptions = options as { expanded?: boolean; isPartial?: boolean };
-      const typedContext = context as { lastComponent?: Component; isError?: boolean };
-      return renderProxyResult(typedResult, typedOptions, theme, typedContext, _collapsedLines);
+      const typedContext = context as RenderContext;
+      return renderProxyResult(typedResult, typedOptions, theme, typedContext);
     },
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
