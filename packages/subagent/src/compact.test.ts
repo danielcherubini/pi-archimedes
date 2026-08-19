@@ -328,7 +328,7 @@ describe("renderCompactParallel", () => {
     };
   }
 
-  it("renders a full 3-line block per agent with a status glyph prefix", () => {
+  it("renders a full 3-line block per agent (parity with single view)", () => {
     const { theme } = makeMockTheme();
     const text = new MockText();
     const details = makeDetails();
@@ -340,13 +340,17 @@ describe("renderCompactParallel", () => {
     expect(output).toContain("agent-a");
     expect(output).toContain("agent-b");
     // Each agent is a 3-line block (label / model+stats / activity); with two
-    // agents that is 6 lines total.
+    // agents that is 6 lines total — no status-glyph prefix on the label line.
     const lines = output.split("\n");
     expect(lines.length).toBe(6);
-    // agent-a succeeded (exitCode 0) → green ✓ glyph on its label line;
-    // agent-b failed (exitCode 1) → red ✗ glyph.
-    expect(output).toContain("[success]✓");
-    expect(output).toContain("[error]✗");
+    // Status shows only in each agent's activity line, not as a label prefix:
+    // agent-a succeeded → "✓ Done"; agent-b failed with an error string →
+    // "✗ <error>" (the raw error, here "failed").
+    expect(output).toContain("✓ Done");
+    expect(output).toContain("✗ ");
+    // The label lines carry no leading status glyph.
+    expect(lines[0]).not.toContain("✓");
+    expect(lines[3]).not.toContain("✗");
   });
 
   it("returns the text instance", () => {

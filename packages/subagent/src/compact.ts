@@ -1,7 +1,7 @@
 import { Text } from "@earendil-works/pi-tui";
 import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall, SubagentToolResult } from "./types.js";
 import { formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
-import { renderToolCallLine, STATUS_GLYPH } from "@pi-archimedes/core/tool-render";
+import { renderToolCallLine } from "@pi-archimedes/core/tool-render";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
 type RenderContext = { state: Record<string, unknown>; invalidate: () => void };
@@ -80,12 +80,6 @@ export function buildActivityLine(
 
 // ── Status glyph ────────────────────────────────────────────────────────────
 
-// Per-agent row prefix (shares the core glyph set: ▸ running, ✓ done, ✗
-// failed). Returns the raw character — callers colour it per status.
-function statusGlyph(isRunning: boolean, status: string): string {
-  if (isRunning) return STATUS_GLYPH.running;
-  return status === "completed" ? STATUS_GLYPH.success : STATUS_GLYPH.error;
-}
 
 // ── Compact single agent ────────────────────────────────────────────────────
 
@@ -95,37 +89,18 @@ type AgentBlockData = {
   model: string | undefined;
   statsData: Parameters<typeof buildStatsLine>[0];
   activity: ActivityData;
-  status: "running" | "completed" | "failed";
 };
 
 // Shared 3-line agent block used by both the single and parallel compact
 // views so they render identically:
-//   [<glyph> ]<agent>: <task>   (glyph prefix only in parallel/multi)
+//   <agent>: <task>
 //   <model> · <stats>
-//   <activity>
-// includeGlyph prefixes the label line with a status-coloured glyph
-// (▸ running / ✓ done / ✗ failed) to distinguish stacked agents.
-function buildAgentBlock(
-  data: AgentBlockData,
-  theme: Theme,
-  includeGlyph: boolean,
-): string {
+//   <activity>          (status lives here — "✓ Done" / "✗ Failed" / ▸ tool)
+function buildAgentBlock(data: AgentBlockData, theme: Theme): string {
   const statsLine = buildStatsLine(data.statsData, theme);
   const modelLabel = data.model ? theme.fg("accent", data.model) : "";
   const activityLine = buildActivityLine(data.activity, theme);
-
-  let label = buildAgentLabel(data.agentName, data.task, theme);
-  if (includeGlyph) {
-    const isRunning = data.status === "running";
-    const glyph = statusGlyph(isRunning, data.status);
-    const glyphColored =
-      data.status === "completed"
-        ? theme.fg("success", glyph)
-        : data.status === "failed"
-          ? theme.fg("error", glyph)
-          : theme.fg("muted", glyph);
-    label = `${glyphColored} ${label}`;
-  }
+  const label = buildAgentLabel(data.agentName, data.task, theme);
 
   return (
     label +
@@ -181,10 +156,8 @@ export function renderCompactSingle(
         error: result.error,
         toolCalls: progress?.toolCalls,
       },
-      status: isRunning ? "running" : status,
     },
     theme,
-    false,
   );
 
   text.setText(output);
@@ -233,10 +206,8 @@ export function renderCompactParallel(
           error: result.error,
           toolCalls: progress?.toolCalls,
         },
-        status,
       },
       theme,
-      true,
     );
   });
 
@@ -287,10 +258,8 @@ export function renderCompactProgress(
         error: progress.error,
         toolCalls: progress.toolCalls,
       },
-      status,
     },
     theme,
-    false,
   );
 
   text.setText(output);
@@ -330,10 +299,8 @@ export function renderCompactParallelProgress(
           error: progress.error,
           toolCalls: progress.toolCalls,
         },
-        status,
       },
       theme,
-      true,
     );
   });
 
