@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -323,5 +323,86 @@ describe("loadServerDefs (integration with temp dirs)", () => {
     const active = loadServerDefs(wd, { homeDir: home, agentDir });
     expect("off" in active).toBe(false);
     expect(active["on"]).toMatchObject({ command: "node" });
+  });
+
+  describe("auth-type warning", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('does not warn for auth: "oauth" (string)', () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: { svc: { type: "http", url: "http://x", auth: "oauth" } },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect(defs["svc"]).toMatchObject({ url: "http://x", auth: "oauth" });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not warn for bearer { token }, an OAuth config, or a single known field", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: {
+            bearer: { type: "http", url: "http://x", auth: { token: "tok" } },
+            cfg: {
+              type: "http",
+              url: "http://y",
+              auth: { grantType: "client_credentials", clientId: "fixed-client" },
+            },
+            single: { type: "http", url: "http://z", auth: { clientId: "fixed-client" } },
+          },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect(Object.keys(defs).sort()).toEqual(["bearer", "cfg", "single"]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("warns (but keeps) servers whose auth object has no known fields, even with a non-string token", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: {
+            garbage: { type: "http", url: "http://x", auth: { foo: 1 } },
+            tokNum: { type: "http", url: "http://y", auth: { token: 5 } },
+          },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect(defs["garbage"]).toMatchObject({ url: "http://x" });
+      expect(defs["tokNum"]).toMatchObject({ url: "http://y" });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("warns (but keeps) servers with unknown auth shapes (other strings, numbers)", () => {
+      write(
+        wd,
+        ".mcp.json",
+        JSON.stringify({
+          mcpServers: {
+            bad: { type: "http", url: "http://x", auth: "azure-ad" },
+            num: { type: "http", url: "http://y", auth: 42 },
+          },
+        }),
+      );
+      const defs = loadServerDefs(wd, { homeDir: home, agentDir });
+      expect(defs["bad"]).toMatchObject({ url: "http://x" });
+      expect(defs["num"]).toMatchObject({ url: "http://y" });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls.map((c) => c[0]).join("\n")).toContain("\"azure-ad\"");
+    });
   });
 });

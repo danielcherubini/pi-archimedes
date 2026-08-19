@@ -2,6 +2,8 @@ import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { loadMcpConfig, loadServerDefs, resolveServerSettings } from "./config.js";
+import { autoAuthenticate, needsAuthToolResult } from "./auto-auth.js";
+import { registerAuthCommands } from "./commands-auth.js";
 import {
   filterDirectTools,
   pruneRegisteredNames,
@@ -98,6 +100,22 @@ const lifecycle = new LifecycleManager(manager, loadServerDefs, () => _idleTimeo
 // ── Tool registration ───────────────────────────────────────────────────────
 
 export function registerMcp(pi: ExtensionAPI): void {
+  // OAuth commands (top-level: registered once per load, like every other
+  // registration on pi). getServerDef re-reads the FRESH config and syncs
+  // the manager — the same pattern every other code path in this module
+  // uses — and keeps only http/sse defs (stdio cannot OAuth).
+  registerAuthCommands(pi, {
+    getServerDef: (name) => {
+      const defs = loadDefs();
+      manager.sync(defs);
+      const def = defs[name];
+      return def !== undefined && (def.type === "http" || def.type === "sse")
+        ? def
+        : undefined;
+    },
+    getManager: () => manager,
+  });
+
   // session_shutdown must be registered at the TOP LEVEL of registerMcp,
   // NOT inside session_start — per AGENTS.md rule (prevents handler accumulation on /reload)
   pi.on("session_shutdown", async () => {
@@ -134,6 +152,7 @@ export function registerMcp(pi: ExtensionAPI): void {
         prefix: settings.toolPrefix,
         tools: filterDirectTools(tools, settings),
         getCollapsedLines: () => _collapsedLines,
+        autoAuth: () => loadCfg().autoAuth,
         resolveClient,
       });
     };
@@ -251,7 +270,7 @@ export function registerMcp(pi: ExtensionAPI): void {
       return renderProxyResult(typedResult, typedOptions, theme, typedContext, _collapsedLines);
     },
 
-    async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const p = params as {
         tool?: string;
         args?: string | Record<string, unknown>;
@@ -517,7 +536,21 @@ export function registerMcp(pi: ExtensionAPI): void {
           toolArgs = (p.args ?? {}) as Record<string, unknown>;
         }
 
-        // Connect the owning server — callTool connects lazily if needed
+        // Connect the owning server (callTool would connect lazily anyway)
+        // so a 401 surfaces here as `needs-auth`: guidance by default,
+        // inline auto-auth + one retry when autoAuth is on.
+        await client.connect();
+        if (client.status === "needs-auth") {
+          if (!config.autoAuth) {
+            return needsAuthToolResult(serverName);
+          }
+          const outcome = await autoAuthenticate(ctx, client);
+          if (!outcome.proceed) {
+            return needsAuthToolResult(serverName, outcome.error);
+          }
+        }
+
+        // The call below is the (single) retry after a successful auto-auth
         const result = await client.callTool(rawToolName, toolArgs, signal);
         // Cast MCP ContentBlock[] to pi's (TextContent | ImageContent)[]
         // Both are discriminated unions on `type`; we only surface text + image blocks

@@ -141,10 +141,25 @@ Full MCP client adapter that connects pi to any MCP server with pi-native TUI re
 
 - Gateway `mcp` proxy tool — search, describe, and call tools across all configured servers
 - Per-server direct tools registered as `{server}_{tool}` for token-efficient calls
+- OAuth 2.1 + PKCE for protected servers — browser auth flow, OS credential-store persistence, SDK-driven token refresh
 - Lifecycle management per server (`keep-alive` / `lazy` / `lazy-keep-alive` / `eager`) with configurable idle timeout
 - Metadata cache (`~/.pi/agent/mcp-cache.json`, 7-day validity) — search/describe work offline, and tools connect lazily per call
 - Cyan tool name + orange target rendering matching pi's Dracula theme
 - Config from `archimedes.mcp` in `settings.json`; server definitions from `~/.config/mcp/mcp.json`
+
+#### OAuth (`/mcp-auth` / `/mcp-logout`)
+
+OAuth-protected MCP servers (Atlassian, Notion, GitHub, …) are supported via OAuth 2.1 + PKCE, on top of the static bearer tokens already available for HTTP servers.
+
+- `/mcp-auth <server>` — interactive browser flow with a progress loader (esc cancels); opens the authorization URL in the browser and prints it as a fallback
+- `/mcp-logout <server>` — deletes the stored credentials for the server
+- Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux libsecret) with a fail-closed policy — no plaintext fallback when the keyring is unavailable
+- Token refresh is SDK-driven. The one exception (ADR 0001): a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — when its token expires, re-run `/mcp-auth <server>`
+- The `auth` field on an http/sse server definition accepts three shapes:
+  - `{ "token": "…" }` — static bearer token
+  - `"oauth"` — OAuth 2.1 with defaults
+  - an object — `McpOAuthConfig` with `grantType` (`"authorization_code"` default, or `"client_credentials"`), `clientId`, `clientSecret`, `scope`, `redirectUri`, `clientName`; `authorizationServerUrl` is accepted but currently unused (reserved) — the client discovers the authorization server from the MCP server URL
+- When a tool call hits a server that needs authentication, the call returns guidance to run `/mcp-auth <server>` — unless `autoAuth: true`, in which case the call triggers the interactive flow inline and retries once
 
 ## Quick Start
 
@@ -234,8 +249,9 @@ No settings yet.
 | `toolPrefix` | string | `"server"` | Tool name prefix strategy (`"server"` \| `"none"` \| `"short"` \| `"mcp"`) |
 | `idleTimeout` | number | `10` | Idle timeout in minutes before open connections close (`0` disables) |
 | `warnOnLargeDirectTools` | bool | `true` | Reserved — parsed but not yet effective (see note below) |
+| `autoAuth` | bool | `false` | Auto-trigger the interactive OAuth flow when a tool call hits a `needs-auth` server (default: return guidance to run `/mcp-auth`) |
 
-Per-server settings in the `mcp.json` server definitions override these defaults: `lifecycle` (`"keep-alive"` \| `"lazy"` \| `"lazy-keep-alive"` \| `"eager"`, default `"lazy"`), `idleTimeout`, `directTools`, `includeTools`, `excludeTools`, `toolPrefix`, `exposeResources`, `debug`, `requestTimeoutMs`, `protocolVersion`.
+Per-server settings in the `mcp.json` server definitions override these defaults: `lifecycle` (`"keep-alive"` \| `"lazy"` \| `"lazy-keep-alive"` \| `"eager"`, default `"lazy"`), `idleTimeout`, `directTools`, `includeTools`, `excludeTools`, `toolPrefix`, `exposeResources`, `debug`, `requestTimeoutMs`, `protocolVersion`. http/sse servers additionally take `auth` — a static bearer (`{"token": "…"}`), the string `"oauth"`, or an `McpOAuthConfig` object (see the OAuth section above) — plus `headers` and `bearerTokenEnv`.
 
 > **Note on reserved settings:** `warnOnLargeDirectTools`, `exposeResources`, `requestTimeoutMs`, and `protocolVersion` are part of the planned port and are parsed (and, where applicable, folded into the metadata cache's config hash) but **not yet effective** — setting them has no runtime behaviour.
 

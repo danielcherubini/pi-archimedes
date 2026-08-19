@@ -2,6 +2,7 @@ import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { BUILTIN_NAMES, findFormattingCollisions, formatToolName } from "./tool-naming.js";
+import { autoAuthenticate, needsAuthToolResult } from "./auto-auth.js";
 import type { CachedTool, ToolPrefix } from "./types.js";
 import type { ServerClient } from "./server-client.js";
 import { renderDirectCall, renderDirectResult } from "./renderer.js";
@@ -108,6 +109,12 @@ export interface RegisterDirectToolsOptions {
   /** Tools to register (raw server tool names, from cache or discovery) */
   tools: CachedTool[];
   getCollapsedLines: () => number;
+  /**
+   * Whether a needs-auth server auto-triggers interactive OAuth at call time.
+   * Read at CALL time (fresh config), not registration time — mirrors the
+   * proxy call action.
+   */
+  autoAuth?: () => boolean;
   /** Lazily resolve (and connect, if needed) the owning client at call time */
   resolveClient: (serverName: string) => Promise<ServerClient>;
 }
@@ -132,7 +139,7 @@ export function registerDirectTools(
   pi: ExtensionAPI,
   options: RegisterDirectToolsOptions,
 ): string[] {
-  const { serverName, prefix, tools, getCollapsedLines, resolveClient } = options;
+  const { serverName, prefix, tools, getCollapsedLines, resolveClient, autoAuth = () => false } = options;
   const registered: string[] = [];
 
   // Surface ambiguous raw tool names: formatToolName is not injective, so
@@ -201,11 +208,23 @@ export function registerDirectTools(
         return renderDirectResult(typedResult, typedOptions, theme, typedContext, getCollapsedLines());
       },
 
-      async execute(_toolCallId, params, signal) {
+      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const args = params as Record<string, unknown>;
         // Lazy connect: resolve (and connect, if needed) the owning client NOW,
         // not at registration time.
         const client = await resolveClient(serverName);
+        // needs-auth at call time: guidance by default, inline auto-auth +
+        // one retry when enabled (mirrors the proxy call action).
+        if (client.status === "needs-auth") {
+          if (!autoAuth()) {
+            return needsAuthToolResult(serverName);
+          }
+          const outcome = await autoAuthenticate(ctx, client);
+          if (!outcome.proceed) {
+            return needsAuthToolResult(serverName, outcome.error);
+          }
+        }
+        // The call below is the (single) retry after a successful auto-auth
         const result = await client.callTool(tool.name, args, signal);
         // Cast MCP ContentBlock[] to pi's (TextContent | ImageContent)[]
         // Both are discriminated unions on `type`; we only surface text + image blocks

@@ -4,8 +4,16 @@ import { homedir } from "node:os";
 import { cwd } from "node:process";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
-import type { McpConfig, McpFileConfig, ServerDef, HttpServerDef, ToolPrefix } from "./types.js";
-import { DEFAULT_MCP_CONFIG, MCP_NAMESPACE } from "./types.js";
+import {
+  DEFAULT_MCP_CONFIG,
+  MCP_NAMESPACE,
+  OAUTH_CONFIG_FIELDS,
+  type McpConfig,
+  type McpFileConfig,
+  type ServerDef,
+  type HttpServerDef,
+  type ToolPrefix,
+} from "./types.js";
 
 /** Load archimedes.mcp section from settings.json */
 export function loadMcpConfig(): McpConfig {
@@ -191,6 +199,22 @@ export function getConfigPaths(options?: LoadServerDefsOptions & { workingDir?: 
 }
 
 /**
+ * Runtime check for the valid auth shapes of an HTTP server def:
+ * `{ token: string }` (bearer), the `"oauth"` string, or a plain object
+ * containing at least one known `McpOAuthConfig` field. Everything else
+ * (other strings, numbers, booleans, null, arrays, or objects with only
+ * unknown fields) is unknown and gets a warning.
+ */
+function supportsAuthShape(auth: unknown): boolean {
+  if (typeof auth === "string") return auth === "oauth";
+  if (typeof auth !== "object" || auth === null || Array.isArray(auth)) return false;
+  const record = auth as Record<string, unknown>;
+  if (typeof record.token === "string") return true; // { token } bearer
+  // A valid OAuth config object references at least one known field
+  return OAUTH_CONFIG_FIELDS.some((field) => record[field] !== undefined);
+}
+
+/**
  * Load and merge all MCP server definitions from the standard config
  * locations, including disabled servers (their `disabled: true` flag is
  * intact). Higher-precedence files override lower ones per server
@@ -221,15 +245,12 @@ export function loadServerDefs(workingDir?: string, options?: LoadServerDefsOpti
   return Object.fromEntries(
     Object.entries(merged).filter(([name, def]) => {
       if (def.disabled === true) return false;
-      // Warn on unsupported auth (e.g. legacy "oauth" string in existing configs)
-      if (
-        "auth" in def &&
-        def.auth !== undefined &&
-        typeof def.auth !== "object"
-      ) {
+      // Warn on genuinely-unknown auth shapes (valid: { token } bearer,
+      // the "oauth" string, or an OAuth config object)
+      if ("auth" in def && def.auth !== undefined && !supportsAuthShape(def.auth)) {
         console.warn(
           `[archimedes/mcp] Server "${name}" uses unsupported auth type "${String(def.auth)}". ` +
-          `Only { token: string } (bearer) is supported. The server will connect without auth.`
+          `Supported: { token: string } (bearer), "oauth", or an OAuth config object. The server will connect without auth.`
         );
       }
       return true;

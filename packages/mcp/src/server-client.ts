@@ -8,6 +8,12 @@ import {
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { StdioServerDef, HttpServerDef, ServerDef, ToolPrefix, CachedTool } from "./types.js";
+import {
+  authenticate as runOAuthFlow,
+  extractOAuthConfig,
+  getValidToken,
+  type AuthenticateOptions,
+} from "./auth-flow.js";
 import { resolveNpxBinary } from "./npx-resolver.js";
 import { saveServerCache } from "./metadata-cache.js";
 
@@ -21,7 +27,10 @@ import { saveServerCache } from "./metadata-cache.js";
  */
 export function buildAuthHeaders(def: HttpServerDef): Record<string, string> {
   const headers = { ...(def.headers ?? {}) };
-  const token = def.auth?.token;
+  const token =
+    typeof def.auth === "object" && def.auth !== null && "token" in def.auth
+      ? def.auth.token
+      : undefined;
   if (token !== undefined) {
     headers.Authorization = `Bearer ${token}`;
   } else {
@@ -57,11 +66,11 @@ export type ServerStatus =
 
 /**
  * Error surfaced when a server requires credentials we cannot provide yet.
- * OAuth support arrives in plan-026; until then the status is surfaced, not
- * a resolvable flow.
+ * Guides to the two ways to fix it: a static bearer token in the server
+ * definition, or the OAuth flow via /mcp-auth (plan-026).
  */
 const NEEDS_AUTH_MESSAGE =
-  "authentication required or token rejected — OAuth support arrives in plan-026";
+  "authentication required or token rejected — configure a static bearer token or authenticate via OAuth (/mcp-auth <server>)";
 
 /**
  * Options for ServerClient. `clientFactory` is a testability seam: replace the
@@ -196,10 +205,41 @@ export class ServerClient {
   }
 
   /**
-   * Authenticate via OAuth. Stub — the actual flow arrives in plan-026.
+   * Authenticate via OAuth — the SINGLE auth entry point for this server
+   * (the `/mcp-auth` command and auto-auth both call this; neither calls
+   * the auth-flow module directly, so url/config always come from the def).
+   *
+   * Rejects when the server isn't configured for OAuth (missing auth,
+   * static bearer, or stdio). Resolves when the flow finishes
+   * authenticated; rejects with a clear error for failed flows (with the
+   * underlying cause appended) and needs-manual-interaction, and rethrows a
+   * cancelled flow's "OAuth cancelled" error untouched so the caller can
+   * distinguish cancel from failure.
    */
-  async authenticate(): Promise<void> {
-    throw new Error("OAuth not yet implemented (plan-026)");
+  async authenticate(options?: AuthenticateOptions): Promise<void> {
+    const def = this._def;
+    if (def.type !== "http" && def.type !== "sse") {
+      throw new Error(
+        `Server ${this.name} is not configured for OAuth (auth must be "oauth" or an oauth config object)`,
+      );
+    }
+    const httpDef = def as HttpServerDef;
+    const cfg = extractOAuthConfig(httpDef.auth);
+    if (!cfg) {
+      throw new Error(
+        `Server ${this.name} is not configured for OAuth (auth must be "oauth" or an oauth config object)`,
+      );
+    }
+    const status = await runOAuthFlow(this.name, httpDef.url, cfg, options);
+    if (status.status === "failed") {
+      // `status.error` is the underlying cause (network error, token-endpoint
+      // rejection, …) — carry it up so /mcp-auth and auto-auth can show the
+      // user the real reason instead of a generic message.
+      throw new Error(`Authentication failed for ${this.name}: ${status.error}`);
+    }
+    if (status.status === "needs-interaction") {
+      throw new Error(`Authentication requires manual interaction for ${this.name}`);
+    }
   }
 
   /** Lazily connect — idempotent, safe to call multiple times */
@@ -278,7 +318,20 @@ export class ServerClient {
         await this.client.connect(transport);
       } else {
         const def = this._def as HttpServerDef;
-        const authHeaders = buildAuthHeaders(def);
+        let authHeaders = buildAuthHeaders(def);
+        // OAuth servers: attach a valid stored token (the helper refreshes
+        // via the SDK when the stored token is expired and may return null
+        // — no stored token, or the ADR 0001 config-stub guard — in which
+        // case the headers are left untouched and the 401 → needs-auth path
+        // guides the user to /mcp-auth). Static `{ token }` servers are
+        // unaffected (extractOAuthConfig returns null for them).
+        const oauthConfig = extractOAuthConfig(def.auth);
+        if (oauthConfig) {
+          const token = await getValidToken(this.name, def.url, oauthConfig);
+          if (token !== null) {
+            authHeaders = { ...authHeaders, Authorization: `Bearer ${token}` };
+          }
+        }
         // buildAuthHeaders merges arbitrary def.headers, so this flag really
         // means "has ANY headers" (not just auth).
         const hasHeaders = Object.keys(authHeaders).length > 0;

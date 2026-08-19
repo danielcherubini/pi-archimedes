@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { registerMcp, setIndexSeamsForTest } from "./index.js";
 import { ServerManager } from "./server-manager.js";
+import { ServerClient } from "./server-client.js";
 import {
   clearRegisteredForTest,
   getRegisteredNamesForTest,
@@ -34,14 +35,16 @@ interface ExecuteResult {
   isError?: boolean;
 }
 
-/** Fake ExtensionAPI capturing event handlers and registered tools */
+/** Fake ExtensionAPI capturing event handlers, registered tools, and commands */
 function makeFakePi(): {
   pi: ExtensionAPI;
   handlers: Record<string, Array<(...args: unknown[]) => unknown>>;
   tools: CapturedTool[];
+  commands: Record<string, { description?: string; handler: unknown }>;
 } {
   const handlers: Record<string, Array<(...args: unknown[]) => unknown>> = {};
   const tools: CapturedTool[] = [];
+  const commands: Record<string, { description?: string; handler: unknown }> = {};
   const pi = {
     on: (name: string, fn: (...args: unknown[]) => unknown) => {
       (handlers[name] ??= []).push(fn);
@@ -49,8 +52,11 @@ function makeFakePi(): {
     registerTool: (def: CapturedTool) => {
       tools.push(def);
     },
+    registerCommand: (name: string, def: { description?: string; handler: unknown }) => {
+      commands[name] = def;
+    },
   } as unknown as ExtensionAPI;
-  return { pi, handlers, tools };
+  return { pi, handlers, tools, commands };
 }
 
 /**
@@ -334,6 +340,125 @@ describe("mcp proxy — connect action with needs-auth", () => {
     const run = setupProxy({ srv: def }, sdk);
     const result = await run({ connect: "srv" });
     expect(result.content[0]?.text).toBe("Connected to srv. 1 tools available.");
+  });
+});
+
+// ── call action: needs-auth at call time (autoAuth) ──────────────────────
+
+describe("mcp proxy — call with needs-auth server", () => {
+  const httpDef: ServerDef = { type: "http", url: "http://127.0.0.1:1/mcp", auth: "oauth" };
+
+  /** SDK fake that 401s on connect until `approved` flips (post-auth reconnect succeeds). */
+  function makeOauthSdk(approved: { value: boolean }) {
+    return makeFakeSdkClient({
+      tools: [{ name: "t1", inputSchema: {} }],
+      onConnect: () => {
+        if (!approved.value) throw new StreamableHTTPError(401, "Unauthorized");
+      },
+    });
+  }
+
+  it("returns /mcp-auth guidance (isError false) and never authenticates when autoAuth is off (default)", async () => {
+    const approved = { value: false };
+    const sdk = makeOauthSdk(approved);
+    saveServerCache("auth-srv", httpDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
+    const run = setupProxy({ "auth-srv": httpDef }, sdk);
+    const authSpy = vi.spyOn(ServerClient.prototype, "authenticate");
+    try {
+      const result = await run({ tool: "t1", server: "auth-srv" });
+      const text = result.content[0]?.text ?? "";
+      expect(text).toContain("requires authentication");
+      expect(text).toContain("/mcp-auth auth-srv");
+      expect(result.isError).toBeFalsy();
+      expect(authSpy).not.toHaveBeenCalled();
+      // The tool was never dispatched to the server
+      expect(sdk.callLog).toEqual([]);
+    } finally {
+      authSpy.mockRestore();
+    }
+  });
+
+  it("auto-authenticates and retries the call once when autoAuth is on and the flow succeeds", async () => {
+    const approved = { value: false };
+    const sdk = makeOauthSdk(approved);
+    saveServerCache("auth-srv", httpDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
+    const run = setupProxy(
+      { "auth-srv": httpDef },
+      sdk,
+      { ...DEFAULT_MCP_CONFIG, autoAuth: true },
+    );
+    const authSpy = vi.spyOn(ServerClient.prototype, "authenticate").mockImplementation(
+      async function (this: ServerClient) {
+        // Simulate a completed browser flow (fresh tokens stored)
+        approved.value = true;
+      },
+    );
+    try {
+      const result = await run({ tool: "t1", server: "auth-srv" });
+      expect(authSpy).toHaveBeenCalledTimes(1);
+      // The single retry reached the server with the raw tool name
+      expect(sdk.callLog).toEqual([{ name: "t1", args: {} }]);
+      expect(result.content).toEqual([{ type: "text", text: "result:t1" }]);
+      expect(result.isError).toBe(false);
+    } finally {
+      authSpy.mockRestore();
+    }
+  });
+
+  it("returns guidance with the error when autoAuth is on but the flow is cancelled", async () => {
+    const approved = { value: false };
+    const sdk = makeOauthSdk(approved);
+    saveServerCache("auth-srv", httpDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
+    const run = setupProxy(
+      { "auth-srv": httpDef },
+      sdk,
+      { ...DEFAULT_MCP_CONFIG, autoAuth: true },
+    );
+    const authSpy = vi.spyOn(ServerClient.prototype, "authenticate").mockRejectedValue(
+      new Error("OAuth cancelled"),
+    );
+    try {
+      const result = await run({ tool: "t1", server: "auth-srv" });
+      const text = result.content[0]?.text ?? "";
+      expect(text).toContain("OAuth cancelled");
+      expect(text).toContain("/mcp-auth auth-srv");
+      expect(result.isError).toBeFalsy();
+      expect(approved.value).toBe(false);
+      // No retry was attempted
+      expect(sdk.callLog).toEqual([]);
+    } finally {
+      authSpy.mockRestore();
+    }
+  });
+});
+
+// ── auth command wiring: index registers /mcp-auth + /mcp-logout ─────────────
+
+describe("mcp proxy — auth command wiring", () => {
+  it("registers /mcp-auth and /mcp-logout bound to the seam loaders", async () => {
+    const def: ServerDef = { type: "stdio", command: "true" };
+    const manager = new ServerManager({
+      clientFactory: () => makeFakeSdkClient() as unknown as Client,
+    });
+    setIndexSeamsForTest({
+      manager,
+      loadServerDefs: () => ({ srv: def }),
+      loadMcpConfig: () => DEFAULT_MCP_CONFIG,
+    });
+    const { pi, commands } = makeFakePi();
+    registerMcp(pi);
+    expect(Object.keys(commands).sort()).toEqual(["mcp-auth", "mcp-logout"]);
+
+    // A stdio server is not OAuth-capable: the /mcp-auth wiring must surface
+    // it as an unknown (non-http) server, not attempt auth.
+    const notify = vi.fn();
+    const ctx = { hasUI: true, ui: { notify, custom: vi.fn() } } as never;
+    const handler = commands["mcp-auth"]!.handler as (
+      args: string,
+      ctx: unknown,
+    ) => Promise<void>;
+    await handler("srv", ctx);
+    expect(notify).toHaveBeenCalledWith("Unknown server: srv", "error");
   });
 });
 

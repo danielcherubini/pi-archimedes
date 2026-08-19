@@ -356,3 +356,133 @@ describe("registerDirectTools", () => {
     );
   });
 });
+
+// ── needs-auth at call time (autoAuth) ──────────────────────────────────────
+
+interface NeedsAuthClientFake {
+  name: string;
+  status: string;
+  error: string | null;
+  tools: never[];
+  close: ReturnType<typeof vi.fn>;
+  connect: ReturnType<typeof vi.fn>;
+  authenticate: ReturnType<typeof vi.fn>;
+  callTool: (
+    toolName: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ content: Array<{ type: string; text: string }>; isError: boolean }>;
+}
+
+/** Minimal needs-auth ServerClient fake — authenticate/close/connect are scripted. */
+function makeNeedsAuthClient(
+  calls: Array<{ tool: string; args: Record<string, unknown> }>,
+  opts: { outcome?: "success" | "throw"; error?: string } = {},
+): NeedsAuthClientFake {
+  const fake = {
+    name: "srv",
+    status: "needs-auth",
+    error: "authentication required or token rejected",
+    tools: [] as never[],
+    close: vi.fn(async () => {}),
+    connect: vi.fn(async function (this: { status: string }) {
+      this.status = "connected";
+    }),
+    authenticate: vi.fn(
+      opts.outcome === "throw"
+        ? async () => {
+            throw new Error(opts.error ?? "boom");
+          }
+        : async () => {},
+    ),
+    callTool: (async (toolName: string, args: Record<string, unknown>) => {
+      calls.push({ tool: toolName, args });
+      return { content: [{ type: "text", text: `result:${toolName}` }], isError: false };
+    }) as NeedsAuthClientFake["callTool"],
+  };
+  return fake as unknown as NeedsAuthClientFake;
+}
+
+describe("registerDirectTools — needs-auth at call time", () => {
+  beforeEach(() => {
+    // The module-level claim map persists across tests; clear it so these
+    // tests register fresh (same pattern as the registration describe).
+    clearRegisteredForTest();
+  });
+
+  it("returns /mcp-auth guidance (isError false) and never authenticates when autoAuth is off", async () => {
+    const { pi, defs } = makeFakePi();
+    const calls: Array<{ tool: string; args: Record<string, unknown> }> = [];
+    const client = makeNeedsAuthClient(calls);
+    registerDirectTools(pi, {
+      serverName: "srv",
+      prefix: "server",
+      tools: [TOOLS[0]!],
+      getCollapsedLines: () => 3,
+      autoAuth: () => false,
+      resolveClient: resolveClient(client as unknown as ServerClient),
+    });
+    const result = (await defs[0]!.execute!("call-1", { q: 1 })) as {
+      content: Array<{ type: string; text: string }>;
+      isError?: boolean;
+    };
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("requires authentication");
+    expect(text).toContain("/mcp-auth srv");
+    expect(result.isError).toBeFalsy();
+    // The tool was never dispatched to the server; no auth attempted
+    expect(calls).toEqual([]);
+    expect(client.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("auto-authenticates, reconnects, and retries the call once when autoAuth is on", async () => {
+    const { pi, defs } = makeFakePi();
+    const calls: Array<{ tool: string; args: Record<string, unknown> }> = [];
+    const client = makeNeedsAuthClient(calls);
+    registerDirectTools(pi, {
+      serverName: "srv",
+      prefix: "server",
+      tools: [TOOLS[0]!],
+      getCollapsedLines: () => 3,
+      autoAuth: () => true,
+      resolveClient: resolveClient(client as unknown as ServerClient),
+    });
+    const result = (await defs[0]!.execute!("call-1", { q: 1 })) as {
+      content: Array<{ type: string; text: string }>;
+      details?: { server: string; tool: string };
+      isError?: boolean;
+    };
+    expect(client.authenticate).toHaveBeenCalledTimes(1);
+    // Reconnect to pick up the freshly stored token (mirrors /mcp-auth)
+    expect(client.close).toHaveBeenCalledTimes(1);
+    expect(client.connect).toHaveBeenCalledTimes(1);
+    // The single retry reached the server with the raw tool name
+    expect(calls).toEqual([{ tool: "alpha", args: { q: 1 } }]);
+    expect(result.content).toEqual([{ type: "text", text: "result:alpha" }]);
+    expect(result.details).toEqual({ server: "srv", tool: "alpha" });
+    expect(result.isError).toBe(false);
+  });
+
+  it("returns guidance with the error when the auto-auth flow fails (no throw leaks)", async () => {
+    const { pi, defs } = makeFakePi();
+    const calls: Array<{ tool: string; args: Record<string, unknown> }> = [];
+    const client = makeNeedsAuthClient(calls, { outcome: "throw", error: "OAuth cancelled" });
+    registerDirectTools(pi, {
+      serverName: "srv",
+      prefix: "server",
+      tools: [TOOLS[0]!],
+      getCollapsedLines: () => 3,
+      autoAuth: () => true,
+      resolveClient: resolveClient(client as unknown as ServerClient),
+    });
+    const result = (await defs[0]!.execute!("call-1", {})) as {
+      content: Array<{ type: string; text: string }>;
+      isError?: boolean;
+    };
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("OAuth cancelled");
+    expect(text).toContain("/mcp-auth srv");
+    expect(result.isError).toBeFalsy();
+    expect(calls).toEqual([]);
+    expect(client.close).not.toHaveBeenCalled();
+  });
+});

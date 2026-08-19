@@ -38,11 +38,34 @@ export interface StdioServerDef extends SharedServerSettings {
   disabled?: boolean;
 }
 
+/** OAuth 2.1 settings for an HTTP MCP server (see plan-026 / ADR 0001) */
+export interface McpOAuthConfig {
+  grantType?: "authorization_code" | "client_credentials"; // default authorization_code
+  clientId?: string;
+  clientSecret?: string; // literal only (no "!command" resolution — see ADR/scope)
+  scope?: string;
+  redirectUri?: string; // pre-registered clients only
+  clientName?: string;
+  authorizationServerUrl?: string;
+}
+
+/** The full set of known `McpOAuthConfig` fields, in no particular order. */
+export const OAUTH_CONFIG_FIELDS = [
+  "grantType",
+  "clientId",
+  "clientSecret",
+  "scope",
+  "redirectUri",
+  "clientName",
+  "authorizationServerUrl",
+] as const;
+
 /** An HTTP-based MCP server (Streamable HTTP or SSE) */
 export interface HttpServerDef extends SharedServerSettings {
   type: "http" | "sse";
   url: string;
-  auth?: { token: string }; // OAuth flow not yet supported — use { token: string } for bearer auth
+  /** Bearer token, the "oauth" string (grant-type defaults), or a full OAuth config */
+  auth?: { token: string } | "oauth" | McpOAuthConfig;
   /** Extra HTTP headers sent with every request */
   headers?: Record<string, string>;
   /** Name of an environment variable holding the bearer token */
@@ -74,6 +97,13 @@ export interface McpConfig {
   idleTimeout: number;
   /** Warn when a server exposes many direct tools (default: true) */
   warnOnLargeDirectTools: boolean;
+  /**
+   * When a tool call reaches a server in the `needs-auth` state, trigger the
+   * interactive OAuth flow inline (single entry point: ServerClient
+   * .authenticate) instead of returning guidance to run `/mcp-auth`.
+   * (default: false — guidance only)
+   */
+  autoAuth: boolean;
 }
 
 export const DEFAULT_MCP_CONFIG: McpConfig = {
@@ -82,6 +112,7 @@ export const DEFAULT_MCP_CONFIG: McpConfig = {
   toolPrefix: "server",
   idleTimeout: 10,
   warnOnLargeDirectTools: true,
+  autoAuth: false,
 };
 
 export const MCP_NAMESPACE = "archimedes.mcp";

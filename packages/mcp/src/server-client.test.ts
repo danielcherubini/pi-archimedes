@@ -8,7 +8,54 @@ import { readFileSync } from "node:fs";
 import { ServerClient, buildAuthHeaders } from "./server-client.js";
 import { ServerManager } from "./server-manager.js";
 import { setCachePathForTest } from "./metadata-cache.js";
+import type { AuthStatus } from "./auth-flow.js";
 import type { StdioServerDef, HttpServerDef } from "./types.js";
+
+/**
+ * Mocks the auth-flow module so ServerClient is exercised without the real
+ * OAuth plumbing (keyring / SDK / callback server). `state` drives the
+ * per-test behaviour of the two seam functions the client uses:
+ * - `authenticate` → status or thrown cancel, per test
+ * - `getValidToken` → the bearer token to attach (null = none)
+ * `extractOAuthConfig` mirrors the real classification closely enough
+ * (`"oauth"` → default config, static `{ token }` → null, other objects →
+ * identity).
+ */
+const authFlow = vi.hoisted(() => {
+  const state: {
+    authenticateImpl: () => Promise<AuthStatus> | never;
+    validToken: string | null;
+  } = {
+    authenticateImpl: async () => ({ status: "authenticated" }),
+    validToken: null,
+  };
+
+  const extractOAuthConfig = vi.fn((auth: unknown): unknown => {
+    if (auth === "oauth") return { grantType: "authorization_code" };
+    if (typeof auth === "object" && auth !== null) {
+      const rec = auth as Record<string, unknown>;
+      if ("token" in rec) return null; // static bearer is not OAuth
+      if (Object.keys(rec).length === 0) return null;
+      return { ...rec };
+    }
+    return null;
+  });
+
+  const authenticate = vi.fn(async (): Promise<AuthStatus> => await state.authenticateImpl(),
+  );
+
+  const getValidToken = vi.fn(
+    async (_name: string, _url: string): Promise<string | null> => state.validToken,
+  );
+
+  return { state, extractOAuthConfig, authenticate, getValidToken };
+});
+
+vi.mock("./auth-flow.js", () => ({
+  extractOAuthConfig: authFlow.extractOAuthConfig,
+  authenticate: authFlow.authenticate,
+  getValidToken: authFlow.getValidToken,
+}));
 
 /**
  * Test seam: ServerClient accepts a `clientFactory` option that replaces the
@@ -146,6 +193,11 @@ let tmp: string;
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "mcp-client-test-"));
   setCachePathForTest(join(tmp, "cache.json"));
+  authFlow.state.authenticateImpl = async () => ({ status: "authenticated" });
+  authFlow.state.validToken = null;
+  authFlow.extractOAuthConfig.mockClear();
+  authFlow.authenticate.mockClear();
+  authFlow.getValidToken.mockClear();
 });
 
 afterEach(() => {
@@ -312,11 +364,22 @@ describe("ServerClient — needs-auth", () => {
     );
   });
 
-  it("authenticate() is a stub that throws a plan-026 marker", async () => {
+  it("authenticate() rejects when the server has no oauth config (stub replaced in plan-026)", async () => {
     const client = new ServerClient("auth-srv", httpDef, {
       clientFactory: () => makeFakeClient() as unknown as Client,
     });
-    await expect(client.authenticate()).rejects.toThrow(/plan-026/);
+    await expect(client.authenticate()).rejects.toThrow(
+      "Server auth-srv is not configured for OAuth (auth must be \"oauth\" or an oauth config object)",
+    );
+    expect(authFlow.authenticate).not.toHaveBeenCalled();
+
+    // A static { token } bearer server is also not an OAuth server
+    const bearerDef: HttpServerDef = { ...httpDef, auth: { token: "static" } };
+    const bearerClient = new ServerClient("bearer-srv", bearerDef, {
+      clientFactory: () => makeFakeClient() as unknown as Client,
+    });
+    await expect(bearerClient.authenticate()).rejects.toThrow("not configured for OAuth");
+    expect(authFlow.authenticate).not.toHaveBeenCalled();
   });
 
   it("close() clears needs-auth so a later connect can retry", async () => {
@@ -337,6 +400,192 @@ describe("ServerClient — needs-auth", () => {
     await client.connect();
     expect(calls).toBe(2);
     expect(client.status).toBe("connected");
+  });
+});
+
+describe("ServerClient — OAuth authenticate (real flow)", () => {
+  const oauthDef: HttpServerDef = {
+    type: "http",
+    url: "https://mcp.example.com/mcp",
+    auth: "oauth",
+  };
+  const factory = () => makeFakeClient() as unknown as Client;
+
+  it("runs the flow with the def's url and extracted config, forwarding options", async () => {
+    const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
+    const ac = new AbortController();
+    const onAuthorizationUrl = vi.fn();
+
+    await client.authenticate({ signal: ac.signal, onAuthorizationUrl });
+
+    expect(authFlow.authenticate).toHaveBeenCalledTimes(1);
+    expect(authFlow.authenticate).toHaveBeenCalledWith(
+      "oauth-srv",
+      "https://mcp.example.com/mcp",
+      { grantType: "authorization_code" },
+      { signal: ac.signal, onAuthorizationUrl },
+    );
+  });
+
+  it("Extracts object oauth configs and passes them through", async () => {
+    const def: HttpServerDef = {
+      type: "http",
+      url: "https://mcp.example.com/mcp",
+      auth: { grantType: "client_credentials", clientSecret: "shh" },
+    };
+    const client = new ServerClient("cc-srv", def, { clientFactory: factory });
+    await client.authenticate();
+    expect(authFlow.authenticate).toHaveBeenCalledWith(
+      "cc-srv",
+      "https://mcp.example.com/mcp",
+      { grantType: "client_credentials", clientSecret: "shh" },
+      undefined,
+    );
+  });
+
+  it("throws a clear error when the flow reports failed", async () => {
+    authFlow.state.authenticateImpl = async () => ({
+      status: "failed",
+      error: "network unreachable",
+    });
+    const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
+    await expect(client.authenticate()).rejects.toThrow(
+      "Authentication failed for oauth-srv",
+    );
+  });
+
+  it("surfaces the underlying failure cause in the thrown error", async () => {
+    authFlow.state.authenticateImpl = async () => ({
+      status: "failed",
+      error: "invalid_grant: token endpoint rejected the grant",
+    });
+    const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
+    // /mcp-auth and auto-auth show this message — the cause must be in it,
+    // not just the generic part
+    await expect(client.authenticate()).rejects.toThrow(
+      "Authentication failed for oauth-srv",
+    );
+    await expect(client.authenticate()).rejects.toThrow(
+      "invalid_grant: token endpoint rejected the grant",
+    );
+  });
+
+  it("throws a clear error when the flow needs manual interaction", async () => {
+    authFlow.state.authenticateImpl = async () => ({ status: "needs-interaction" });
+    const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
+    await expect(client.authenticate()).rejects.toThrow(
+      "Authentication requires manual interaction for oauth-srv",
+    );
+  });
+
+  it("rethrows a cancelled flow's error untouched (no wrapping)", async () => {
+    authFlow.state.authenticateImpl = async () => {
+      throw new Error("OAuth cancelled");
+    };
+    const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
+    // The cancel error must not be re-wrapped into a failed-flow error
+    await expect(client.authenticate()).rejects.toThrow("OAuth cancelled");
+    await expect(client.authenticate()).rejects.not.toThrow("Authentication failed");
+  });
+});
+
+describe("ServerClient — OAuth bearer on connect", () => {
+  const oauthDef: HttpServerDef = {
+    type: "http",
+    url: "https://mcp.example.com/mcp",
+    auth: "oauth",
+  };
+
+  function captureTransport(onCaptured: (t: { _requestInit?: { headers?: Record<string, string> } }) => void) {
+    return () =>
+      makeFakeClient({
+        onConnect: (_fake, transport) => {
+          onCaptured(transport as { _requestInit?: { headers?: Record<string, string> } });
+        },
+      }) as unknown as Client;
+  }
+
+  it("attaches the valid OAuth token as Authorization and keeps existing headers", async () => {
+    authFlow.state.validToken = "stored-tok";
+    let transport: { _requestInit?: { headers?: Record<string, string> } } | undefined;
+    const client = new ServerClient("oauth-srv", { ...oauthDef, headers: { "X-Api": "1" } }, {
+      clientFactory: captureTransport((t) => {
+        transport = t;
+      }),
+    });
+
+    await client.connect();
+    expect(client.status).toBe("connected");
+
+    expect(authFlow.getValidToken).toHaveBeenCalledTimes(1);
+    expect(authFlow.getValidToken).toHaveBeenCalledWith(
+      "oauth-srv",
+      "https://mcp.example.com/mcp",
+      { grantType: "authorization_code" },
+    );
+    expect(transport?._requestInit?.headers).toEqual({
+      "X-Api": "1",
+      Authorization: "Bearer stored-tok",
+    });
+  });
+
+  it("sends no Authorization header when there is no valid stored token", async () => {
+    authFlow.state.validToken = null;
+    let transport: { _requestInit?: { headers?: Record<string, string> } } | undefined;
+    const client = new ServerClient("oauth-srv", oauthDef, {
+      clientFactory: captureTransport((t) => {
+        transport = t;
+      }),
+    });
+
+    await client.connect();
+    expect(client.status).toBe("connected");
+    expect(authFlow.getValidToken).toHaveBeenCalledTimes(1);
+    // Nothing to send: no requestInit at all (def.headers unset as well)
+    expect(transport?._requestInit).toBeUndefined();
+  });
+
+  it("leaves static { token } servers untouched — no OAuth flow, static header wins", async () => {
+    let transport: { _requestInit?: { headers?: Record<string, string> } } | undefined;
+    const def: HttpServerDef = {
+      type: "http",
+      url: "https://mcp.example.com/mcp",
+      auth: { token: "static" },
+      headers: { "X-Api": "1" },
+    };
+    const client = new ServerClient("bearer-srv", def, {
+      clientFactory: captureTransport((t) => {
+        transport = t;
+      }),
+    });
+
+    await client.connect();
+    expect(client.status).toBe("connected");
+    expect(authFlow.getValidToken).not.toHaveBeenCalled();
+    expect(transport?._requestInit?.headers).toEqual({
+      "X-Api": "1",
+      Authorization: "Bearer static",
+    });
+  });
+
+  it("an OAuth token overrides an env-bearer fallback (bearerTokenEnv)", async () => {
+    authFlow.state.validToken = "oauth-tok";
+    vi.stubEnv("MCP_TEST_BEARER_CC", "env-token");
+    let transport: { _requestInit?: { headers?: Record<string, string> } } | undefined;
+    const def: HttpServerDef = { ...oauthDef, bearerTokenEnv: "MCP_TEST_BEARER_CC" };
+    const client = new ServerClient("oauth-srv", def, {
+      clientFactory: captureTransport((t) => {
+        transport = t;
+      }),
+    });
+    try {
+      await client.connect();
+      expect(transport?._requestInit?.headers).toEqual({
+        Authorization: "Bearer oauth-tok",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
