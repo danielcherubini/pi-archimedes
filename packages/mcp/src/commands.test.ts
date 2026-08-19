@@ -104,8 +104,9 @@ interface CtxState {
 /** Fake ExtensionCommandContext: notify captured; ui.custom runs the factory
  *  synchronously and resolves when done() is first called. The factory gets a
  *  minimal working tui (requestRender) and an identity theme so real overlay
- *  components (BorderedLoader, the mcp panel) can run against it. */
-function makeCtx(cwd: string): { ctx: ExtensionCommandContext; state: CtxState } {
+ *  components (BorderedLoader, the mcp panel) can run against it. `hasUI`
+ *  defaults to true (the interactive TUI). */
+function makeCtx(cwd: string, hasUI: boolean = true): { ctx: ExtensionCommandContext; state: CtxState } {
   const state: CtxState = {
     notify: vi.fn(),
     custom: vi.fn(),
@@ -145,7 +146,7 @@ function makeCtx(cwd: string): { ctx: ExtensionCommandContext; state: CtxState }
     },
   };
   return {
-    ctx: { hasUI: true, cwd, ui } as unknown as ExtensionCommandContext,
+    ctx: { hasUI, cwd, ui } as unknown as ExtensionCommandContext,
     state,
   };
 }
@@ -186,7 +187,7 @@ interface Env {
  *  `serverDefs` may include disabled servers, exactly like loadAllServerDefs. */
 function setupEnv(
   serverDefs: Record<string, ServerDef>,
-  opts: { sdk?: ReturnType<typeof makeFakeSdkClient>; sync?: boolean } = {},
+  opts: { sdk?: ReturnType<typeof makeFakeSdkClient>; sync?: boolean; hasUI?: boolean } = {},
 ): Env {
   const sdk = opts.sdk ?? makeFakeSdkClient({ tools: [{ name: "t1", description: "d1", inputSchema: {} }] });
   const manager = new ServerManager({
@@ -212,7 +213,7 @@ function setupEnv(
   registerMcpCommand(pi, deps);
   const mcp = commands["mcp"];
   if (!mcp) throw new Error("/mcp command not registered");
-  const { ctx, state } = makeCtx(cwd);
+  const { ctx, state } = makeCtx(cwd, opts.hasUI ?? true);
   return {
     run: (args) => mcp.handler(args, ctx),
     notify: state.notify,
@@ -279,7 +280,7 @@ describe("registerMcpCommand", () => {
 describe("/mcp status", () => {
   it("points at /mcp setup when no servers are configured", async () => {
     const env = setupEnv({});
-    await env.run("");
+    await env.run("status");
     expect(env.notify).toHaveBeenCalledWith("No MCP servers configured — run /mcp setup", "info");
   });
 
@@ -302,7 +303,7 @@ describe("/mcp status", () => {
   it("shows a persisted needs-auth outcome across sessions (ADR 0004)", async () => {
     const env = setupEnv({ srv: httpOauthDef });
     recordServerOutcome("srv", "needs-auth");
-    await env.run(""); // no args → status
+    await env.run("status"); // explicit status stays the text list (even in a TUI)
     expect(env.notify).toHaveBeenCalledWith(
       "⚠ srv: needs auth — run /mcp auth srv",
       "info",
@@ -709,6 +710,26 @@ describe("/mcp panel", () => {
     await runPromise;
     expect(env.notify).not.toHaveBeenCalled();
   });
+
+  it("redirects to the setup overlay (not the management panel) when zero servers are configured", async () => {
+    const env = setupEnv({});
+    const runPromise = env.run("panel");
+    // Zero configured servers: cmdPanel must not open the management panel —
+    // the setup overlay factory runs instead, plus the announce notification.
+    await vi.waitFor(() => expect(env.state.lastCustom).toBeTruthy());
+    const panel = env.state.lastCustom as {
+      render(width: number): string[];
+      handleInput(data: string): void;
+    };
+    const lines = panel.render(84);
+    expect(lines[1]).toContain("MCP Setup");
+    expect(lines.join("\n")).not.toContain("MCP Servers");
+    // esc in the menu closes the overlay (done() → run resolves).
+    panel.handleInput("\x1b");
+    await runPromise;
+    expect(env.notify).toHaveBeenCalledTimes(1);
+    expect(env.notify).toHaveBeenCalledWith("No MCP servers configured — opening setup", "info");
+  });
 });
 
 describe("/mcp setup", () => {
@@ -741,6 +762,60 @@ describe("/mcp setup", () => {
     panel.handleInput("\x1b");
     await runPromise;
     expect(env.notify).not.toHaveBeenCalled();
+  });
+});
+
+// ── bare /mcp (no subcommand) ───────────────────────────────────────────
+
+describe("bare /mcp (no subcommand)", () => {
+  it("opens the management panel when a TUI is available", async () => {
+    const env = setupEnv({ srv: stdioDef }); // hasUI defaults to true
+    const runPromise = env.run("");
+    // The dispatcher special-cases the bare call (the parser still maps
+    // "" → status) — with hasUI the panel overlay factory must run.
+    await vi.waitFor(() => expect(env.state.lastCustom).toBeTruthy());
+    const panel = env.state.lastCustom as {
+      render(width: number): string[];
+      handleInput(data: string): void;
+    };
+    const lines = panel.render(84);
+    expect(lines[0]).toContain("┌");
+    expect(lines[1]).toContain("MCP Servers [1]");
+    expect(lines.join("\n")).toContain("srv");
+    // esc closes the overlay (done() → run resolves) with no notifications.
+    panel.handleInput("\x1b");
+    await runPromise;
+    expect(env.notify).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the text status list when there is no TUI", async () => {
+    const env = setupEnv({ srv: stdioDef }, { hasUI: false });
+    await env.run("");
+    expect(env.notify).toHaveBeenCalledWith("○ srv: not connected", "info");
+    expect(env.state.lastCustom).toBeFalsy();
+  });
+
+  it("keeps an explicit /mcp status as text even in a TUI (regression guard)", async () => {
+    const env = setupEnv({ srv: stdioDef }); // hasUI: true
+    await env.run("status");
+    expect(env.notify).toHaveBeenCalledWith("○ srv: not connected", "info");
+    expect(env.state.lastCustom).toBeFalsy();
+  });
+
+  it("redirects to the setup panel when zero servers are configured (TUI)", async () => {
+    const env = setupEnv({}); // hasUI: true
+    const runPromise = env.run("");
+    await vi.waitFor(() => expect(env.state.lastCustom).toBeTruthy());
+    const panel = env.state.lastCustom as {
+      render(width: number): string[];
+      handleInput(data: string): void;
+    };
+    const lines = panel.render(84);
+    expect(lines[1]).toContain("MCP Setup");
+    panel.handleInput("\x1b");
+    await runPromise;
+    expect(env.notify).toHaveBeenCalledTimes(1);
+    expect(env.notify).toHaveBeenCalledWith("No MCP servers configured — opening setup", "info");
   });
 });
 

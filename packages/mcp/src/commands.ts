@@ -5,10 +5,13 @@
  * on top of the shared fns in `commands-auth.ts` (unchanged UX).
  *
  * Dispatch: the first whitespace-separated token of the raw args string
- * selects the subcommand; `""` behaves like `status`, so bare `/mcp`
- * reports status. `panel` opens the management panel (lazy-loaded from
- * `panel.ts`); `setup` opens the onboarding panel (lazy-loaded from
- * `setup-panel.ts`).
+ * selects the subcommand; `""` parses as `status`, and the dispatcher
+ * special-cases the bare call (not merely the parser) — with a TUI
+ * (`ctx.hasUI`) bare `/mcp` opens the management panel, without one it
+ * reports the text status. An explicit `status` is ALWAYS the text list.
+ * `panel` opens the management panel (lazy-loaded from `panel.ts`; with
+ * zero configured servers it redirects to `setup` instead); `setup` opens
+ * the onboarding panel (lazy-loaded from `setup-panel.ts`).
  *
  * Dependency discipline: only what the subcommands touch is injected
  * (manager / defs / cache readers). `writeServerDisabled`, `deleteAuthEntry`
@@ -42,7 +45,8 @@ export interface ParsedSubcommand {
 /**
  * Split the raw `/mcp` args string: first whitespace-separated token is the
  * subcommand, the remainder is `rest`. An empty (or whitespace-only) string
- * defaults to `status`, so bare `/mcp` reports status.
+ * defaults to `status`; the dispatcher then decides what a bare call does
+ * (panel in a TUI, text status otherwise) — see `registerMcpCommand`.
  */
 export function parseMcpSubcommand(args: string): ParsedSubcommand {
   const tokens = args.split(/\s+/).filter((t) => t.length > 0);
@@ -58,13 +62,21 @@ const USAGE =
 export function registerMcpCommand(pi: ExtensionAPI, deps: McpCommandDeps): void {
   pi.registerCommand("mcp", {
     description:
-      "Manage MCP servers (Usage: /mcp [status | tools | prompts | reconnect | enable | disable | logout | auth | panel | setup] …)",
+      "Manage MCP servers (opens the management panel with no args; Usage: /mcp [status | tools | prompts | reconnect | enable | disable | logout | auth | panel | setup] …)",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
+      // A bare call (no token at all, not even `status`) is special-cased in
+      // the dispatcher, not the parser: panel in a TUI, text status without
+      // one. Explicit `status` always stays the text list.
+      const bare = args.trim() === "";
       const { subcommand, rest } = parseMcpSubcommand(args);
       try {
         switch (subcommand) {
           case "status":
-            await cmdStatus(deps, ctx);
+            if (bare && ctx.hasUI) {
+              await cmdPanel(pi, deps, ctx);
+            } else {
+              await cmdStatus(deps, ctx);
+            }
             break;
           case "tools":
             cmdTools(deps, rest[0], ctx);
@@ -371,6 +383,14 @@ async function cmdLogout(deps: McpCommandDeps, server: string | undefined, ctx: 
 // ── panel (lazy-loads the TUI component — same pattern as /agents) ─────────
 
 async function cmdPanel(pi: ExtensionAPI, deps: McpCommandDeps, ctx: ExtensionCommandContext): Promise<void> {
+  // Zero configured servers → the management panel has nothing to show; do
+  // the same no-servers redirect as the text path and land in onboarding.
+  // Covers both explicit `/mcp panel` and bare `/mcp` in a TUI.
+  if (Object.keys(deps.getServerDefs()).length === 0) {
+    ctx.ui.notify("No MCP servers configured — opening setup", "info");
+    await cmdSetup(pi, ctx);
+    return;
+  }
   const { openMcpPanel } = await import("./panel.js");
   // deps is a structural superset of McpPanelDeps (extra getCachedPrompts
   // seam is simply unused by the panel); ctx.cwd supplies the write-back

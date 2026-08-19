@@ -150,7 +150,7 @@ Full-featured MCP client adapter (feature parity with pi-mcp-adapter): any MCP s
 
 #### `/mcp` command
 
-`/mcp` is the ONLY command family for MCP. Bare `/mcp` reports status; unknown subcommands show usage.
+`/mcp` is the ONLY command family for MCP. Bare `/mcp` (no args) opens the management panel in the TUI and shows the text status list without one; an explicit `/mcp status` is always the text list. Unknown subcommands show usage.
 
 | Subcommand | Behavior |
 |------------|----------|
@@ -167,7 +167,7 @@ Full-featured MCP client adapter (feature parity with pi-mcp-adapter): any MCP s
 
 #### Management panel (`/mcp panel`)
 
-Browse and act on your servers in one overlay: a status glyph per server (● connected, ⚠ needs auth, ✗ error, ⊘ disabled, ○ cached), expandable tool lists, and inline actions. Field changes write to the Pi override file and take effect on the next `/reload`.
+Browse and act on your servers in one overlay: a status glyph per server (● connected, ⚠ needs auth, ✗ error, ⊘ disabled, ○ cached), expandable tool lists, and inline actions. Field changes write to the Pi override file and take effect on the next `/reload`. With zero servers configured, `/mcp panel` (and bare `/mcp`) notifies you and redirects to the setup panel instead.
 
 | Key | Action |
 |-----|--------|
