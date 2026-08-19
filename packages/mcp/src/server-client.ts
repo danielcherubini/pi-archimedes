@@ -417,7 +417,6 @@ export class ServerClient {
           // resources/list (e.g. Atlassian MCP returns -32601). Treat this as
           // "no resources" rather than a fatal connection error.
           if (!(e instanceof McpError && e.code === -32601)) throw e;
-          console.warn(`[archimedes/mcp] server "${this.name}" advertises resources but resources/list returned Method Not Found — ignoring`);
         }
       }
       const prompts: DiscoveredPrompt[] = [];
@@ -432,7 +431,6 @@ export class ServerClient {
         } catch (e) {
           // Same defensive pattern: ignore -32601 for prompts/list.
           if (!(e instanceof McpError && e.code === -32601)) throw e;
-          console.warn(`[archimedes/mcp] server "${this.name}" advertises prompts but prompts/list returned Method Not Found — ignoring`);
         }
       }
       this._resources = resources;
