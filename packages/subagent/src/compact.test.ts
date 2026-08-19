@@ -328,7 +328,7 @@ describe("renderCompactParallel", () => {
     };
   }
 
-  it("calls setText with one line per result", () => {
+  it("renders a full 3-line block per agent with a status glyph prefix", () => {
     const { theme } = makeMockTheme();
     const text = new MockText();
     const details = makeDetails();
@@ -339,9 +339,14 @@ describe("renderCompactParallel", () => {
     const output = (text as unknown as { getContent(): string }).getContent();
     expect(output).toContain("agent-a");
     expect(output).toContain("agent-b");
-    // Two results joined by newline
+    // Each agent is a 3-line block (label / model+stats / activity); with two
+    // agents that is 6 lines total.
     const lines = output.split("\n");
-    expect(lines.length).toBeGreaterThanOrEqual(2);
+    expect(lines.length).toBe(6);
+    // agent-a succeeded (exitCode 0) → green ✓ glyph on its label line;
+    // agent-b failed (exitCode 1) → red ✗ glyph.
+    expect(output).toContain("[success]✓");
+    expect(output).toContain("[error]✗");
   });
 
   it("returns the text instance", () => {

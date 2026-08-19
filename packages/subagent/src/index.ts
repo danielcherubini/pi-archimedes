@@ -5,6 +5,7 @@ import { executeSubagent, executeParallel } from "./execute.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
+import { renderToolHeader } from "@pi-archimedes/core/tool-render";
 import { discoverAgents, discoverAgentsAll, findAgent, formatAgentList } from "./agents.js";
 import { validateModel, firstError } from "./model-validation.js";
 import type {
@@ -236,13 +237,13 @@ export function registerSubagent(pi: ExtensionAPI): void {
       (ctx as Record<string, unknown>).lastComponent = text;
 
       if (tasks && tasks.length > 0) {
-        const label = theme.fg("toolTitle", theme.bold("subagent")) + " " + tasks.length + " tasks";
-        text.setText(label);
+        text.setText(
+          renderToolHeader("subagent", `${tasks.length} tasks`, theme),
+        );
       } else if (agent) {
-        const label = theme.fg("toolTitle", theme.bold("subagent")) + " " + theme.fg("accent", agent);
-        text.setText(label);
+        text.setText(renderToolHeader("subagent", agent, theme));
       } else {
-        text.setText(theme.fg("toolTitle", theme.bold("subagent")));
+        text.setText(renderToolHeader("subagent", undefined, theme));
       }
 
       return text;

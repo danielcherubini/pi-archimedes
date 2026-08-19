@@ -89,6 +89,53 @@ function statusGlyph(isRunning: boolean, status: string): string {
 
 // ── Compact single agent ────────────────────────────────────────────────────
 
+type AgentBlockData = {
+  agentName: string;
+  task: string | undefined;
+  model: string | undefined;
+  statsData: Parameters<typeof buildStatsLine>[0];
+  activity: ActivityData;
+  status: "running" | "completed" | "failed";
+};
+
+// Shared 3-line agent block used by both the single and parallel compact
+// views so they render identically:
+//   [<glyph> ]<agent>: <task>   (glyph prefix only in parallel/multi)
+//   <model> · <stats>
+//   <activity>
+// includeGlyph prefixes the label line with a status-coloured glyph
+// (▸ running / ✓ done / ✗ failed) to distinguish stacked agents.
+function buildAgentBlock(
+  data: AgentBlockData,
+  theme: Theme,
+  includeGlyph: boolean,
+): string {
+  const statsLine = buildStatsLine(data.statsData, theme);
+  const modelLabel = data.model ? theme.fg("accent", data.model) : "";
+  const activityLine = buildActivityLine(data.activity, theme);
+
+  let label = buildAgentLabel(data.agentName, data.task, theme);
+  if (includeGlyph) {
+    const isRunning = data.status === "running";
+    const glyph = statusGlyph(isRunning, data.status);
+    const glyphColored =
+      data.status === "completed"
+        ? theme.fg("success", glyph)
+        : data.status === "failed"
+          ? theme.fg("error", glyph)
+          : theme.fg("muted", glyph);
+    label = `${glyphColored} ${label}`;
+  }
+
+  return (
+    label +
+    "\n" +
+    [modelLabel, statsLine].filter(Boolean).join(" ") +
+    "\n" +
+    activityLine
+  );
+}
+
 export function renderCompactSingle(
   text: Text,
   result: SubagentResult,
@@ -113,35 +160,32 @@ export function renderCompactSingle(
     ? Date.now() - (context.state[timeKey] as number)
     : summary.durationMs;
 
-  const statsData = {
-    turns: result.usage.turns ?? 0,
-    toolCount: summary.toolCount,
-    tokens: summary.tokens,
-    durationMs: liveDuration,
-    cost: result.usage.cost ?? 0,
-  };
-  const statsLine = buildStatsLine(statsData, theme);
-
-  const statsPart = statsLine;
-
-  // Activity: arrow + current tool if running, status if finished
-  const activityLine = buildActivityLine({
-    currentTool: progress?.currentTool,
-    currentToolArgs: progress?.currentToolArgs,
-    currentToolStartedAt: progress?.currentToolStartedAt,
-    finalOutput: result.finalOutput,
-    status: isRunning ? "running" : status,
-    error: result.error,
-    toolCalls: progress?.toolCalls,
-  }, theme);
-
-  const modelName = progress?.model ?? result.model;
-  const modelLabel = modelName
-    ? theme.fg("accent", modelName)
-    : "";
-  const agentLabel = buildAgentLabel(agentName, result.task, theme);
-  let output = agentLabel + "\n" + [modelLabel, statsPart].filter(Boolean).join(" ");
-  output += "\n" + activityLine;
+  const output = buildAgentBlock(
+    {
+      agentName,
+      task: result.task,
+      model: progress?.model ?? result.model,
+      statsData: {
+        turns: result.usage.turns ?? 0,
+        toolCount: summary.toolCount,
+        tokens: summary.tokens,
+        durationMs: liveDuration,
+        cost: result.usage.cost ?? 0,
+      },
+      activity: {
+        currentTool: progress?.currentTool,
+        currentToolArgs: progress?.currentToolArgs,
+        currentToolStartedAt: progress?.currentToolStartedAt,
+        finalOutput: result.finalOutput,
+        status: isRunning ? "running" : status,
+        error: result.error,
+        toolCalls: progress?.toolCalls,
+      },
+      status: isRunning ? "running" : status,
+    },
+    theme,
+    false,
+  );
 
   text.setText(output);
   return text;
@@ -168,39 +212,32 @@ export function renderCompactParallel(
       ? "running"
       : result.exitCode === 0 ? "completed" : "failed";
 
-    const glyph = statusGlyph(isRunning, status);
-    const glyphColored = status === "completed"
-      ? theme.fg("success", glyph)
-      : status === "failed"
-        ? theme.fg("error", glyph)
-        : theme.fg("muted", glyph);
-
-    const statsData = {
-      turns: result.usage.turns ?? 0,
-      toolCount: summary.toolCount,
-      tokens: summary.tokens,
-      durationMs: summary.durationMs,
-      cost: result.usage.cost ?? 0,
-    };
-    const statsLine = buildStatsLine(statsData, theme);
-    const statsPart = statsLine ? "  " + statsLine : "";
-
-    const activityData = {
-      currentTool: progress?.currentTool,
-      currentToolArgs: progress?.currentToolArgs,
-      currentToolStartedAt: progress?.currentToolStartedAt,
-      finalOutput: result.finalOutput,
-      status,
-      error: result.error,
-      toolCalls: progress?.toolCalls,
-    };
-    const activityLine = buildActivityLine(activityData, theme);
-
-    let line = `${glyphColored} ${buildAgentLabel(agentName, result.task, theme)}${statsPart}`;
-    if (activityLine) {
-      line += "\n" + activityLine;
-    }
-    return line;
+    return buildAgentBlock(
+      {
+        agentName,
+        task: result.task,
+        model: progress?.model ?? result.model,
+        statsData: {
+          turns: result.usage.turns ?? 0,
+          toolCount: summary.toolCount,
+          tokens: summary.tokens,
+          durationMs: summary.durationMs,
+          cost: result.usage.cost ?? 0,
+        },
+        activity: {
+          currentTool: progress?.currentTool,
+          currentToolArgs: progress?.currentToolArgs,
+          currentToolStartedAt: progress?.currentToolStartedAt,
+          finalOutput: result.finalOutput,
+          status,
+          error: result.error,
+          toolCalls: progress?.toolCalls,
+        },
+        status,
+      },
+      theme,
+      true,
+    );
   });
 
   text.setText(lines.join("\n"));
@@ -220,13 +257,6 @@ export function renderCompactProgress(
   const status = progress.status;
   const isRunning = status === "running";
 
-  const glyph = statusGlyph(isRunning, status);
-  const glyphColored = status === "completed"
-    ? theme.fg("success", glyph)
-    : status === "failed"
-      ? theme.fg("error", glyph)
-      : theme.fg("muted", glyph);
-
   // Track start time for live duration
   const timeKey = "_subagentStartTime_" + agentName;
   if (isRunning && context.state[timeKey] === undefined) {
@@ -236,33 +266,32 @@ export function renderCompactProgress(
     ? Date.now() - (context.state[timeKey] as number)
     : progress.durationMs;
 
-  const statsData = {
-    turns: 0,
-    toolCount: progress.toolCount,
-    tokens: progress.tokens,
-    durationMs: liveDuration,
-    cost: progress.cost,
-  };
-  const statsLine = buildStatsLine(statsData, theme);
-
-  // Activity: arrow + current tool if running, status if finished
-  const activityLine = buildActivityLine({
-    currentTool: progress.currentTool,
-    currentToolArgs: progress.currentToolArgs,
-    currentToolStartedAt: progress.currentToolStartedAt,
-    finalOutput: undefined,
-    status,
-    error: progress.error,
-    toolCalls: progress.toolCalls,
-  }, theme);
-
-  const modelLabel = progress.model
-    ? theme.fg("accent", progress.model)
-    : "";
-  const statsPart = statsLine;
-  const agentLabel = buildAgentLabel(agentName, progress.task, theme);
-  let output = agentLabel + "\n" + [modelLabel, statsPart].filter(Boolean).join(" ");
-  output += "\n" + activityLine;
+  const output = buildAgentBlock(
+    {
+      agentName,
+      task: progress.task,
+      model: progress.model,
+      statsData: {
+        turns: 0,
+        toolCount: progress.toolCount,
+        tokens: progress.tokens,
+        durationMs: liveDuration,
+        cost: progress.cost,
+      },
+      activity: {
+        currentTool: progress.currentTool,
+        currentToolArgs: progress.currentToolArgs,
+        currentToolStartedAt: progress.currentToolStartedAt,
+        finalOutput: undefined,
+        status,
+        error: progress.error,
+        toolCalls: progress.toolCalls,
+      },
+      status,
+    },
+    theme,
+    false,
+  );
 
   text.setText(output);
   return text;
@@ -276,44 +305,36 @@ export function renderCompactParallelProgress(
   theme: Theme,
   context: RenderContext,
 ): Text {
-  const lines = (details.progress ?? []).map((progress, i) => {
+  const lines = (details.progress ?? []).map((progress) => {
     const agentName = progress.agent ?? "subagent";
     const status = progress.status;
-    const isRunning = status === "running";
 
-    const glyph = statusGlyph(isRunning, status);
-    const glyphColored = status === "completed"
-      ? theme.fg("success", glyph)
-      : status === "failed"
-        ? theme.fg("error", glyph)
-        : theme.fg("muted", glyph);
-
-    const statsData = {
-      turns: 0,
-      toolCount: progress.toolCount,
-      tokens: progress.tokens,
-      durationMs: progress.durationMs,
-      cost: progress.cost,
-    };
-    const statsLine = buildStatsLine(statsData, theme);
-    const statsPart = statsLine ? "  " + statsLine : "";
-
-    const activityData = {
-      currentTool: progress.currentTool,
-      currentToolArgs: progress.currentToolArgs,
-      currentToolStartedAt: progress.currentToolStartedAt,
-      finalOutput: undefined,
-      status,
-      error: progress.error,
-      toolCalls: progress.toolCalls,
-    };
-    const activityLine = buildActivityLine(activityData, theme);
-
-    let line = `${glyphColored} ${buildAgentLabel(agentName, progress.task, theme)}${statsPart}`;
-    if (activityLine) {
-      line += "\n" + activityLine;
-    }
-    return line;
+    return buildAgentBlock(
+      {
+        agentName,
+        task: progress.task,
+        model: progress.model,
+        statsData: {
+          turns: 0,
+          toolCount: progress.toolCount,
+          tokens: progress.tokens,
+          durationMs: progress.durationMs,
+          cost: progress.cost,
+        },
+        activity: {
+          currentTool: progress.currentTool,
+          currentToolArgs: progress.currentToolArgs,
+          currentToolStartedAt: progress.currentToolStartedAt,
+          finalOutput: undefined,
+          status,
+          error: progress.error,
+          toolCalls: progress.toolCalls,
+        },
+        status,
+      },
+      theme,
+      true,
+    );
   });
 
   text.setText(lines.join("\n"));
