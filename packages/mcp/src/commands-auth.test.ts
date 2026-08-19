@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import open from "open";
 import { isHttpDef } from "./config.js";
-import { registerAuthCommands } from "./commands-auth.js";
+import { mcpLogoutServer, runMcpAuthCommand } from "./commands-auth.js";
 import type { ServerManager } from "./server-manager.js";
 import type { HttpServerDef, ServerDef } from "./types.js";
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 // The real BorderedLoader needs a live TUI; a stub with the same surface
-// (constructor message + onAbort) is enough to drive the command handlers.
+// (constructor message + onAbort) is enough to drive runMcpAuthCommand.
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   BorderedLoader: class {
     message: string;
@@ -25,26 +25,6 @@ vi.mock("open", () => ({ default: vi.fn().mockResolvedValue({}) }));
 vi.mock("./auth-storage.js", () => ({ deleteAuthEntry: vi.fn() }));
 
 // ── fakes ────────────────────────────────────────────────────────────────────
-
-interface CapturedCommand {
-  description?: string;
-  handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
-}
-
-function makeFakePi(): {
-  pi: ExtensionAPI;
-  commands: Record<string, CapturedCommand>;
-} {
-  const commands: Record<string, CapturedCommand> = {};
-  const pi = {
-    on: vi.fn(),
-    registerTool: vi.fn(),
-    registerCommand: (name: string, def: CapturedCommand) => {
-      commands[name] = def;
-    },
-  } as unknown as ExtensionAPI;
-  return { pi, commands };
-}
 
 /** The loader shape `ui.custom`'s factory returns (BorderedLoader surface). */
 interface FakeLoader {
@@ -160,42 +140,18 @@ function makeDeps(defs: Record<string, ServerDef>, client: unknown) {
   return {
     deps: { getServerDef, getManager: () => manager },
     manager,
-    register: (pi: ExtensionAPI) =>
-      registerAuthCommands(pi, { getServerDef, getManager: () => manager }),
   };
 }
 
 const oauthDef: HttpServerDef = { type: "http", url: "https://mcps.example/mcp", auth: "oauth" };
 
-// ── registration ─────────────────────────────────────────────────────────────
+// ── runMcpAuthCommand (former /mcp-auth handler body) ──────────────────────
 
-describe("registerAuthCommands", () => {
-  it("registers /mcp-auth and /mcp-logout", () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, makeFakeClient()).register(pi);
-    expect(Object.keys(commands).sort()).toEqual(["mcp-auth", "mcp-logout"]);
-    expect(typeof commands["mcp-auth"]!.handler).toBe("function");
-    expect(typeof commands["mcp-logout"]!.handler).toBe("function");
-  });
-});
-
-// ── /mcp-auth ────────────────────────────────────────────────────────────────
-
-describe("/mcp-auth", () => {
-  it("shows usage when no server name is given", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, makeFakeClient()).register(pi);
-    const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("", ctx);
-    expect(state.notify).toHaveBeenCalledWith("Usage: /mcp-auth <server>", "info");
-    expect(state.custom).not.toHaveBeenCalled();
-  });
-
+describe("runMcpAuthCommand", () => {
   it("rejects without an interactive TUI", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, makeFakeClient()).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, makeFakeClient());
     const { ctx, state } = makeCtx(false);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith(
       expect.stringContaining("interactive TUI"),
       "error",
@@ -204,56 +160,51 @@ describe("/mcp-auth", () => {
   });
 
   it("notifies unknown servers", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, makeFakeClient()).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, makeFakeClient());
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("ghost", ctx);
+    await runMcpAuthCommand("ghost", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith("Unknown server: ghost", "error");
     expect(state.custom).not.toHaveBeenCalled();
   });
 
   it("treats stdio servers as unknown (OAuth is http/sse only)", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps(
-      { srv: oauthDef, cli: { type: "stdio", command: "true" } },
+    const { deps } = makeDeps(
+      { cli: { type: "stdio", command: "true" } },
       makeFakeClient(),
-    ).register(pi);
+    );
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("cli", ctx);
+    await runMcpAuthCommand("cli", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith("Unknown server: cli", "error");
     expect(state.custom).not.toHaveBeenCalled();
   });
 
   it("finds a URL server without a type field (shape-based classification)", async () => {
     const client = makeFakeClient({ outcome: "success" });
-    const { pi, commands } = makeFakePi();
-    makeDeps(
+    const { deps } = makeDeps(
       { srv: { url: "https://mcps.example/mcp", auth: "oauth" } },
       client,
-    ).register(pi);
+    );
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
     expect(state.notify).not.toHaveBeenCalledWith("Unknown server: srv", "error");
     expect(state.notify).toHaveBeenCalledWith("✓ srv authenticated — 2 tools available", "info");
   });
 
   it("notifies machines configured for a static bearer token as not-OAuth", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps(
+    const { deps } = makeDeps(
       { svc: { type: "http", url: "http://127.0.0.1:1/mcp", auth: { token: "t" } } },
       makeFakeClient(),
-    ).register(pi);
+    );
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("svc", ctx);
+    await runMcpAuthCommand("svc", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith("Server svc is not configured for OAuth", "error");
     expect(state.custom).not.toHaveBeenCalled();
   });
 
   it("notifies when the manager holds no client for the server", async () => {
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, undefined).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, undefined);
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith(
       expect.stringContaining("srv"),
       "error",
@@ -263,10 +214,9 @@ describe("/mcp-auth", () => {
 
   it("runs authenticate on the client, opens the URL, reconnects, and reports tools", async () => {
     const client = makeFakeClient({ outcome: "success", invokeAuthUrl: true });
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, client).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, client);
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
 
     // Single entry point: authenticate with an abort signal + URL hook
     expect(client.authenticate).toHaveBeenCalledTimes(1);
@@ -292,11 +242,10 @@ describe("/mcp-auth", () => {
 
   it("Esc aborts the controller, cancels cleanly, and closes without reconnect", async () => {
     const client = makeFakeClient({ outcome: "wait" });
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, client).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, client);
     const { ctx, state } = makeCtx(true);
 
-    const running = commands["mcp-auth"]!.handler("srv", ctx);
+    const running = runMcpAuthCommand("srv", ctx, deps);
     await vi.waitFor(() => expect(client.authenticate).toHaveBeenCalledTimes(1));
     const signal = (client.authenticate.mock.calls[0]?.[0] as { signal: AbortSignal }).signal;
     expect(signal.aborted).toBe(false);
@@ -314,10 +263,9 @@ describe("/mcp-auth", () => {
 
   it("surfaces flow failures as error notifications", async () => {
     const client = makeFakeClient({ outcome: "throw", error: "token endpoint refused" });
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, client).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, client);
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith(
       expect.stringContaining("token endpoint refused"),
       "error",
@@ -328,10 +276,9 @@ describe("/mcp-auth", () => {
   it("reports a failed reconnect after successful authentication", async () => {
     const client = makeFakeClient({ outcome: "success" });
     client.connect.mockRejectedValue(new Error("connection refused"));
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, client).register(pi);
+    const { deps } = makeDeps({ srv: oauthDef }, client);
     const { ctx, state } = makeCtx(true);
-    await commands["mcp-auth"]!.handler("srv", ctx);
+    await runMcpAuthCommand("srv", ctx, deps);
     expect(state.notify).toHaveBeenCalledWith(
       expect.stringContaining("connection refused"),
       "error",
@@ -339,54 +286,35 @@ describe("/mcp-auth", () => {
   });
 });
 
-// ── /mcp-logout ──────────────────────────────────────────────────────────────
+// ── mcpLogoutServer (former /mcp-logout handler body) ──────────────────────
 
-describe("/mcp-logout", () => {
-  it("shows usage when no server name is given", async () => {
-    const { pi, commands } = makeFakePi();
-    const { deleteAuthEntry } = vi.mocked(await import("./auth-storage.js"));
-    makeDeps({}, makeFakeClient()).register(pi);
-    const { ctx, state } = makeCtx(true);
-    await commands["mcp-logout"]!.handler("", ctx);
-    expect(state.notify).toHaveBeenCalledWith("Usage: /mcp-logout <server>", "info");
-    expect(deleteAuthEntry).not.toHaveBeenCalled();
-  });
-
-  it("deletes the keyring entry, closes the connected client, and notifies", async () => {
+describe("mcpLogoutServer", () => {
+  it("deletes the keyring entry and closes the connected client", async () => {
     const { deleteAuthEntry } = vi.mocked(await import("./auth-storage.js"));
     const client = makeFakeClient();
-    const { pi, commands } = makeFakePi();
-    makeDeps({ srv: oauthDef }, client).register(pi);
-    const { ctx, state } = makeCtx(true);
-    await commands["mcp-logout"]!.handler("srv", ctx);
+    const { deps, manager } = makeDeps({ srv: oauthDef }, client);
+    const result = mcpLogoutServer("srv", deps.getManager);
     expect(deleteAuthEntry).toHaveBeenCalledWith("srv");
     expect(client.close).toHaveBeenCalled();
-    expect(state.notify).toHaveBeenCalledWith("Logged out of srv", "info");
+    expect(result).toEqual({ ok: true });
   });
 
-  it("still deletes and notifies for a server the manager does not hold", async () => {
+  it("still deletes for a server the manager does not hold", async () => {
     const { deleteAuthEntry } = vi.mocked(await import("./auth-storage.js"));
-    const { pi, commands } = makeFakePi();
-    makeDeps({}, undefined).register(pi);
-    const { ctx, state } = makeCtx(true);
-    await commands["mcp-logout"]!.handler("ghost", ctx);
+    const { deps } = makeDeps({}, undefined);
+    const result = mcpLogoutServer("ghost", deps.getManager);
     expect(deleteAuthEntry).toHaveBeenCalledWith("ghost");
-    expect(state.notify).toHaveBeenCalledWith("Logged out of ghost", "info");
+    expect(result).toEqual({ ok: true });
   });
 
-  it("reports a fail-closed keyring as an error instead of throwing", async () => {
+  it("reports a fail-closed keyring instead of throwing", async () => {
     const { deleteAuthEntry } = vi.mocked(await import("./auth-storage.js"));
     deleteAuthEntry.mockImplementationOnce(() => {
       throw new Error("OS credential store unavailable — cannot store OAuth tokens securely");
     });
-    const { pi, commands } = makeFakePi();
-    makeDeps({}, makeFakeClient()).register(pi);
-    const { ctx, state } = makeCtx(true);
-    await commands["mcp-logout"]!.handler("srv", ctx);
-    expect(state.notify).toHaveBeenCalledWith(
-      expect.stringContaining("OS credential store unavailable"),
-      "error",
-    );
-    expect(state.notify).not.toHaveBeenCalledWith("Logged out of srv", undefined);
+    const { deps } = makeDeps({}, makeFakeClient());
+    const result = mcpLogoutServer("srv", deps.getManager);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("OS credential store unavailable");
   });
 });

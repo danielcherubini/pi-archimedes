@@ -11,6 +11,8 @@ const {
   saveServerCache,
   isServerCacheValid,
   getCachedTools,
+  getCachedPrompts,
+  recordServerOutcome,
   setCachePathForTest,
 } = await import("./metadata-cache.js");
 
@@ -214,6 +216,125 @@ describe("saveServerCache + loadMetadataCache round-trip", () => {
     expect(existsSync(join(tempDir, "mcp-cache.json.tmp"))).toBe(false);
     // File content must be valid JSON (not a partial write)
     expect(() => JSON.parse(readFileSync(cachePath, "utf-8"))).not.toThrow();
+  });
+});
+
+describe("getCachedPrompts", () => {
+  it("returns cached prompts for a valid entry", () => {
+    const prompts = [{ name: "p1", description: "d" }];
+    saveServerCache("srv1", baseStdioDef, { tools: [], resources: [], prompts });
+    expect(getCachedPrompts("srv1", baseStdioDef)).toEqual(prompts);
+  });
+
+  it("returns undefined when the entry is stale (hash mismatch)", () => {
+    saveServerCache("srv1", baseStdioDef, { tools: [], resources: [], prompts: [{ name: "p1" }] });
+    const changed: ServerDef = { ...baseStdioDef, command: "python3" };
+    expect(getCachedPrompts("srv1", changed)).toBeUndefined();
+  });
+
+  it("returns undefined when the entry has no prompts", () => {
+    saveServerCache("srv1", baseStdioDef, { tools: [], resources: [] });
+    expect(getCachedPrompts("srv1", baseStdioDef)).toBeUndefined();
+  });
+
+  it("returns undefined when the server is not in the cache", () => {
+    expect(getCachedPrompts("missing", baseStdioDef)).toBeUndefined();
+  });
+});
+
+describe("recordServerOutcome (ADR 0004)", () => {
+  it("persists an outcome with a timestamp and the error text", () => {
+    const before = Date.now();
+    recordServerOutcome("srv1", "needs-auth", "unauthorized");
+    const entry = loadMetadataCache().serverStatuses?.["srv1"];
+    expect(entry).toEqual({ status: "needs-auth", error: "unauthorized", at: expect.any(Number) });
+    expect(entry!.at).toBeGreaterThanOrEqual(before);
+    expect(entry!.at).toBeLessThanOrEqual(Date.now() + 1);
+  });
+
+  it("stores no error field when none is given (exactOptionalPropertyTypes-safe)", () => {
+    recordServerOutcome("srv1", "connected");
+    const entry = loadMetadataCache().serverStatuses?.["srv1"];
+    expect(entry).toEqual({ status: "connected", at: expect.any(Number) });
+    expect("error" in (entry ?? {})).toBe(false);
+  });
+
+  it("keeps other servers' outcomes on re-record (read-merge-write)", () => {
+    recordServerOutcome("srv1", "connected");
+    recordServerOutcome("srv2", "error", "boom");
+    const statuses = loadMetadataCache().serverStatuses ?? {};
+    expect(statuses["srv1"]?.status).toBe("connected");
+    expect(statuses["srv2"]?.status).toBe("error");
+  });
+
+  it("is idempotent per server (last write wins)", () => {
+    recordServerOutcome("srv1", "connected");
+    recordServerOutcome("srv1", "error", "ECONNREFUSED");
+    expect(loadMetadataCache().serverStatuses?.["srv1"]?.status).toBe("error");
+  });
+});
+
+describe("serverStatuses round-trip (ADR 0004 data-loss trap)", () => {
+  it("saveServerCache preserves a previously recorded outcome", () => {
+    recordServerOutcome("srv1", "needs-auth", "unauthorized");
+    saveServerCache("srv1", baseStdioDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
+    const cache = loadMetadataCache();
+    expect(cache.serverStatuses?.["srv1"]?.status).toBe("needs-auth");
+    expect(cache.servers["srv1"]).toBeDefined();
+  });
+
+  it("recordServerOutcome preserves previously saved server entries", () => {
+    saveServerCache("srv1", baseStdioDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
+    recordServerOutcome("srv1", "connected");
+    expect(getCachedTools("srv1", baseStdioDef)).toEqual([{ name: "t1", inputSchema: {} }]);
+  });
+
+  it("both fields survive alternating save/record cycles", () => {
+    recordServerOutcome("srv1", "error", "one");
+    saveServerCache("srv2", baseHttpDef, { tools: [], resources: [] });
+    recordServerOutcome("srv2", "needs-auth");
+    saveServerCache("srv1", baseStdioDef, { tools: [], resources: [] });
+    const cache = loadMetadataCache();
+    expect(cache.serverStatuses?.["srv1"]?.status).toBe("error");
+    expect(cache.serverStatuses?.["srv2"]?.status).toBe("needs-auth");
+    expect(Object.keys(cache.servers).sort()).toEqual(["srv1", "srv2"]);
+  });
+
+  it("loads serverStatuses from a hand-written file (backwards-compatible load)", () => {
+    writeFileSync(
+      cachePath,
+      JSON.stringify({
+        version: CACHE_VERSION,
+        servers: {},
+        serverStatuses: { srv1: { status: "needs-auth", at: Date.now() - 60_000 } },
+      }),
+      "utf-8",
+    );
+    expect(loadMetadataCache().serverStatuses?.["srv1"]?.status).toBe("needs-auth");
+  });
+
+  it("still loads a legacy file without serverStatuses", () => {
+    writeFileSync(cachePath, JSON.stringify({ version: CACHE_VERSION, servers: {} }), "utf-8");
+    const cache = loadMetadataCache();
+    expect(cache).toEqual({ version: CACHE_VERSION, servers: {} });
+    expect(cache.serverStatuses).toBeUndefined();
+  });
+
+  it("drops malformed individual entries instead of crashing", () => {
+    writeFileSync(
+      cachePath,
+      JSON.stringify({
+        version: CACHE_VERSION,
+        servers: {},
+        serverStatuses: {
+          good: { status: "connected", at: 123 },
+          badStatus: { status: "bogus", at: 123 },
+          noAt: { status: "connected" },
+        },
+      }),
+      "utf-8",
+    );
+    expect(Object.keys(loadMetadataCache().serverStatuses ?? {})).toEqual(["good"]);
   });
 });
 

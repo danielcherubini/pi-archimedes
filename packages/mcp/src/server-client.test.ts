@@ -461,7 +461,7 @@ describe("ServerClient — OAuth authenticate (real flow)", () => {
       error: "invalid_grant: token endpoint rejected the grant",
     });
     const client = new ServerClient("oauth-srv", oauthDef, { clientFactory: factory });
-    // /mcp-auth and auto-auth show this message — the cause must be in it,
+    // /mcp auth and auto-auth show this message — the cause must be in it,
     // not just the generic part
     await expect(client.authenticate()).rejects.toThrow(
       "Authentication failed for oauth-srv",

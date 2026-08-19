@@ -118,13 +118,13 @@ function makeCtx(hasUI: boolean): { ctx: ExtensionContext; state: CtxState } {
 // ── needsAuthToolResult ──────────────────────────────────────────────────────
 
 describe("needsAuthToolResult", () => {
-  it("is guidance (isError false) pointing at /mcp-auth <server>", () => {
+  it("is guidance (isError false) pointing at /mcp auth <server>", () => {
     const r = needsAuthToolResult("auth-srv");
     expect(r.isError).toBe(false);
     expect(r.details).toEqual({ server: "auth-srv", status: "needs-auth" });
     const text = r.content[0]!.text;
     expect(text).toContain("requires authentication");
-    expect(text).toContain("/mcp-auth auth-srv");
+    expect(text).toContain("/mcp auth auth-srv");
     expect(text).not.toContain("Auto-auth failed");
   });
 
@@ -132,7 +132,7 @@ describe("needsAuthToolResult", () => {
     const r = needsAuthToolResult("auth-srv", "OAuth cancelled");
     const text = r.content[0]!.text;
     expect(text).toContain("OAuth cancelled");
-    expect(text).toContain("/mcp-auth auth-srv");
+    expect(text).toContain("/mcp auth auth-srv");
     expect(r.isError).toBe(false);
   });
 });
@@ -159,7 +159,7 @@ describe("autoAuthenticate", () => {
     await opts.onAuthorizationUrl(new URL(AUTH_URL));
     expect(open).toHaveBeenCalledWith(AUTH_URL);
     expect(state.notify).toHaveBeenCalledWith(expect.stringContaining(AUTH_URL), "info");
-    // Reconnect to pick up the freshly stored token (mirrors /mcp-auth)
+    // Reconnect to pick up the freshly stored token (mirrors /mcp auth)
     expect(client.close).toHaveBeenCalledTimes(1);
     expect(client.connect).toHaveBeenCalledTimes(1);
   });

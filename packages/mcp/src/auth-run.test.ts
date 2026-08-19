@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import open from "open";
 import { openAuthUrl, reconnectAfterAuth, runAuthWithLoader } from "./auth-run.js";
+import { loadMetadataCache, setCachePathForTest } from "./metadata-cache.js";
 import type { ServerClient } from "./server-client.js";
 
 // The real BorderedLoader needs a live TUI; a stub with the same surface
@@ -17,6 +21,21 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   },
 }));
 vi.mock("open", () => ({ default: vi.fn().mockResolvedValue({}) }));
+
+// The post-auth reconnect settles the ADR 0004 ledger (recordClientOutcome),
+// which writes the cache file — point it at a temp dir so the real
+// ~/.pi/agent/mcp-cache.json is never touched.
+let tempDir: string;
+
+beforeEach(() => {
+  tempDir = mkdtempSync(join(tmpdir(), "mcp-authrun-test-"));
+  setCachePathForTest(join(tempDir, "cache.json"));
+});
+
+afterEach(() => {
+  setCachePathForTest(null);
+  rmSync(tempDir, { recursive: true, force: true });
+});
 
 const AUTH_URL = "https://as.example/authorize?state=xyz";
 const LABEL = "Authenticating srv… (esc to cancel)";
@@ -41,14 +60,21 @@ function makeFakeClient(opts: FakeClientOpts = {}) {
   const client = {
     name: "srv",
     status: "needs-auth" as string,
+    error: undefined as string | undefined,
     tools: Array.from({ length: opts.toolCount ?? 0 }, (_, i) => ({
       name: `t${i + 1}`,
       serverName: "srv",
     })),
     close: vi.fn().mockResolvedValue(undefined),
     connect: vi.fn().mockImplementation(async () => {
-      if (opts.reconnectError) throw new Error(opts.reconnectError);
+      if (opts.reconnectError) {
+        // Mirror the real client: a thrown connect settles into "error".
+        client.status = "error";
+        client.error = opts.reconnectError;
+        throw new Error(opts.reconnectError);
+      }
       client.status = opts.statusAfterReconnect ?? "connected";
+      client.error = undefined;
     }),
     authenticate: null as unknown as ReturnType<typeof vi.fn>,
   };
@@ -241,6 +267,30 @@ describe("reconnectAfterAuth", () => {
     const outcome = await reconnectAfterAuth(client as unknown as ServerClient);
     expect(outcome).toEqual({ kind: "reconnect-failed", error: "socket hang up" });
     expect(client.connect).not.toHaveBeenCalled();
+  });
+
+  it("records 'connected' in the ADR 0004 ledger after a successful reconnect", async () => {
+    const client = makeFakeClient({ statusAfterReconnect: "connected", toolCount: 2 });
+    const outcome = await reconnectAfterAuth(client as unknown as ServerClient);
+    expect(outcome).toEqual({ kind: "reconnected", status: "connected", tools: 2 });
+    // The persisted outcome ledger (ADR 0004) must reflect the settled
+    // connection — a stale "needs-auth" here would stick across sessions.
+    const rec = loadMetadataCache().serverStatuses?.["srv"];
+    expect(rec?.status).toBe("connected");
+    expect(rec?.at).toBeTypeOf("number");
+    expect(rec?.error).toBeUndefined();
+  });
+
+  it("records 'error' with the failure message when the post-auth reconnect fails", async () => {
+    const client = makeFakeClient({ reconnectError: "connection refused" });
+    const outcome = await reconnectAfterAuth(client as unknown as ServerClient);
+    expect(outcome).toEqual({ kind: "reconnect-failed", error: "connection refused" });
+    // The fake settles into "error" like the real client does for a thrown
+    // connect — recordClientOutcome maps that to a recorded failure.
+    const rec = loadMetadataCache().serverStatuses?.["srv"];
+    expect(rec?.status).toBe("error");
+    expect(rec?.error).toBe("connection refused");
+    expect(rec?.at).toBeTypeOf("number");
   });
 });
 

@@ -1,16 +1,16 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { loadMcpConfig, loadServerDefs, resolveServerSettings, isHttpDef } from "./config.js";
+import { loadMcpConfig, loadServerDefs, loadAllServerDefs, resolveServerSettings } from "./config.js";
 import { autoAuthenticate, needsAuthToolResult } from "./auto-auth.js";
-import { registerAuthCommands } from "./commands-auth.js";
+import { registerMcpCommand } from "./commands.js";
 import {
   filterDirectTools,
   pruneRegisteredNames,
   registerDirectTools,
 } from "./direct-tools.js";
 import { LifecycleManager } from "./lifecycle.js";
-import { getCachedTools } from "./metadata-cache.js";
+import { getCachedPrompts, getCachedTools, recordClientOutcome } from "./metadata-cache.js";
 import { ServerManager } from "./server-manager.js";
 import type { ServerClient } from "./server-client.js";
 import {
@@ -33,20 +33,24 @@ let _idleTimeoutMinutes = 10; // updated in session_start from config
 // proxy's execute() can be exercised without touching real files or
 // spawning real server processes.
 let seamDefs: (() => Record<string, ServerDef>) | null = null;
+let seamAllDefs: (() => Record<string, ServerDef>) | null = null;
 let seamConfig: (() => McpConfig) | null = null;
 
 /** Test-only: replace the module-level manager and/or config loaders. */
 export function setIndexSeamsForTest(seams: {
   manager?: ServerManager;
   loadServerDefs?: () => Record<string, ServerDef>;
+  loadAllServerDefs?: () => Record<string, ServerDef>;
   loadMcpConfig?: () => McpConfig;
 } | null): void {
   if (seams) {
     if (seams.manager) manager = seams.manager;
     seamDefs = seams.loadServerDefs ?? null;
+    seamAllDefs = seams.loadAllServerDefs ?? null;
     seamConfig = seams.loadMcpConfig ?? null;
   } else {
     seamDefs = null;
+    seamAllDefs = null;
     seamConfig = null;
     // Fully restore initial state: discard any swapped-in manager (its fake
     // clients/state must not leak into subsequent tests) and rebind the
@@ -58,6 +62,7 @@ export function setIndexSeamsForTest(seams: {
 
 /** Config-loader indirection: seam overrides win, real loaders otherwise */
 const loadDefs = (): Record<string, ServerDef> => seamDefs?.() ?? loadServerDefs();
+const loadAllDefs = (): Record<string, ServerDef> => seamAllDefs?.() ?? loadAllServerDefs();
 const loadCfg = (): McpConfig => seamConfig?.() ?? loadMcpConfig();
 
 /**
@@ -100,18 +105,19 @@ const lifecycle = new LifecycleManager(manager, loadServerDefs, () => _idleTimeo
 // ── Tool registration ───────────────────────────────────────────────────────
 
 export function registerMcp(pi: ExtensionAPI): void {
-  // OAuth commands (top-level: registered once per load, like every other
-  // registration on pi). getServerDef re-reads the FRESH config and syncs
-  // the manager — the same pattern every other code path in this module
-  // uses — and keeps only http/sse defs (stdio cannot OAuth).
-  registerAuthCommands(pi, {
-    getServerDef: (name) => {
-      const defs = loadDefs();
-      manager.sync(defs);
-      const def = defs[name];
-      return def !== undefined && isHttpDef(def) ? def : undefined;
-    },
+  // The /mcp command family (plan-027 Task 2): /mcp [status|tools|prompts|
+  // reconnect|enable|disable|logout|auth|panel|setup]. The command registry
+  // contains ONLY "mcp" — the standalone /mcp-auth + /mcp-logout commands
+  // are retired (their bodies live in commands-auth.ts, called via
+  // /mcp auth / /mcp logout).
+  registerMcpCommand(pi, {
     getManager: () => manager,
+    // loadAllServerDefs includes disabled servers — they still have status.
+    // seamAllDefs indirection: real loader in production, stable fixture in
+    // tests (the same seam-discipline as loadDefs/loadCfg).
+    getServerDefs: () => loadAllDefs(),
+    getCachedTools,
+    getCachedPrompts,
   });
 
   // session_shutdown must be registered at the TOP LEVEL of registerMcp,
@@ -139,7 +145,12 @@ export function registerMcp(pi: ExtensionAPI): void {
     const resolveClient = async (name: string): Promise<ServerClient> => {
       const client = manager.getClient(name);
       if (!client) throw new Error(`Server "${name}" is no longer configured`);
-      await client.connect();
+      try {
+        await client.connect();
+      } finally {
+        // ADR 0004 settle point: direct-tool lazy connect.
+        recordClientOutcome(client);
+      }
       return client;
     };
     const registerFromTools = (serverName: string, def: ServerDef, tools: CachedTool[]): void => {
@@ -173,9 +184,9 @@ export function registerMcp(pi: ExtensionAPI): void {
     if (probeTargets.length > 0) {
       void Promise.allSettled(
         probeTargets.map(async ({ name, def }) => {
+          const client = manager.getClient(name);
+          if (!client) return;
           try {
-            const client = manager.getClient(name);
-            if (!client) return;
             await client.connect();
             // A concurrent session_start (e.g. /reload) may have replaced this
             // client while we were connecting: sync() closed it, so the
@@ -185,13 +196,17 @@ export function registerMcp(pi: ExtensionAPI): void {
             // registered (and re-registering duplicates on the next start).
             if (manager.getClient(name) !== client) return; // superseded
             // A 401 surfaces as status 'needs-auth' (connect() does not
-            // throw) — warn clearly instead of silently registering 0 tools.
+            // throw) — record it (ADR 0004) and warn clearly instead of
+            // silently registering 0 tools.
             if (client.status === "needs-auth") {
+              recordClientOutcome(client);
               console.warn(
                 `[mcp] server "${name}" requires authentication (${client.error ?? "token missing or rejected"}) — no tools registered`,
               );
               return;
             }
+            // ADR 0004 settle point: probe success.
+            recordClientOutcome(client);
             const tools: CachedTool[] = client.tools.map((t) => {
               const cached: CachedTool = { name: t.name, inputSchema: t.inputSchema };
               if (t.description !== undefined) cached.description = t.description;
@@ -199,6 +214,10 @@ export function registerMcp(pi: ExtensionAPI): void {
             });
             registerFromTools(name, def, tools);
           } catch (e) {
+            // A connect failure settles the client into "error" — persist
+            // that outcome (ADR 0004 settle point: probe error) so the
+            // failure is visible in /mcp status across sessions.
+            recordClientOutcome(client);
             // Probe failure is logged, not thrown — the proxy tool will still
             // surface the error on first use of a tool from this server.
             console.warn(
@@ -315,7 +334,13 @@ export function registerMcp(pi: ExtensionAPI): void {
             details: {},
           };
         }
-        await client.connect();
+        // ADR 0004 settle point: proxy p.connect action — recorded in
+        // `finally` so a failed connect ("error") persists too.
+        try {
+          await client.connect();
+        } finally {
+          recordClientOutcome(client);
+        }
         // A 401 surfaces as status 'needs-auth' (connect() does not throw) —
         // reporting that as "Connected with 0 tools" would be a lie.
         if (client.status === "needs-auth") {
@@ -537,7 +562,13 @@ export function registerMcp(pi: ExtensionAPI): void {
         // Connect the owning server (callTool would connect lazily anyway)
         // so a 401 surfaces here as `needs-auth`: guidance by default,
         // inline auto-auth + one retry when autoAuth is on.
-        await client.connect();
+        // ADR 0004 settle point: proxy p.tool lazy connect — recorded in
+        // `finally` so a failed connect ("error") persists too.
+        try {
+          await client.connect();
+        } finally {
+          recordClientOutcome(client);
+        }
         if (client.status === "needs-auth") {
           if (!config.autoAuth) {
             return needsAuthToolResult(serverName);

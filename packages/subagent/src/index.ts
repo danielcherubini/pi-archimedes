@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Text, TUI } from "@earendil-works/pi-tui";
+import { Text, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { executeSubagent, executeParallel } from "./execute.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast

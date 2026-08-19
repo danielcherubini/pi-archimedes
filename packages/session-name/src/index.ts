@@ -1,4 +1,5 @@
-import { complete } from "@earendil-works/pi-ai";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "@pi-archimedes/core/settings-io";
 import type { SettingItem } from "@earendil-works/pi-tui";
@@ -161,7 +162,7 @@ async function generateTitle(
     if (!auth.ok) return;
 
     // 6. Make API call
-    const opts: { reasoning: "minimal"; cacheRetention: "none"; sessionId: string; apiKey?: string; headers?: Record<string, string> } = {
+    const opts: { reasoning: "minimal"; cacheRetention: "none"; sessionId: string; apiKey?: string; headers?: ProviderHeaders } = {
       reasoning: "minimal",
       cacheRetention: "none",
       sessionId: crypto.randomUUID(),

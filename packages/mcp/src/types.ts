@@ -102,7 +102,7 @@ export interface McpConfig {
   /**
    * When a tool call reaches a server in the `needs-auth` state, trigger the
    * interactive OAuth flow inline (single entry point: ServerClient
-   * .authenticate) instead of returning guidance to run `/mcp-auth`.
+   * .authenticate) instead of returning guidance to run `/mcp auth`.
    * (default: false — guidance only)
    */
   autoAuth: boolean;
@@ -139,10 +139,26 @@ export interface ServerCacheEntry {
   cachedAt: number;
 }
 
+/** Persisted connection outcome for one server (ADR 0004). */
+export interface ServerOutcomeRecord {
+  status: "connected" | "needs-auth" | "error";
+  /** Error text for needs-auth/error outcomes (first line). */
+  error?: string;
+  /** Epoch milliseconds when the outcome was recorded. */
+  at: number;
+}
+
 /** On-disk shape of the metadata cache */
 export interface MetadataCache {
   version: number;
   servers: Record<string, ServerCacheEntry>;
+  /**
+   * Last connection outcome per server (ADR 0004). Additive: old cache
+   * files lack the field — a missing key means "not verified", so there is
+   * no CACHE_VERSION bump. `loadMetadataCache` must round-trip it: dropping
+   * the field would silence every `saveServerCache` rewrite.
+   */
+  serverStatuses?: Record<string, ServerOutcomeRecord>;
 }
 
 export const CACHE_VERSION = 1;

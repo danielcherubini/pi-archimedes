@@ -18,7 +18,7 @@
  *   without `clientSecret`) hitting an expired token is NEVER auto-refreshed
  *   — the auth server would reject the refresh grant (invalid_client).
  *   `getValidToken` returns null so the caller can tell the user to re-run
- *   `/mcp-auth`.
+ *   `/mcp auth`.
  * - Cancellation: the callback window honors an `AbortSignal`; aborts are
  *   rethrown (error propagates) so the command layer can distinguish
  *   "cancelled" from "failed".
@@ -277,7 +277,7 @@ export async function getValidToken(
     // ADR 0001 config-stub guard: a pre-registered public client (clientId
     // without secret) gets rejected at the token endpoint for a refresh
     // (invalid_client). Do not attempt the refresh — tell the user to
-    // re-authenticate via /mcp-auth instead.
+    // re-authenticate via /mcp auth instead.
     if (config.clientId && !config.clientSecret) return null;
 
     // SDK-driven refresh: tokens() surfaces the expired stored token
@@ -296,7 +296,7 @@ export async function getValidToken(
     if (stillBad) {
       console.warn(
         `[archimedes/mcp] OAuth token refresh for ${serverName} did not produce a valid token ` +
-          `— run /mcp-auth to re-authenticate`,
+          `— run /mcp auth to re-authenticate`,
       );
       return null;
     }

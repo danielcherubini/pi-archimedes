@@ -409,7 +409,7 @@ describe("registerDirectTools — needs-auth at call time", () => {
     clearRegisteredForTest();
   });
 
-  it("returns /mcp-auth guidance (isError false) and never authenticates when autoAuth is off", async () => {
+  it("returns /mcp auth guidance (isError false) and never authenticates when autoAuth is off", async () => {
     const { pi, defs } = makeFakePi();
     const calls: Array<{ tool: string; args: Record<string, unknown> }> = [];
     const client = makeNeedsAuthClient(calls);
@@ -427,7 +427,7 @@ describe("registerDirectTools — needs-auth at call time", () => {
     };
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("requires authentication");
-    expect(text).toContain("/mcp-auth srv");
+    expect(text).toContain("/mcp auth srv");
     expect(result.isError).toBeFalsy();
     // The tool was never dispatched to the server; no auth attempted
     expect(calls).toEqual([]);
@@ -452,7 +452,7 @@ describe("registerDirectTools — needs-auth at call time", () => {
       isError?: boolean;
     };
     expect(client.authenticate).toHaveBeenCalledTimes(1);
-    // Reconnect to pick up the freshly stored token (mirrors /mcp-auth)
+    // Reconnect to pick up the freshly stored token (mirrors /mcp auth)
     expect(client.close).toHaveBeenCalledTimes(1);
     expect(client.connect).toHaveBeenCalledTimes(1);
     // The single retry reached the server with the raw tool name
@@ -480,7 +480,7 @@ describe("registerDirectTools — needs-auth at call time", () => {
     };
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("OAuth cancelled");
-    expect(text).toContain("/mcp-auth srv");
+    expect(text).toContain("/mcp auth srv");
     expect(result.isError).toBeFalsy();
     expect(calls).toEqual([]);
     expect(client.close).not.toHaveBeenCalled();

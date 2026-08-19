@@ -6,15 +6,15 @@
  *
  * - autoAuth disabled (default): no authentication is initiated; the caller
  *   returns guidance content (`isError: false` — guidance, not a crash)
- *   telling the user to run `/mcp-auth <server>`.
+ *   telling the user to run `/mcp auth <server>`.
  * - autoAuth enabled: `ServerClient.authenticate` (the SINGLE auth entry
  *   point — never `auth-flow.authenticate` directly) is called inline and the
  *   caller retries the tool call once. A `BorderedLoader` (tui.md Pattern 2,
- *   same pattern as `/mcp-auth`) shows progress when the execute context has
+ *   same pattern as `/mcp auth`) shows progress when the execute context has
  *   UI; esc aborts the flow. Headless contexts run the flow plainly and the
  *   authorization URL is opened directly.
  *
- * The loader/cancel/reconnect machinery is shared with `/mcp-auth` in
+ * The loader/cancel/reconnect machinery is shared with `/mcp auth` in
  * `auth-run.ts`; this module maps the structured outcome onto the tool's
  * `{ proceed, error }` guidance result.
  */
@@ -45,7 +45,7 @@ export function needsAuthToolResult(
 ): NeedsAuthToolResult {
   const lines = [`MCP server "${serverName}" requires authentication.`];
   if (autoAuthError !== undefined) lines.push(`Auto-auth failed: ${autoAuthError}`);
-  lines.push(`Run /mcp-auth ${serverName} to authenticate, then retry this call.`);
+  lines.push(`Run /mcp auth ${serverName} to authenticate, then retry this call.`);
   return {
     content: [{ type: "text" as const, text: lines.join("\n") }],
     details: { server: serverName, status: "needs-auth" },
@@ -81,7 +81,7 @@ function toAutoAuthOutcome(outcome: AuthRunOutcome, serverName: string): AutoAut
       if (outcome.status === "needs-auth") {
         // The freshly stored token was rejected immediately — e.g. a
         // pre-registered public client whose session needs interactive
-        // re-auth (ADR 0001). Guidance points back at /mcp-auth.
+        // re-auth (ADR 0001). Guidance points back at /mcp auth.
         return {
           proceed: false,
           error: "auth succeeded, but the server still requires authentication",
@@ -95,12 +95,12 @@ function toAutoAuthOutcome(outcome: AuthRunOutcome, serverName: string): AutoAut
  * Run `ServerClient.authenticate` inline.
  *
  * With a UI context the flow is wrapped in a `BorderedLoader` (same pattern
- * as `/mcp-auth`): esc aborts the flow and the cancellation is reported as
+ * as `/mcp auth`): esc aborts the flow and the cancellation is reported as
  * "OAuth cancelled". Without one (print/RPC mode) the flow runs plainly,
  * tied to the agent's abort signal when streaming.
  *
  * On success the client is closed and reconnected so the freshly stored
- * token is re-read into the Bearer header (mirrors `/mcp-auth`). Cancellation,
+ * token is re-read into the Bearer header (mirrors `/mcp auth`). Cancellation,
  * flow failure, and reconnect failure are returned as errors rather than
  * thrown into the tool call.
  */
@@ -130,6 +130,6 @@ export async function autoAuthenticate(
   }
 
   // Success: close + reconnect so the fresh token is used immediately
-  // (connect re-reads the keyring for the Bearer header — mirrors /mcp-auth)
+  // (connect re-reads the keyring for the Bearer header — mirrors /mcp auth)
   return toAutoAuthOutcome(await reconnectAfterAuth(client), client.name);
 }

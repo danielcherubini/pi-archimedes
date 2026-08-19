@@ -61,6 +61,9 @@ export class LifecycleManager {
         // after a failed connect (needs-auth/connecting/connected are left
         // alone: 401 retries loop without OAuth, in-flight connects race).
         if (client.status === "disconnected" || client.status === "error") {
+          // ADR 0004: deliberately NOT recorded — a 30s-tick reconnect is not
+          // a settle point; the live client wins within the session, and
+          // writing the ledger on every tick would only churn the cache file.
           void client.connect().catch(() => {});
         }
       } else {

@@ -7,7 +7,7 @@
  * close+reconnect that re-reads the freshly stored token from the keyring
  * into the Bearer header.
  *
- * Call sites: the `/mcp-auth` command (`commands-auth.ts`) and the inline
+ * Call sites: the `/mcp auth` command (`commands-auth.ts`) and the inline
  * auto-auth's UI branch (`auto-auth.ts`). Each maps the structured
  * `AuthRunOutcome` onto its own notification/return strings, which differ
  * between the two user-visible surfaces.
@@ -17,6 +17,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import open from "open";
+import { recordClientOutcome } from "./metadata-cache.js";
 import type { ServerClient, ServerStatus } from "./server-client.js";
 
 /**
@@ -63,8 +64,16 @@ export async function openAuthUrl(url: string): Promise<void> {
  */
 export async function reconnectAfterAuth(client: ServerClient): Promise<AuthRunOutcome> {
   try {
-    await client.close();
-    await client.connect();
+    try {
+      await client.close();
+      await client.connect();
+    } finally {
+      // ADR 0004 settle point: the post-auth close+reconnect is a genuine
+      // connection settle — record the outcome so a successful auth clears
+      // the stale "needs-auth" (and a failed reconnect leaves "error") in
+      // the persisted ledger instead of sticking across sessions.
+      recordClientOutcome(client);
+    }
   } catch (e) {
     return { kind: "reconnect-failed", error: toMessage(e) };
   }

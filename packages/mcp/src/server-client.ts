@@ -68,10 +68,10 @@ export type ServerStatus =
 /**
  * Error surfaced when a server requires credentials we cannot provide yet.
  * Guides to the two ways to fix it: a static bearer token in the server
- * definition, or the OAuth flow via /mcp-auth (plan-026).
+ * definition, or the OAuth flow via /mcp auth (plan-026).
  */
 const NEEDS_AUTH_MESSAGE =
-  "authentication required or token rejected — configure a static bearer token or authenticate via OAuth (/mcp-auth <server>)";
+  "authentication required or token rejected — configure a static bearer token or authenticate via OAuth (/mcp auth <server>)";
 
 /**
  * Options for ServerClient. `clientFactory` is a testability seam: replace the
@@ -207,7 +207,7 @@ export class ServerClient {
 
   /**
    * Authenticate via OAuth — the SINGLE auth entry point for this server
-   * (the `/mcp-auth` command and auto-auth both call this; neither calls
+   * (the `/mcp auth` command and auto-auth both call this; neither calls
    * the auth-flow module directly, so url/config always come from the def).
    *
    * Rejects when the server isn't configured for OAuth (missing auth,
@@ -234,7 +234,7 @@ export class ServerClient {
     const status = await runOAuthFlow(this.name, httpDef.url, cfg, options);
     if (status.status === "failed") {
       // `status.error` is the underlying cause (network error, token-endpoint
-      // rejection, …) — carry it up so /mcp-auth and auto-auth can show the
+      // rejection, …) — carry it up so /mcp auth and auto-auth can show the
       // user the real reason instead of a generic message.
       throw new Error(`Authentication failed for ${this.name}: ${status.error}`);
     }
@@ -324,7 +324,7 @@ export class ServerClient {
         // via the SDK when the stored token is expired and may return null
         // — no stored token, or the ADR 0001 config-stub guard — in which
         // case the headers are left untouched and the 401 → needs-auth path
-        // guides the user to /mcp-auth). Static `{ token }` servers are
+        // guides the user to /mcp auth). Static `{ token }` servers are
         // unaffected (extractOAuthConfig returns null for them).
         const oauthConfig = extractOAuthConfig(def.auth);
         if (oauthConfig) {

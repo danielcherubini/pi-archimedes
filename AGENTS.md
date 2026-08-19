@@ -13,7 +13,7 @@ Rules for AI agents working on this monorepo.
 - `packages/todo` — todo list tool with auto-clear and subagent visibility (depends on core)
 - `packages/notify` — delayed desktop notifications with circuit breaker (depends on core)
 - `packages/session-name` — auto session naming (depends on core)
-- `packages/mcp` — full MCP client adapter with pi-native TUI rendering (depends on core)
+- `packages/mcp` — MCP client adapter (feature parity with pi-mcp-adapter: `/mcp` command family, management + setup panels, OAuth, metadata cache) (depends on core)
 - `meta` — orchestrator + composed settings (depends on all ten)
 
 ## Adding a New Package

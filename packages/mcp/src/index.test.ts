@@ -374,7 +374,7 @@ describe("mcp proxy — call with needs-auth server", () => {
     });
   }
 
-  it("returns /mcp-auth guidance (isError false) and never authenticates when autoAuth is off (default)", async () => {
+  it("returns /mcp auth guidance (isError false) and never authenticates when autoAuth is off (default)", async () => {
     const approved = { value: false };
     const sdk = makeOauthSdk(approved);
     saveServerCache("auth-srv", httpDef, { tools: [{ name: "t1", inputSchema: {} }], resources: [] });
@@ -384,7 +384,7 @@ describe("mcp proxy — call with needs-auth server", () => {
       const result = await run({ tool: "t1", server: "auth-srv" });
       const text = result.content[0]?.text ?? "";
       expect(text).toContain("requires authentication");
-      expect(text).toContain("/mcp-auth auth-srv");
+      expect(text).toContain("/mcp auth auth-srv");
       expect(result.isError).toBeFalsy();
       expect(authSpy).not.toHaveBeenCalled();
       // The tool was never dispatched to the server
@@ -437,7 +437,7 @@ describe("mcp proxy — call with needs-auth server", () => {
       const result = await run({ tool: "t1", server: "auth-srv" });
       const text = result.content[0]?.text ?? "";
       expect(text).toContain("OAuth cancelled");
-      expect(text).toContain("/mcp-auth auth-srv");
+      expect(text).toContain("/mcp auth auth-srv");
       expect(result.isError).toBeFalsy();
       expect(approved.value).toBe(false);
       // No retry was attempted
@@ -448,10 +448,10 @@ describe("mcp proxy — call with needs-auth server", () => {
   });
 });
 
-// ── auth command wiring: index registers /mcp-auth + /mcp-logout ─────────────
+// ── command wiring: index registers ONLY /mcp; auth flows through it ──────
 
-describe("mcp proxy — auth command wiring", () => {
-  it("registers /mcp-auth and /mcp-logout bound to the seam loaders", async () => {
+describe("mcp proxy — command wiring", () => {
+  it("registers only the mcp command (standalone OAuth commands retired)", async () => {
     const def: ServerDef = { type: "stdio", command: "true" };
     const manager = new ServerManager({
       clientFactory: () => makeFakeSdkClient() as unknown as Client,
@@ -459,25 +459,28 @@ describe("mcp proxy — auth command wiring", () => {
     setIndexSeamsForTest({
       manager,
       loadServerDefs: () => ({ srv: def }),
+      loadAllServerDefs: () => ({ srv: def }),
       loadMcpConfig: () => DEFAULT_MCP_CONFIG,
     });
     const { pi, commands } = makeFakePi();
     registerMcp(pi);
-    expect(Object.keys(commands).sort()).toEqual(["mcp-auth", "mcp-logout"]);
+    // The command registry contains ONLY "mcp" — /mcp auth and /mcp logout
+    // dispatch through it; the standalone commands are gone.
+    expect(Object.keys(commands).sort()).toEqual(["mcp"]);
 
-    // A stdio server is not OAuth-capable: the /mcp-auth wiring must surface
-    // it as an unknown (non-http) server, not attempt auth.
+    // A stdio server is not OAuth-capable: /mcp auth must surface it as an
+    // unknown (non-http) server, not attempt auth.
     const notify = vi.fn();
     const ctx = { hasUI: true, ui: { notify, custom: vi.fn() } } as never;
-    const handler = commands["mcp-auth"]!.handler as (
+    const handler = commands["mcp"]!.handler as (
       args: string,
       ctx: unknown,
     ) => Promise<void>;
-    await handler("srv", ctx);
+    await handler("auth srv", ctx);
     expect(notify).toHaveBeenCalledWith("Unknown server: srv", "error");
   });
 
-  it("finds a typeless url server configured for oauth (shape-based classification)", async () => {
+  it("/mcp auth finds a typeless url server configured for oauth (shape-based classification)", async () => {
     const def: ServerDef = { url: "https://mcp.example.com/mcp", auth: "oauth" };
     const manager = new ServerManager({
       clientFactory: () => makeFakeSdkClient() as unknown as Client,
@@ -485,10 +488,15 @@ describe("mcp proxy — auth command wiring", () => {
     setIndexSeamsForTest({
       manager,
       loadServerDefs: () => ({ srv: def }),
+      loadAllServerDefs: () => ({ srv: def }),
       loadMcpConfig: () => DEFAULT_MCP_CONFIG,
     });
     const { pi, commands } = makeFakePi();
     registerMcp(pi);
+
+    // The auth flow needs a managed client: session_start syncs in
+    // production; mirror that here.
+    manager.sync({ srv: def });
 
     const authSpy = vi.spyOn(ServerClient.prototype, "authenticate").mockResolvedValue(
       undefined,
@@ -517,11 +525,11 @@ describe("mcp proxy — auth command wiring", () => {
         },
       );
       const ctx = { hasUI: true, ui: { notify, custom } } as never;
-      const handler = commands["mcp-auth"]!.handler as (
+      const handler = commands["mcp"]!.handler as (
         args: string,
         ctx: unknown,
       ) => Promise<void>;
-      await handler("srv", ctx);
+      await handler("auth srv", ctx);
 
       // Shape (url) classified it as HTTP: the OAuth entry point ran and the
       // full flow completed — NOT "Unknown server".
