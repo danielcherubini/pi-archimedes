@@ -1,7 +1,7 @@
 /** ANSI utilities — barrel re-export. */
 
 export {
-	RST, BOLD, DIM,
+	RST, FG_RST, BOLD, DIM,
 	FG_ADD, FG_DEL, FG_DIM, FG_LNUM, FG_RULE, FG_SAFE_MUTED, FG_STRIPE,
 	BORDER_BAR,
 	DEFAULT_DIFF_BG,

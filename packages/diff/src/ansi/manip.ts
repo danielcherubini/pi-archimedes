@@ -109,7 +109,7 @@ export function shortPath(cwd: string, home: string, p: string): string {
 /** Summarize added/removed counts as colored `+N -M` string. */
 export function summarize(a: number, d: number): string {
 	const p: string[] = [];
-	if (a > 0) p.push(`${C.FG_ADD}+${a}${C.RST}`);
-	if (d > 0) p.push(`${C.FG_DEL}-${d}${C.RST}`);
-	return p.length ? p.join(" ") : `${C.FG_DIM}no changes${C.RST}`;
+	if (a > 0) p.push(`${C.FG_ADD}+${a}${C.FG_RST}`);
+	if (d > 0) p.push(`${C.FG_DEL}-${d}${C.FG_RST}`);
+	return p.length ? p.join(" ") : `${C.FG_DIM}no changes${C.FG_RST}`;
 }

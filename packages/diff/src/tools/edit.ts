@@ -143,28 +143,48 @@ export function registerEditTool(
 		renderResult(result: any, _opt: any, theme: any, ctx: any) {
 			// Update the call Box background to reflect final state.
 			const box = ctx.state.callBox as Box | undefined;
-			if (box) {
-				const bgKey = ctx.isError ? "toolErrorBg" : "toolSuccessBg";
-				box.setBgFn((s: string) => theme.bg(bgKey, s));
-			}
-			// Show summary below the diff
+			const bgKey = ctx.isError ? "toolErrorBg" : "toolSuccessBg";
+			if (box) box.setBgFn((s: string) => theme.bg(bgKey, s));
+
+			// Build the line to show below the diff.
+			let line: string;
 			if (ctx.isError) {
 				const e = result.content
 					?.filter((c: any) => c.type === "text")
 					.map((c: any) => c.text || "")
 					.join("\n") ?? "Error";
-				return new Text(`\n${theme.fg("error", e)}`, 1, 0);
-			}
-			if (result.details?._type === "editInfo") {
+				line = theme.fg("error", e);
+			} else if (result.details?._type === "editInfo") {
 				const { summary: s, editLine } = result.details;
 				const loc = editLine > 0 ? ` ${theme.fg("muted", `at line ${editLine}`)}` : "";
-				return new Text(`  ${s}${loc}`, 1, 0);
-			}
-			if (result.details?._type === "multiEditInfo") {
+				line = `${s}${loc}`;
+			} else if (result.details?._type === "multiEditInfo") {
 				const { summary: s, editCount, diffLineCount } = result.details;
-				return new Text(`  ${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`, 1, 0);
+				line = `${editCount} edits ${s}${typeof diffLineCount === "number" ? ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}` : ""}`;
+			} else {
+				return new Text("", 0, 0);
 			}
-			return new Text("", 0, 0);
+
+			// Render inside the call Box so the line sits on the tool background —
+			// a sibling Text would fall through to the raw terminal background.
+			// Escape sequences terminating with a full \x1b[0m reset would kill the
+			// Box-painted background mid-line, so downgrade them to fg-only resets.
+			// Guard against re-adding on every updateDisplay() pass. Must return
+			// an EMPTY Text (pi re-adds the returned component as a sibling —
+			// returning the attached Text would render the line twice).
+			const safeLine = line.replace(/\x1b\[0m/g, Ansi.FG_RST);
+			const key = `${bgKey}|${safeLine}`;
+			const prev = ctx.state._resText as Text | undefined;
+			const empty = new Text("", 0, 0);
+			if (prev && ctx.state._resKey === key && box && box.children.includes(prev)) return empty;
+			const t = new Text(safeLine, 0, 0);
+			if (box) {
+				if (prev) box.removeChild(prev);
+				box.addChild(t);
+			}
+			ctx.state._resText = t;
+			ctx.state._resKey = key;
+			return box ? empty : t;
 		},
 	});
 }

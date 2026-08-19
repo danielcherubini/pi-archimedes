@@ -7,6 +7,7 @@ import { deriveBgFromTheme } from "./colors.js";
 // ---------------------------------------------------------------------------
 
 export const RST = "\x1b[0m";
+export const FG_RST = "\x1b[39m"; // reset foreground only — safe inside background-painted lines
 export const BOLD = "\x1b[1m";
 export const DIM = "\x1b[2m";
 
