@@ -22,7 +22,8 @@ import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv
  *
  * A schema that fails to compile degrades to a pass-through validator
  * (structured output data is not validated) instead of taking down the
- * server.
+ * server. Skipped silently — the schema is third-party and the same
+ * one would warn again on every reconnect.
  */
 export class TolerantJsonSchemaValidator implements jsonSchemaValidator {
 	private readonly _inner: jsonSchemaValidator;
@@ -34,9 +35,7 @@ export class TolerantJsonSchemaValidator implements jsonSchemaValidator {
 	getValidator<T>(schema: JsonSchemaType): JsonSchemaValidator<T> {
 		try {
 			return this._inner.getValidator<T>(schema);
-		} catch (error) {
-			const reason = error instanceof Error ? error.message : String(error);
-			console.warn(`[mcp] Skipping schema validation for a tool with an unresolvable schema: ${reason}`);
+		} catch {
 			return (input: unknown) => ({ valid: true, data: input as T, errorMessage: undefined });
 		}
 	}

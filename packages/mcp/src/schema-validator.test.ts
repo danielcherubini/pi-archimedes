@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { jsonSchemaValidator, JsonSchemaType } from "@modelcontextprotocol/sdk/validation";
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import { TolerantJsonSchemaValidator } from "./schema-validator.js";
@@ -28,10 +28,6 @@ const okPass = (returnThis: unknown) => ({
   getValidator: () => returnThis,
 }) as unknown as jsonSchemaValidator;
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("TolerantJsonSchemaValidator", () => {
   it("delegates to the inner validator when compilation succeeds", () => {
     const marker = (input: unknown) => ({ valid: true as const, data: input, errorMessage: undefined as undefined });
@@ -49,10 +45,8 @@ describe("TolerantJsonSchemaValidator", () => {
     const raw = new AjvJsonSchemaValidator();
     expect(() => raw.getValidator(BROKEN_SCREEN_INSTANCE)).toThrow(/can't resolve reference #\/\$defs\/ScreenInstance/);
 
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const wrapper = new TolerantJsonSchemaValidator();
     const v = wrapper.getValidator(BROKEN_SCREEN_INSTANCE);
-    expect(warn).toHaveBeenCalled();
     expect(v({ anything: "goes" })).toEqual({
       valid: true,
       data: { anything: "goes" },
