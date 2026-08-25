@@ -29,7 +29,7 @@ export function clampLine(line: string, maxW: number): string {
 }
 
 /** Clamp an array of lines to maxW visible characters each. */
-export function clampLines(lines: string[], maxW: number): string[] {
+function clampLines(lines: string[], maxW: number): string[] {
   return lines.map((l) => clampLine(l, maxW));
 }
 

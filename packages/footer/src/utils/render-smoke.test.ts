@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripAnsi, clampLines } from "@pi-archimedes/core/text";
+import { stripAnsi } from "@pi-archimedes/core/text";
 import { packFooterLines, SEP_W, SEPARATOR } from "./layout.js";
 import { formatContextBar } from "./format.js";
 import { visibleWidth } from "@earendil-works/pi-tui";
@@ -44,7 +44,7 @@ describe("render glue simulation", () => {
     const lines = buildLines(200, 12);
     expect(lines.length).toBe(1);
     // clamp to terminal — must survive (nothing cut)
-    const [clamped] = clampLines(lines, 200);
+    const clamped = lines[0];
     expect(stripAnsi(clamped!)).toContain("116k/977k");
     expect(visibleWidth(stripAnsi(clamped!))).toBeLessThanOrEqual(200);
     // stats line ends with the bar percentage label
