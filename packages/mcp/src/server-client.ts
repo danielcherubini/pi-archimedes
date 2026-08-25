@@ -18,6 +18,7 @@ import {
 import { resolveNpxBinary } from "./npx-resolver.js";
 import { saveServerCache } from "./metadata-cache.js";
 import { isHttpDef } from "./config.js";
+import { TolerantJsonSchemaValidator } from "./schema-validator.js";
 
 /**
  * Build the request headers for an HTTP server from its full definition.
@@ -155,7 +156,12 @@ export class ServerClient {
     this.name = name;
     this._def = def;
     this.clientFactory = options?.clientFactory ?? (() => {
-      return new Client({ name: "pi-archimedes-mcp", version: "1.0.0" }, {});
+      // A single unsound server schema must not take down the whole tools list —
+      // see TolerantJsonSchemaValidator for the reason.
+      return new Client(
+        { name: "pi-archimedes-mcp", version: "1.0.0" },
+        { jsonSchemaValidator: new TolerantJsonSchemaValidator() },
+      );
     });
   }
 
