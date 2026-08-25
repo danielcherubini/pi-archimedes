@@ -152,10 +152,11 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
     ) {
       const details = result.details;
 
-      // No `details` means execute() never ran — the harness produced this
-      // result (schema-validation failure, blocked call, abort). Collapsed,
-      // show a single red ✗ line; the full message is revealed on expand.
-      if (!details) {
+      // execute() always carries details.todos. Anything else — including
+      // the harness' rejection results, which attach details: {} — means
+      // execute() never ran (validation failure, blocked call, abort).
+      // Collapsed, show a single red ✗ line; the full message on expand.
+      if (!details || !Array.isArray(details.todos)) {
         const first = result.content[0];
         const text = first && "text" in first && typeof first.text === "string" ? first.text : "";
         if (!expanded) {
