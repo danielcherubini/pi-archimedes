@@ -12,12 +12,20 @@ export function formatTokenCount(count: number): string {
   return Math.round(count / TOKEN_M) + "M";
 }
 
-export function formatContextBar(colorize: ColorFn, percentValue: number, availableSpace: number): string {
-  if (availableSpace <= 2) return "";
+/**
+ * Context progress bar, sized to occupy EXACTLY `totalSpace` visible columns
+ * (icon + gaps + bar + percentage label). Returns "" when there isn't room
+ * for the icon, label and at least one bar segment.
+ */
+export function formatContextBar(colorize: ColorFn, percentValue: number, totalSpace: number): string {
+  const pct = Math.min(1, Math.max(0, percentValue / 100));
+  const pctLabel = Math.round(Math.max(0, percentValue)) + "%";
+  // Fixed overhead: icon (1) + "  " (2) + " " (1) + percentage label
+  const barLength = totalSpace - 4 - pctLabel.length;
+  if (barLength < 1) return "";
 
-  const pct = Math.min(1, percentValue / 100);
-  const filledLength = percentValue > 0 ? Math.max(1, Math.round(pct * availableSpace)) : 0;
-  const emptyLength = availableSpace - filledLength;
+  const filledLength = percentValue > 0 ? Math.max(1, Math.round(pct * barLength)) : 0;
+  const emptyLength = barLength - filledLength;
 
   const barToken = pct >= 0.9 ? "error" : pct >= 0.7 ? "warning" : "syntaxString";
 
@@ -25,7 +33,7 @@ export function formatContextBar(colorize: ColorFn, percentValue: number, availa
   const emptyBar = emptyLength > 0 ? colorize("dim", "━".repeat(emptyLength)) : "";
   const bar = filledBar + emptyBar;
 
-  return colorize(barToken, footerIcons.contextWindow) + "  " + bar + " " + colorize(barToken, Math.round(percentValue) + "%");
+  return colorize(barToken, footerIcons.contextWindow) + "  " + bar + " " + colorize(barToken, pctLabel);
 }
 
 export function formatGitStatusIndicators(

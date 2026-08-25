@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import {
   formatTokenCount,
   formatContextBar,
@@ -75,6 +76,18 @@ describe("formatContextBar", () => {
   it("returns bar with icon and percentage", () => {
     const result = formatContextBar(mockColor, 75, 10);
     expect(result).toContain("75%");
+  });
+
+  it("occupies exactly totalSpace visible columns", () => {
+    expect(visibleWidth(formatContextBar(mockColor, 50, 24))).toBe(24);
+    expect(visibleWidth(formatContextBar(mockColor, 100, 30))).toBe(30);
+    expect(visibleWidth(formatContextBar(mockColor, 0, 16))).toBe(16);
+  });
+
+  it("returns empty when the fixed overhead alone would not fit", () => {
+    // icon + gaps (4) + label leave no room for a bar segment
+    expect(formatContextBar(mockColor, 50, 7)).toBe("");
+    expect(formatContextBar(mockColor, 100, 8)).toBe("");
   });
 });
 

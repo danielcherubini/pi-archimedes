@@ -1,12 +1,15 @@
 /**
- * dir | model | ◐thinking | branch [+status] | worktree | ↑↓R W $cost | ━━━━━ context%
- * Splits into two lines when terminal width < splitThreshold (default 150):
- *   Line 1: system info (dir, branch, model, thinking, worktree)
- *   Line 2: usage stats (↑↓R W $cost + context progress bar)
+ * dir | branch [+status] | worktree | model | ◐thinking | ↑↓R W $cost ━ context%
+ *
+ * Adaptive layout — wraps to additional lines instead of truncating:
+ * - fits width → single line (system info · stats · context bar)
+ * - doesn't fit → two lines (system info above, stats + bar below)
+ * - left sections alone overflow → three or more lines
+ * - below splitThreshold (default 150) → at least two lines, as configured
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { clampLine } from "@pi-archimedes/core/text";
 import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
@@ -14,6 +17,9 @@ import { getGitStatus, getWorktreeInfo } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
+import { packFooterLines } from "./utils/layout.js";
+
+const SEP_W = 3; // visible width of the " · " separator
 
 export function registerFooter(pi: ExtensionAPI): void {
   // Module-level state for session lifecycle (shared between session_start and session_shutdown)
@@ -65,17 +71,11 @@ export function registerFooter(pi: ExtensionAPI): void {
             const { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost } = mergedStats;
             const { percent: contextPercent, percentValue: contextPercentValue, windowSize: contextWindowSize } = getContextWindowInfo(ctx);
 
-            // ── Two-line split for narrow terminals ────────────────────────────
+            // ── Sections ──────────────────────────────────────────────────
 
-            const shouldSplit = width < splitThreshold;
-
-            // Thinking display
             const thinkingIndicatorStr = formatThinkingIndicator(thinkingLevel, colorize);
-
-            // Git status indicators
             const gitStatusStr = formatGitStatusIndicators(gitStatus, colorize);
 
-            // Left section: dir | branch [+status] | model | thinking | worktree
             // Worktree chip: shown only inside a linked worktree (never in the
             // main clone). Label = worktree directory, omitted when it simply
             // duplicates the adjacent directory chip (e.g. cwd at its root).
@@ -83,6 +83,7 @@ export function registerFooter(pi: ExtensionAPI): void {
               ? worktree.directory !== currentDirectory ? " " + worktree.directory : ""
               : "";
 
+            // System info sections: dir | branch [+status] | worktree | model | thinking
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
               currentBranch ? colorize("success", footerIcons.branch + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
@@ -91,10 +92,7 @@ export function registerFooter(pi: ExtensionAPI): void {
               thinkingIndicatorStr,
             ].filter(Boolean);
 
-            const separator = theme.fg("dim", " · ");
-            const leftSectionStr = leftSections.join(separator);
-
-            // Token stats with context percentage
+            // Usage stats: ↑in ↓out RcacheRead WcacheWrite $cost contextWindow
             const statsParts: string[] = [];
             if (totalInput) statsParts.push("↑" + formatTokenCount(totalInput));
             if (totalOutput) statsParts.push("↓" + formatTokenCount(totalOutput));
@@ -115,56 +113,33 @@ export function registerFooter(pi: ExtensionAPI): void {
                   : contextDisplay;
             statsParts.push(contextColored);
 
-            const rawStatsSectionStr = statsParts.join(" ");
-            const statsSectionStr = theme.fg("dim", rawStatsSectionStr);
+            const statsSectionStr = theme.fg("dim", statsParts.join(" "));
 
-            if (shouldSplit) {
-              // ── Two-line mode ──────────────────────────────────────────────
-
-              // Calculate available space for the context progress bar on line 2
-              const availableBarSpace = Math.max(2, width - visibleWidth(statsSectionStr) - 13);
-
-              // Context progress bar (expands to fill remaining space)
-              const contextBarStr = formatContextBar(colorize as (token: string, s: string) => string, contextPercentValue, availableBarSpace);
-
-              // Assemble line 2: stats | bar
-              const rightSections: string[] = [];
-              if (statsSectionStr) rightSections.push(statsSectionStr);
-              if (contextBarStr) rightSections.push(contextBarStr);
-              const rightSectionStr = rightSections.join(theme.fg("dim", " · "));
-
-              // Edge case: if both stats and bar are empty, return only line 1
-              if (!rightSectionStr) {
-                return [clampLine(leftSectionStr, width)];
-              }
-
-              return [
-                clampLine(leftSectionStr, width),
-                clampLine(rightSectionStr, width),
-              ];
+            // ── Adaptive multi-line layout ──────────────────────────────
+            // Pack sections left-to-right; whatever doesn't fit wraps to the
+            // next line. Below the splitThreshold setting, force at least the
+            // two-line split (system info above, stats below) even when one
+            // line would fit. The context bar expands into the remainder of
+            // the last line and is dropped only if no reasonable space is left.
+            const separator = theme.fg("dim", " · ");
+            let groups = packFooterLines([...leftSections, statsSectionStr], width, SEP_W);
+            if (groups.length < 2 && width < splitThreshold && leftSections.length > 0) {
+              groups = [leftSections, [statsSectionStr]];
             }
 
-            // ── Single-line mode ───────────────────────────────────────────────
-
-            // Separator between left and right sections
-            const sectionSeparator = theme.fg("dim", " · ");
-
-            // Calculate available space for the context progress bar (after stats)
-            const availableBarSpace = Math.max(
-              2,
-              width - visibleWidth(leftSectionStr) - 1 - visibleWidth(sectionSeparator) - visibleWidth(statsSectionStr) - 10,
-            );
-
-            // Context progress bar (expands to fill remaining space)
-            const contextBarStr = formatContextBar(colorize as (token: string, s: string) => string, contextPercentValue, availableBarSpace);
-
-            // Assemble: left | stats | bar
-            const rightSections: string[] = [];
-            if (statsSectionStr) rightSections.push(statsSectionStr);
-            if (contextBarStr) rightSections.push(contextBarStr);
-            const rightSectionStr = rightSections.join(theme.fg("dim", " · "));
-
-            return [clampLine(leftSectionStr + sectionSeparator + rightSectionStr, width)];
+            return groups
+              .map((group, idx) => {
+                let line = group.join(separator);
+                if (idx === groups.length - 1) {
+                  const remaining = width - visibleWidth(line) - (line ? SEP_W : 0);
+                  const contextBarStr = formatContextBar(colorize, contextPercentValue, remaining);
+                  if (contextBarStr) {
+                    line = line ? line + separator + contextBarStr : contextBarStr;
+                  }
+                }
+                return clampLine(line, width);
+              })
+              .filter((line) => line.length > 0);
           } catch (e) {
             console.error("[archimedes:footer] Render error:", e);
             return [];
