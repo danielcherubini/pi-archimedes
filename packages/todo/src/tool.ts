@@ -3,6 +3,7 @@ import type { AgentToolResult, ExtensionContext, Theme, ToolRenderResultOptions 
 import { Text } from "@earendil-works/pi-tui";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { renderToolHeader, renderStatusLabel } from "@pi-archimedes/core/tool-render";
+import { prepareTodoArguments } from "./prepare-args.js";
 import type { TodoStateManager } from "./state-manager.js";
 import { STATUS_ICONS } from "./types.js";
 import type { TodoDetails } from "./types.js";
@@ -68,6 +69,11 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
     label: "Todo List",
     description: TOOL_DESCRIPTION,
     parameters: ManageTodoListParams,
+
+    // Repair common model mistakes (stringified arrays, missing
+    // title/status, bare-string items) BEFORE schema validation. See
+    // prepare-args.ts.
+    prepareArguments: prepareTodoArguments,
 
     async execute(
       _toolCallId: string,
