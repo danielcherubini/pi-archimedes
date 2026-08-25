@@ -4,6 +4,14 @@ import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { execFile } from "node:child_process";
 
+// ── Trigger constants ────────────────────────────────────────────────────────
+
+const TRIGGER = {
+  AGENT_END: "agent_end",
+  ASK_REQUEST: "ask_request",
+} as const;
+type TriggerType = (typeof TRIGGER)[keyof typeof TRIGGER];
+
 // ── Config ──────────────────────────────────────────────────────────────────
 
 export interface NotifyConfig {
@@ -124,7 +132,7 @@ export function notify(title: string, body: string): void {
 // ── Circuit breaker state ───────────────────────────────────────────────────
 
 let notifyTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingTrigger: "agent_end" | "ask_request" | null = null;
+let pendingTrigger: TriggerType | null = null;
 
 // ── Circuit breaker logic ───────────────────────────────────────────────────
 
@@ -138,7 +146,7 @@ export function cancelPending(): void {
 }
 
 /** Schedule a delayed notification (circuit breaker). */
-export function scheduleNotify(trigger: "agent_end" | "ask_request"): void {
+export function scheduleNotify(trigger: TriggerType): void {
   // Cancel any existing timer first
   cancelPending();
 
@@ -149,11 +157,11 @@ export function scheduleNotify(trigger: "agent_end" | "ask_request"): void {
     return;
   }
 
-  if (trigger === "agent_end" && !config.notifyOnAgentEnd) {
+  if (trigger === TRIGGER.AGENT_END && !config.notifyOnAgentEnd) {
     return;
   }
 
-  if (trigger === "ask_request" && !config.notifyOnQuestion) {
+  if (trigger === TRIGGER.ASK_REQUEST && !config.notifyOnQuestion) {
     return;
   }
 
@@ -169,8 +177,8 @@ export function scheduleNotify(trigger: "agent_end" | "ask_request"): void {
 }
 
 /** Fire the actual notification based on the pending trigger. */
-function fireNotification(trigger: "agent_end" | "ask_request" | null): void {
-  if (trigger === "agent_end") {
+function fireNotification(trigger: TriggerType | null): void {
+  if (trigger === TRIGGER.AGENT_END) {
     notify("Pi", "Task complete — waiting for input");
   } else {
     notify("Pi", "A question needs your answer");
@@ -181,14 +189,14 @@ function fireNotification(trigger: "agent_end" | "ask_request" | null): void {
 
 /** Register the notify extension with the Pi agent. */
 export function registerNotify(pi: ExtensionAPI): void {
-  pi.on("agent_end", () => scheduleNotify("agent_end"));
+  pi.on("agent_end", () => scheduleNotify(TRIGGER.AGENT_END));
   pi.on("input", () => cancelPending());
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
 
   // Listen for ask requests from the bus (ask package emits this)
   const unsubAskRequest = getBus().on(Events.ASK_REQUEST, () =>
-    scheduleNotify("ask_request"),
+    scheduleNotify(TRIGGER.ASK_REQUEST),
   );
 
   // Listen for raw terminal keystrokes — cancel on any key press
