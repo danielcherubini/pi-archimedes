@@ -79,15 +79,14 @@ export function registerFooter(pi: ExtensionAPI): void {
             // Worktree chip: shown only inside a linked worktree (never in the
             // main clone). Label = worktree directory, omitted when it simply
             // duplicates the adjacent directory chip (e.g. cwd at its root).
-            const worktreeLabel = worktree
-              ? worktree.directory !== currentDirectory ? " " + worktree.directory : ""
-              : "";
+            // Use the worktree icon instead of the branch icon when cwd is
+            // inside a linked worktree — same position, no extra chip needed.
+            const branchIcon = worktree ? footerIcons.worktree : footerIcons.branch;
 
-            // System info sections: dir | branch [+status] | worktree | model | thinking
+            // System info sections: dir | branch [+status] | model | thinking
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
-              currentBranch ? colorize("success", footerIcons.branch + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
-              worktree ? colorize("syntaxNumber", footerIcons.worktree + worktreeLabel) : "",
+              currentBranch ? colorize("success", branchIcon + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
             ].filter(Boolean);
