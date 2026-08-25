@@ -2,7 +2,7 @@ import { Type } from "typebox";
 
 // ── JSON Schema for tool parameters (TypeBox) ──────────────────────────────
 
-export const TaskItem = Type.Object({
+const TaskItem = Type.Object({
   agent: Type.Optional(Type.String({
     description: "Agent name for this task (optional). If omitted, runs config-less.",
   })),
