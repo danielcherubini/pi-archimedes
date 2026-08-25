@@ -30,7 +30,13 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
   }
 
   const src = proto.updateContent.toString();
-  const hasThinkingCheck = src.includes('content.type === "thinking"');
+  // NOTE: pi ships the interactive TUI in a minified bundle chunk at runtime, so
+  // the source we see via .toString() can be `content.type==="thinking"` (no
+  // spaces) even where dist is readable. The probe below must therefore be
+  // minification-safe: a whitespace-tolerant regex rather than an exact
+  // substring. A bare `space === "thinking"` (or any other field) still does
+  // not match, as required.
+  const hasThinkingCheck = /content\.type\s*===\s*["']thinking["']/.test(src);
   const hasMarkdownTheme = src.includes("this.markdownTheme");
   if (!hasThinkingCheck || !hasMarkdownTheme) {
     console.warn(
@@ -55,9 +61,25 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
     }
   }
 
-  // Re-patch every time — /resume needs a fresh getTheme closure
-  (proto as any).updateContent = function (this: any, message: any): void {
+  // Re-patched every session_start — /resume needs a fresh getTheme closure.
+  //
+  // Shape: 0.84.3 pi native updateContent:
+  //   updateContent(message, isStreaming = this.isStreaming) {
+  //     this.lastMessage = message;
+  //     this.isStreaming = isStreaming;
+  //     this.contentContainer.clear();
+  //     ...
+  //     // batches consecutive "thinking" parts into thinkingBlocks
+  //     //   (skipping empties), i-- after the inner loop,
+  //     //   renders as ONE Markdown section of thinkingBlocks.join("\n\n")
+  //     // or ONE static Text label when hidden.
+  //     // stop-reason: const hasToolCalls = content.some(...);
+  //     //   this.hasToolCalls = hasToolCalls; (render() uses for OSC-133 zones)
+  //     //   stopReason === "length" → Spacer + "truncated" Text
+  //     //   else if (!hasToolCalls) { aborted / error branches }
+  (proto as any).updateContent = function (this: any, message: any, isStreaming?: boolean): void {
     this.lastMessage = message;
+    if (isStreaming !== undefined) this.isStreaming = isStreaming;
 
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
@@ -105,11 +127,11 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
     // We must preserve it here, otherwise those transformers are silently
     // dropped when this patch replaces updateContent.
     //
-    // NOTE: the `transform` option was added to @earendil-works/pi-tui in
-    // 0.84.1. The repo's lockfile pins 0.78.0 whose types lack the field, so we
-    // extend the options type locally; at runtime the field is ignored by very
-    // old pi-tui and honored by 0.84.1+ (which is where Mermaid rendering and
-    // the bug both exist).
+    // NOTE: `createMarkdownTransform` is not exported from pi-coding-agent, so
+    // we inline an equivalent pipeline over `this.markdownTransformers`.
+    //
+    // The `transform` option was added to @earendil-works/pi-tui in 0.84.1.
+    // At runtime older pi-tui ignores the field, 0.84.1+ honors it.
     type MarkdownOptionsWithTransform = MarkdownOptions & {
       transform?: (markdown: string, availableWidth: number) => string;
     };
@@ -139,14 +161,27 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
         this.contentContainer.addChild(
           new Markdown(
             content.text.trim(),
-            1,
+            this.outputPad ?? 1,
             0,
             this.markdownTheme,
             undefined,
             { transform: transformFor("assistant") } as MarkdownOptionsWithTransform,
           ),
         );
-      } else if (content.type === "thinking" && content.thinking.trim()) {
+      } else if (content.type === "thinking") {
+        // Batch a consecutive run of thinking parts into one section
+        // (mirrors 0.84.3 pi native behaviour: thinkBlocks, i-- on the
+        // inner loop, early continue on zero-length runs).
+        const thinkBlocks: string[] = [];
+        for (; i < message.content.length; i++) {
+          const thinkingPart = message.content[i];
+          if (thinkingPart.type !== "thinking") break;
+          const trimmed = thinkingPart.thinking.trim();
+          if (trimmed) thinkBlocks.push(trimmed);
+        }
+        i--;
+        if (thinkBlocks.length === 0) continue;
+
         const hasVisibleContentAfter = message.content
           .slice(i + 1)
           .some(
@@ -156,16 +191,17 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
           );
 
         if (this.hideThinkingBlock) {
+          // One static label for the whole run when hidden.
           const t = ensureTheme();
           if (!t) continue;
           this.contentContainer.addChild(
-            new Text(t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)), 1, 0),
+            new Text(t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad ?? 1, 0),
           );
           if (hasVisibleContentAfter) {
             this.contentContainer.addChild(new Spacer(1));
           }
         } else {
-          let thinkingContent = content.thinking.trim();
+          let thinkingContent = thinkBlocks.join("\n\n");
           if (!thinkingContent.startsWith(THINKING_LABEL)) {
             thinkingContent = `${THINKING_LABEL}\n\n${thinkingContent}`;
           }
@@ -175,7 +211,7 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
           this.contentContainer.addChild(
             new Markdown(
               thinkingContent,
-              1,
+              this.outputPad ?? 1,
               0,
               muted ?? this.markdownTheme,
               {
@@ -192,9 +228,19 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
       }
     }
 
-    // Aborted/error rendering.
+    // Stop-reason handling — 0.84.3 pi shape. `hasToolCalls` is required by
+    // the component's render() for OSC-133 prompt zones, so it must be set.
     const hasToolCalls = message.content.some((c: any) => c.type === "toolCall");
-    if (!hasToolCalls) {
+    this.hasToolCalls = hasToolCalls;
+
+    if (message.stopReason === "length") {
+      this.contentContainer.addChild(new Spacer(1));
+      const t = ensureTheme();
+      if (t)
+        this.contentContainer.addChild(
+          new Text(t.fg("error", "Response was truncated before completion."), this.outputPad ?? 1, 0),
+        );
+    } else if (!hasToolCalls) {
       if (message.stopReason === "aborted") {
         const abortMessage =
           message.errorMessage && message.errorMessage !== "Request was aborted"
@@ -202,21 +248,18 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
             : "Operation aborted";
         this.contentContainer.addChild(new Spacer(1));
         const t = ensureTheme();
-        if (t) this.contentContainer.addChild(new Text(t.fg("error", abortMessage), 1, 0));
+        if (t) this.contentContainer.addChild(new Text(t.fg("error", abortMessage), this.outputPad ?? 1, 0));
       } else if (message.stopReason === "error") {
         const errorMsg = message.errorMessage || "Unknown error";
         this.contentContainer.addChild(new Spacer(1));
         const t = ensureTheme();
         if (t) {
           this.contentContainer.addChild(
-            new Text(t.fg("error", `Error: ${errorMsg}`), 1, 0),
+            new Text(t.fg("error", `Error: ${errorMsg}`), this.outputPad ?? 1, 0),
           );
         }
       }
     }
-
-    // Bottom padding so next message has breathing room
-    this.contentContainer.addChild(new Spacer(1));
   };
 
   // Mark as patched with version for incompatibility detection
