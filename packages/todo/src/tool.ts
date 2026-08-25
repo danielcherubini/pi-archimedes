@@ -151,9 +151,20 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
       theme: Theme
     ) {
       const details = result.details;
+
+      // No `details` means execute() never ran — the harness produced this
+      // result (schema-validation failure, blocked call, abort). Collapsed,
+      // show a single red ✗ line; the full message is revealed on expand.
       if (!details) {
         const first = result.content[0];
-        return new Text(first && "text" in first ? first.text : "", 0, 0);
+        const text = first && "text" in first && typeof first.text === "string" ? first.text : "";
+        if (!expanded) {
+          const label = /validation failed for tool/i.test(text)
+            ? "invalid arguments"
+            : text.replace(/\s+/g, " ").trim().slice(0, 100);
+          return new Text(label ? renderStatusLabel("error", label, theme) : "", 0, 0);
+        }
+        return new Text(text, 0, 0);
       }
 
       if (details.error) {
