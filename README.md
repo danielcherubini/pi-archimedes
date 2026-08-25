@@ -39,7 +39,7 @@ The visual chrome you see on every Pi session.
 
 A status bar that surfaces what matters without getting in the way.
 
-- Directory, git branch (with clean/dirty indicator), model, thinking level, worktree
+- Directory, git branch (with clean/dirty indicator), worktree, model, thinking level
 - Token stats (↑input ↓output + cost)
 - Color-coded context window bar
 
@@ -271,7 +271,7 @@ Each package reads from its own namespace in `~/.pi/agent/settings.json` — for
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `splitThreshold` | number | `150` | Minimum terminal columns for full footer (below this, simplified layout) |
+| `splitThreshold` | number | `150` | Minimum terminal columns where a single-line footer is allowed (below, at least two lines; above, wraps instead of clipping when it overflows) |
 
 ### [`@pi-archimedes/diff`](packages/diff/README.md)
 
