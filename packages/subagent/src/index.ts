@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Text, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { SUBAGENT_PARAMS_SCHEMA } from "./tool-schema.js";
 import { executeSubagent, executeParallel } from "./execute.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
@@ -14,38 +15,6 @@ import type {
   SubagentResult,
   SubagentToolResult,
 } from "./types.js";
-
-// ── JSON Schema for tool parameters (TypeBox) ──────────────────────────────
-
-const TaskItem = Type.Object({
-  agent: Type.Optional(Type.String({
-    description: "Agent name for this task (optional). If omitted, runs config-less.",
-  })),
-  task: Type.String(),
-  model: Type.Optional(Type.String()),
-  cwd: Type.Optional(Type.String()),
-});
-
-const SUBAGENT_PARAMS_SCHEMA = Type.Object({
-  agent: Type.Optional(Type.String({
-    description: "Agent name (optional). If omitted, the subagent runs config-less — parent's current model, all tools, no system-prompt override. Call list_agents to see available agents.",
-  })),
-  task: Type.Optional(Type.String({
-    description: "Task description for the subagent. Required when not using 'tasks' array.",
-  })),
-  tasks: Type.Optional(Type.Array(TaskItem, {
-    description: "Multiple tasks for parallel execution. Required when not using 'task'.",
-  })),
-  model: Type.Optional(Type.String({
-    description: "Model override for the subagent",
-  })),
-  async: Type.Optional(Type.Boolean({
-    description: "Run asynchronously (fire-and-forget)",
-  })),
-  cwd: Type.Optional(Type.String({
-    description: "Working directory for the subagent",
-  })),
-});
 
 // ── Theme helper type for render functions ──────────────────────────────────
 
