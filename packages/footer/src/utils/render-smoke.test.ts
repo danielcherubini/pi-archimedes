@@ -73,4 +73,16 @@ describe("render glue simulation", () => {
     const lines = buildLines(165, 12, 200); // 159 + bar ≤ 165 fits one line; 165 < 200 forces split
     expect(lines.length).toBe(2);
   });
+
+  it("very narrow (width 40): bar is dropped, stats still present, no line exceeds 40 cols", () => {
+    const lines = buildLines(40, 12);
+    const stripped = lines.map((l) => stripAnsi(l));
+    // Bar should be dropped — no % sign in any line
+    expect(stripped.every((l) => !l.includes("%"))).toBe(true);
+    // Stats should still appear somewhere
+    const all = stripped.join(" ");
+    expect(all).toContain("116k/977k");
+    // No line exceeds 40 visible columns
+    expect(lines.every((l) => visibleWidth(stripAnsi(l)) <= 40)).toBe(true);
+  });
 });

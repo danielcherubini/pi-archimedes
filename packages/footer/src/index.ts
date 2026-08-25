@@ -13,7 +13,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { clampLine } from "@pi-archimedes/core/text";
 import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
-import { getGitStatus, getWorktreeInfo } from "./utils/git.js";
+import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
@@ -54,7 +54,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             const currentBranch = footerData.getGitBranch();
             const currentDirectory = process.cwd().split("/").pop() || process.cwd();
             const gitStatus = getGitStatus();
-            const worktree = getWorktreeInfo();
+            const inWorktree = isInsideLinkedWorktree();
             const thinkingLevel = pi.getThinkingLevel();
 
             // Merge main agent stats with subagent stats from accumulator
@@ -76,12 +76,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             const thinkingIndicatorStr = formatThinkingIndicator(thinkingLevel, colorize);
             const gitStatusStr = formatGitStatusIndicators(gitStatus, colorize);
 
-            // Worktree chip: shown only inside a linked worktree (never in the
-            // main clone). Label = worktree directory, omitted when it simply
-            // duplicates the adjacent directory chip (e.g. cwd at its root).
-            // Use the worktree icon instead of the branch icon when cwd is
-            // inside a linked worktree — same position, no extra chip needed.
-            const branchIcon = worktree ? footerIcons.worktree : footerIcons.branch;
+            const branchIcon = inWorktree ? footerIcons.worktree : footerIcons.branch;
 
             // System info sections: dir | branch [+status] | model | thinking
             const leftSections = [

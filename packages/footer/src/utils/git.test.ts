@@ -15,7 +15,7 @@ interface GitStatus {
 
 describe("getGitStatus", () => {
   let getGitStatus: () => GitStatus;
-  let getWorktreeInfo: () => { branch: string; directory: string } | null;
+  let isInsideLinkedWorktree: () => boolean;
 
   async function loadModule(mockExecSync: ReturnType<typeof vi.fn>) {
     vi.resetModules();
@@ -30,7 +30,7 @@ describe("getGitStatus", () => {
 
     const mod = await import("./git.js");
     getGitStatus = mod.getGitStatus;
-    getWorktreeInfo = mod.getWorktreeInfo;
+    isInsideLinkedWorktree = mod.isInsideLinkedWorktree;
   }
 
   afterEach(() => {
@@ -95,45 +95,36 @@ describe("getGitStatus", () => {
     expect(result.unstaged).toBe(1);
   });
 
-  it("getWorktreeInfo returns null for a single (main) worktree", async () => {
+  it("isInsideLinkedWorktree returns false for a single (main) worktree", async () => {
     const mockExecSync = vi.fn(() => "head ref/heads/main\nworktree /path/to/repo\n");
     await loadModule(mockExecSync);
-    const result = getWorktreeInfo();
-    expect(result).toBeNull();
+    expect(isInsideLinkedWorktree()).toBe(false);
   });
 
-  it("getWorktreeInfo returns null when cwd is the MAIN worktree", async () => {
-    // cwd equals the first porcelain entry → main clone, no worktree chip
+  it("isInsideLinkedWorktree returns false when cwd is the MAIN worktree", async () => {
+    // cwd equals the first porcelain entry → main clone, not a linked worktree
     const cwd = process.cwd();
     const mockExecSync = vi.fn(() =>
       `worktree ${cwd}\nbranch refs/heads/main\n\n` + "worktree /home/x/wt-other\nbranch refs/heads/other\n");
     await loadModule(mockExecSync);
-    expect(getWorktreeInfo()).toBeNull();
+    expect(isInsideLinkedWorktree()).toBe(false);
   });
 
-  it("getWorktreeInfo returns branch and directory of the current worktree", async () => {
+  it("isInsideLinkedWorktree returns true when cwd is a linked worktree", async () => {
     const cwd = process.cwd();
     const mockExecSync = vi.fn(() =>
       "worktree /nope/main\nbranch refs/heads/other\n\n" +
       `worktree ${cwd}\n` + "branch refs/heads/feature/x\n");
     await loadModule(mockExecSync);
-    const result = getWorktreeInfo();
-    expect(result).toEqual({
-      branch: "feature/x",
-      directory: cwd.split("/").filter(Boolean).pop(),
-    });
+    expect(isInsideLinkedWorktree()).toBe(true);
   });
 
-  it("getWorktreeInfo uses an empty branch string when detached", async () => {
+  it("isInsideLinkedWorktree returns true for a detached-HEAD linked worktree", async () => {
     const cwd = process.cwd();
     const mockExecSync = vi.fn(() =>
       "worktree /nope/main\nbranch ref/heads/other\n\n" + `worktree ${cwd}\n` + "detached\n");
     await loadModule(mockExecSync);
-    const result = getWorktreeInfo();
-    expect(result).toEqual({
-      branch: "",
-      directory: cwd.split("/").filter(Boolean).pop(),
-    });
+    expect(isInsideLinkedWorktree()).toBe(true);
   });
 
   it("property: getGitStatus never throws (catches execSync errors gracefully)", async () => {

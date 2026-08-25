@@ -82,4 +82,16 @@ describe("packFooterLines", () => {
     // no slack for separator 3 → wraps
     expect(packFooterLines(["a", "b".repeat(40)], 41, 3)).toHaveLength(2);
   });
+
+  it("measures ANSI-escaped chunks by their visible width only", () => {
+    const plain = "branch"; // 6 visible cols
+    const ansi = "\x1b[32mbranch\x1b[0m"; // same 6 visible cols, with color escape
+    // Both should produce the same grouping structure:
+    // "branch" (6) + sep (3) + "stats" (5) = 14 ≤ 20 → one group of two
+    const plainGroups = packFooterLines([plain, "stats"], 20, 3);
+    const ansiGroups = packFooterLines([ansi, "stats"], 20, 3);
+    // Same number of lines and same number of chunks per line
+    expect(plainGroups.map((g) => g.length)).toEqual(ansiGroups.map((g) => g.length));
+    expect(plainGroups.length).toBe(1);
+  });
 });
