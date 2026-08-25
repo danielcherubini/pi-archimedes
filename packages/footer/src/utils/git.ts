@@ -20,10 +20,18 @@ interface GitCacheEntry {
   timestamp: number;
 }
 
+export interface WorktreeInfo {
+  /** Name of the branch checked out at this worktree (empty string when detached) */
+  branch: string;
+  /** Basename of the worktree directory (display label) */
+  directory: string;
+}
+
 interface WorktreeCacheEntry {
-  value: string | null;
+  value: WorktreeInfo | null;
   timestamp: number;
 }
+
 
 let gitStatusCache: GitCacheEntry | undefined;
 let worktreeCache: WorktreeCacheEntry | undefined;
@@ -131,7 +139,11 @@ export function getGitStatus(): GitStatus {
   return gitStatusCache.value;
 }
 
-export function getWorktreeBranch(): string | null {
+/**
+ * Worktree info for the CURRENT directory: the linked (non-main) worktree
+ * that cwd lives in, or null when cwd is the main clone / not a worktree.
+ */
+export function getWorktreeInfo(): WorktreeInfo | null {
   // Return cached result if still fresh
   if (worktreeCache && Date.now() - worktreeCache.timestamp < GIT_CACHE_TTL_MS) {
     return worktreeCache.value;
@@ -152,16 +164,22 @@ export function getWorktreeBranch(): string | null {
     }
 
     const currentDirectoryPath = realpathSync(process.cwd());
-    let result: string | null = null;
-    for (const entry of worktreeEntries) {
+    let result: WorktreeInfo | null = null;
+    // The first porcelain entry is always the main worktree: being in the
+    // main clone isn't "being in a worktree", so only linked ones (index >= 1)
+    // can match.
+    outer: for (let i = 1; i < worktreeEntries.length; i++) {
+      const entry = worktreeEntries[i]!;
       const entryLines = entry.split("\n");
       const pathLine = entryLines.find((l) => l.startsWith("worktree "));
       const branchLine = entryLines.find((l) => l.startsWith("branch "));
       const worktreePath = pathLine?.replace("worktree ", "");
 
       if (worktreePath && (currentDirectoryPath === worktreePath || currentDirectoryPath.startsWith(worktreePath + "/"))) {
-        result = branchLine?.replace("branch refs/heads/", "") ?? null;
-        break;
+        const branch = branchLine?.replace("branch refs/heads/", "") ?? "";
+        const directory = worktreePath.split("/").filter(Boolean).pop() ?? worktreePath;
+        result = { branch, directory };
+        break outer;
       }
     }
     worktreeCache = { value: result, timestamp: Date.now() };

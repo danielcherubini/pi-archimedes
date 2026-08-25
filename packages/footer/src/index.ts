@@ -10,7 +10,7 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { clampLine } from "@pi-archimedes/core/text";
 import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
-import { getGitStatus, getWorktreeBranch } from "./utils/git.js";
+import { getGitStatus, getWorktreeInfo } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
@@ -48,7 +48,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             const currentBranch = footerData.getGitBranch();
             const currentDirectory = process.cwd().split("/").pop() || process.cwd();
             const gitStatus = getGitStatus();
-            const worktreeBranch = getWorktreeBranch();
+            const worktree = getWorktreeInfo();
             const thinkingLevel = pi.getThinkingLevel();
 
             // Merge main agent stats with subagent stats from accumulator
@@ -76,10 +76,17 @@ export function registerFooter(pi: ExtensionAPI): void {
             const gitStatusStr = formatGitStatusIndicators(gitStatus, colorize);
 
             // Left section: dir | branch [+status] | model | thinking | worktree
+            // Worktree chip: shown only inside a linked worktree (never in the
+            // main clone). Label = worktree directory, omitted when it simply
+            // duplicates the adjacent directory chip (e.g. cwd at its root).
+            const worktreeLabel = worktree
+              ? worktree.directory !== currentDirectory ? " " + worktree.directory : ""
+              : "";
+
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
               currentBranch ? colorize("success", footerIcons.branch + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
-              worktreeBranch ? colorize("syntaxNumber", footerIcons.worktree + " " + worktreeBranch) : "",
+              worktree ? colorize("syntaxNumber", footerIcons.worktree + worktreeLabel) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
             ].filter(Boolean);
