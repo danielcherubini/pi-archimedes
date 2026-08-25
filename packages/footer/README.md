@@ -6,7 +6,7 @@ Your terminal is already full of information. The footer gives you exactly what 
 
 ## What you get
 
-- **Session context at a glance** — directory, git branch (with clean/dirty indicator), worktree (when inside a linked one), active model, thinking level
+- **Session context at a glance** — directory, git branch (with clean/dirty indicators), active model, thinking level; the branch icon switches from `⎇` to `🌲` when cwd is inside a linked worktree — no extra chip, no duplication
 - **Token stats** — input ↑, output ↓, cache read/write, and real-dollar cost, all in one compact display
 - **Context window bar** — color-coded progress bar (green → yellow → red) showing how much of your context window is used
 - **Adaptive layout** — everything on one line when it fits; otherwise it wraps to additional lines (two or three) instead of clipping. Width at which it switches is configurable
@@ -40,7 +40,6 @@ Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.footer`
 
 ## Integration
 
-When installed via meta package, footer consumes cost events from subagents through the core bus, giving a unified token/cost view. Standalone install shows only the main agent's stats.
-
+When installed via the meta package, footer consumes cost events from subagents through the core bus, giving a unified token/cost view across the main agent and any running subagents. Standalone install shows only the main agent's stats.
 
 ← Back to [pi-archimedes](../../README.md)
