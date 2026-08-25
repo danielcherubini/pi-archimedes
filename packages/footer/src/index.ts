@@ -79,9 +79,9 @@ export function registerFooter(pi: ExtensionAPI): void {
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
               currentBranch ? colorize("success", footerIcons.branch + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
+              worktreeBranch ? colorize("syntaxNumber", footerIcons.worktree + " " + worktreeBranch) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
-              worktreeBranch ? colorize("syntaxNumber", footerIcons.worktree + " " + worktreeBranch) : "",
             ].filter(Boolean);
 
             const separator = theme.fg("dim", " · ");
