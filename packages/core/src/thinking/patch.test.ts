@@ -196,6 +196,54 @@ describe("patchThinkingRenderer", () => {
 		expect(MockClassV2.prototype[PATCH_VERSION_KEY]).toBe("2.0.0");
 	});
 
+	it("accepts a minified thinking-check variant (no whitespace around ===)", async () => {
+		const MockClass = function AssistantMessageComponent() {};
+		MockClass.prototype.updateContent = function updateContent() {
+			// Minified dist-chunk shape: no whitespace around ===, single quotes
+			const content = { type: "thinking" };
+			if (content.type==="thinking") {
+				this.markdownTheme.codeBlockIndent="";
+			}
+		};
+
+		vi.doMock("@earendil-works/pi-coding-agent", () => ({
+			AssistantMessageComponent: MockClass,
+			VERSION: "1.0.0",
+			highlightCode: vi.fn(),
+		}));
+
+		const patch = await importPatch();
+		patch(() => ({} as any));
+
+		// The minification-safe regex probe must accept the minified variant
+		expect(MockClass.prototype[PATCHED_KEY]).toBe(true);
+	});
+
+	it("rejects a negated thinking check", async () => {
+		const MockClass = function AssistantMessageComponent() {};
+		MockClass.prototype.updateContent = function updateContent() {
+			// pi 0.84.3's own minified chunk contains
+			// `thinkingContent.type!=="thinking"` (inner batch-loop break). A source whose
+			// ONLY thinking-relations are negations must NOT pass the probe.
+			const content = { type: "thinking" };
+			if (content.type!=="thinking") {
+				this.markdownTheme.codeBlockIndent="";
+			}
+		};
+
+		vi.doMock("@earendil-works/pi-coding-agent", () => ({
+			AssistantMessageComponent: MockClass,
+			VERSION: "1.0.0",
+			highlightCode: vi.fn(),
+		}));
+
+		const patch = await importPatch();
+		patch(() => ({} as any));
+
+		// PATCHED_KEY must NOT be set — the probe must not match `!==`
+		expect(MockClass.prototype[PATCHED_KEY]).toBeUndefined();
+	});
+
 	it("re-patches on same version to update getTheme closure", async () => {
 		const MockClass = function AssistantMessageComponent() {};
 		MockClass.prototype.updateContent = function updateContent() {

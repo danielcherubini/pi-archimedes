@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { measureChunks, packFooterLines } from "./layout.js";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import { packFooterLines, SEP_W } from "./layout.js";
+
+/** Local copy of measureChunks (not exported from layout.ts — test-only helper). */
+function measureChunks(chunks: string[], sepWidth = SEP_W): number {
+  let w = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    w += (i > 0 ? sepWidth : 0) + visibleWidth(chunks[i]!);
+  }
+  return w;
+}
 
 // Plain-Chinese chunks keep the math readable; packFooterLines only
 // needs to *measure* them, not render them.
@@ -34,14 +44,14 @@ describe("packFooterLines", () => {
 
   it("keeps everything on one line when it fits", () => {
     const chunks = [DIR, BRANCH, WORKTREE, MODEL, THINKING, STATS];
-    const groups = packFooterLines(chunks, measureChunks(chunks) + 10, 3);
+    const groups = packFooterLines(chunks, measureChunks(chunks) + 10, SEP_W);
     expect(groups).toEqual([chunks]);
   });
 
   it("exactly-fits means one line (boundary is inclusive)", () => {
     const chunks = [DIR, BRANCH];
-    const width = measureChunks(chunks); // 1 + 3 + 40
-    expect(packFooterLines(chunks, width, 3)).toEqual([chunks]);
+    const width = measureChunks(chunks); // 1 + SEP_W + 40
+    expect(packFooterLines(chunks, width, SEP_W)).toEqual([chunks]);
   });
 
   it("wraps the tail to a second line when it no longer fits", () => {
@@ -49,7 +59,7 @@ describe("packFooterLines", () => {
     const oneLineW = measureChunks(chunks);
 
     // One less column than needed → STATS drops to its own line
-    const groups = packFooterLines(chunks, oneLineW - 1, 3);
+    const groups = packFooterLines(chunks, oneLineW - 1, SEP_W);
     expect(groups).toEqual([[DIR, BRANCH, WORKTREE, MODEL, THINKING], [STATS]]);
   });
 
@@ -57,7 +67,7 @@ describe("packFooterLines", () => {
     // ""(1) + sep + 40"" fits, +worktree doesn't.
     // worktree+model+thinking (55) fits, +stats (78) doesn't.
     const chunks = [DIR, BRANCH, WORKTREE, MODEL, THINKING, STATS];
-    const groups = packFooterLines(chunks, 70, 3);
+    const groups = packFooterLines(chunks, 70, SEP_W);
     expect(groups).toEqual([
       [DIR, BRANCH],
       [WORKTREE, MODEL, THINKING],
@@ -67,20 +77,20 @@ describe("packFooterLines", () => {
 
   it("gives an over-wide chunk its own line", () => {
     const huge = "x".repeat(120); // wider than the terminal
-    const groups = packFooterLines([DIR, huge, STATS], 60, 3);
+    const groups = packFooterLines([DIR, huge, STATS], 60, SEP_W);
     expect(groups).toEqual([[DIR], [huge], [STATS]]);
   });
 
   it("splits per chunk on a near-zero width", () => {
-    const groups = packFooterLines([DIR, MODEL], 0, 3);
+    const groups = packFooterLines([DIR, MODEL], 0, SEP_W);
     expect(groups).toEqual([[DIR], [MODEL]]);
   });
 
   it("respects a custom separator width", () => {
     // separator of 0: dir(1) and branch(40) fit in 41
     expect(packFooterLines(["a", "b".repeat(40)], 41, 0)).toHaveLength(1);
-    // no slack for separator 3 → wraps
-    expect(packFooterLines(["a", "b".repeat(40)], 41, 3)).toHaveLength(2);
+    // no slack for separator SEP_W → wraps
+    expect(packFooterLines(["a", "b".repeat(40)], 41, SEP_W)).toHaveLength(2);
   });
 
   it("measures ANSI-escaped chunks by their visible width only", () => {

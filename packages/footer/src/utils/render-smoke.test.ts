@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { stripAnsi, clampLines } from "@pi-archimedes/core/text";
-import { packFooterLines } from "./layout.js";
+import { stripAnsi } from "@pi-archimedes/core/text";
+import { packFooterLines, SEP_W, SEPARATOR } from "./layout.js";
 import { formatContextBar } from "./format.js";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
@@ -22,18 +22,17 @@ function buildLines(width: number, pct: number, splitThreshold = 150) {
     MODEL,
     THINKING,
   ].filter(Boolean);
-  const SEP_W = 3;
   let groups = packFooterLines([...leftSections, STATS], width, SEP_W);
   if (groups.length < 2 && width < splitThreshold && leftSections.length > 0) {
     groups = [leftSections, [STATS]];
   }
   return groups
     .map((g, idx) => {
-      let line = g.join(" · ");
+      let line = g.join(SEPARATOR);
       if (idx === groups.length - 1) {
         const remaining = width - visibleWidth(line) - (line ? SEP_W : 0);
         const bar = formatContextBar((t, s) => s, pct, remaining);
-        if (bar) line = line ? line + " · " + bar : bar;
+        if (bar) line = line ? line + SEPARATOR + bar : bar;
       }
       return line;
     })
@@ -45,7 +44,7 @@ describe("render glue simulation", () => {
     const lines = buildLines(200, 12);
     expect(lines.length).toBe(1);
     // clamp to terminal — must survive (nothing cut)
-    const [clamped] = clampLines(lines, 200);
+    const clamped = lines[0];
     expect(stripAnsi(clamped!)).toContain("116k/977k");
     expect(visibleWidth(stripAnsi(clamped!))).toBeLessThanOrEqual(200);
     // stats line ends with the bar percentage label

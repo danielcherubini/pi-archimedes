@@ -16,16 +16,16 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { openMcpPanel } from "./panel.js";
 import {
   buildVisibleRows,
   computeSelection,
   filterRows,
-  openMcpPanel,
   toggleTool,
   type ServerRow,
   type ToolRow,
   type VisibleRow,
-} from "./panel.js";
+} from "./panel-rows.js";
 import type { ServerManager } from "./server-manager.js";
 import type { ServerDef } from "./types.js";
 

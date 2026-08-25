@@ -16,11 +16,16 @@ import { visibleWidth } from "@earendil-works/pi-tui";
  * for clamping it (last-resort truncation of one irreducibly long item).
  */
 
+/** Visible width of the " · " footer separator. */
+export const SEP_W = 3;
+/** The footer section separator string (without ANSI colouring — colour it at the call site). */
+export const SEPARATOR = " · ";
+
 /**
  * Total visible columns of chunks joined by a separator of `sepWidth`
  * visible characters.
  */
-export function measureChunks(chunks: string[], sepWidth = 3): number {
+function measureChunks(chunks: string[], sepWidth = 3): number {
   let w = 0;
   for (let i = 0; i < chunks.length; i++) {
     w += (i > 0 ? sepWidth : 0) + visibleWidth(chunks[i]!);

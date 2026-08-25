@@ -17,9 +17,7 @@ import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
-import { packFooterLines } from "./utils/layout.js";
-
-const SEP_W = 3; // visible width of the " · " separator
+import { packFooterLines, SEP_W, SEPARATOR } from "./utils/layout.js";
 
 export function registerFooter(pi: ExtensionAPI): void {
   // Module-level state for session lifecycle (shared between session_start and session_shutdown)
@@ -115,7 +113,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             // two-line split (system info above, stats below) even when one
             // line would fit. The context bar expands into the remainder of
             // the last line and is dropped only if no reasonable space is left.
-            const separator = theme.fg("dim", " · ");
+            const separator = theme.fg("dim", SEPARATOR);
             let groups = packFooterLines([...leftSections, statsSectionStr], width, SEP_W);
             if (groups.length < 2 && width < splitThreshold && leftSections.length > 0) {
               groups = [leftSections, [statsSectionStr]];

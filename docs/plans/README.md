@@ -29,6 +29,7 @@
 | 25 | [MCP core reliability (port phase 1)](done/plan-025-mcp-core-reliability.md) | ✅ COMPLETED (squash `de324c6`) | 2026-08-17 |
 | 26 | [MCP OAuth (port phase 2)](done/plan-026-mcp-oauth.md) | ✅ COMPLETED (squash `2861660`) | 2026-08-18 |
 | 27 | [MCP commands + panels (port phase 3)](done/plan-027-mcp-commands-panels.md) | ✅ COMPLETED (squash `09dd105`) | 2026-08-17 |
+| 28 | [Codebase improvement — dead API, DRY, config patterns, file splits](plan-028-codebase-improvement.md) | ✅ COMPLETED (PR #35) | 2026-08-25 |
 
 > **Notes:****
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -39,13 +40,13 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| 28 | [Codebase improvement — dead API, DRY, config patterns, file splits](plan-028-codebase-improvement.md) | 🟡 BACKLOG | 2026-08-25 |
+| — | _none — backlog is empty_ | | |
 
 ## Quick Stats
 
 - Total Plans: 28
-- Completed: 27
+- Completed: 28
 - In Progress: 0
-- Backlog: 1
+- Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
