@@ -114,4 +114,21 @@ When releasing a new version, apply these steps after bumping versions but befor
 
 4. **Tag and push** — use annotated tag with `v` prefix: `git tag -a v0.x.y -m "Release v0.x.y"` then `git push origin v0.x.y`. The release workflow handles publishing to npm.
 
-5. **Create the GitHub Release** — after tagging, create a release with notes summarizing user-facing changes since the previous tag (use `git log --oneline v<prev>..v<cur>` to gather them): `gh release create v0.x.y --title "v0.x.y" --target main --notes "..."`. Backfill releases for any tags that were skipped.
+5. **Create the GitHub Release** — after tagging, create a release with notes summarizing user-facing changes since the previous tag (gather them with `git log v<prev>..v<cur>`): `gh release create v0.x.y --title "v0.x.y" --target main --notes "..."`. Backfill releases for any tags that were skipped. Edit with `gh release edit v0.x.y --notes "..."` if the notes need fixing after the fact.
+
+### Writing release notes
+
+Structure (in this order):
+
+1. **Headline first** — anything new/structural leads its own `##` section (e.g. "New package: ..."), before per-package diffs
+2. **`## Other changes`** — one bullet per package, bold package name, user-visible behavior only
+3. **`## Thanks to contributors`** — credit external contributors only, with their contribution linked
+
+Rules:
+
+- **Link every change** to its PR (`#31` — GitHub auto-links PR refs in release bodies) or, for work pushed directly to `main`, its commit as a **full URL** (bare SHAs don't auto-link: `https://github.com/danielcherubini/pi-archimedes/commit/<sha7>`)
+- **Gather contributors** with `git log v<prev>..v<cur> --pretty='%an|%h|%s'` and cross-check PRs with `gh pr list --state merged --json number,title,author`
+- **Never thank the maintainer** (the repo owner) — the thanks section is for external contributors only
+- **Don't mention internal reference projects** the work was ported from or benchmarked against — release notes describe what the user gets, not the lineage
+- **No internal jargon** — describe user-visible behavior; plan numbers are fine in passing ("plan 028") but never as the headline
+- Keep bullets to one or two lines apiece
