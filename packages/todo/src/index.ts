@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@e
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { TodoStateManager } from "./state-manager.js";
 import { createManageTodoListTool } from "./tool.js";
+import { normalizeTodoItems } from "./prepare-args.js";
 import { updateWidget, clearWidget } from "./ui/todo-widget.js";
 import type { TodoItem } from "./types.js";
 
@@ -25,8 +26,17 @@ export function registerTodo(pi: ExtensionAPI): void {
   const unsubTodosUpdate = getBus().on(Events.TODOS_UPDATE, (payload: unknown) => {
     const data = payload as { source: string; todos: TodoItem[] };
     if (data.source === "main") return; // main handled locally
-    subagentTodos.set(data.source, data.todos);
-    refreshWidget();
+    // The consumer is the guarantee: producers (subagent stream, older
+    // child sessions) may emit raw or legacy shapes, so every incoming
+    // payload is normalized before it is stored. Unrecoverable payloads
+    // (normalizeTodoItems → undefined) and empty lists are not mirrored —
+    // the widget hides empty subagent columns, and TODOS_CLEAR/child-exit
+    // remain the lifecycle ends.
+    const normalized = normalizeTodoItems(data.todos);
+    if (normalized && normalized.length > 0) {
+      subagentTodos.set(data.source, normalized);
+      refreshWidget();
+    }
   });
   unsubscribes.push(unsubTodosUpdate);
 
