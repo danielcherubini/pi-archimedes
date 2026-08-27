@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { normalizeTodoItems } from "./prepare-args.js";
 import type { TodoItem, TodoStats, ValidationResult } from "./types.js";
 
 /** Manages the in-memory todo list state. */
@@ -27,9 +28,9 @@ export class TodoStateManager {
   getStats(): TodoStats {
     const total = this.todos.length;
     const completed = this.todos.filter((t) => t.status === "completed").length;
-    const inProgress = this.todos.filter((t) => t.status === "in-progress").length;
-    const notStarted = this.todos.filter((t) => t.status === "not-started").length;
-    return { total, completed, inProgress, notStarted };
+    const inProgress = this.todos.filter((t) => t.status === "in_progress").length;
+    const pending = this.todos.filter((t) => t.status === "pending").length;
+    return { total, completed, inProgress, pending };
   }
 
   validate(todos: TodoItem[]): ValidationResult {
@@ -37,7 +38,7 @@ export class TodoStateManager {
     if (!Array.isArray(todos)) {
       return { valid: false, errors: ["todoList must be an array"] };
     }
-    const validStatuses = new Set(["not-started", "in-progress", "completed"]);
+    const validStatuses = new Set(["pending", "in_progress", "completed"]);
     for (let i = 0; i < todos.length; i++) {
       const item = todos[i];
       const prefix = `Item ${i + 1}`;
@@ -45,19 +46,14 @@ export class TodoStateManager {
         errors.push(`${prefix}: undefined item`);
         continue;
       }
-      if (item.id == null) {
-        errors.push(`${prefix}: missing 'id'`);
-      } else if (typeof item.id !== "number") {
-        errors.push(`${prefix}: 'id' must be a number`);
+      if (typeof item.content !== "string" || item.content.trim() === "") {
+        errors.push(`${prefix}: missing or invalid 'content'`);
       }
-      if (!item.title || typeof item.title !== "string") {
-        errors.push(`${prefix}: missing or invalid 'title'`);
+      if (typeof item.status !== "string" || !validStatuses.has(item.status)) {
+        errors.push(`${prefix}: 'status' must be one of: pending, in_progress, completed`);
       }
-      if (!item.description || typeof item.description !== "string") {
-        errors.push(`${prefix}: missing or invalid 'description'`);
-      }
-      if (!item.status || !validStatuses.has(item.status)) {
-        errors.push(`${prefix}: 'status' must be one of: not-started, in-progress, completed`);
+      if (item.description !== undefined && typeof item.description !== "string") {
+        errors.push(`${prefix}: 'description' must be a string`);
       }
     }
     return { valid: errors.length === 0, errors };
@@ -69,9 +65,13 @@ export class TodoStateManager {
       if (entry.type !== "message") continue;
       const msg = entry.message;
       if (msg.role !== "toolResult" || msg.toolName !== "manage_todo_list") continue;
-      const details = msg.details as { todos?: TodoItem[] } | undefined;
-      if (details?.todos) {
-        this.todos = details.todos.map((t) => ({ ...t }));
+      const details = msg.details as { todos?: unknown } | undefined;
+      // Legacy persisted items (id/title/not-started) and newer canonical
+      // items both go through the same normalizer. Unrecoverable entries
+      // leave state untouched for that entry.
+      const items = normalizeTodoItems(details?.todos);
+      if (items) {
+        this.todos = items.map((t) => ({ ...t }));
       }
     }
   }

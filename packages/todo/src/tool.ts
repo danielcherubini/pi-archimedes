@@ -9,14 +9,15 @@ import { STATUS_ICONS } from "./types.js";
 import type { TodoDetails } from "./types.js";
 
 const TodoItemSchema = Type.Object({
-  id: Type.Number({ description: "Unique identifier for the todo. Use sequential numbers starting from 1." }),
-  title: Type.String({ description: "Concise action-oriented todo label (3-7 words). Displayed in UI." }),
-  description: Type.String({
-    description: "Detailed context, requirements, or implementation notes. Include file paths, specific methods, or acceptance criteria.",
+  content: Type.String({
+    description: "Short imperative label for the task (3-10 words). Displayed in UI. Example: \"Fix the auth middleware\".",
   }),
-  status: StringEnum(["not-started", "in-progress", "completed"] as const, {
-    description: "not-started: Not begun | in-progress: Currently working (multiple allowed for parallel work) | completed: Fully finished with no blockers",
+  status: StringEnum(["pending", "in_progress", "completed"] as const, {
+    description: "pending: Not begun | in_progress: Currently working (multiple allowed for parallel work/subagents) | completed: Fully finished with no blockers",
   }),
+  description: Type.Optional(Type.String({
+    description: "Optional detailed context: file paths, specific methods, or acceptance criteria.",
+  })),
 });
 
 export const ManageTodoListParams = Type.Object({
@@ -38,7 +39,7 @@ When to use this tool:
 - Complex multi-step work requiring planning and tracking
 - When user provides multiple tasks or requests (numbered, comma-separated)
 - After receiving new instructions that require multiple steps
-- BEFORE starting work on any todo (mark as in-progress)
+- BEFORE starting work on any todo (mark as in_progress)
 - IMMEDIATELY after completing each todo (mark completed individually)
 - When breaking down larger tasks into smaller actionable steps
 - To give users visibility into your progress and planning
@@ -50,14 +51,19 @@ When NOT to use:
 
 CRITICAL workflow:
 1. Plan tasks by writing todo list with specific, actionable items
-2. Mark todo(s) as in-progress before starting work
+2. Mark todo(s) as in_progress before starting work
 3. Complete the work for that specific todo
 4. Mark that todo as completed IMMEDIATELY
 5. Move to next todo and repeat
 
+Todo item shape:
+{"content": "Fix the auth middleware", "status": "pending", "description": "optional: file paths, acceptance criteria"}
+- content: the short displayed label — do NOT assign ids (numbering is order)
+- status: exactly one of pending | in_progress | completed
+
 Todo states:
-- not-started: Todo not yet begun
-- in-progress: Currently working (multiple allowed for parallel work/subagents)
+- pending: Todo not yet begun
+- in_progress: Currently working (multiple allowed for parallel work/subagents)
 - completed: Finished successfully
 
 IMPORTANT: Mark todos completed as soon as they are done. Do not batch completions.
@@ -188,21 +194,22 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
       let text = renderStatusLabel("success", label, theme);
 
       if (expanded) {
-        for (const todo of todos) {
+        for (let i = 0; i < todos.length; i++) {
+          const todo = todos[i]!;
           const iconChar = STATUS_ICONS[todo.status] ?? "?";
           const icon =
             todo.status === "completed"
               ? theme.fg("success", iconChar)
-              : todo.status === "in-progress"
+              : todo.status === "in_progress"
                 ? theme.fg("warning", iconChar)
                 : theme.fg("dim", iconChar);
           const title =
             todo.status === "completed"
-              ? theme.fg("dim", theme.strikethrough(todo.title))
-              : todo.status === "in-progress"
-                ? theme.fg("warning", todo.title)
-                : theme.fg("muted", todo.title);
-          text += `\n  ${icon} ${theme.fg("accent", `${todo.id}.`)} ${title}`;
+              ? theme.fg("dim", theme.strikethrough(todo.content ?? ""))
+              : todo.status === "in_progress"
+                ? theme.fg("warning", todo.content ?? "")
+                : theme.fg("muted", todo.content ?? "");
+          text += `\n  ${icon} ${theme.fg("accent", `${i + 1}.`)} ${title}`;
         }
       }
 

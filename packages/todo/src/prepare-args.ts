@@ -3,35 +3,44 @@
  *
  * Wires into the tool via `prepareArguments`, which pi runs BEFORE schema
  * validation (and before `execute`). The model occasionally sends
- * malformed-but-recoverable `manage_todo_list` arguments; observed in practice:
+ * malformed-but-recoverable `manage_todo_list` arguments; observed in
+ * practice (frozen open-weight models, ADR 0009):
  *
  *   - `todoList` is a stringified JSON array instead of an array (sometimes
- *     with mangled escaping, e.g. `"id": 1"` — an extra quote after the number)
- *   - items are missing `title` because the model considers it redundant
- *     with `description`
- *   - items are missing `status` (or it is a non-enum phrase like "doing")
+ *     with mangled escaping, e.g. `"id": 1"` — an extra quote after the
+ *     number)
+ *   - items put the task text under `title`/`step` (shapes borrowed from
+ *     other harnesses) instead of the canonical `content`
+ *   - `id` is invented, omitted, or nulled — the canonical schema has NO
+ *     `id`; display numbering is array position, so it is stripped, not
+ *     repaired
+ *   - statuses come out dashed ("not-started", "in-progress") or as
+ *     plain-english synonyms ("doing", "done")
  *   - items are plain strings
- *   - `id` missing or a numeric string
  *   - stray top-level / per-item keys outside the schema
  *
- * Only *recoverable* deviations are repaired. Anything unrecoverable is passed
- * through untouched so the standard validation error still surfaces with the
- * real complaint. The public schema stays strict; this module is purely a
- * repair layer.
+ * Only *recoverable* deviations are repaired. Anything unrecoverable is
+ * passed through untouched so the standard validation error still surfaces
+ * with the real complaint. The public schema stays strict; this module is
+ * purely a repair layer.
  */
 
 import type { ManageTodoListInput } from "./tool.js";
-import type { TodoStatus } from "./types.js";
+import type { TodoItem, TodoStatus } from "./types.js";
 
 type Record_ = Record<string, unknown>;
 
 const VALID_STATUSES: ReadonlySet<string> = new Set<string>([
-  "not-started",
-  "in-progress",
+  "pending",
+  "in_progress",
   "completed",
 ]);
 
-/** LLM synonyms for the three enum values (after case/spacing normalization). */
+/**
+ * LLM synonyms for the three enum values, keyed by the collapsed form
+ * (lowercase, all whitespace/underscore/dash separators removed) so dashed,
+ * spaced, and underscored variants all land on the same key.
+ */
 const STATUS_ALIASES: ReadonlyMap<string, TodoStatus> = new Map<string, TodoStatus>([
   ["done", "completed"],
   ["complete", "completed"],
@@ -39,28 +48,41 @@ const STATUS_ALIASES: ReadonlyMap<string, TodoStatus> = new Map<string, TodoStat
   ["closed", "completed"],
   ["success", "completed"],
   ["passed", "completed"],
-  ["doing", "in-progress"],
-  ["started", "in-progress"],
-  ["working", "in-progress"],
-  ["active", "in-progress"],
-  ["wip", "in-progress"],
-  ["ongoing", "in-progress"],
-  ["pending", "not-started"],
-  ["todo", "not-started"],
-  ["planned", "not-started"],
-  ["untouched", "not-started"],
+  ["doing", "in_progress"],
+  ["started", "in_progress"],
+  ["working", "in_progress"],
+  ["active", "in_progress"],
+  ["wip", "in_progress"],
+  ["ongoing", "in_progress"],
+  ["inprogress", "in_progress"],
+  ["pending", "pending"],
+  ["todo", "pending"],
+  ["planned", "pending"],
+  ["untouched", "pending"],
+  ["notstarted", "pending"],
+  ["unstarted", "pending"],
+  ["open", "pending"],
 ]);
 
 /**
- * Keys the model sometimes uses instead of `title`/`description`. Checked
- * only when the canonical field is itself missing, so a model that DID send
- * `title`/`description` is never overwritten.
+ * Keys the model sometimes uses instead of `content`. Checked only when
+ * `content` itself is missing/empty, so a model that DID send `content` is
+ * never overwritten.
  */
-const TITLE_FALLBACK_KEYS = ["content", "task", "text", "name", "label"] as const;
+const CONTENT_FALLBACK_KEYS = ["title", "step", "task", "text", "name", "label", "activeForm"] as const;
 const DESCRIPTION_FALLBACK_KEYS = ["details", "notes", "summary", "context"] as const;
 
-/** Upper bound for a `title` derived from `description`. */
-const DERIVED_TITLE_MAX = 60;
+/** Reserved keys the last-resort text scan must never pick up. */
+const LAST_RESORT_SKIP_KEYS = new Set<string>([
+  "content",
+  ...(CONTENT_FALLBACK_KEYS as readonly string[]),
+  "description",
+  ...(DESCRIPTION_FALLBACK_KEYS as readonly string[]),
+  "status",
+  "id",
+]);
+
+const DERIVED_CONTENT_MAX = 60;
 
 function isRecord(value: unknown): value is Record_ {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -75,58 +97,48 @@ function firstStringOf(record: Record_, keys: readonly string[]): string {
 }
 
 /**
- * Collapse whitespace and cut at a word boundary so a derived title stays a
- * short, human-readable label in the widget.
+ * Collapse whitespace and cut at a word boundary so a derived `content`
+ * stays a short, human-readable label in the widget.
  */
 export function deriveTitleFromDescription(description: string): string {
   const flat = description.replace(/\s+/g, " ").trim();
-  if (flat.length <= DERIVED_TITLE_MAX) return flat;
-  const cut = flat.slice(0, DERIVED_TITLE_MAX);
+  if (flat.length <= DERIVED_CONTENT_MAX) return flat;
+  const cut = flat.slice(0, DERIVED_CONTENT_MAX);
   const lastSpace = cut.lastIndexOf(" ");
   const head = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
   return `${head.trimEnd()}…`;
 }
 
-function normalizeId(raw: unknown, index: number): number {
-  let n: number;
-  if (typeof raw === "number") {
-    n = raw;
-  } else if (typeof raw === "string" && raw.trim() !== "") {
-    n = Number(raw);
-  } else {
-    n = Number.NaN;
-  }
-  return Number.isFinite(n) ? Math.trunc(n) : index + 1;
-}
-
-function normalizeStatus(raw: unknown): TodoStatus {
+/**
+ * Normalize a raw status to the canonical enum. Accepts dashed/spaced/
+ * underscored variants and plain-english synonyms; anything unrecognized
+ * (incl. non-strings) falls back to `"pending"`. Kept permissive — this is
+ * the REPAIR layer. `state-manager.validate()` stays canonical-strict.
+ */
+export function normalizeStatus(raw: unknown): TodoStatus {
   if (typeof raw !== "string") {
     // Missing, null, number, … — no signal about intent.
-    return "not-started";
+    return "pending";
   }
-  // "in progress" / "In_Progress" / "IN-PROGRESS" → "in-progress"
-  const normalized = raw.trim().toLowerCase().replace(/[_\s]+/g, "-");
-  if (VALID_STATUSES.has(normalized)) return normalized as TodoStatus;
-  return STATUS_ALIASES.get(normalized) ?? "not-started";
+  const s = raw.trim().toLowerCase();
+  if (VALID_STATUSES.has(s)) return s as TodoStatus;
+  const collapsed = s.replace(/[\s_-]+/g, "");
+  return STATUS_ALIASES.get(collapsed) ?? "pending";
 }
 
 /**
- * Normalize one todo item. Returns a fresh object containing ONLY the four
- * schema keys (extra keys are dropped — the schema rejects them with "must
- * not have additional properties"). Unrecoverable items are returned as-is so
- * the schema error keeps its meaning.
+ * Normalize one todo item. Returns a fresh object containing ONLY the
+ * canonical keys `{content, description?, status}` — `id` is always dropped,
+ * extra keys are dropped (the schema rejects them with "must not have
+ * additional properties"). Unrecoverable items are returned as-is so the
+ * schema error keeps its meaning.
  */
 export function normalizeTodoItem(raw: unknown, index: number): unknown {
   // Laziest form: ["write tests", "deploy"]
   if (typeof raw === "string") {
     const text = raw.trim();
     if (text === "") return raw;
-    return {
-      id: index + 1,
-      title: deriveTitleFromDescription(text),
-      description: text,
-      status: "not-started" as TodoStatus,
-    };
+    return { content: deriveTitleFromDescription(text), status: "pending" as TodoStatus };
   }
 
   if (!isRecord(raw)) return raw; // null / number / nested array → schema error
@@ -134,18 +146,61 @@ export function normalizeTodoItem(raw: unknown, index: number): unknown {
   const description =
     (typeof raw.description === "string" ? raw.description.trim() : "") ||
     firstStringOf(raw, DESCRIPTION_FALLBACK_KEYS);
-  let title = typeof raw.title === "string" ? raw.title.trim() : "";
-  if (title === "") title = firstStringOf(raw, TITLE_FALLBACK_KEYS);
-  if (title === "" && description !== "") title = deriveTitleFromDescription(description);
+  let content =
+    (typeof raw.content === "string" ? raw.content.trim() : "") ||
+    firstStringOf(raw, CONTENT_FALLBACK_KEYS);
+  if (content === "" && description !== "") {
+    content = deriveTitleFromDescription(description);
+  }
+  // Last resort: any remaining non-empty string field that isn't a known
+  // alias/status/id. This alone is the catch-all.
+  if (content === "") {
+    for (const [key, value] of Object.entries(raw)) {
+      if (!LAST_RESORT_SKIP_KEYS.has(key) && typeof value === "string" && value.trim() !== "") {
+        content = value;
+        break;
+      }
+    }
+  }
 
-  // No text at all: keep the (empty) fields so the schema error lists the
-  // missing `title`/`description` instead of masking it with a derivation.
+  // If both are empty this returns { content: "", status } — deliberately
+  // keeps an empty (valid-string) field so state-manager.validate() reports
+  // the missing `content` instead of the schema masking it.
   return {
-    id: normalizeId(raw.id, index),
-    title,
-    description: description || title,
+    content,
+    ...(description !== "" ? { description } : {}),
     status: normalizeStatus(raw.status),
   };
+}
+
+/**
+ * Normalize a raw todo list (e.g. from bus payloads) into canonical
+ * TodoItems. Returns [] for an empty input array, undefined for anything
+ * unrecoverable. Used by the bus consumer (index.ts) and the subagent
+ * stream — where prepareArguments is NOT in the call path.
+ */
+export function normalizeTodoItems(raw: unknown): TodoItem[] | undefined {
+  let list: unknown[] | undefined;
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (raw != null && looksLikeTodoItem(raw)) {
+    list = [raw];
+  } else {
+    return undefined;
+  }
+
+  const items = list.map((item, i) => normalizeTodoItem(item, i));
+  const surviving = items.filter(
+    (item): item is TodoItem =>
+      isRecord(item) &&
+      typeof item.content === "string" &&
+      item.content.trim() !== "" &&
+      typeof item.status === "string" &&
+      VALID_STATUSES.has(item.status),
+  );
+  if (items.length === 0) return [];
+  if (surviving.length === 0) return undefined;
+  return surviving;
 }
 
 /**
@@ -171,7 +226,11 @@ function parseStringifiedList(raw: string): unknown {
 function looksLikeTodoItem(value: unknown): boolean {
   return (
     isRecord(value) &&
-    ("id" in value || "title" in value || "description" in value || "status" in value)
+    ("content" in value ||
+      "title" in value ||
+      "step" in value ||
+      "description" in value ||
+      "status" in value)
   );
 }
 

@@ -2,17 +2,15 @@
  * Core types for the todo list extension.
  */
 
-/** Status of a single todo item */
-export type TodoStatus = "not-started" | "in-progress" | "completed";
+/** Status of a single todo item (Claude Code aligned). */
+export type TodoStatus = "pending" | "in_progress" | "completed";
 
-/** A single todo item */
+/** A single todo item. No `id` — display numbering is array position. */
 export interface TodoItem {
-  /** Sequential identifier starting from 1 */
-  id: number;
-  /** Concise action-oriented label (3-7 words). Displayed in UI. */
-  title: string;
-  /** Detailed context, requirements, or implementation notes. */
-  description: string;
+  /** Short imperative label of the task (3-10 words). Displayed in UI. */
+  content: string;
+  /** Optional detailed context: file paths, methods, acceptance criteria. */
+  description?: string;
   /** Current status. */
   status: TodoStatus;
 }
@@ -29,7 +27,7 @@ export interface TodoStats {
   total: number;
   completed: number;
   inProgress: number;
-  notStarted: number;
+  pending: number;
 }
 
 /** Validation result */
@@ -40,7 +38,7 @@ export interface ValidationResult {
 
 /** Status icons for each todo state */
 export const STATUS_ICONS: Record<TodoStatus, string> = {
-  "completed": "✓",
-  "in-progress": "◉ ",
-  "not-started": "○",
+  completed: "✓",
+  in_progress: "◉ ",
+  pending: "○",
 };

@@ -108,7 +108,7 @@ export const Events = {
 
 interface TodoUpdatePayload {
   source: string;       // "main" or "subagent:<agent-name>"
-  todos: Array<{ id: number; title: string; description: string; status: "not-started" | "in-progress" | "completed" }>;
+  todos: Array<{ content: string; description?: string; status: "pending" | "in_progress" | "completed" }>;
 }
 
 interface TodoClearPayload {

@@ -19,6 +19,7 @@ const VALIDATION_ERROR_TEXT = [
 // tell apart the status colour, the glyph, and the label.
 const theme = {
   fg: (token: unknown, text: unknown) => `[${token}]${text}`,
+  strikethrough: (text: unknown) => `[s]${text}`,
 } as unknown as Theme;
 
 const tool = createManageTodoListTool(new TodoStateManager(), () => {});
@@ -72,6 +73,40 @@ describe("renderResult — harness error shapes", () => {
   });
 });
 
+describe("tool schema", () => {
+  const params = tool.parameters as unknown as {
+    properties: Record<string, { type?: string; enum?: string[]; items?: unknown }>;
+    required?: string[];
+  };
+  const itemSchema = params.properties.todoList?.items as unknown as {
+    properties: Record<string, { type?: string; enum?: string[] }>;
+    required?: string[];
+  };
+
+  it("declares content + canonical status enum, with no id/title and optional description", () => {
+    const props = itemSchema.properties;
+    expect(props.id).toBeUndefined();
+    expect(props.title).toBeUndefined();
+    expect(props.content?.type).toBe("string");
+    expect(props.status?.enum).toEqual(["pending", "in_progress", "completed"]);
+    expect(itemSchema.required).toContain("content");
+    expect(itemSchema.required).toContain("status");
+    expect(itemSchema.required).not.toContain("description");
+  });
+
+  it("keeps the manage_todo_list tool name, op and prepareArguments wiring", () => {
+    expect(tool.name).toBe("manage_todo_list");
+    expect(typeof tool.prepareArguments).toBe("function");
+    expect(params.properties.operation?.enum).toEqual(["write", "read"]);
+  });
+
+  it("model-facing description uses canonical status tokens only", () => {
+    expect(tool.description).not.toMatch(/not-started|in-progress/);
+    expect(tool.description).toContain("in_progress");
+    expect(tool.description).toContain("\"content\": \"Fix the auth middleware\"");
+  });
+});
+
 describe("renderResult — successful results unchanged", () => {
   it("renders the completed counter from details.todos", () => {
     const result = {
@@ -79,13 +114,35 @@ describe("renderResult — successful results unchanged", () => {
       details: {
         operation: "write" as const,
         todos: [
-          { id: 1, title: "a", description: "a", status: "completed" as const },
-          { id: 2, title: "b", description: "b", status: "completed" as const },
-          { id: 3, title: "c", description: "c", status: "completed" as const },
+          { content: "a", status: "completed" as const },
+          { content: "b", status: "completed" as const },
+          { content: "c", status: "completed" as const },
         ],
       },
     } as unknown as AgentToolResult<TodoDetails>;
     const [line] = renderLines(result, false).split("\n");
     expect(line).toContain("3/3 completed");
+  });
+
+  it("numbers items by array position and renders content", () => {
+    const result = {
+      content: [{ type: "text" as const, text: "1/3 completed." }],
+      details: {
+        operation: "write" as const,
+        todos: [
+          { content: "First", status: "completed" as const },
+          { content: "Second", status: "in_progress" as const },
+          { content: "Third", status: "pending" as const },
+        ],
+      },
+    } as unknown as AgentToolResult<TodoDetails>;
+    const lines = renderLines(result, true);
+    expect(lines).toContain("[accent]1.");
+    expect(lines).toContain("[accent]2.");
+    expect(lines).toContain("[accent]3.");
+    expect(lines).toContain("[s]First");
+    expect(lines).toContain("[warning]Second");
+    expect(lines).toContain("[muted]Third");
+    expect(lines).not.toContain("undefined");
   });
 });
