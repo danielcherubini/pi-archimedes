@@ -40,13 +40,13 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| — | _none — backlog is empty_ | | |
+| 29 | [Todo schema alignment + subagent-visibility fix](plan-029-todo-schema-alignment.md) | 🔧 IN PROGRESS | 2026-08-27 | |
 
 ## Quick Stats
 
-- Total Plans: 28
+- Total Plans: 29
 - Completed: 28
-- In Progress: 0
-- Backlog: 0
+- In Progress: 1
+- Backlog: 1
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
