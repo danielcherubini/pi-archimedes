@@ -66,8 +66,9 @@ export class TodoStateManager {
       const msg = entry.message;
       if (msg.role !== "toolResult" || msg.toolName !== "manage_todo_list") continue;
       const details = msg.details as { todos?: unknown } | undefined;
-      // Legacy persisted items (id/title/not-started) and newer canonical
-      // items both go through the same normalizer. Unrecoverable entries
+      // Legacy persisted items (id / title / dashed or synonym
+      // statuses) and newer canonical items both go through the same
+      // normalizer. Unrecoverable entries
       // leave state untouched for that entry.
       const items = normalizeTodoItems(details?.todos);
       if (items) {

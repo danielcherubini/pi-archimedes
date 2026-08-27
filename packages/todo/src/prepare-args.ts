@@ -14,8 +14,9 @@
  *   - `id` is invented, omitted, or nulled — the canonical schema has NO
  *     `id`; display numbering is array position, so it is stripped, not
  *     repaired
- *   - statuses come out dashed ("not-started", "in-progress") or as
- *     plain-english synonyms ("doing", "done")
+ *   - statuses come out dashed (a hyphenated variant of a canonical
+ *     value that then collapses to a no-separator form), or as plain
+ *     english synonyms ("doing", "done")
  *   - items are plain strings
  *   - stray top-level / per-item keys outside the schema
  *

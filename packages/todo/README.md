@@ -17,7 +17,7 @@ Track complex multi-step tasks structured in a todo list with automatic clearing
 
 ### Multiple todos with progress tracking
 
-Widget showing three todos with completion status — completed items dimmed with strikethrough, in-progress highlighted:
+Widget showing three todos with completion status — completed items dimmed with strikethrough, the item currently being worked on highlighted:
 
 ![todos multiple todos](../../docs/images/todos-multiple-todos.png)
 
@@ -59,9 +59,9 @@ The `manage_todo_list` tool accepts two operations:
 {
   "operation": "write",
   "todoList": [
-    { "id": 1, "title": "Parse config files", "description": "Read and validate all config files", "status": "in-progress" },
-    { "id": 2, "title": "Build state manager", "description": "Implement TodoStateManager class", "status": "not-started" },
-    { "id": 3, "title": "Wire up widget", "description": "Connect widget to bus events", "status": "not-started" }
+    { "content": "Parse config files", "description": "Read and validate all config files", "status": "in_progress" },
+    { "content": "Build state manager", "description": "Implement TodoStateManager class", "status": "pending" },
+    { "content": "Wire up widget", "description": "Connect widget to bus events", "status": "pending" }
   ]
 }
 ```
@@ -75,8 +75,8 @@ The `manage_todo_list` tool accepts two operations:
 
 | Status | Icon | Description |
 |--------|------|-------------|
-| `not-started` | ○ | Not yet begun |
-| `in-progress` | ◉ | Currently being worked on |
+| `pending` | ○ | Not yet begun |
+| `in_progress` | ◉ | Currently being worked on |
 | `completed` | ✓ | Fully finished |
 
 ## Auto-clear
