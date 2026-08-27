@@ -10,6 +10,10 @@
     "src"
   ],
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./prepare-args": "./src/prepare-args.ts"
+  },
   "dependencies": {
     "@pi-archimedes/core": "workspace:*"
   },

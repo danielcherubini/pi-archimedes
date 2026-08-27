@@ -11,7 +11,8 @@
   ],
   "main": "./src/index.ts",
   "dependencies": {
-    "@pi-archimedes/core": "workspace:*"
+    "@pi-archimedes/core": "workspace:*",
+    "@pi-archimedes/todo": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": ">=0.1.0",
