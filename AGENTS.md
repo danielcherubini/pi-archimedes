@@ -9,7 +9,7 @@ Rules for AI agents working on this monorepo.
 - `packages/footer` — status bar (depends on core)
 - `packages/diff` — Shiki-powered diff rendering (standalone)
 - `packages/image-paste` — clipboard image paste (standalone)
-- `packages/subagent` — subagent dispatch with live TUI streaming and cost tracking (depends on core)
+- `packages/subagent` — subagent dispatch with live TUI streaming and cost tracking (depends on core, todo)
 - `packages/todo` — todo list tool with auto-clear and subagent visibility (depends on core)
 - `packages/notify` — delayed desktop notifications with circuit breaker (depends on core)
 - `packages/session-name` — auto session naming (depends on core)

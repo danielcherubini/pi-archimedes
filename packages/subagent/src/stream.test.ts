@@ -64,8 +64,12 @@ describe("streamEvents todo mirroring", () => {
 
   it("mirrors the child-accepted state from result.details.todos", async () => {
     const updates: Array<{ source: string; todos: unknown[] }> = [];
+    const clears: Array<{ source: string }> = [];
     const off = getBus().on(Events.TODOS_UPDATE, (p: unknown) =>
       updates.push(p as (typeof updates)[number]),
+    );
+    const offClear = getBus().on(Events.TODOS_CLEAR, (p: unknown) =>
+      clears.push(p as { source: string }),
     );
 
     await finishWith(
@@ -88,12 +92,17 @@ describe("streamEvents todo mirroring", () => {
       { agent: "t-acc" },
     );
     off();
+    offClear();
 
     expect(updates).toHaveLength(1);
     expect(updates[0]!.source).toBe("subagent:t-acc");
     expect(updates[0]!.todos).toEqual([
       { content: "Fix auth", status: "pending" },
     ]);
+    // Bus re-drains queued events (emitted while unsubscribed) to the next
+    // subscriber, so stale "subagent:general" clears from earlier tests may
+    // be present — assert on the per-agent source instead of the raw count.
+    expect(clears.filter((c) => c.source === "subagent:t-acc")).toHaveLength(1);
   });
 
   it("mirrors nothing when the tool returned a validation rejection (result.isError)", async () => {

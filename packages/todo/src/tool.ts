@@ -196,7 +196,7 @@ export function createManageTodoListTool(state: TodoStateManager, onUpdate: () =
       if (expanded) {
         for (let i = 0; i < todos.length; i++) {
           const todo = todos[i]!;
-          const iconChar = STATUS_ICONS[todo.status] ?? "?";
+          const iconChar = (STATUS_ICONS[todo.status] ?? "?").trim();
           const icon =
             todo.status === "completed"
               ? theme.fg("success", iconChar)
