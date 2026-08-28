@@ -1,0 +1,36 @@
+{
+  "name": "@pi-archimedes/sudo",
+  "version": "2.3.0",
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "description": "Safe privileged execution for pi — sudo_exec tool with masked password prompt and bash-sudo guard",
+  "files": [
+    "src"
+  ],
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./guard": "./src/guard.ts"
+  },
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0",
+    "typebox": ">=1.1.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.2",
+    "@earendil-works/pi-tui": "^0.84.2",
+    "typebox": "^1.1.38",
+    "typescript": "^6.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}
