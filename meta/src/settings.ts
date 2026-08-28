@@ -5,7 +5,8 @@ import { getCoreSettingsItems } from "@pi-archimedes/core";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 // diff (shiki) is lazy-loaded inside buildSettingsItems AND gated by the
-// archimedes.plugins manifest — disabled means shiki is never imported
+// per-namespace plugin gate (archimedes.diff.enabled — see ADR 0012) —
+// disabled means shiki is never imported
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
 import {
@@ -36,7 +37,8 @@ const PROMPTS: Record<string, PromptDescriptor> = {
 // ── Settings UI ─────────────────────────────────────────────────────────────
 
 // Compose the /archimedes item list. Core is always included; every other
-// package's items are gated by archimedes.plugins so a disabled plugin can
+// package's items are gated by the per-namespace plugin gate
+// (archimedes.<pkg>.enabled — see ADR 0012) so a disabled plugin can
 // not leak back in through the settings overlay. The diff import (heavy —
 // pulls in shiki) is lazy AND inside the gate: disabled diff is never loaded.
 export async function buildSettingsItems(allConfig: ReturnType<typeof loadAllConfig>): Promise<SettingItem[]> {
@@ -116,7 +118,6 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           }
 
           // ── Notify settings ──
-          case "enabled": notifyConfig.enabled = newValue === "On"; break;
           case "notifyOnAgentEnd": notifyConfig.notifyOnAgentEnd = newValue === "On"; break;
           case "notifyOnQuestion": notifyConfig.notifyOnQuestion = newValue === "On"; break;
           case "delayMs": {
@@ -126,7 +127,6 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           }
 
           // ── Session name settings ──
-          case "sessionNameEnabled": sessionNameConfig.enabled = newValue === "On"; break;
           case "sessionNameModel": sessionNameConfig.model = newValue === "(current model)" ? undefined : newValue; break;
         }
       },

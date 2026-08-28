@@ -7,12 +7,12 @@ import type { SettingItem } from "@earendil-works/pi-tui";
 // ── Config ──────────────────────────────────────────────────────────────────
 
 export interface SessionNameSettings {
+  // suite-managed by meta's plugin gate (archimedes.sessionName.enabled — see ADR 0012); session-name never reads this
   enabled?: boolean | undefined;
   model?: string | undefined;
 }
 
 const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
-  enabled: true,
   model: undefined,
 };
 
@@ -84,9 +84,6 @@ async function generateTitle(
 ) {
   try {
     const settings = loadSessionNameConfig();
-
-    // Guard: feature disabled
-    if (!settings.enabled) return;
 
     // 1. Build conversation text — first user + assistant exchange only
     const branch = ctx.sessionManager.getBranch();
@@ -244,13 +241,6 @@ export default registerSessionName;
 /** Build settings UI items for the session-name package. */
 export function getSessionNameSettingsItems(config: SessionNameSettings): SettingItem[] {
   return [
-    {
-      id: "sessionNameEnabled",
-      label: "Auto session naming",
-      description: "Auto-generate session titles after the first exchange",
-      currentValue: config.enabled ? "On" : "Off",
-      values: ["On", "Off"],
-    },
     {
       id: "sessionNameModel",
       label: "Model for naming",

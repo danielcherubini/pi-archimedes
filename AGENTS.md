@@ -29,7 +29,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
    - `peerDependencies` for `@earendil-works/pi-coding-agent` / `pi-tui` / `pi-ai` as needed
 2. **`meta/package.json`** — add `"@pi-archimedes/<name>": "workspace:*"` to `dependencies`
 3. **`meta/src/index.ts`** — import and register the new package's entry, gated by `isPluginEnabled("<name>")` (the single global gate from `meta/src/plugins.ts`)
-4. **`meta/src/plugins.ts`** — add the package to the `PLUGINS` manifest (`id`, `label`, `description`, `defaultEnabled`, `load()`). A manifest entry is required: registration alone is not enough — the gate, `/archimedes` settings items, and shutdown all key off the manifest, and a missing entry means the package also disappears from the `/plugins` menu
+4. **`meta/src/plugins.ts`** — add the package to the `PLUGINS` manifest (`id`, `label`, `description`, `namespace` (e.g. `archimedes.<newkey>`), `load()`). A manifest entry is required: registration alone is not enough — the gate, `/archimedes` settings items, and shutdown all key off the manifest, and a missing entry means the package also disappears from the `/plugins` menu. (There is no `defaultEnabled` any more — the manifest entry carries the settings-namespace key the gate reads, and no plugin is off-by-default today.)
 5. **`.github/workflows/release.yml`** — add a `pnpm --filter "@pi-archimedes/<name>" publish --access public --no-git-checks` line, placed after its internal deps and before `meta`
 6. **`AGENTS.md`** — add to the Monorepo Structure list; bump the "all N package versions" count and the "N package directories" type-check count in Release Steps; add the package to the publish-order line
 7. **`README.md`** — add a feature section, a line in the monorepo layout tree, a `pi install @pi-archimedes/<name>` line under "install selectively", and a settings-table entry if it has settings
@@ -56,6 +56,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 ### Config
 - Each package reads its own namespace in `~/.pi/agent/settings.json`
 - Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`, Session-name: `archimedes.sessionName`
+- Plugin on/off: a non-core package's namespace may carry a suite-managed `enabled` boolean (default on when absent). **Only meta reads/writes it**, via `/plugins` (`isPluginEnabled` / `setPluginEnabled` in `meta/src/plugins.ts`, ADR 0012). Package code must never read it as a runtime guard, and it never appears in a package's own settings items
 - No migration from old `hephaestus` keys
 
 ### No Build Step

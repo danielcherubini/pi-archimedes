@@ -59,14 +59,13 @@ vi.mock("@pi-archimedes/footer/config", () => ({
 
 vi.mock("@pi-archimedes/notify", () => ({
   getNotifySettingsItems: vi.fn(() => [
-    { id: "enabled", label: "Notify enabled", currentValue: "On", values: ["On", "Off"] },
     { id: "delayMs", label: "Notify delay (seconds)", currentValue: "30s" },
   ]),
 }));
 
 vi.mock("@pi-archimedes/session-name", () => ({
   getSessionNameSettingsItems: vi.fn(() => [
-    { id: "sessionNameEnabled", label: "Session name enabled", currentValue: "On", values: ["On", "Off"] },
+    { id: "sessionNameModel", label: "Session name model", currentValue: "(current model)" },
   ]),
 }));
 
@@ -263,7 +262,7 @@ describe("buildSettingsItems (settings gate)", () => {
   it("includes all packages' items when everything is enabled, and lazy-imports diff", async () => {
     const items = await buildSettingsItems(fakeAllConfig());
     const ids = items.map((i) => i.id);
-    expect(ids).toEqual(expect.arrayContaining(["mutedTheme", "splitThreshold", "diffTheme", "enabled", "sessionNameEnabled"]));
+    expect(ids).toEqual(expect.arrayContaining(["mutedTheme", "splitThreshold", "diffTheme", "delayMs", "sessionNameModel"]));
     expect(vi.mocked(getDiffSettingsItems)).toHaveBeenCalledTimes(1);
   });
 
@@ -276,7 +275,7 @@ describe("buildSettingsItems (settings gate)", () => {
     // Core items are always present
     expect(items.map((i) => i.id)).toContain("mutedTheme");
     // No item from a disabled package
-    for (const id of ["splitThreshold", "diffTheme", "enabled", "delayMs", "sessionNameEnabled"]) {
+    for (const id of ["splitThreshold", "diffTheme", "delayMs", "sessionNameModel"]) {
       expect(items.map((i) => i.id)).not.toContain(id);
     }
     // Diff must never be lazy-imported (shiki stays out of /archimedes)
@@ -288,9 +287,9 @@ describe("buildSettingsItems (settings gate)", () => {
     mockStore["archimedes.sessionName"] = { enabled: false };
     const items = await buildSettingsItems(fakeAllConfig());
     const ids = items.map((i) => i.id);
-    expect(ids).toEqual(expect.arrayContaining(["mutedTheme", "diffTheme", "enabled"]));
+    expect(ids).toEqual(expect.arrayContaining(["mutedTheme", "diffTheme", "delayMs"]));
     expect(ids).not.toContain("splitThreshold");
-    expect(ids).not.toContain("sessionNameEnabled");
+    expect(ids).not.toContain("sessionNameModel");
   });
 });
 

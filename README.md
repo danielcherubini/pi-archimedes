@@ -234,11 +234,11 @@ Changes to either file take effect on the next `/reload`.
 
 *Available when installed via `pi-archimedes` (the meta package), not via individual standalone installs.*
 
-Every non-core package is an **optional plugin** — the nine components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown.
+Every non-core package is an **optional plugin** — the nine components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown. Each plugin's on/off switch is the `enabled` key inside **its own** `archimedes.<pkg>` namespace in `~/.pi/agent/settings.json` (absent = on); only the meta package reads or writes it.
 
 #### `/plugins` command
 
-Run `/plugins` to open the plugin manager. Each installed plugin appears as a row with its description and current state (On/Off). Navigate with arrow keys, press ←/→ on a row to flip its state — the change persists immediately to `archimedes.plugins` — and press ESC to close. A disabled plugin stops being registered on the next `/reload`: its tools, commands, and `/archimedes` settings rows disappear with it.
+Run `/plugins` to open the plugin manager. Each installed plugin appears as a row with its description and current state (On/Off). Navigate with arrow keys, press ←/→ on a row to flip its state — the change persists immediately to that package's own namespace (`archimedes.<pkg>.enabled`) — and press ESC to close. A disabled plugin stops being registered on the next `/reload`: its tools, commands, and `/archimedes` settings rows disappear with it.
 
 ## Quick Start
 
@@ -269,9 +269,7 @@ Each package reads from its own namespace in `~/.pi/agent/settings.json` — for
 
 ### `pi-archimedes` (meta)
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `archimedes.plugins` | map | _(empty — all on)_ | Per-plugin On/Off toggles, edited via the `/plugins` command. Partial map: absent or `true` = enabled, `false` = disabled |
+No meta-specific user settings. Per-plugin on/off switches live in each package's own namespace (`archimedes.<pkg>.enabled`, default on) and are managed via the `/plugins` command.
 
 ### [`@pi-archimedes/core`](packages/core/README.md)
 
@@ -313,17 +311,19 @@ No settings yet.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable desktop notifications |
 | `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
 | `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
 | `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
 
 ### [`@pi-archimedes/session-name`](packages/session-name/README.md)
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable automatic session naming |
 | `model` | string | _(current model)_ | Override model for title generation |
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
 
 ### [`@pi-archimedes/mcp`](packages/mcp/README.md)
 
