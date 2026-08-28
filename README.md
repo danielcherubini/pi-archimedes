@@ -230,7 +230,7 @@ The adapter writes to exactly two targets, one field at a time:
 
 Changes to either file take effect on the next `/reload`.
 
-### 🔐 Sudo (`@pi-archimedes/sudo`)
+### 🔐 Sudo ([`@pi-archimedes/sudo`](packages/sudo/README.md))
 
 Safe privileged execution: a dedicated `sudo_exec` tool with a masked password prompt, plus a guard that keeps the ordinary `bash` tool from driving interactive `sudo`.
 
@@ -354,7 +354,7 @@ Per-server settings in the `mcp.json` server definitions override these defaults
 
 A metadata cache at `~/.pi/agent/mcp-cache.json` (valid for 7 days) stores each server's tools/resources/prompts so the gateway can search and describe offline, connecting servers lazily per tool call. It also persists each server's last connection outcome, so `/mcp status` and the panel can surface a `needs-auth`/error from a previous session (with an age suffix once it grows stale).
 
-### [`@pi-archimedes/sudo`](packages/sudo)
+### [`@pi-archimedes/sudo`](packages/sudo/README.md)
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
