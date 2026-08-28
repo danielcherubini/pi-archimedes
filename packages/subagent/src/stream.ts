@@ -116,7 +116,7 @@ export function streamEvents(
     // matching tool_execution_end. pi emits tool_execution_start with the
     // raw (pre-prepareToolCall) arguments, so these may be unrepaired.
     const pendingTodoArgs = new Map<string, unknown[]>();
-    const subagentSource = `subagent:${callbacks.agent ?? "general"}`;
+    let subagentSource = `subagent:${callbacks.agent ?? "general"}`;
 
     rl.on("line", (line) => {
       const trimmed = line.trim();
@@ -137,6 +137,11 @@ export function streamEvents(
         case "session": {
           if (typeof event.id === "string" && event.id) {
             state.childSessionId = event.id;
+            // A child with a session id gets a unique per-child todo source so
+            // concurrent children sharing an agent name don't clobber each
+            // other's accepted state when one clears on exit. Children without
+            // a session id (e.g. tests) keep the legacy subagent:<agent> form.
+            subagentSource = `subagent:${callbacks.agent ?? "general"}:${event.id}`;
           }
           break;
         }

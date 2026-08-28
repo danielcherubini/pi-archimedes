@@ -253,5 +253,59 @@ describe("streamEvents todo mirroring", () => {
 
     expect(updates).toHaveLength(0);
   });
+
+  it("uses a unique per-child source when the child provides a session id", async () => {
+    const updates: Array<{ source: string; todos: unknown[] }> = [];
+    const clears: Array<{ source: string }> = [];
+    const off = getBus().on(Events.TODOS_UPDATE, (p: unknown) =>
+      updates.push(p as (typeof updates)[number]),
+    );
+    const offClear = getBus().on(Events.TODOS_CLEAR, (p: unknown) =>
+      clears.push(p as { source: string }),
+    );
+
+    const agent = "t-unique";
+    const idA = "11111111-1111-7111-8111-111111111111";
+    const idB = "22222222-2222-7222-8222-222222222222";
+
+    const accepted = {
+      type: "tool_execution_end",
+      toolCallId: "t1",
+      toolName: "manage_todo_list",
+      isError: false,
+      result: {
+        content: [{ type: "text", text: "ok" }],
+        details: {
+          operation: "write",
+          todos: [{ content: "Fix auth", status: "pending" }],
+        },
+      },
+    } as unknown as Record<string, unknown>;
+
+    // Two concurrent children, same agent, distinct session ids.
+    await finishWith(
+      [{ type: "session", id: idA }, start, accepted],
+      { agent },
+    );
+    await finishWith(
+      [{ type: "session", id: idB }, start, accepted],
+      { agent },
+    );
+    off();
+    offClear();
+
+    const sources = updates.map((u) => u.source);
+    // Each child gets its own suffixed source equal to subagent:<agent>:<uuid>.
+    expect(sources).toContain(`subagent:${agent}:${idA}`);
+    expect(sources).toContain(`subagent:${agent}:${idB}`);
+    // The two concurrent children must NOT share a single source.
+    expect(sources.filter((s) => s.startsWith(`subagent:${agent}:`))).toEqual([
+      `subagent:${agent}:${idA}`,
+      `subagent:${agent}:${idB}`,
+    ]);
+    // The clear on close carries the same suffixed source for each child.
+    expect(clears.filter((c) => c.source === `subagent:${agent}:${idA}`)).toHaveLength(1);
+    expect(clears.filter((c) => c.source === `subagent:${agent}:${idB}`)).toHaveLength(1);
+  });
 });
 

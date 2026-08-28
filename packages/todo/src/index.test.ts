@@ -118,6 +118,39 @@ describe("todo index — bus consumer normalization", () => {
     expect(joined).toContain("Main task");
   });
 
+  it("renders the plain agent name for a unique per-child (suffixed) source", async () => {
+    // Fresh setup mirroring test 1: session_start first (resets main), then
+    // seed main through the real tool, then a suffixed subagent bus emit.
+    const start = handlers.session_start;
+    if (typeof start !== "function") throw new Error("session_start handler not registered");
+    let anyP: unknown;
+    anyP = start(undefined, ctx as any);
+    await anyP;
+
+    const result = await registered.tool.execute(
+      "c1",
+      { operation: "write", todoList: [{ content: "Main task", status: "pending" }] },
+      undefined,
+      undefined,
+      ctx as any,
+    );
+    expect(result.isError).toBeFalsy();
+
+    // Per-child source now carries a suffix; the header must still render
+    // just the agent name, not the uuid.
+    getBus().emit(Events.TODOS_UPDATE, {
+      source: "subagent:fake1:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      todos: [{ id: 1, title: "Old shape task", status: "not-started" }],
+    });
+
+    const lines = renderLines();
+    const joined = lines.join("\n");
+    expect(lines.some((l) => l.includes("subagent (fake1)"))).toBe(true);
+    expect(joined).toContain("Old shape task");
+    expect(joined).toContain("Main task");
+    expect(joined).not.toContain("undefined");
+  });
+
   afterAll(() => {
     // Unsubscribes the bus listeners registered by registerTodo and
     // clears state (fixture uses a pending item, so no auto-clear timer

@@ -52,7 +52,9 @@ export function updateWidget(
     for (const source of sortedSources) {
       const todos = currentSub.get(source)!;
       if (todos.length > 0) {
-        const agentName = source.replace("subagent:", "");
+        // Per-child sources are subagent:<agent>:<uuid>; render only the agent
+        // name so the header stays `subagent (myagent)` regardless of suffix.
+        const agentName = source.replace("subagent:", "").split(":")[0];
         columns.push({ header: `subagent (${agentName})`, todos });
       }
     }
