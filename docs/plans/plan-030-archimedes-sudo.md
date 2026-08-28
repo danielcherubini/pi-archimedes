@@ -6,12 +6,12 @@
 
 **Tech Stack:** TypeScript, pi extension API (`TypeBox` via `typebox`, `ExtensionAPI`, `ctx.ui`, `pi.on("tool_call")`), `@pi-archimedes/core/settings-io` for config, `node:child_process` (`spawn`) for `sudo -S`, `node:abort-controller`/`AbortSignal` for timeouts, vitest, pnpm workspace. New runtime deps: `@pi-archimedes/core` (workspace). No new third-party runtime deps.
 
-**Decisions on record:** `docs/adr/0010-archimedes-sudo-security.md` (active `tool_call` veto guard; unconditional block, no bypass; single-credential in-memory cache; password only via masked UI + stdin). `docs/adr/0011-plugin-manager.md` (single `archimedes.plugins` gate replaces per-package `enabled` — sudo is the first plugin in the manifest, no own `enabled` config). Out of scope (explicit): the `remote_sudo_exec` SSH variant (deferred — see Out of scope); getting the password through any non-masked path; persisting credentials to disk or the OS keyring; child/subagent `sudo_exec` support (headless blocks in v1); settings-panel UI (JSON config only); version bumps.
+**Decisions on record:** `docs/adr/0010-archimedes-sudo-security.md` (active `tool_call` veto guard; unconditional block, no bypass; single-credential in-memory cache; password only via masked UI + stdin). `docs/adr/0011-plugin-manager.md` (partially superseded) + `docs/adr/0012-plugin-gate-in-package-namespace.md` (the plugin on/off lives in each package's own namespace — sudo's is `archimedes.sudo.enabled`, managed exclusively by meta and never read by sudo code; sudo is the first remaining non-core plugin to join meta's `PLUGINS` manifest with `namespace: "archimedes.sudo"`). Out of scope (explicit): the `remote_sudo_exec` SSH variant (deferred — see Out of scope); getting the password through any non-masked path; persisting credentials to disk or the OS keyring; child/subagent `sudo_exec` support (headless blocks in v1); settings-panel UI (JSON config only); version bumps.
 
 **Verification commands (used throughout):**
 - `npx tsc --noEmit` in `packages/sudo` (AGENTS.md: run independently, wait for each)
 - `npx vitest run` in `packages/sudo` (it gets a `vitest.config.ts`)
-- Final task full gate: `npx tsc --noEmit` in all **12** dirs (core, ask, footer, diff, image-paste, notify, subagent, todo, session-name, mcp, **sudo**, meta) + `npx vitest run` in every package with a `vitest.config.ts`
+- Final task full gate: `npx tsc --noEmit` in all **12** dirs (core, ask, footer, diff, image-paste, notify, subagent, todo, session-name, mcp, **sudo**, meta — NOT the repo root) + vitest: repo-root `npx vitest run` (the root `projects` config runs the 9 root-config packages, incl. notify + image-paste which have NO local vitest config — `cd`-ing into them to run vitest fails) + `cd packages/sudo && npx vitest run` + `cd meta && npx vitest run`
 
 ---
 
@@ -93,6 +93,7 @@ export class CredentialCache {
 ```ts
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
 export interface SudoConfig {
+  enabled?: boolean;         // suite-managed by meta's plugin gate (archimedes.sudo.enabled — see ADR 0012); sudo never reads this
   ttlMs: number;             // default 900000 (15 min) — password cache TTL
   defaultTimeoutMs: number;  // default 120000 — sudo_exec default timeout
 }
@@ -130,7 +131,7 @@ const SudoExecParamsSchema = Type.Object({
   Body references: `params.command`, `params.reason`, `params.timeoutMs` (NOT `args.*`). The timeout uses pi's supplied `signal` (`signal?.aborted`) PLUS an own `setTimeout(() => child.kill("SIGKILL"), timeoutMs)`; clearTimeout on exit and also kill on `signal` abort (see niche 17).
 - **CRITICAL — result shaping convention:** `execute` must NOT declare a return-type annotation (or must return through a type that allows `isError`). pi reads `executed.isError` at runtime though `AgentToolResult` omits it; todo/mcp compile because their `execute` methods have no return annotation and the inferred union escapes fresh-literal excess-property checking. Declare the `details` type separately (e.g. `interface SudoExecDetails { command: string; reason: string; exitCode: number; stdout: string; stderr: string; error?: string }`) and return `{ content, details, isError }` objects like `packages/todo/src/tool.ts` does. Annotating `execute: Promise<AgentToolResult<SudoDetails>>` and returning `isError` fails TS2353 — do NOT do that.
 - `execute(body)`: 
-  1. `const config = loadSudoConfig();` (no `enabled` check — enable/disable is the plugin gate: `archimedes.plugins.sudo` in meta's `/plugins` manager skips `registerSudo` entirely when disabled, so `execute` never runs. See ADR 0011.)
+  1. `const config = loadSudoConfig();` (NO `enabled` check in sudo code — enable/disable is meta's per-namespace plugin gate: `archimedes.sudo.enabled` (ADR 0012); when off, meta's `/plugins` manager skips `registerSudo` entirely so the tool is never registered and `execute` never runs. The `enabled` key belongs to meta — sudo treats it as opaque.)
   2. `const command = params.command.trim(); if (!command) → validation error.` `const reason = params.reason.trim();`
   3. If `ctx.mode !== "tui"` → headless block: return `{ content: [{type:"text",text:"sudo_exec requires an interactive session — run privileged commands from the main session"}], isError: true, details: { reason } }`. (Deferred-child decision — uses the same gate as `promptForPassword`.)
   4. `const confirmed = await confirmCommand(ctx, command, reason); if (!confirmed) → error "command not confirmed".`
@@ -151,7 +152,7 @@ const SudoExecParamsSchema = Type.Object({
 - `config.test.ts`: defaults; load merge with partial JSON.
 - `config.test.ts`: `vi.mock("@pi-archimedes/core/settings-io", ...)` FIRST (before importing `loadSudoConfig`) — `loadSudoConfig()` reads the real `~/.pi/agent/settings.json` (core's own `config.test.ts` mocks it; mcp tests note settings-io builds its path at module load). Without the mock, tests are non-deterministic and `saveConfig` writes to the user's real settings file.
 - `prompt.test.ts`: the MASK test must be a pure helper — extract `maskLine(buffer: string): string` returning `"•".repeat(buffer.length)` and unit-test that (a full `ui.custom` render test needs a real TUI mock, too heavy). Keep the component test scope to: `promptForPassword` throws when `ctx.mode !== "tui"` (headless block), cancellation semantics.
-- `tool.test.ts`: `execute` with `ctx.mode !== "tui"` → isError "interactive session"; disabled config → isError; invalid command → error; `splitCommandIntoArgv` used correctly.
+- `tool.test.ts`: `execute` with `ctx.mode !== "tui"` → isError "interactive session"; invalid command → error; `splitCommandIntoArgv` used correctly. (No "disabled config" case — sudo never reads `enabled`, so the gate is not visible from the tool side; gate behavior is meta's plan 032 territory.)
 
 **Steps:**
 - [ ] Create `packages/sudo/package.json` + `tsconfig.json` + `vitest.config.ts` (mirror sibling packages). Run `pnpm install` at repo root (links workspace dep to core).
@@ -170,7 +171,7 @@ const SudoExecParamsSchema = Type.Object({
 - [ ] `splitCommandIntoArgv` correctly splits quoted/escaped commands (tested).
 - [ ] `npx tsc --noEmit` green in `packages/sudo`; `npx vitest run` green; single commit.
 
-**Do NOT change:** the guard (Task 2), session lifecycle (Task 3), meta/release/README wiring (Task 3). Enable/disable is NOT this package's concern (single plugin gate in meta, ADR 0011, plan-031). Version number must match the monorepo (read core's package.json).
+**Do NOT change:** the guard (Task 2), session lifecycle (Task 3), meta/release/README wiring (Task 3). Enable/disable is NOT this package's concern (meta's per-namespace plugin gate `archimedes.sudo.enabled` — ADR 0012 / plans 031+032; sudo must never read it). Version number must match the monorepo (read core's package.json).
 
 ---
 
@@ -268,19 +269,19 @@ Tasks 1–2 are self-contained in `packages/sudo`, but the package is not yet fu
 - Modify: `packages/sudo/src/index.ts` — session lifecycle (top-level `session_shutdown` clears `credentialCache`; `session_start` re-creates it via `clear()`), `/sudo` command registration
 - Create: `packages/sudo/src/lifecycle.test.ts` (optional; covers `session_shutdown` clearing the cache if worth the branch)
 - Modify: `meta/package.json` — add `"@pi-archimedes/sudo": "workspace:*"`
-- Modify: `meta/src/index.ts` — `import { registerSudo } from "@pi-archimedes/sudo";` + call `registerSudo(pi)` in the factory wrapped in the plugin gate: `if (isPluginEnabled("sudo")) registerSudo(pi);` — `isPluginEnabled` comes from `meta/src/plugins.ts` (plan-031's single `archimedes.plugins` gate, ADR 0011); if plan-031 has NOT landed yet, define a minimal local `isPluginEnabled` helper reading `archimedes.plugins.sudo` from settings-io (default true) so sudo mounts gated regardless of plan order. When plan-031's manifest exists, add `{ id: "sudo", label: "Sudo", description: "Safe privileged execution", defaultEnabled: true, load: () => import("@pi-archimedes/sudo") }` to `PLUGINS` in `meta/src/plugins.ts` (plan-031's Task 1 already references a `// future: sudo (plan-030)` entry — this supersedes it).
+- Modify: `meta/src/index.ts` — `import { registerSudo } from "@pi-archimedes/sudo";` + call `registerSudo(pi)` in the factory wrapped in the plugin gate: `if (isPluginEnabled("sudo")) registerSudo(pi);` — `isPluginEnabled` comes from `meta/src/plugins.ts` (plans 031+032's per-namespace gate: the manifest entry's `namespace`, read as `archimedes.sudo.enabled`, default-on — ADR 0012); if plans 031/032 have NOT landed yet, define a minimal local gate helper reading `loadConfig("archimedes.sudo", {})` and treating `enabled !== false` as on (core's `isConfigEnabled("archimedes.sudo")` if the settings-io primitives exist) so sudo mounts gated regardless of plan order. When the manifest exists, add `{ id: "sudo", label: "Sudo", description: "Safe privileged execution", namespace: "archimedes.sudo", load: () => import("@pi-archimedes/sudo") }` to `PLUGINS` in `meta/src/plugins.ts` (a `// future: sudo (plan-030)` entry references this — it is superseded by it). Manifest entries carry `namespace`, NOT `defaultEnabled` (ADR 0012 removed the uniform default from the manifest — default-on lives in the `isConfigEnabled !== false` check).
 - Modify: `.github/workflows/release.yml` — add `pnpm --filter "@pi-archimedes/sudo" publish --access public` after `@pi-archimedes/core` and before `meta` (sudo's only dep is core)
 - Modify: `AGENTS.md` — monorepo structure list (+ `packages/sudo` bullet), "all N package versions" count + type-check count + publish-order line
-- Modify: `README.md` — feature section for `@pi-archimedes/sudo`, monorepo tree line, `pi install @pi-archimedes/sudo` line under install selectively, settings-table entry
+- Modify: `README.md` — feature section for `@pi-archimedes/sudo`, monorepo tree line, `pi install @pi-archimedes/sudo` line under install selectively, settings-table entry incl. the suite-managed row (on/off via `/plugins` — `archimedes.sudo.enabled`, default on — same convention as the other packages' settings tables after plan 032)
 - Test: `packages/sudo/src/config.test.ts` (already Task 1; extend for lifecycle if needed)
 
 **What to implement:**
 - **Lifecycle:** `pi.on("session_shutdown", ...)` registered at the TOP level of `registerSudo` (AGENTS.md — nested registration accumulates on `/reload`). It clears the cache + unsubscribes nothing (pi handles event teardown per-session). `session_start` (also top-level) calls `credentialCache.clear()` to reset the cred for a fresh session.
 - **`/sudo` command:** `pi.registerCommand("sudo", { description: "Manage the sudo credential cache", handler })` with subcommands: `forget` (clears cache + `ctx.ui.notify("Sudo credential cleared.", "info")`), bare invocation → notify current state (cached / not cached). This satisfies the "cleared on ... explicit forget" requirement.
 - **Config:** JSON-only under `archimedes.sudo` (already Task 1). No settings-panel UI in v1 — document JSON-only config in README with `loadSudoConfig` defaults.
-- **Enable/disable:** single plugin gate in meta (`archimedes.plugins.sudo` via `/plugins`, ADR 0011 / plan-031) — when disabled, meta does NOT call `registerSudo` at all, so the tool, guard, `/sudo` command, and lifecycle never mount. This package has NO own `enabled` config (removed per ADR 0011).
+- **Enable/disable:** per-namespace plugin gate in meta (`archimedes.sudo.enabled` via `/plugins`, ADR 0012 / plans 031+032) — when off, meta does NOT call `registerSudo` at all, so the tool, guard, `/sudo` command, and lifecycle never mount. The `enabled` key lives in sudo's `archimedes.sudo` namespace (typed in `SudoConfig` for documentation; default-on when absent) but meta is its only reader/writer and sudo's code never reads it. (Supersedes the plan-031/ADR-0011-era wording "sudo has NO own enabled config" — ADR 0012 flipped that.)
 - **Docs:** README feature section (bullet + caveat that the bash guard blocks interactive sudo), Settings table row, and under "install selectively" (lines ~241-247 use the `npm:` prefixed form `pi install npm:@pi-archimedes/...`) add `pi install npm:@pi-archimedes/sudo`. There is also a `pi install @pi-archimedes/<name>` doc convention in AGENTS.md — follow the README's actual `npm:` form for the install line.
-- **Full-gate (final):** run `npx tsc --noEmit` in all **12** dirs (core, ask, footer, diff, image-paste, notify, subagent, todo, session-name, mcp, **sudo**, meta) + `npx vitest run` in every package with a `vitest.config.ts` (sudo + core/ask/footer/diff/mcp/subagent/todo = 8; image-paste/notify/session-name have no configs). Do NOT touch `docs/plans/done/**`.
+- **Full-gate (final):** run `npx tsc --noEmit` in all **12** dirs (core, ask, footer, diff, image-paste, notify, subagent, todo, session-name, mcp, **sudo**, meta — NOT the repo root) + vitest: repo-root `npx vitest run` (9 root-config packages incl. notify + image-paste — they have no local vitest config, so never `cd` into them to run vitest) + `cd packages/sudo && npx vitest run` + `cd meta && npx vitest run`. Do NOT touch `docs/plans/done/**`.
 
 **Steps:**
 - [ ] Add lifecycle + `/sudo` command in `packages/sudo/src/index.ts`; add `lifecycle.test.ts`; `cd packages/sudo && npx vitest run && npx tsc --noEmit` green.
