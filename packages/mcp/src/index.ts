@@ -144,3 +144,12 @@ export function registerMcp(pi: ExtensionAPI): void {
     }),
   });
 }
+
+// ── Default export (for standalone pi.extensions loading) ─────────────────
+
+// registerMcp subscribes its own session_start/session_shutdown handlers
+// internally (top-level, per AGENTS.md), so the default factory just
+// registers it.
+export default function (pi: ExtensionAPI): void {
+  registerMcp(pi);
+}

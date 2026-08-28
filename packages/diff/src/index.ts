@@ -4,7 +4,7 @@
  * Adapted from pi-ui-hephaestus diff renderer.
  */
 
-import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 
 import { setConfigGetter as setShikiConfig } from "./shiki.js";
@@ -121,4 +121,16 @@ export function registerDiffTools(
 
 	// Register edit tool override
 	registerEditTool(pi, cwd, home, _sdk.createEditTool);
+}
+
+// ── Default export (for standalone pi.extensions loading) ─────────────────
+
+// Diff tools need a per-session theme, so registration runs on session_start
+// (mirroring meta's wiring: registerDiffTools with a theme getter + config
+// reader). Meta supplies a settings-backed config loader; standalone uses the
+// package defaults.
+export default function (pi: ExtensionAPI): void {
+	pi.on("session_start", (_event, ctx: ExtensionContext) => {
+		registerDiffTools(pi, () => ctx.ui.theme, () => DEFAULT_DIFF_CONFIG);
+	});
 }

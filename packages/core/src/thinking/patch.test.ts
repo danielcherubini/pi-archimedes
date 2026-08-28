@@ -272,4 +272,118 @@ describe("patchThinkingRenderer", () => {
 		// The patched function must be a new closure (not the same reference)
 		expect(MockClass.prototype.updateContent).not.toBe(first);
 	});
+
+	// ── Configurable thinking label (issue #36) ────────────────────────────
+
+	// Patches with a valid AssistantMessageComponent + mocked pi-tui so the
+	// Markdown content rendered for a thinking block can be inspected.
+	async function patchAndRender(
+		config?: { labelText?: string; labelColor?: string },
+		thinkingText = "Let me consider this carefully.",
+	) {
+		const MockClass = function AssistantMessageComponent() {};
+		MockClass.prototype.updateContent = function updateContent() {
+			if (this.content.type === "thinking") {
+				this.markdownTheme.codeBlockIndent = "";
+			}
+		};
+
+		vi.doMock("@earendil-works/pi-coding-agent", () => ({
+			AssistantMessageComponent: MockClass,
+			VERSION: "1.0.0",
+			highlightCode: vi.fn(),
+		}));
+
+		const capturedMarkdown: any[] = [];
+		class MockMarkdown {
+			content: string;
+			constructor(content: string, ..._rest: any[]) {
+				this.content = content;
+				capturedMarkdown.push(this);
+			}
+		}
+		class MockSpacer {}
+		class MockText {}
+		vi.doMock("@earendil-works/pi-tui", () => ({
+			Markdown: MockMarkdown,
+			Spacer: MockSpacer,
+			Text: MockText,
+		}));
+
+		vi.resetModules();
+		const mod = await import("./patch.js");
+		mod.patchThinkingRenderer(
+			() => ({ getFgAnsi: () => "", fg: (_t: string, text: string) => text }) as any,
+			config,
+		);
+
+		const instance = {
+			contentContainer: { clear: vi.fn(), addChild: vi.fn() },
+			isStreaming: false,
+			markdownTheme: { codeBlockIndent: "" },
+			markdownTransformers: [],
+			hideThinkingBlock: false,
+			outputPad: 1,
+		};
+		const message = {
+			content: [{ type: "thinking", thinking: thinkingText }],
+			stopReason: undefined,
+		};
+		MockClass.prototype.updateContent.call(instance, message, false);
+		return capturedMarkdown;
+	}
+
+	it("uses configured labelText/labelColor for the thinking label", async () => {
+		const captured = await patchAndRender({
+			labelText: "Yapping...",
+			labelColor: "255,215,0",
+		});
+
+		expect(captured).toHaveLength(1);
+		expect(
+			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m\n\n"),
+		).toBe(true);
+	});
+
+	it("defaults to the original Thinking... label when no config is given", async () => {
+		const captured = await patchAndRender();
+
+		expect(captured).toHaveLength(1);
+		// Byte-identical to the previous hardcoded THINKING_LABEL
+		expect(
+			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m\n\n"),
+		).toBe(true);
+	});
+
+	it("trims whitespace from configured labelText and labelColor", async () => {
+		const captured = await patchAndRender({
+			labelText: "  Yapping...  ",
+			labelColor: " 255, 215, 0 ",
+		});
+
+		expect(
+			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m\n\n"),
+		).toBe(true);
+	});
+
+	it("falls back to 255,215,0 when labelColor is not a valid RGB triple", async () => {
+		const captured = await patchAndRender({
+			labelText: "Hmm",
+			labelColor: "not-a-color",
+		});
+
+		expect(
+			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mHmm\x1b[39m\x1b[22m\n\n"),
+		).toBe(true);
+	});
+
+	it("does not double-prepend the label when content already starts with it", async () => {
+		const label = "\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m";
+		const captured = await patchAndRender(
+			{ labelText: "Yapping...", labelColor: "255,215,0" },
+			`${label}\n\nAlready labelled body.`,
+		);
+
+		expect(captured[0]!.content).toBe(`${label}\n\nAlready labelled body.`);
+	});
 });

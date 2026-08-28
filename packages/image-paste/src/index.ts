@@ -188,3 +188,19 @@ export function shutdownImagePaste(): void {
   _queue = null;
   _pasting = false;
 }
+
+// ── Default export (for standalone pi.extensions loading) ─────────────────
+
+// Pi's standalone loader requires a default export functioning as the
+// extension factory. Meta imports the named exports directly (register
+// + session lifecycle), so this default export is standalone-only.
+export default function (pi: ExtensionAPI): void {
+  registerImagePaste(pi);
+  // Session lifecycle: pi requires per-session ctx for image pasting.
+  pi.on("session_start", (_event, ctx) => {
+    initImagePasteSession(ctx);
+  });
+  pi.on("session_shutdown", (_event, _ctx) => {
+    shutdownImagePaste();
+  });
+}

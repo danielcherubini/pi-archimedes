@@ -213,6 +213,14 @@ export function registerNotify(pi: ExtensionAPI): void {
   });
 }
 
+// ── Default export (for standalone pi.extensions loading) ─────────────────
+
+// registerNotify subscribes its own session_start/session_shutdown (and
+// agent/input) handlers internally, so the default factory just registers it.
+export default function (pi: ExtensionAPI): void {
+  registerNotify(pi);
+}
+
 // ── Settings UI ─────────────────────────────────────────────────────────────
 
 /** Build settings UI items for the notify package. */

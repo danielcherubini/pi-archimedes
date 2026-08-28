@@ -26,3 +26,12 @@ export function registerAsk(pi: ExtensionAPI) {
 		unsubscribes.length = 0;
 	});
 }
+
+// ── Default export (for standalone pi.extensions loading) ─────────────────
+
+// registerAsk already subscribes its own session_start/turn_start/
+// session_shutdown handlers internally, so the default factory just
+// registers it.
+export default function (pi: ExtensionAPI): void {
+	registerAsk(pi);
+}

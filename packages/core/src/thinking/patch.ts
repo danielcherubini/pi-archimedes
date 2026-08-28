@@ -3,9 +3,6 @@ import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-ag
 import { Markdown, type MarkdownOptions, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
-// The label we prepend to visible thinking content.
-const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
-
 // Track which pi version we patched against to detect incompatibility
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
 const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
@@ -16,8 +13,15 @@ const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
  * to capture a fresh `getTheme` closure (required for /resume).
  *
  * Re-patches when pi version changes to catch breaking upstream changes.
+ *
+ * @param config Optional labelText/labelColor overrides for the thinking
+ *   block header. When omitted (or empty/invalid), the original defaults
+ *   ("Thinking..." / "255,215,0") are used, producing byte-identical output.
  */
-export function patchThinkingRenderer(getTheme: () => Theme): void {
+export function patchThinkingRenderer(
+  getTheme: () => Theme,
+  config?: { labelText?: string; labelColor?: string },
+): void {
   if (!AssistantMessageComponent) return;
 
   const proto = AssistantMessageComponent.prototype;
@@ -83,6 +87,21 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
 
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
+
+    // Build the thinking-block header from the closure config once per render.
+    // Defaults preserve the original byte-identical output ("Thinking..." in
+    // bold truecolor 255,215,0).
+    const buildThinkingLabel = (): string => {
+      const label = config?.labelText?.trim() ? config.labelText.trim() : "Thinking...";
+      const color = config?.labelColor?.trim() ? config.labelColor.trim() : "255,215,0";
+      const parts = color.split(",").map((p) => p.trim());
+      // Valid iff exactly three 0..255 components (an "R,G,B" triple).
+      const valid =
+        parts.length === 3 &&
+        parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
+      const [r, g, b] = valid ? parts : ["255", "215", "0"];
+      return `\x1b[1m\x1b[38;2;${r};${g};${b}m${label}\x1b[39m\x1b[22m`;
+    };
 
     const hasVisibleContent = message.content.some(
       (c: any) =>
@@ -202,8 +221,9 @@ export function patchThinkingRenderer(getTheme: () => Theme): void {
           }
         } else {
           let thinkingContent = thinkBlocks.join("\n\n");
-          if (!thinkingContent.startsWith(THINKING_LABEL)) {
-            thinkingContent = `${THINKING_LABEL}\n\n${thinkingContent}`;
+          const label = buildThinkingLabel();
+          if (!thinkingContent.startsWith(label)) {
+            thinkingContent = `${label}\n\n${thinkingContent}`;
           }
           const t = ensureTheme();
           if (!t) continue;
