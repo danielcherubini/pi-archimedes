@@ -59,9 +59,13 @@ export default function (pi: ExtensionAPI): void {
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
-    // imagePasteShutdown is only assigned when image-paste registered
-    // (gated in session_start) — the explicit check keeps the intent visible.
-    if (isPluginEnabled("image-paste")) imagePasteShutdown?.();
+    // Liveness-gated on the ref itself: it is set only when image-paste was
+    // registered during THIS session (session_start, gated by config at that
+    // moment). Config may be toggled mid-session via /plugins — cleanup must
+    // still run. Nulled afterwards so a later never-registered session cannot
+    // re-execute a stale ref.
+    imagePasteShutdown?.();
+    imagePasteShutdown = undefined;
     unpatchConsoleLog();
     archPrintTimings();
   });
