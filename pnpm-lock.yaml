@@ -47,6 +47,9 @@ importers:
       '@pi-archimedes/subagent':
         specifier: workspace:*
         version: link:../packages/subagent
+      '@pi-archimedes/sudo':
+        specifier: workspace:*
+        version: link:../packages/sudo
       '@pi-archimedes/todo':
         specifier: workspace:*
         version: link:../packages/todo

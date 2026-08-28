@@ -13,6 +13,7 @@ import { registerAsk } from "@pi-archimedes/ask";
 import { isPluginEnabled, migrateLegacyPluginsMap } from "./plugins.js";
 import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
+import { registerSudo } from "@pi-archimedes/sudo";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 import { registerPluginsCommand } from "./plugin-manager.js"
@@ -54,6 +55,10 @@ export default function (pi: ExtensionAPI): void {
   // Register session-name
   if (isPluginEnabled("session-name")) registerSessionName(pi);
   archTime("registerSessionName");
+
+  // Register sudo (lightweight: tool + guard + /sudo command + lifecycle)
+  if (isPluginEnabled("sudo")) registerSudo(pi);
+  archTime("registerSudo");
 
   archTime("factory end");
 

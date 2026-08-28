@@ -25,7 +25,7 @@ Want only one piece? Each package works standalone. Want only the footer? `pi in
 
 ## Features
 
-**When installed via the meta package, the nine components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
+**When installed via the meta package, the ten components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
 
 ### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
 
@@ -230,11 +230,23 @@ The adapter writes to exactly two targets, one field at a time:
 
 Changes to either file take effect on the next `/reload`.
 
+### 🔐 Sudo (`@pi-archimedes/sudo`)
+
+Safe privileged execution: a dedicated `sudo_exec` tool with a masked password prompt, plus a guard that keeps the ordinary `bash` tool from driving interactive `sudo`.
+
+- `sudo_exec` tool — runs a privileged command via `sudo -S` with a masked interactive password prompt and a command confirmation; the password travels only over stdin — never argv, env, logs, or files — and the tool's output is scrubbed with the password masked
+- Single in-memory credential cache with TTL (default 15 min, `ttlMs`) — never written to disk or the OS keyring; cleared on `session_shutdown`, on `/sudo forget`, on auth failure, and at TTL expiry
+- Bash guard — active `tool_call` veto (ADR 0010): interactive `sudo` through the built-in `bash` tool is always **blocked**, funneling privileged execution through `sudo_exec`; non-interactive forms (`sudo -n`, `-l`, `-v`, `-K`, `-k`) pass through untouched
+- `/sudo` command — reports whether a credential is cached; `/sudo forget` clears it from memory
+- Headless sessions (subagent children) are blocked on `sudo_exec` with a clear error rather than prompted — the mask prompt only ever appears in a human's TUI
+
+> **Caveat:** the bash guard blocks interactive sudo *everywhere* — including one-off human-directed agent runs. Use `sudo_exec` for anything privileged.
+
 ### 🧩 Plugin manager (`pi-archimedes`)
 
 *Available when installed via `pi-archimedes` (the meta package), not via individual standalone installs.*
 
-Every non-core package is an **optional plugin** — the nine components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown. Each plugin's on/off switch is the `enabled` key inside **its own** `archimedes.<pkg>` namespace in `~/.pi/agent/settings.json` (absent = on); only the meta package reads or writes it.
+Every non-core package is an **optional plugin** — the ten components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown. Each plugin's on/off switch is the `enabled` key inside **its own** `archimedes.<pkg>` namespace in `~/.pi/agent/settings.json` (absent = on); only the meta package reads or writes it.
 
 #### `/plugins` command
 
@@ -260,6 +272,7 @@ That's it. Reload Pi and you're set.
 - `pi install npm:@pi-archimedes/notify`
 - `pi install npm:@pi-archimedes/session-name`
 - `pi install npm:@pi-archimedes/mcp`
+- `pi install npm:@pi-archimedes/sudo`
 
 ## Settings
 
@@ -341,6 +354,15 @@ Per-server settings in the `mcp.json` server definitions override these defaults
 
 A metadata cache at `~/.pi/agent/mcp-cache.json` (valid for 7 days) stores each server's tools/resources/prompts so the gateway can search and describe offline, connecting servers lazily per tool call. It also persists each server's last connection outcome, so `/mcp status` and the panel can surface a `needs-auth`/error from a previous session (with an age suffix once it grows stale).
 
+### [`@pi-archimedes/sudo`](packages/sudo)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ttlMs` | number | `900000` | Password cache TTL in milliseconds (default 15 minutes) |
+| `defaultTimeoutMs` | number | `120000` | `sudo_exec` default command timeout in milliseconds (default 120 seconds) |
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on). Config is JSON-only in the `archimedes.sudo` namespace of `~/.pi/agent/settings.json` — there is no settings-panel UI in v1.
+
 ## Architecture
 
 ### Monorepo layout
@@ -357,8 +379,9 @@ pi-archimedes/
 │   ├── todo/         # @pi-archimedes/todo — todo list with auto-clear
 │   ├── notify/       # @pi-archimedes/notify — delayed desktop notifications
 │   ├── session-name/ # @pi-archimedes/session-name — auto session naming
-│   └── mcp/          # @pi-archimedes/mcp — MCP client adapter with pi-native TUI
-└── meta/             # pi-archimedes — meta-package bundling all ten
+│   ├── mcp/          # @pi-archimedes/mcp — MCP client adapter with pi-native TUI
+│   └── sudo/         # @pi-archimedes/sudo — sudo_exec + interactive-sudo bash guard
+└── meta/             # pi-archimedes — meta-package bundling all eleven
 ```
 
 Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.

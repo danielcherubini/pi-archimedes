@@ -34,6 +34,7 @@ jobs:
         run: |
           # Publish component packages first, then meta (dependency order)
           pnpm --filter "@pi-archimedes/core" publish --access public --no-git-checks
+          pnpm --filter "@pi-archimedes/sudo" publish --access public --no-git-checks
           pnpm --filter "@pi-archimedes/ask" publish --access public --no-git-checks
           pnpm --filter "@pi-archimedes/todo" publish --access public --no-git-checks
           pnpm --filter "@pi-archimedes/notify" publish --access public --no-git-checks
