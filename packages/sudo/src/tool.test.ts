@@ -18,6 +18,7 @@ vi.mock("@pi-archimedes/core/settings-io", () => ({
 }));
 
 import { buildSudoArgv, createSudoExecTool, scrubSecret } from "./tool.js";
+import type { SudoChild } from "./tool.js";
 import { credentialCache } from "./cache.js";
 
 // ── fakes ────────────────────────────────────────────────────────────────────
@@ -30,7 +31,8 @@ interface FakeChild {
 	/** signals passed to kill(), in order. */
 	killSignals: Array<NodeJS.Signals | undefined>;
 	kill(signal?: NodeJS.Signals): boolean;
-	on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void): unknown;
+	/** 'exit'/'close' pass an exit callback, 'error' passes an Error callback. */
+	on(evt: string, cb: ((code: number | null, signal?: NodeJS.Signals | null) => void) | ((err: Error) => void)): unknown;
 }
 
 function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number | null; signal?: NodeJS.Signals; exitOn?: "register" | "kill" }): {
@@ -75,11 +77,14 @@ function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number 
 				if (opts.exitOn === "kill") fireExit(signal); // async, like a real child
 				return true;
 			},
-			on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void) {
+			on(evt: string, cb: ((code: number | null, signal?: NodeJS.Signals | null) => void) | ((err: Error) => void)): unknown {
 				if (evt === "exit" || evt === "close") {
-					if (opts.exitOn === "kill") registeredExits.set(evt, cb);
-					else queueMicrotask(() => cb(opts.code ?? null, opts.signal ?? null));
+					const exitCb = cb as (code: number | null, signal?: NodeJS.Signals | null) => void;
+					if (opts.exitOn === "kill") registeredExits.set(evt, exitCb);
+					else queueMicrotask(() => exitCb(opts.code ?? null, opts.signal ?? null));
 				}
+				// 'error' is intentionally not fired by the base fake — the
+				// process-failure tests build their own error-capable children.
 				return child;
 			},
 		};
@@ -376,6 +381,206 @@ describe("sudo_exec tool", () => {
 		it("returns the input unchanged for an empty secret (guard against wiping everything)", () => {
 			const text = "a\nb\nc";
 			expect(scrubSecret(text, "")).toBe(text);
+		});
+	});
+
+	describe("process-level failures (no crash, no hang, no false auth-failure)", () => {
+		/**
+		 * Fake child whose 'error' event fires asynchronously (spawn failed —
+		 * either the process never started, or it died hard). No 'exit'/'close'
+		 * is ever fired: a dead-spawn child has no exit to report.
+		 */
+		function errorChild(err: Error): SudoChild {
+			const errorCbs: Array<(e: Error) => void> = [];
+			const child: SudoChild = {
+				stdin: { write() {}, end() {} },
+				stdout: { on: () => null },
+				stderr: { on: () => null },
+				kill: () => true,
+				on(evt: string, cb: unknown) {
+					if (evt === "error") errorCbs.push(cb as (e: Error) => void);
+					return null;
+				},
+			};
+			// fires AFTER the executor has synchronously registered listeners —
+			// like real Node emitting 'error' on a later tick for a failed spawn.
+			queueMicrotask(() => void errorCbs.forEach((cb) => cb(err)));
+			return child;
+		}
+
+		it("resolves a clean tool failure (exit -1) when the child 'error' event fires (e.g. spawn ENOENT) — no uncaught crash, cache retained", async () => {
+			// 3s test timeout is the hang guard: without an 'error' listener the
+			// promise would never settle (there is no exit event from a spawn that
+			// never produced a process) → the review's crash/hang finding.
+			credentialCache.set("pw", 60_000);
+			const err = Object.assign(new Error("spawn sudo ENOENT"), { code: "ENOENT" });
+			const tool = createSudoExecTool({ spawner: () => errorChild(err) });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/failed to run privileged command/i);
+			expect(text).not.toMatch(/authentication failed|incorrect password/i); // must not look like an auth failure
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(-1);
+			expect(details.error).toBeTruthy();
+			// The password STAYS cached: a spawn/transport failure says nothing
+			// about the credential — it may be a transient fs/permission hiccup.
+			expect(credentialCache.get()?.password).toBe("pw");
+		}, 3000);
+
+		it("resolves a clean tool failure when the spawner itself throws synchronously — no unhandled rejection, cache retained", async () => {
+			credentialCache.set("pw", 60_000);
+			const tool = createSudoExecTool({
+				spawner: () => {
+					throw Object.assign(new Error("spawn sudo EACCES"), { code: "EACCES" });
+				},
+			});
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/failed to run privileged command/i);
+			expect(text).not.toMatch(/authentication failed|incorrect password/i);
+			expect((result.details as { exitCode: number }).exitCode).toBe(-1);
+			// cache retained — a spawning throw is about the transport, not the password
+			expect(credentialCache.get()?.password).toBe("pw");
+		});
+
+		it("resolves a clean tool failure when writing the password to stdin is fatal (child died before reading it) — cache retained", async () => {
+			credentialCache.set("pw", 60_000);
+			const child: SudoChild = {
+				stdin: {
+					write() {
+						throw new Error("write EPIPE");
+					},
+					end() {},
+				},
+				stdout: { on: () => null },
+				stderr: { on: () => null },
+				kill: () => true,
+				on: () => null,
+			};
+			const tool = createSudoExecTool({ spawner: () => child });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/failed to run privileged command/i);
+			expect(text).not.toMatch(/authentication failed|incorrect password/i);
+			expect((result.details as { exitCode: number }).exitCode).toBe(-1);
+			// the child dying needs no re-auth of the password — keep it cached
+			expect(credentialCache.get()?.password).toBe("pw");
+		});
+	});
+
+	describe("locale-immune auth-failure invalidation (credential ticket probe)", () => {
+		// sudo asked for a password, the command failed non-zero, but stderr
+		// carries NO English "incorrect password" signature (non-English sudo).
+		const nonEnglishStderr = '[sudo] password for daniel: \nFalsches Passwort "daniel".\n';
+
+		function probeSpy(ok: boolean, throws = false) {
+			let calls = 0;
+			const authProbe: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean> = () => {
+				calls += 1;
+				if (throws) return Promise.reject(new Error("probe transport error"));
+				return Promise.resolve(ok);
+			};
+			return { authProbe, calls: () => calls };
+		}
+
+		function ambiguousRunSpawner() {
+			const { spawner } = makeFakeSpawner({ stderr: nonEnglishStderr, code: 1 });
+			return spawner;
+		}
+
+		it("clears the cache when the ticket probe fails (prompt + non-zero exit, no recognizable signature, no valid ticket)", async () => {
+			const { authProbe, calls } = probeSpy(false);
+			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
+			credentialCache.set("badpw-de", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "reboot", reason: "retry service" });
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/authentication failed/i);
+			// the failure came from the probe, not an English signature — say so
+			expect(text).toMatch(/probe|ticket/i);
+			expect(credentialCache.get()).toBeNull(); // stale password dropped
+			expect(calls()).toBe(1);
+		});
+
+		it("keeps the cache when the probe succeeds — valid credential ticket means the command itself failed, NOT the auth", async () => {
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
+			credentialCache.set("goodpw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "systemctl restart dnsmasq", reason: "flip" });
+
+			// a normal command failure, not an auth failure
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).not.toMatch(/authentication/i);
+			expect((result.details as { error?: string }).error).toMatch(/command failed with exit code 1/i);
+			// the good credential must NOT have been thrown away
+			expect(credentialCache.get()?.password).toBe("goodpw");
+			expect(calls()).toBe(1);
+		});
+
+		it("clears the cache (safe direction) when the probe itself errors", async () => {
+			const { authProbe, calls } = probeSpy(false, true);
+			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "wake lock", reason: "test" });
+
+			// a probe that blew up must NOT escape as a tool error — treat as no ticket
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/authentication failed/i);
+			expect(credentialCache.get()).toBeNull(); // err on the side of invalidation
+			expect(calls()).toBe(1);
+		});
+
+		it("does NOT probe on the English-signature fast path (backwards-compatible: one spawn, no probe)", async () => {
+			const { spawner, last } = makeFakeSpawner({
+				stderr: "[sudo] password for daniel: \nsorry, try again.\n3 incorrect password attempts\n",
+				code: 1,
+			});
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("badpw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "reboot", reason: "retry service" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/authentication|incorrect password/i);
+			expect(credentialCache.get()).toBeNull();
+			expect(calls()).toBe(0); // signature matched — no probe
+			expect(last.command).toBe("sudo");
+		});
+
+		it("never probes a timed-out run, even when the prompt was seen (124/137 branches stay untouched)", async () => {
+			const { spawner } = makeFakeSpawner({ stderr: "[sudo] password for daniel: ", code: null, exitOn: "kill" });
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "sleep", reason: "test", timeoutMs: 10 });
+
+			expect(result.isError).toBe(true);
+			expect((result.details as { error?: string }).error).toMatch(/timed out after 10ms/i);
+			expect(calls()).toBe(0);
 		});
 	});
 });

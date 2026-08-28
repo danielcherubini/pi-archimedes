@@ -39,7 +39,8 @@ export interface SudoChild {
 	readonly stdout: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	readonly stderr: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	kill(signal?: NodeJS.Signals): boolean;
-	on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void): unknown;
+	on(evt: "exit" | "close", cb: (code: number | null, signal?: NodeJS.Signals | null) => void): unknown;
+	on(evt: "error", cb: (err: Error) => void): unknown;
 }
 
 export type SudoSpawner = (command: string, args: string[]) => SudoChild;
@@ -56,6 +57,22 @@ export interface SudoRunResult {
 	authFailed: boolean;
 	/** the timeout fired and the child was SIGKILLed. */
 	timedOut: boolean;
+	/**
+	 * Process-level failure under the hood (spawn `error` event, spawner
+	 * threw, fatal stdin write). When set, `exitCode` is -1 and `authFailed`
+	 * / `timedOut` are false — surface as a tool failure, NOT an auth
+	 * failure, and keep the credential cache.
+	 */
+	error?: string;
+}
+
+/** "ENOENT" et al. when the errno code is present, the error message otherwise. */
+function errDetail(err: unknown): string {
+	if (err instanceof Error) {
+		const code = (err as NodeJS.ErrnoException).code;
+		return code ?? err.message;
+	}
+	return String(err);
 }
 
 /**
@@ -75,10 +92,20 @@ export function runSudo(
 	return new Promise<SudoRunResult>((resolve) => {
 		const [command, ...args] = commandArgv;
 		if (!command) {
-			resolve({ exitCode: -1, stdout: "", stderr: "no command in argv", authPromptSeen: false, authFailed: false, timedOut: false });
+			resolve({ exitCode: -1, stdout: "", stderr: "no command in argv", authPromptSeen: false, authFailed: false, timedOut: false, error: "no command in argv" });
 			return;
 		}
-		const child = spawner(command, args);
+
+		let child: SudoChild;
+		try {
+			child = spawner(command, args);
+		} catch (err) {
+			// the spawner itself threw (platform/transport) — resolving the
+			// failed shape instead of letting the throw escape the promise
+			// executor, which would hand the tool an unhandled rejection.
+			resolve({ exitCode: -1, stdout: "", stderr: "", authPromptSeen: false, authFailed: false, timedOut: false, error: `failed to spawn ${command}: ${errDetail(err)}` });
+			return;
+		}
 
 		let stdout = "";
 		let stderr = "";
@@ -95,13 +122,21 @@ export function runSudo(
 		child.stdout.on("data", onStdout);
 		child.stderr.on("data", onStderr);
 
-		const finish = (exitCode: number): void => {
+		// A child 'error' with no listener (ENOENT for a missing sudo,
+		// EACCES/EPERM, …) crashes the process. Always attach and route it
+		// through the normal settle path; the settled guard swallows any
+		// 'exit'/'close' that follows.
+		child.on("error", (err) => {
+			finish(-1, `failed to spawn ${command}: ${errDetail(err)}`);
+		});
+
+		const finish = (exitCode: number, error?: string): void => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
 			if (exitFallback) clearTimeout(exitFallback);
 			if (signal) signal.removeEventListener("abort", onAbort);
-			resolve({
+			const result: SudoRunResult = {
 				exitCode,
 				stdout,
 				stderr,
@@ -110,7 +145,10 @@ export function runSudo(
 				// meaningful when sudo actually asked for a password.
 				authFailed: /\[sudo\] password for/i.test(stderr) && /incorrect password/i.test(stderr),
 				timedOut,
-			});
+			};
+			// exactOptionalPropertyTypes: attach `error` only when present.
+			if (error !== undefined) result.error = error;
+			resolve(result);
 		};
 
 		const onAbort = (): void => {
@@ -141,9 +179,35 @@ export function runSudo(
 		}
 
 		// The password travels via stdin ONLY — sudo -S reads it from there.
-		child.stdin?.write(`${password}\n`);
-		child.stdin?.end();
+		// A fatal EPIPE / ERR_STREAM_DESTROYED (child died before reading it)
+		// is NOT an auth failure: route it through the failed process shape
+		// instead of throwing out of the async function.
+		try {
+			child.stdin?.write(`${password}\n`);
+			child.stdin?.end();
+		} catch (err) {
+			finish(-1, `failed to write to child stdin: ${errDetail(err)}`);
+		}
 	});
+}
+
+/** Timeout for the credential ticket probe (see probeSudoTicket). */
+export const AUTH_PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * Locale-immune check that the credential is currently valid: run
+ * `sudo -n true`. `-n` refuses to prompt, so nothing is written to its
+ * stdin and it exits 0 iff a valid credential ticket exists (i.e. the
+ * last-run authentication actually succeeded and the COMMAND failed),
+ * or non-zero if no ticket is cached. Takes no password — by design.
+ */
+export async function probeSudoTicket(
+	timeoutMs: number,
+	signal: AbortSignal | undefined,
+	spawner: SudoSpawner,
+): Promise<boolean> {
+	const run = await runSudo(["sudo", "-n", "true"], "", timeoutMs, signal, spawner);
+	return !run.timedOut && run.error === undefined && run.exitCode === 0;
 }
 
 /**
@@ -181,10 +245,22 @@ const SUDO_EXEC_DESCRIPTION = `Run a command with elevated privileges using sudo
 
 /**
  * Create the sudo_exec tool definition. Options are a test seam: pass a
- * custom spawner to exercise execution paths without real processes.
+ * custom spawner to exercise execution paths without real processes, and a
+ * custom authProbe to control the ticket probe without spawning `sudo -n`.
  */
-export function createSudoExecTool(options: { spawner?: SudoSpawner } = {}) {
+export function createSudoExecTool(options: {
+	spawner?: SudoSpawner;
+	/**
+	 * Locale-immune credential check used to disambiguate a run where the
+	 * prompt appeared and the command exited non-zero WITHOUT a readable
+	 * failure signature (e.g. non-English sudo). Default: a spawner-based
+	 * `sudo -n true` ticket probe (probeSudoTicket). It never receives the
+	 * password, by design.
+	 */
+	authProbe?: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean>;
+} = {}) {
 	const spawner = options.spawner ?? defaultSpawner;
+	const authProbe = options.authProbe ?? ((timeoutMs: number, signal: AbortSignal | undefined) => probeSudoTicket(timeoutMs, signal, spawner));
 
 	const fail = (text: string, details: SudoExecDetails) => ({
 		content: [{ type: "text" as const, text }],
@@ -281,6 +357,21 @@ export function createSudoExecTool(options: { spawner?: SudoSpawner } = {}) {
 			const stdout = scrubSecret(run.stdout, credential.password);
 			const stderr = scrubSecret(run.stderr, credential.password);
 
+			// Process-level failure (spawn 'error' event, spawner throw, fatal
+			// stdin write) — surface it as a clean tool failure, never as an
+			// auth failure, and never drop the password: a transport glitch is
+			// transient relative to the credential itself.
+			if (run.error) {
+				return fail(`failed to run privileged command: ${run.error}`, {
+					command,
+					reason,
+					exitCode: run.exitCode,
+					stdout,
+					stderr,
+					error: run.error,
+				});
+			}
+
 			if (run.authFailed) {
 				credentialCache.clear();
 				return fail(
@@ -302,6 +393,30 @@ export function createSudoExecTool(options: { spawner?: SudoSpawner } = {}) {
 					} satisfies SudoExecDetails,
 					isError: true,
 				};
+			}
+
+			// Locale-immune auth-failure disambiguation: the prompt appeared and
+			// the run exited non-zero, yet stderr carried no English
+			// "incorrect password" signature — a wrong password is
+			// indistinguishable from a localized message on the signature path
+			// alone. Probe for a credential ticket (sudo -n true, no password):
+			// no ticket means the password was wrong → same treatment as the
+			// signature-detected auth failure. Timeout/signal kills (124/130/
+			// 137) are excluded: those aren't auth evidence.
+			if (run.exitCode >= 1 && run.exitCode < 124 && /\[sudo\] password for/i.test(stderr)) {
+				let ticketValid = false;
+				try {
+					ticketValid = await authProbe(AUTH_PROBE_TIMEOUT_MS, signal);
+				} catch {
+					ticketValid = false; // probe transport error → err on the side of invalidation
+				}
+				if (!ticketValid) {
+					credentialCache.clear();
+					return fail(
+						`sudo authentication failed (no valid credential ticket after the run — detected locale-immunely via a \`sudo -n true\` ticket probe because stderr carried no recognizable failure signature) — exit code ${run.exitCode}. The in-memory credential cache was cleared; the user will be re-prompted on the next attempt.`,
+						{ command, reason, exitCode: run.exitCode, stdout, stderr, error: "authentication failed" },
+					);
+				}
 			}
 
 			const isError = run.exitCode !== 0;
