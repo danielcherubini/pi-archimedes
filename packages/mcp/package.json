@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/mcp",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "type": "module",
   "keywords": ["pi-package"],
   "description": "Full MCP client adapter with pi-native TUI rendering for pi-archimedes",
