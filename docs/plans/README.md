@@ -41,12 +41,14 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
+| 30 | [archimedes-sudo — safe privileged execution](plan-030-archimedes-sudo.md) | 🔧 IN PROGRESS | 2026-08-28 | |
+| 31 | [Plugin enable/disable via a single global gate](plan-031-plugin-manager.md) | 🔧 IN PROGRESS | 2026-08-28 | |
 
 ## Quick Stats
 
-- Total Plans: 29
+- Total Plans: 31
 - Completed: 29
-- In Progress: 0
-- Backlog: 0
+- In Progress: 2
+- Backlog: 2
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
