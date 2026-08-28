@@ -241,6 +241,8 @@ Safe privileged execution: a dedicated `sudo_exec` tool with a masked password p
 - Headless sessions (subagent children) are blocked on `sudo_exec` with a clear error rather than prompted — the mask prompt only ever appears in a human's TUI
 
 > **Caveat:** the bash guard blocks interactive sudo *everywhere* — including one-off human-directed agent runs. Use `sudo_exec` for anything privileged.
+>
+> **Caveat:** the timeout/abort kill covers the command's process group; a command that detaches itself into its own session (`setsid`/daemonizing) is beyond that kill by design (same reach as `tmux kill-pane`) — give it a managed lifecycle flag (e.g. `--foreground`) instead.
 
 ### 🧩 Plugin manager (`pi-archimedes`)
 

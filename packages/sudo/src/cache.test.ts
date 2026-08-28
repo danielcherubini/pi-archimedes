@@ -65,4 +65,27 @@ describe("CredentialCache", () => {
 		vi.advanceTimersByTime(1000);
 		expect(cache.get()).not.toBeNull();
 	});
+
+	it("set() initializes failStreak to 0; bumpFailStreak counts on the live entry; resetFailStreak restores 0", () => {
+		const cache = new CredentialCache();
+		cache.set("pw", TTL);
+		expect(cache.get()?.failStreak).toBe(0);
+		cache.bumpFailStreak();
+		cache.bumpFailStreak();
+		expect(cache.get()?.failStreak).toBe(2);
+		cache.resetFailStreak();
+		expect(cache.get()?.failStreak).toBe(0);
+	});
+
+	it("bumpFailStreak/resetFailStreak on an empty cache are no-ops; a fresh set() restarts the streak", () => {
+		const cache = new CredentialCache();
+		cache.bumpFailStreak();
+		cache.resetFailStreak();
+		expect(cache.get()).toBeNull();
+		cache.set("a", TTL);
+		cache.bumpFailStreak();
+		expect(cache.get()?.failStreak).toBe(1);
+		cache.set("b", TTL); // same cache, new credential — streak belongs to the entry
+		expect(cache.get()?.failStreak).toBe(0);
+	});
 });

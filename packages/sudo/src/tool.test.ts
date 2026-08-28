@@ -97,6 +97,43 @@ function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number 
 	return { spawner, last };
 }
 
+// Locale fixtures for credential failures the tool cannot signature-recognize
+// (shared by the probe-gale and two-strike describes).
+const NON_ENGLISH_STDERR = '[sudo] password for daniel: \nFalsches Passwort "daniel".\n';
+const LOCALIZED_ONLY_STDERR = 'Falsches Passwort "daniel".\n';
+
+/** Spawner yielding the ambiguous (prompt + localized text, exit 1) failure. */
+function ambiguousSpawner(): SudoSpawner {
+	const { spawner } = makeFakeSpawner({ stderr: NON_ENGLISH_STDERR, code: 1 });
+	return spawner;
+}
+
+/** Spawner piping consecutive fake runs through, one fixture step each. */
+function stepSpawner(steps: Array<{ stderr?: string; stdout?: string; code?: number | null }>): SudoSpawner {
+	const instances = steps.map((s) => makeFakeSpawner({ stderr: "", stdout: "", code: 0, ...s }));
+	let i = 0;
+	return (command, args) => {
+		const cur = instances[Math.min(i, instances.length - 1)]!;
+		i += 1;
+		return cur.spawner(command, args);
+	};
+}
+
+/** Child whose 'error' event fires asynchronously — a spawn that never produced a usable process. */
+function erroredChild(): SudoChild {
+	const err = Object.assign(new Error("spawn sudo ENOENT"), { code: "ENOENT" });
+	return {
+		stdin: { write() {}, end() {} },
+		stdout: { on: () => null },
+		stderr: { on: () => null },
+		kill: () => true,
+		on(evt: string, cb: unknown) {
+			if (evt === "error") queueMicrotask(() => (cb as (e: Error) => void)(err));
+			return null;
+		},
+	};
+}
+
 function headlessCtx(mode: string): ExtensionContext {
 	return ({ mode, hasUI: mode === "rpc", ui: {} }) as unknown as ExtensionContext;
 }
@@ -704,24 +741,21 @@ describe("sudo_exec tool", () => {
 		// The probe gate no longer requires the English prompt: it fires on any
 		// command-level failure (normal non-zero exit) whose stderr did not
 		// already match the English "incorrect password" fast-path signature.
-		// `nonEnglishStderr` (English prompt + localized failure text) is the
+		// NON_ENGLISH_STDERR (English prompt + localized failure text) is the
 		// case (a) fixture: prompt present — the probe must still run.
-		const nonEnglishStderr = '[sudo] password for daniel: \nFalsches Passwort "daniel".\n';
-		// case (b) fixture: NO English text at all — promptSeen is false, and
-		// the probe must STILL run (the localized-auth regression).
-		const localizedOnlyStderr = 'Falsches Passwort "daniel".\n';
+		// LOCALIZED_ONLY_STDERR: NO English text at all — promptSeen is false,
+		// and the probe must STILL run (the localized-auth regression).
 
 		function ambiguousRunSpawner() {
-			const { spawner } = makeFakeSpawner({ stderr: nonEnglishStderr, code: 1 });
-			return spawner;
+			return ambiguousSpawner();
 		}
 
 		function localizedOnlyRunSpawner() {
-			const { spawner } = makeFakeSpawner({ stderr: localizedOnlyStderr, code: 1 });
+			const { spawner } = makeFakeSpawner({ stderr: LOCALIZED_ONLY_STDERR, code: 1 });
 			return spawner;
 		}
 
-		it("clears the cache when the ticket probe fails (prompt + non-zero exit, no recognizable signature, no valid ticket)", async () => {
+		it("keeps the cache on the FIRST ambiguous failure with a non-terminal probe (strike 1 of two) — with the one-more-attempt warning", async () => {
 			const { authProbe, calls } = probeSpy(false);
 			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
 			credentialCache.set("badpw-de", 60_000);
@@ -731,17 +765,19 @@ describe("sudo_exec tool", () => {
 
 			expect(result.isError).toBe(true);
 			const text = (result.content[0] as { text: string }).text;
-			expect(text).toMatch(/authentication failed/i);
 			// the failure came from the probe, not an English signature — say so
-			expect(text).toMatch(/probe|ticket/i);
-			expect(credentialCache.get()).toBeNull(); // stale password dropped
+			expect(text).not.toMatch(/authentication failed/i); // not yet invalidated
+			expect(text).toMatch(/one more attempt/i); // the honest strike-1 warning
+			expect(credentialCache.get()?.password).toBe("badpw-de"); // kept on strike 1 (no-reuse sudoers may probe-fail with a CORRECT password)
+			expect(credentialCache.get()?.failStreak).toBe(1);
 			expect(calls()).toBe(1);
 		});
 
-		it("keeps the cache when the probe succeeds — valid credential ticket means the command itself failed, NOT the auth", async () => {
+		it("keeps the cache (and resets a carried streak) when the probe succeeds — valid credential ticket means the command itself failed, NOT the auth", async () => {
 			const { authProbe, calls } = probeSpy(true);
 			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
 			credentialCache.set("goodpw", 60_000);
+			credentialCache.bumpFailStreak(); // carried streak from an earlier ambiguous failure
 			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
 
 			const result = await run(tool, ctx, { command: "systemctl restart dnsmasq", reason: "flip" });
@@ -753,10 +789,12 @@ describe("sudo_exec tool", () => {
 			expect((result.details as { error?: string }).error).toMatch(/command failed with exit code 1/i);
 			// the good credential must NOT have been thrown away
 			expect(credentialCache.get()?.password).toBe("goodpw");
+			// ticket-terminal probe clears the carried streak — the next ambiguous failure starts at 1
+			expect(credentialCache.get()?.failStreak).toBe(0);
 			expect(calls()).toBe(1);
 		});
 
-		it("clears the cache (safe direction) when the probe itself errors", async () => {
+		it("keeps the cache on the first ambiguous failure when the probe itself errors — strike 1, not an immediate clear", async () => {
 			const { authProbe, calls } = probeSpy(false, true);
 			const tool = createSudoExecTool({ spawner: ambiguousRunSpawner(), authProbe });
 			credentialCache.set("pw", 60_000);
@@ -764,10 +802,13 @@ describe("sudo_exec tool", () => {
 
 			const result = await run(tool, ctx, { command: "wake lock", reason: "test" });
 
-			// a probe that blew up must NOT escape as a tool error — treat as no ticket
+			// a probe that blew up must NOT escape as a tool error — it is a non-terminal probe
 			expect(result.isError).toBe(true);
-			expect((result.content[0] as { text: string }).text).toMatch(/authentication failed/i);
-			expect(credentialCache.get()).toBeNull(); // err on the side of invalidation
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).not.toMatch(/authentication failed/i); // not yet invalidated
+			expect(text).toMatch(/one more attempt/i);
+			expect(credentialCache.get()?.password).toBe("pw"); // strike 1: keep
+			expect(credentialCache.get()?.failStreak).toBe(1);
 			expect(calls()).toBe(1);
 		});
 
@@ -804,7 +845,7 @@ describe("sudo_exec tool", () => {
 			expect(calls()).toBe(0);
 		});
 
-		it("clears the cache even when stderr carries NO English prompt text at all (localized sudo, promptSeen=false — the key regression)", async () => {
+		it("verifies the probe still runs on a localized-sudo failure with NO English prompt text at all (promptSeen=false — the key regression) — and keeps the cache on strike 1", async () => {
 			const { authProbe, calls } = probeSpy(false);
 			const tool = createSudoExecTool({ spawner: localizedOnlyRunSpawner(), authProbe });
 			credentialCache.set("badpw-de", 60_000);
@@ -814,9 +855,10 @@ describe("sudo_exec tool", () => {
 
 			expect(result.isError).toBe(true);
 			const text = (result.content[0] as { text: string }).text;
-			expect(text).toMatch(/authentication failed/i);
-			expect(text).toMatch(/probe|ticket/i);
-			expect(credentialCache.get()).toBeNull(); // stale localized password dropped
+			expect(text).not.toMatch(/authentication failed/i); // strike 1: not yet invalidated
+			expect(text).toMatch(/one more attempt/i);
+			expect(credentialCache.get()?.password).toBe("badpw-de");
+			expect(credentialCache.get()?.failStreak).toBe(1);
 			expect(calls()).toBe(1); // the probe ran despite promptSeen=false
 		});
 
@@ -833,6 +875,110 @@ describe("sudo_exec tool", () => {
 			expect((result.details as { error?: string }).error).toMatch(/command failed with exit code 1/i);
 			expect(credentialCache.get()?.password).toBe("goodpw");
 			expect(calls()).toBe(1);
+		});
+	});
+
+	describe("two-strike rule on ambiguous auth failure (fail streak on the cached credential)", () => {
+		it("a second consecutive ambiguous failure (probe non-terminal) on the same cached entry clears the cache and re-prompts, auth-failed-flavored", async () => {
+			const spawner = stepSpawner([
+				{ stderr: NON_ENGLISH_STDERR, code: 1 }, // strike 1
+				{ stderr: NON_ENGLISH_STDERR, code: 1 }, // strike 2
+			]);
+			const { authProbe, calls } = probeSpy(false);
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("badpw-de", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const first = await run(tool, ctx, { command: "reboot", reason: "first run" });
+			expect(first.isError).toBe(true);
+			expect((first.content[0] as { text: string }).text).toMatch(/one more attempt/i);
+			expect(credentialCache.get()?.failStreak).toBe(1);
+
+			const second = await run(tool, ctx, { command: "reboot", reason: "second run" });
+			expect(second.isError).toBe(true);
+			const text = (second.content[0] as { text: string }).text;
+			expect(text).toMatch(/authentication failed/i);
+			expect(text).toMatch(/twice in a way that looks like authentication failure/i);
+			expect(text).toMatch(/re-prompt/i);
+			expect(credentialCache.get()).toBeNull(); // bad-password reuse is finally cut off
+			expect(calls()).toBe(2); // both runs probed
+		});
+
+		it("a successful run (exit 0) resets a carried streak and the cache stays alive — the next ambiguous failure starts at 1 again", async () => {
+			const spawner = stepSpawner([
+				{ stderr: NON_ENGLISH_STDERR, code: 1 }, // ambiguous → strike 1
+				{ stdout: "ok\n", code: 0 },           // success → reset
+				{ stderr: NON_ENGLISH_STDERR, code: 1 }, // ambiguous again → must be strike 1, not a clear
+			]);
+			const { authProbe, calls } = probeSpy(false);
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			await run(tool, ctx, { command: "svc a", reason: "1" });
+			expect(credentialCache.get()?.failStreak).toBe(1);
+
+			const success = await run(tool, ctx, { command: "svc b", reason: "2" });
+			expect(success.isError).toBeFalsy();
+			expect(credentialCache.get()?.password).toBe("pw");
+			expect(credentialCache.get()?.failStreak).toBe(0); // the reset — pinned
+
+			const third = await run(tool, ctx, { command: "svc c", reason: "3" });
+			expect(third.isError).toBe(true);
+			expect((third.content[0] as { text: string }).text).toMatch(/one more attempt/i);
+			expect(credentialCache.get()?.password).toBe("pw"); // kept AGAIN — a fresh strike #1
+			expect(credentialCache.get()?.failStreak).toBe(1);
+			expect(calls()).toBe(2); // runs 1 and 3 probed; the success never does
+		});
+
+		it("the English fast path clears the cache immediately regardless of streak (unchanged behavior, no probe on strike 2)", async () => {
+			const spawner = stepSpawner([
+				{ stderr: NON_ENGLISH_STDERR, code: 1 },                                               // ambiguous → streak 1
+				{ stderr: "[sudo] password for daniel: \nsorry, try again.\n3 incorrect password attempts\n", code: 1 }, // fast path
+			]);
+			const { authProbe, calls } = probeSpy(false); // non-terminal probe → strike 1, not a ticket-valid reset
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("badpw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const first = await run(tool, ctx, { command: "reboot", reason: "1" });
+			expect(first.isError).toBe(true);
+			expect(credentialCache.get()?.failStreak).toBe(1);
+
+			const second = await run(tool, ctx, { command: "reboot", reason: "2" });
+			expect(second.isError).toBe(true);
+			expect((second.content[0] as { text: string }).text).toMatch(/authentication failed \(incorrect password\)/i);
+			expect(credentialCache.get()).toBeNull(); // cleared immediately — fast path never waits for strike 2
+			expect(calls()).toBe(1); // run 1 probed (ambiguous); run 2's signature match skipped the probe
+		});
+
+		it("a transport failure (-1) mid streak 1 leaves the streak UNCHANGED — the next ambiguous failure is still strike #2", async () => {
+			let i = 0;
+			const ambient = ambiguousSpawner();
+			const spawner: SudoSpawner = (command, args) => {
+				i += 1;
+				if (i === 2) return erroredChild(); // transport failure says nothing about the credential
+				return ambient(command, args);
+			};
+			const { authProbe } = probeSpy(false);
+			const tool = createSudoExecTool({ spawner, authProbe });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const r1 = await run(tool, ctx, { command: "apt update", reason: "1" });
+			expect(r1.isError).toBe(true);
+			expect(credentialCache.get()?.failStreak).toBe(1);
+
+			const r2 = await run(tool, ctx, { command: "apt update", reason: "2" });
+			expect(r2.isError).toBe(true);
+			expect((r2.content[0] as { text: string }).text).toMatch(/failed to run privileged command/i);
+			expect((r2.content[0] as { text: string }).text).not.toMatch(/authentication failed/i);
+			expect(credentialCache.get()?.password).toBe("pw");
+			expect(credentialCache.get()?.failStreak).toBe(1); // transport failure is not a strike
+
+			const r3 = await run(tool, ctx, { command: "apt update", reason: "3" });
+			expect(r3.isError).toBe(true);
+			expect(credentialCache.get()).toBeNull(); // the next ambiguous failure IS strike #2 → clear
 		});
 	});
 

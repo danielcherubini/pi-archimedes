@@ -10,14 +10,20 @@
 export interface CachedCredential {
 	password: string;
 	expiresAt: number;
+	/**
+	 * Consecutive ambiguous command failures (non-terminal credential probe
+	 * after an unrecognized-signature failure) under THIS entry. The tool's
+	 * two-strike rule bumps/resets it; a fresh set() restarts it at 0.
+	 */
+	failStreak: number;
 }
 
 export class CredentialCache {
 	private entry: CachedCredential | null = null;
 
-	/** Set (or replace) the cached credential with a fresh TTL. */
+	/** Set (or replace) the cached credential with a fresh TTL (and a zeroed fail streak). */
 	set(password: string, ttlMs: number): void {
-		this.entry = { password, expiresAt: Date.now() + ttlMs };
+		this.entry = { password, expiresAt: Date.now() + ttlMs, failStreak: 0 };
 	}
 
 	/** Return the cached credential, or null if unset or expired. */
@@ -30,6 +36,16 @@ export class CredentialCache {
 	/** Drop the credential from memory entirely. */
 	clear(): void {
 		this.entry = null;
+	}
+
+	/** Bump the current entry's failStreak (no-op when the cache is empty). */
+	bumpFailStreak(): void {
+		if (this.entry !== null) this.entry.failStreak += 1;
+	}
+
+	/** Reset the current entry's failStreak (no-op when the cache is empty). */
+	resetFailStreak(): void {
+		if (this.entry !== null) this.entry.failStreak = 0;
 	}
 
 	/** True when an entry is present but past its expiry. */

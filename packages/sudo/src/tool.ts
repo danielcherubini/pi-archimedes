@@ -244,6 +244,17 @@ export function runSudo(
 export const AUTH_PROBE_TIMEOUT_MS = 5000;
 
 /**
+ * Honest warning surfaced (content + details) on the FIRST ambiguous failure
+ * — a non-zero exit without a recognizable failure signature whose
+ * credential probe came back non-terminal: the credential is unverified but
+ * NOT yet invalidated (a no-reuse sudoers policy makes `sudo -n -v` fail even
+ * for a CORRECT password). Kept for one more attempt; a second consecutive
+ * ambiguous failure on the same cached entry clears it and re-prompts.
+ */
+const AMBIGUOUS_CREDENTIAL_WARNING =
+	"the command failed and the cached credential could not be verified (no recognizable authentication failure, and the credential check did not confirm it) — the cached password is kept for one more attempt; if the password itself was wrong it will be cleared and re-prompted after one more such failure.";
+
+/**
  * Locale-immune check that the cached credential is still usable: run
  * `sudo -n -v`. `-v` VALIDATES the credential timestamp without executing
  * any program — its success needs no program entry in the target sudoers,
@@ -413,6 +424,8 @@ export function createSudoExecTool(options: {
 
 			const stdout = scrubSecret(run.stdout, credential.password);
 			const stderr = scrubSecret(run.stderr, credential.password);
+			/** Set when the ambiguous-failure hit its first strike and the credential is kept unverified. */
+			let unverifiedCredentialWarning = false;
 
 			// Process-level failure (spawn 'error' event, spawner throw, fatal
 			// stdin write) — surface it as a clean tool failure, never as an
@@ -458,49 +471,67 @@ export function createSudoExecTool(options: {
 			// localized message (or a genuine command failure) on the
 			// signature path alone. Probe the credential with `sudo -n -v`
 			// (validates the ticket, executes no program, no password):
-			// the probe failing means we cannot confirm the cached
-			// credential still works → same treatment as the
-			// signature-detected auth failure, erring safe; the probe
-			// succeeding means the credential is fine and the command
-			// itself failed → normal result.
+			// the probe succeeding means the credential is fine and the
+			// command itself failed → normal result; the probe failing means
+			// the credential is unverified. Two-strike rule on the AMBIGUOUS
+			// path only: a no-reuse sudoers policy makes `sudo -n -v` fail
+			// even for a CORRECT password (no reusable ticket), so the first
+			// such failure keeps the credential with a visible one-more-attempt
+			// warning; the SECOND consecutive ambiguous failure on the same
+			// cached entry clears it and re-prompts. The English fast path
+			// (above) still clears immediately, and success / run / /timeout
+			// /abort outcomes reset (or leave untouched) the streak.
 			// NOT gated on the prompt text — localized sudo emits a prompt in
 			// the user's language, and after ANY command-level failure the
 			// probe is safe (valid ticket → keep, no ticket → re-prompt).
 			// Control/kill exits are excluded: -1 process error (handled
 			// above), 124 timeout (handled above), 130 abort, 137 SIGKILL —
-			// those aren't auth evidence.
+			// those aren't auth evidence and must not count as strikes.
 			if (run.exitCode >= 1 && run.exitCode < 124) {
 				let ticketValid = false;
 				try {
 					ticketValid = await authProbe(AUTH_PROBE_TIMEOUT_MS, signal);
 				} catch {
-					ticketValid = false; // probe transport error → err on the side of invalidation
+					ticketValid = false; // probe transport error → non-terminal probe
 				}
-				if (!ticketValid) {
-					credentialCache.clear();
-					return fail(
-						`sudo authentication failed (stderr carried no recognizable failure signature and the \`sudo -n -v\` credential probe could not confirm the cached credential still works — erring safe) — exit code ${run.exitCode}. The in-memory credential cache was cleared; the user will be re-prompted for the password on the next sudo_exec.`,
-						{ command, reason, exitCode: run.exitCode, stdout, stderr, error: "authentication failed" },
-					);
+				if (ticketValid) {
+					// Ticket terminal: the credential verified — drop any carried
+					// streak; this is a straightforward command failure.
+					credentialCache.resetFailStreak();
+				} else {
+					// Non-terminal probe: unverifiable credential — count a strike
+					// on the CURRENT cached entry.
+					credentialCache.bumpFailStreak();
+					if ((credentialCache.get()?.failStreak ?? 0) >= 2) {
+						credentialCache.clear();
+						return fail(
+							`sudo authentication failed — exit code ${run.exitCode}. The cached password failed twice in a way that looks like authentication failure — the credential cache was cleared; you will be re-prompted for the password next time.`,
+							{ command, reason, exitCode: run.exitCode, stdout, stderr, error: "authentication failed" },
+						);
+					}
+					unverifiedCredentialWarning = true; // strike 1: keep, warn, and fall through to the normal failure result
 				}
 			}
 
 			const isError = run.exitCode !== 0;
 			if (!isError) {
+				credentialCache.resetFailStreak();
 				return {
 					content: [{ type: "text" as const, text: stdout }],
 					details: { command, reason, exitCode: run.exitCode, stdout, stderr } satisfies SudoExecDetails,
 				};
 			}
 			return {
-				content: [{ type: "text" as const, text: stdout }],
+				content: [{ type: "text" as const, text: unverifiedCredentialWarning ? `${stdout}\n(WARNING: ${AMBIGUOUS_CREDENTIAL_WARNING})` : stdout }],
 				details: {
 					command,
 					reason,
 					exitCode: run.exitCode,
 					stdout,
 					stderr,
-					error: `command failed with exit code ${run.exitCode}`,
+					error: unverifiedCredentialWarning
+						? `command failed with exit code ${run.exitCode} — WARNING: ${AMBIGUOUS_CREDENTIAL_WARNING}`
+						: `command failed with exit code ${run.exitCode}`,
 				} satisfies SudoExecDetails,
 				isError: true,
 			};
