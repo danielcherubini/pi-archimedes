@@ -169,11 +169,14 @@ export function registerCore(pi: ExtensionAPI): void {
       });
     });
 
-    // Patch thinking renderer
-    patchThinkingRenderer(() => ctx.ui.theme);
-
-    // Load config for thinking transformation
+    // Load config for thinking transformation + label overrides
     const config = loadCoreConfig();
+
+    // Patch thinking renderer
+    patchThinkingRenderer(() => ctx.ui.theme, {
+      labelText: config.labelText,
+      labelColor: config.labelColor,
+    });
 
     // Register events
     pi.on("message_end", (event, _ctx) => {
