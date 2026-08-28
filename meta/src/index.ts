@@ -10,7 +10,7 @@ const _moduleEvalAt = Date.now();
 // image-paste & subagent — also lazy-loaded below (heavy deps, only needed on use)
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
-import { isPluginEnabled } from "./plugins.js";
+import { isPluginEnabled, migrateLegacyPluginsMap } from "./plugins.js";
 import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
 import { loadDiffConfig } from "./config.js";
@@ -25,6 +25,9 @@ let imagePasteShutdown: (() => void) | undefined;
 let currentCtx: ExtensionContext | undefined;
 
 export default function (pi: ExtensionAPI): void {
+  // Must run before any isPluginEnabled gate evaluation: re-points the
+  // legacy archimedes.plugins map onto per-package namespaces, once.
+  migrateLegacyPluginsMap();
   archResetTimings();
   archTime(`factory start (module eval was ${Date.now() - _moduleEvalAt}ms ago)`);
 

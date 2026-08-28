@@ -3,8 +3,9 @@
 // Single registration path for the /plugins command (mirrors the subagent
 // package's registerAgentsCommand pattern). Reuses the settings-manager
 // chrome for a minimal per-plugin list: each row has `values: ["On", "Off"]`
-// cycled with ←/→, and every change persists immediately to
-// archimedes.plugins. There are deliberately NO prompt descriptors — Enter /
+// cycled with ←/→, and every change persists immediately to the
+// package's own archimedes.* namespace (its `enabled` key). There are
+// deliberately NO prompt descriptors — Enter /
 // Space stay inert in list mode so the rows toggle instead of opening a
 // text prompt.
 
@@ -15,8 +16,7 @@ import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import {
   PLUGINS,
   isPluginEnabled,
-  loadPluginsConfig,
-  savePluginsConfig,
+  setPluginEnabled,
   type PluginDef,
 } from "./plugins.js";
 import { createSettingsManager } from "./settings-manager.js";
@@ -79,7 +79,7 @@ export async function buildPluginManager(
         theme,
         onChange: (id: string, newValue: string) => {
           const pluginId = id.startsWith("plugin:") ? id.slice("plugin:".length) : id;
-          savePluginsConfig({ ...loadPluginsConfig(), [pluginId]: newValue === "On" });
+          setPluginEnabled(pluginId, newValue === "On");
         },
         onSave: () => {
           // Toggles already persist on change — nothing to save on exit.

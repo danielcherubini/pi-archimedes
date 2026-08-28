@@ -14,6 +14,26 @@ vi.mock("@pi-archimedes/core/settings-io", () => {
     saveConfig: vi.fn((ns: string, config: object) => {
       store[ns] = config;
     }),
+    // Core-exact semantics: strict `enabled !== false`; delete-on-On with
+    // empty-namespace removal — so meta's flow is verified through the same
+    // primitives core uses.
+    removeConfig: vi.fn((ns: string) => {
+      delete store[ns];
+    }),
+    isConfigEnabled: vi.fn((ns: string) => {
+      const cfg = (store[ns] ?? {}) as Record<string, unknown>;
+      return cfg.enabled !== false;
+    }),
+    setConfigEnabled: vi.fn((ns: string, enabled: boolean) => {
+      if (enabled) {
+        const cfg = { ...((store[ns] as object) ?? {}) } as Record<string, unknown>;
+        delete cfg.enabled;
+        if (Object.keys(cfg).length === 0) delete store[ns];
+        else store[ns] = cfg;
+      } else {
+        store[ns] = { ...((store[ns] as object) ?? {}), enabled: false };
+      }
+    }),
     // Exposed for test setup/teardown only
     __store: store,
   };
@@ -60,11 +80,11 @@ vi.mock("@pi-archimedes/diff", () => ({
 const {
   PLUGINS,
   isPluginEnabled,
-  loadPluginsConfig,
-  savePluginsConfig,
+  setPluginEnabled,
+  migrateLegacyPluginsMap,
 } = await import("./plugins.js");
 
-describe("isPluginEnabled", () => {
+describe("isPluginEnabled (per-namespace gate)", () => {
   beforeEach(() => {
     for (const key of Object.keys(mockStore)) delete mockStore[key];
   });
@@ -75,19 +95,15 @@ describe("isPluginEnabled", () => {
     expect(isPluginEnabled("diff")).toBe(true);
   });
 
-  it("returns false for a plugin explicitly disabled in archimedes.plugins", () => {
-    mockStore["archimedes.plugins"] = { mcp: false };
+  it("returns false only for the plugin disabled in its own namespace", () => {
+    mockStore["archimedes.mcp"] = { enabled: false };
     expect(isPluginEnabled("mcp")).toBe(false);
-  });
-
-  it("leaves other plugins enabled when one is disabled", () => {
-    mockStore["archimedes.plugins"] = { mcp: false };
     expect(isPluginEnabled("footer")).toBe(true);
     expect(isPluginEnabled("todo")).toBe(true);
   });
 
-  it("treats explicit true as enabled", () => {
-    mockStore["archimedes.plugins"] = { footer: true };
+  it("treats explicit enabled: true as enabled", () => {
+    mockStore["archimedes.footer"] = { enabled: true };
     expect(isPluginEnabled("footer")).toBe(true);
   });
 
@@ -96,32 +112,76 @@ describe("isPluginEnabled", () => {
   });
 });
 
-describe("loadPluginsConfig / savePluginsConfig", () => {
+describe("migrateLegacyPluginsMap", () => {
   beforeEach(() => {
     for (const key of Object.keys(mockStore)) delete mockStore[key];
   });
 
-  it("returns the persisted archimedes.plugins map", () => {
-    mockStore["archimedes.plugins"] = { mcp: false, footer: true };
-    expect(loadPluginsConfig()).toEqual({ mcp: false, footer: true });
+  it("moves explicit false entries to package namespaces, drops true/unknown, removes the map", () => {
+    mockStore["archimedes.plugins"] = { footer: false, ask: true, junk: false };
+    migrateLegacyPluginsMap();
+    expect(mockStore["archimedes.footer"]).toEqual({ enabled: false });
+    // explicit true = default-on: nothing written
+    expect(mockStore["archimedes.ask"]).toBeUndefined();
+    // unknown id: dropped
+    expect(Object.keys(mockStore).some((k) => k.includes("junk"))).toBe(false);
+    // legacy map removed
+    expect("archimedes.plugins" in mockStore).toBe(false);
   });
 
-  it("returns {} when nothing is persisted", () => {
-    expect(loadPluginsConfig()).toEqual({});
+  it("is idempotent — a second run changes nothing", () => {
+    mockStore["archimedes.plugins"] = { footer: false, ask: true, junk: false };
+    migrateLegacyPluginsMap();
+    const afterFirst: Record<string, unknown> = JSON.parse(JSON.stringify(mockStore));
+    migrateLegacyPluginsMap();
+    expect(mockStore).toEqual(afterFirst);
   });
 
-  it("saves to the archimedes.plugins namespace (round-trips a partial map)", () => {
-    savePluginsConfig({ mcp: false });
-    expect(mockStore["archimedes.plugins"]).toEqual({ mcp: false });
-    // Round-trip: what was saved drives the gate
-    expect(isPluginEnabled("mcp")).toBe(false);
-    expect(isPluginEnabled("subagent")).toBe(true);
+  it("is a no-op when there is no legacy map", () => {
+    mockStore["archimedes.footer"] = { enabled: false };
+    migrateLegacyPluginsMap();
+    expect(mockStore).toEqual({ "archimedes.footer": { enabled: false } });
   });
 
-  it("saves explicit true when toggling a plugin on", () => {
-    savePluginsConfig({ footer: true });
-    expect(mockStore["archimedes.plugins"]).toEqual({ footer: true });
+  it("merges into a namespace that already carries real settings", () => {
+    mockStore["archimedes.notify"] = { delayMs: 30000 };
+    mockStore["archimedes.plugins"] = { notify: false };
+    migrateLegacyPluginsMap();
+    expect(mockStore["archimedes.notify"]).toEqual({ delayMs: 30000, enabled: false });
+    expect("archimedes.plugins" in mockStore).toBe(false);
+  });
+});
+
+describe("setPluginEnabled (save path)", () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockStore)) delete mockStore[key];
+  });
+
+  it("off: writes enabled: false to the package's own namespace only", () => {
+    expect(setPluginEnabled("footer", false)).toBe(true);
+    expect(mockStore["archimedes.footer"]).toEqual({ enabled: false });
+    expect("archimedes.plugins" in mockStore).toBe(false);
+    expect(isPluginEnabled("footer")).toBe(false);
+    expect(isPluginEnabled("todo")).toBe(true);
+  });
+
+  it("on: deletes the enabled key and removes a namespace that held nothing else", () => {
+    setPluginEnabled("footer", false);
+    expect(setPluginEnabled("footer", true)).toBe(true);
+    expect("archimedes.footer" in mockStore).toBe(false);
     expect(isPluginEnabled("footer")).toBe(true);
+  });
+
+  it("on: other keys in the namespace survive the delete", () => {
+    mockStore["archimedes.notify"] = { delayMs: 30000, enabled: false };
+    expect(setPluginEnabled("notify", true)).toBe(true);
+    expect(mockStore["archimedes.notify"]).toEqual({ delayMs: 30000 });
+  });
+
+  it("returns false and writes nothing for an unknown id", () => {
+    expect(setPluginEnabled("does-not-exist", true)).toBe(false);
+    expect(setPluginEnabled("does-not-exist", false)).toBe(false);
+    expect(mockStore).toEqual({});
   });
 });
 
@@ -147,10 +207,13 @@ describe("PLUGINS manifest integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("defaults all current plugins to enabled", () => {
-    for (const plugin of PLUGINS) {
-      expect(plugin.defaultEnabled).toBe(true);
+  it("gives every entry a unique, non-empty namespace", () => {
+    const namespaces = PLUGINS.map((p) => p.namespace);
+    for (const ns of namespaces) {
+      expect(ns.length).toBeGreaterThan(0);
+      expect(ns).toMatch(/^archimedes\./);
     }
+    expect(new Set(namespaces).size).toBe(namespaces.length);
   });
 
   it("gives every entry a label, description, and load function", () => {
@@ -178,7 +241,7 @@ const { registerPluginsCommand, buildPluginManager } = await import("./plugin-ma
 // Raw terminal input for the right-arrow key (legacy sequence)
 const ARROW_RIGHT = "\x1b[C";
 
-/** All enabled: empty plugins config means every default-enabled plugin is on. */
+/** All enabled — no `enabled` keys persisted anywhere. */
 function fakeAllConfig(): Parameters<typeof buildSettingsItems>[0] {
   // Minimal shape — buildSettingsItems only reads core/notify/sessionName
   // through the (mocked) item builders, so missing fields never surface.
@@ -186,8 +249,8 @@ function fakeAllConfig(): Parameters<typeof buildSettingsItems>[0] {
     core: { mutedTheme: false },
     footer: { splitThreshold: 120 },
     diff: { diffTheme: "github-dark", diffSplitMinWidth: 150, diffSplitMinCodeWidth: 60 },
-    notify: { enabled: true, delayMs: 30000, notifyOnAgentEnd: true, notifyOnQuestion: true },
-    sessionName: { enabled: true },
+    notify: { delayMs: 30000, notifyOnAgentEnd: true, notifyOnQuestion: true },
+    sessionName: {},
   } as unknown as Parameters<typeof buildSettingsItems>[0];
 }
 
@@ -205,7 +268,10 @@ describe("buildSettingsItems (settings gate)", () => {
   });
 
   it("excludes disabled packages' items and never lazy-imports diff when disabled", async () => {
-    mockStore["archimedes.plugins"] = { footer: false, diff: false, "session-name": false, notify: false };
+    mockStore["archimedes.footer"] = { enabled: false };
+    mockStore["archimedes.diff"] = { enabled: false };
+    mockStore["archimedes.sessionName"] = { enabled: false };
+    mockStore["archimedes.notify"] = { enabled: false };
     const items = await buildSettingsItems(fakeAllConfig());
     // Core items are always present
     expect(items.map((i) => i.id)).toContain("mutedTheme");
@@ -218,7 +284,8 @@ describe("buildSettingsItems (settings gate)", () => {
   });
 
   it("keeps enabled packages when others are disabled", async () => {
-    mockStore["archimedes.plugins"] = { footer: false, "session-name": false };
+    mockStore["archimedes.footer"] = { enabled: false };
+    mockStore["archimedes.sessionName"] = { enabled: false };
     const items = await buildSettingsItems(fakeAllConfig());
     const ids = items.map((i) => i.id);
     expect(ids).toEqual(expect.arrayContaining(["mutedTheme", "diffTheme", "enabled"]));
@@ -275,11 +342,11 @@ const stubTheme = {
 } as never;
 
 const footerPlugin: PluginDef = {
-  id: "footer", label: "Footer status bar", description: "Status bar with cost/timer", defaultEnabled: true,
+  id: "footer", label: "Footer status bar", description: "Status bar with cost/timer", namespace: "archimedes.footer",
   load: () => Promise.resolve({}),
 };
 const ghostPlugin: PluginDef = {
-  id: "ghost", label: "Ghost Plugin", description: "Not installed", defaultEnabled: true,
+  id: "ghost", label: "Ghost Plugin", description: "Not installed", namespace: "archimedes.ghost",
   load: () => Promise.reject(new Error("module not found")),
 };
 
@@ -306,23 +373,24 @@ describe("buildPluginManager", () => {
     expect(text).toContain("On");
   });
 
-  it("toggling a row On → Off persists to archimedes.plugins via savePluginsConfig", async () => {
-    mockStore["archimedes.plugins"] = { footer: true };
+  it("toggling a row On → Off → On persists to the package's own namespace", async () => {
+    mockStore["archimedes.footer"] = { enabled: true };
     const { ctx, captured } = makeCtx();
     await buildPluginManager(ctx as never, [footerPlugin]);
 
     const component = captured.factory!(null, stubTheme, null, () => {});
     // ←/→ cycle the value on the selected row (single row, pre-selected)
     (component as { handleInput(d: string): void }).handleInput(ARROW_RIGHT);
-    expect(mockStore["archimedes.plugins"]).toEqual({ footer: false });
+    expect(mockStore["archimedes.footer"]).toEqual({ enabled: false });
 
-    // Cyclic: one more right press goes Off → On
+    // Cyclic: one more right press goes Off → On — the namespace held only
+    // `enabled`, so the whole namespace key is removed again.
     (component as { handleInput(d: string): void }).handleInput(ARROW_RIGHT);
-    expect(mockStore["archimedes.plugins"]).toEqual({ footer: true });
+    expect("archimedes.footer" in mockStore).toBe(false);
   });
 
   it("starts from Off when the plugin is already disabled", async () => {
-    mockStore["archimedes.plugins"] = { footer: false };
+    mockStore["archimedes.footer"] = { enabled: false };
     const { ctx, captured } = makeCtx();
     await buildPluginManager(ctx as never, [footerPlugin]);
     const component = captured.factory!(null, stubTheme, null, () => {});
