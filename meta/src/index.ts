@@ -10,6 +10,7 @@ const _moduleEvalAt = Date.now();
 // image-paste & subagent — also lazy-loaded below (heavy deps, only needed on use)
 import { registerTodo } from "@pi-archimedes/todo";
 import { registerAsk } from "@pi-archimedes/ask";
+import { isPluginEnabled } from "./plugins.js";
 import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
 import { loadDiffConfig } from "./config.js";
@@ -29,25 +30,25 @@ export default function (pi: ExtensionAPI): void {
   // Register all component extensions (static imports already compiled by jiti above)
   registerCore(pi);
   archTime("registerCore");
-  registerFooter(pi);
+  if (isPluginEnabled("footer")) registerFooter(pi);
   archTime("registerFooter");
 
   // image-paste & subagent lazy-loaded in session_start below — not here
 
   // Register todo (lightweight, registers tool + bus listener)
-  registerTodo(pi);
+  if (isPluginEnabled("todo")) registerTodo(pi);
   archTime("registerTodo");
 
   // Register ask tool
-  registerAsk(pi);
+  if (isPluginEnabled("ask")) registerAsk(pi);
   archTime("registerAsk");
 
   // Register notify
-  registerNotify(pi);
+  if (isPluginEnabled("notify")) registerNotify(pi);
   archTime("registerNotify");
 
   // Register session-name
-  registerSessionName(pi);
+  if (isPluginEnabled("session-name")) registerSessionName(pi);
   archTime("registerSessionName");
 
   archTime("factory end");
@@ -67,10 +68,18 @@ export default function (pi: ExtensionAPI): void {
 
     // ── Parallel lazy-load all three packages (saves ~100ms vs sequential) ──
     const [diffMod, ipMod, saMod, mcpMod] = await Promise.all([
-      import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; }),
-      import("@pi-archimedes/image-paste").catch((e) => { console.error("[archimedes] image-paste load failed:", e); return null; }),
-      import("@pi-archimedes/subagent").catch((e) => { console.error("[archimedes] subagent load failed:", e); return null; }),
-      import("@pi-archimedes/mcp").catch((e) => { console.error("[archimedes] mcp load failed:", e); return null; }),
+      isPluginEnabled("diff")
+        ? import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; })
+        : Promise.resolve(null),
+      isPluginEnabled("image-paste")
+        ? import("@pi-archimedes/image-paste").catch((e) => { console.error("[archimedes] image-paste load failed:", e); return null; })
+        : Promise.resolve(null),
+      isPluginEnabled("subagent")
+        ? import("@pi-archimedes/subagent").catch((e) => { console.error("[archimedes] subagent load failed:", e); return null; })
+        : Promise.resolve(null),
+      isPluginEnabled("mcp")
+        ? import("@pi-archimedes/mcp").catch((e) => { console.error("[archimedes] mcp load failed:", e); return null; })
+        : Promise.resolve(null),
     ]);
     archTime("4 packages loaded in parallel");
 
