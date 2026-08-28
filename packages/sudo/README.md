@@ -39,7 +39,7 @@ A pure, exhaustively-tested scanner vetoes `tool_call` events on the built-in `b
 - **Blocked:** `sudo` in command position without a no-prompt flag — including through runner wrappers (`env`, `nohup`, `timeout`, `xargs`, …), nested shells (`bash -c`, `su -c`), `eval`, compound keywords, and heredoc bodies
 - **Allowed:** non-interactive sudo (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) — these cannot prompt and pass through untouched
 
-The guard is a heuristic with accepted residual bypasses documented in the [ADR 0010 design notes](../../docs/adr/0010-archimedes-sudo-security.md) (e.g. cross-token variable indirection, `$(...)` substitution erasure). Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract.
+The guard is a heuristic with accepted residual bypasses documented in the [ADR 0010 design notes](../../docs/adr/0010-archimedes-sudo-security.md) (e.g. cross-token variable indirection, and sudo inside `$(...)`/backtick interpolation whose text the word-position model cannot see). Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract.
 
 ## Commands
 

@@ -78,7 +78,7 @@ function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number 
 			on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void) {
 				if (evt === "exit" || evt === "close") {
 					if (opts.exitOn === "kill") registeredExits.set(evt, cb);
-				else queueMicrotask(() => cb(opts.code ?? null, opts.signal ?? null));
+					else queueMicrotask(() => cb(opts.code ?? null, opts.signal ?? null));
 				}
 				return child;
 			},

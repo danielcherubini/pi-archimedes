@@ -31,10 +31,16 @@
  *    the segment cannot prompt and is allowed; otherwise, if any command
  *    operand applies, the segment is blocked.
  * 6. Runner wrappers: when the command word is one of `env nohup nice
- *    ionice time timeout command builtin exec xargs`, the segment's
- *    remaining tokens are scanned for a literal `sudo` word (or a sudo-named
- *    variable reference) and evaluated with the same no-prompt lookahead.
- *    `eval` is NOT a wrapper — it is handled by (7).
+ *    ionice time timeout command builtin exec xargs`, skip the wrapper's
+ *    own flags (and the single word such a flag consumes), `KEY=VALUE`
+ *    assignments, and bare numeric parameters (a `timeout` duration, a
+ *    `nice` number) to find the FIRST command-like remainder token, and
+ *    dispatch THAT as a full command word: `sudo` (also via basename /
+ *    variable reference) → the no-prompt lookahead; a shell → the `-c`
+ *    recursion; `eval` → its recursion; another wrapper → one more level
+ *    of dispatch. Everything after the dispatched token is consumed by its
+ *    own dispatch — the remainder is not scanned further for `sudo` (the
+ *    `sudo` in `command grep -r sudo .` is an operand of `grep`).
  * 7. Nested shells / eval: when the command word is one of `sh bash dash zsh
  *    ksh su` and the remainder carries a `-c` flag (exact `-c`, or a merged
  *    short-flag bundle whose last character is `c`, e.g. `-xc`), the token
@@ -55,14 +61,22 @@
  *  (1) Arbitrary-name indirection requires cross-token assignment
  *      attribution (`S='sudo'; $S apt`) — only the sudo-*named* variable
  *      reference case ($SUDO) is caught.
- *  (2) `$(...)`/backtick substitution — both the sudo-inside-interpolation
- *      and the substitution-word-erasure subcases (`$(true) sudo apt`,
- *      `` `x` sudo apt ``) remain plan-deferred; a substitution *prefixed*
+ *  (2) `$(...)`/backtick substitution: substitution-word erasure is
+ *      BLOCKED (`$(true) sudo apt`, `` `x` sudo apt ``) — the broken
+ *      substitution word is not command position, so a following literal
+ *      `sudo` claims it and is caught. What remains plan-deferred is sudo
+ *      *inside* interpolation that never surfaces as a word — e.g. `echo
+ *      "$(sudo apt)"`, `bash -c "$(cat x)"`, `eval "$(echo 'sudo apt')"` —
+ *      which the word-position model cannot see; a substitution *prefixed*
  *      assignment word (`x=$(echo 1) sudo apt`) likewise stays allowed.
  *  (3) Program source from files/redirects (`bash script.sh`, `bash < file`,
  *      `su -c file`) is unresolvable without reading files.
  *  (4) Shell state persisting ACROSS separate bash-tool calls (assignments,
  *      aliases from earlier calls) is out of model.
+ *  (5) A wrapper flag whose value the guard doesn't know consumes a
+ *      following argument (`timeout --signal SIGKILL sudo apt`) — a `sudo`
+ *      hidden in such a value position is not the first command-like token,
+ *      so it is not dispatched as the wrapped command.
  *
  * The scanner never mutates anything and has no I/O — the guarantee is a
  * tested function (ADR 0010).
@@ -119,6 +133,15 @@ const MAX_NEST_DEPTH = 3;
  * the nested-shell/eval depth exceeds the cap.
  */
 const DEPTH_LIMIT_CAUSE = "Nested shell/eval depth limit reached (blocked conservatively).";
+/**
+ * Bare single-letter short wrapper flags that consume the next bare word
+ * as a value (`nice -n 10`, `xargs -I {}`, `timeout -k 5`, `ionice -c 2`).
+ * A `--flag=value` long form carries its value in the token and consumes
+ * no word; merged `-n0` forms likewise keep the value in the token.
+ */
+const VALUE_TAKING_FLAG_CHARS = new Set(["n", "I", "c", "k", "s", "o", "P"]);
+/** Bare numeric wrapper parameter — `timeout 5`, `timeout 500ms`, `nice 10`. */
+const NUMERIC_PARAM = /^[-+]?\d+(\.\d+)?[smhd]?$/;
 
 const BLOCK_REASON_PREFIX =
 	"Interactive sudo in the bash tool is blocked — it can hang on a password prompt or leak the password.\n" +
@@ -179,12 +202,30 @@ function variableRefName(word: string): string | null {
 	return b ? (b[1] ?? null) : null;
 }
 
-/** Word that becomes an interactive `sudo` command position (exact or via reference). */
+/** Word that becomes an interactive `sudo` command position (literal by basename, or via a sudo-named variable reference). */
+function isSudoWordText(text: string): boolean {
+	if (basename(text) === "sudo") return true;
+	const name = variableRefName(text);
+	return name !== null && name.toLowerCase() === "sudo";
+}
+
+/** Token that becomes an interactive `sudo` command position (exact or via reference). */
 function isSudoWord(t: GuardToken): boolean {
 	if (t.substituted) return false;
-	if (basename(t.text) === "sudo") return true;
-	const name = variableRefName(t.text);
-	return name !== null && name.toLowerCase() === "sudo";
+	return isSudoWordText(t.text);
+}
+
+/**
+ * Strip surviving quote characters (at most one leading and one trailing)
+ * from a whitespace-split part of a token that survived re-tokenization.
+ * Re-tokenization can break in the middle of a quoted range (`"sudo apt`
+ * → parts `"sudo`, `apt`), so this is not a full quote-pair strip.
+ */
+function unquotePart(part: string): string {
+	let s = part;
+	if (s.length > 0 && (s[0] === '"' || s[0] === "'")) s = s.slice(1);
+	if (s.length > 0 && (s[s.length - 1] === '"' || s[s.length - 1] === "'")) s = s.slice(0, -1);
+	return s;
 }
 
 /**
@@ -229,11 +270,9 @@ interface SegmentVerdict {
 function scanSegment(tokens: GuardToken[], depth: number): SegmentVerdict | null {
 	if (tokens.length === 0) return null;
 	const segmentText = tokens.map((t) => t.text).join(" ");
-	// Above the nesting cap (even an empty segment inside a deeply-nested
-	// program string), conservatively over-block.
-	if (depth > MAX_NEST_DEPTH) {
-		return { blocked: true, segmentText, cause: DEPTH_LIMIT_CAUSE };
-	}
+	// No depth gate here: every caller (the initial call, `recurse` below,
+	// and the nested-wrapper dispatch) checks its depth against
+	// MAX_NEST_DEPTH before descending, so the cap lives there.
 
 	// G-3: skip leading compound-command keyword tokens — `then sudo apt`,
 	// `do sudo apt`, `{ sudo apt`, `! sudo apt` all reach the sudo check below.
@@ -274,35 +313,147 @@ function scanSegment(tokens: GuardToken[], depth: number): SegmentVerdict | null
 		}
 		return scanSegments(tokenizeCommand(program), depth + 1);
 	};
+
+	// B-1: a quoted token containing whitespace can survive re-tokenization
+	// as a single word (`bash -c '"sudo apt"'` → one program token), hiding
+	// the `sudo` from the program's command position. Each quoted
+	// whitespace-bearing token in `remainder` yields a *mirror* program
+	// text — its quote-stripped, whitespace-split inner form — scanned
+	// through the same `recurse`, so a mirror that blocks is blocked, at
+	// the same depth cap.
+	const quoteLayerMirror = (remainder: GuardToken[]): SegmentVerdict | null => {
+		for (const q of remainder) {
+			if (q === undefined) continue;
+			if (!q.quoted || !/\s/.test(q.text)) continue;
+			const parts = q.text.split(/\s+/).filter((p) => p !== "");
+			if (parts.length < 2) continue;
+			const mirror = recurse(parts.map(unquotePart).join(" "));
+			if (mirror !== null) return mirror;
+		}
+		return null;
+	};
+
 	if (NESTED_SHELLS.has(basename(cmd.text))) {
 		for (let j = cmdIdx + 1; j < rest.length; j++) {
 			const t = rest[j];
 			if (t === undefined) continue;
 			if (t.substituted || !isShellCFlag(t.text)) continue;
 			// The next token is the program string (quotes already stripped by the tokenizer).
-			const program = rest.slice(j + 1).map((x) => x.text).join(" ");
-			return recurse(program);
+			const after = rest.slice(j + 1);
+			const program = after.map((x) => x.text).join(" ");
+			const primary = recurse(program);
+			if (primary !== null) return primary;
+			return quoteLayerMirror(after);
 		}
 		return null; // `bash script.sh` / `bash < file` — known gap, no -c string to scan
 	}
 	if (basename(cmd.text) === "eval") {
-		const program = rest.slice(cmdIdx + 1).map((x) => x.text).join(" ");
-		return recurse(program);
+		const after = rest.slice(cmdIdx + 1);
+		const program = after.map((x) => x.text).join(" ");
+		const primary = recurse(program);
+		if (primary !== null) return primary;
+		return quoteLayerMirror(after);
 	}
 
-	// (3) Runner wrapper: scan the trailing tokens for a `sudo` occurrence
-	// (exact word or sudo-named reference), skipping flags and assignments.
+	// (3) Runner wrapper: skip the wrapper's own flags (and the single word
+	// a value-taking flag consumes), `KEY=VALUE` assignments, and bare
+	// numeric parameters (a `timeout` duration, a `nice` number) to find
+	// the FIRST command-like remainder token — the real command word the
+	// wrapper forwards — and dispatch it as a full command word.
+	// Everything after that dispatched token belongs to its own dispatch —
+	// the remainder is NOT scanned further for `sudo` (`command grep -r
+	// sudo .`: the `sudo` is an `grep` operand, not a command word).
 	if (RUNNER_WRAPPERS.has(basename(cmd.text))) {
+		const wrapperName = basename(cmd.text);
+		const dispatch = (i: number): SegmentVerdict | null => {
+			const t = rest[i];
+			if (t === undefined) return null;
+			// Literal `sudo` (basename) or a pure `$SUDO` reference → the
+			// same no-prompt lookahead as a top-level sudo word.
+			if (isSudoWord(t)) {
+				return lookaheadBlocks(rest, i)
+					? { blocked: true, segmentText }
+					: null;
+			}
+			// B-1: a quoted token that survived re-tokenization can hide a
+			// multi-word command — `env '"sudo" apt'` collapses to one token
+			// containing whitespace. If it does, treat its whitespace-split
+			// first part as a command-word candidate; the remaining split
+			// parts plus the tokens after `i` are its operands (
+			// `env '"sudo" -n' true` still gets the no-prompt lookahead →
+			// allowed).
+			// `xargs` is exempt: its positional command legitimately spans
+			// quoted whitespace (per-item executor, no lookahead there).
+			if (t.quoted && wrapperName !== "xargs") {
+				const parts = t.text.split(/\s+/).filter((p) => p !== "");
+				if (parts.length > 1) {
+					const head = unquotePart(parts[0] ?? "");
+					if (isSudoWordText(head)) {
+						const mirror: GuardToken[] = [
+							...parts
+								.slice(1)
+								.map((p) => ({ text: unquotePart(p), quoted: false, substituted: false })),
+							...rest.slice(i + 1),
+						];
+						return lookaheadBlocks(mirror, -1)
+							? { blocked: true, segmentText }
+							: null;
+					}
+					if (NESTED_SHELLS.has(head) || head === "eval") {
+						const program = [
+							...parts.slice(1).map(unquotePart),
+							...rest.slice(i + 1).map((x) => x.text),
+						].join(" ");
+						return recurse(program);
+					}
+				}
+			}
+			// Shell with `-c` → program-string recursion (same rule as (2)).
+			if (NESTED_SHELLS.has(basename(t.text))) {
+				for (let k = i + 1; k < rest.length; k++) {
+					const u = rest[k];
+					if (u === undefined) continue;
+					if (u.substituted || !isShellCFlag(u.text)) continue;
+					return recurse(rest.slice(k + 1).map((x) => x.text).join(" "));
+				}
+				return null; // program from file/redirect — known gap (3)
+			}
+			// `eval` → recurse on its remaining tokens (same rule as (2)).
+			if (basename(t.text) === "eval") {
+				return recurse(rest.slice(i + 1).map((x) => x.text).join(" "));
+			}
+			// Another wrapper → one more dispatch level under the same
+			// depth cap (`env env sudo apt`).
+			if (RUNNER_WRAPPERS.has(basename(t.text))) {
+				if (depth + 1 > MAX_NEST_DEPTH) {
+					return { blocked: true, segmentText, cause: DEPTH_LIMIT_CAUSE };
+				}
+				return scanSegments([rest.slice(i)], depth + 1);
+			}
+			// Some other command — its dispatch consumes everything after it;
+			// no sudo to evaluate.
+			return null;
+		};
+		let skipValue = false; // previous wrapper flag consumes the next bare word as its value
 		for (let j = cmdIdx + 1; j < rest.length; j++) {
 			const t = rest[j];
-			if (t === undefined) continue;
-			if (t.substituted) continue;
-			if (t.text.startsWith("-")) continue;
-			if (isEnvAssignment(t.text)) continue;
-			if (!isSudoWord(t)) continue;
-			if (lookaheadBlocks(rest, j)) {
-				return { blocked: true, segmentText };
+			if (t === undefined || t.substituted) continue;
+			const text = t.text;
+			if (text.startsWith("-")) {
+				// A wrapper flag. Only a bare `-x` short flag consumes the
+				// next bare token as its value (`-n 10`, `-I {}`); `--flag=value`
+				// carries its value in the token and does not consume a word.
+				const short = /^-([A-Za-z])$/.exec(text);
+				skipValue = short !== null && VALUE_TAKING_FLAG_CHARS.has(short[1] ?? "");
+				continue;
 			}
+			if (skipValue) {
+				skipValue = false;
+				continue;
+			}
+			if (isEnvAssignment(text)) continue;
+			if (NUMERIC_PARAM.test(text)) continue; // `timeout 5`, `nice 10`
+			return dispatch(j); // the first command-like token IS the command word — dispatch it and stop
 		}
 	}
 	return null;

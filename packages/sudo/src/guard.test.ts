@@ -218,6 +218,19 @@ describe("isInteractiveSudoAttempt — G-1 runner wrappers", () => {
 	it("blocks a sudo-named variable reference in the runner remainder (over-block, safe direction)", () => {
 		expect(isInteractiveSudoAttempt("env $SUDO apt").blocked).toBe(true);
 	});
+
+	it.each([
+		"command grep -r sudo .",
+		"timeout 5 grep -c sudo big.log",
+		"env LC_ALL=C grep sudo file",
+		"env echo a sudo b",
+	])("allows `%s` (sudo is an operand of the wrapped command, not its command word — B-2)", (command) => {
+		expect(isInteractiveSudoAttempt(command).blocked).toBe(false);
+	});
+
+	it("keeps `xargs '\"sudo\" cat' < list` allowed (no command-word sudo survives the quotes — B-1 no-collateral)", () => {
+		expect(isInteractiveSudoAttempt("xargs '\"sudo\" cat' < list").blocked).toBe(false);
+	});
 });
 
 // ── review G-2: nested-shell / eval recursion ───────────────────────────────
@@ -275,6 +288,20 @@ describe("isInteractiveSudoAttempt — G-2 nested shells and eval", () => {
 		expect(r.blocked).toBe(true);
 		expect(r.reason).toContain("depth");
 	});
+
+	it.each([
+		"sh -c '\"sudo apt\"'",
+		"bash -c \"'sudo apt'\"",
+		"bash -c '\"sudo apt update\"'",
+		"eval '\"sudo apt\"'",
+		"eval \"'sudo apt'\"",
+		"env '\"sudo\" apt'",
+		"nohup '\"sudo\" apt'",
+		"timeout 5 '\"sudo\" apt'",
+		"command '\"sudo\" apt'",
+	])("blocks `%s` (quoted sudo survives re-tokenization as one word, hiding from the command word — B-1)", (command) => {
+		expect(isInteractiveSudoAttempt(command).blocked).toBe(true);
+	});
 });
 
 // ── review G-3: compound-command keyword transparency ───────────────────────
@@ -297,7 +324,7 @@ describe("isInteractiveSudoAttempt — G-3 compound-command keywords", () => {
 		expect(isInteractiveSudoAttempt("for i in 1; do echo $i; done").blocked).toBe(false);
 	});
 
-	it("treats bare keyboard-none segments as having no command word", () => {
+	it("treats bare keyword-only segments as having no command word", () => {
 		expect(isInteractiveSudoAttempt("fi").blocked).toBe(false);
 		expect(isInteractiveSudoAttempt("done").blocked).toBe(false);
 		expect(isInteractiveSudoAttempt("else").blocked).toBe(false);
