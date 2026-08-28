@@ -219,6 +219,9 @@ importers:
       '@pi-archimedes/core':
         specifier: workspace:*
         version: link:../core
+      '@pi-archimedes/todo':
+        specifier: workspace:*
+        version: link:../todo
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: ^0.84.2

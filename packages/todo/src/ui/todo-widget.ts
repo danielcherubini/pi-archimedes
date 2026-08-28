@@ -52,7 +52,9 @@ export function updateWidget(
     for (const source of sortedSources) {
       const todos = currentSub.get(source)!;
       if (todos.length > 0) {
-        const agentName = source.replace("subagent:", "");
+        // Per-child sources are subagent:<agent>:<uuid>; render only the agent
+        // name so the header stays `subagent (myagent)` regardless of suffix.
+        const agentName = source.replace("subagent:", "").split(":")[0];
         columns.push({ header: `subagent (${agentName})`, todos });
       }
     }
@@ -103,7 +105,7 @@ export function updateWidget(
                 const todo = column.todos[todoIndex];
                 if (todo) {
                   const icon = getStatusIcon(todo.status, theme);
-                  const idStr = theme.fg("accent", `${todo.id}.`);
+                  const idStr = theme.fg("accent", `${todoIndex + 1}.`);
                   const title = formatTodoTitle(todo, theme);
                   cellText = ` ${icon} ${idStr} ${title}`;
                 } else {
@@ -142,18 +144,18 @@ export function updateWidget(
 function getStatusIcon(status: TodoItem["status"], theme: Theme): string {
   const icon = STATUS_ICONS[status] ?? "?";
   if (status === "completed") return theme.fg("success", icon);
-  if (status === "in-progress") return theme.fg("warning", icon.trim());
+  if (status === "in_progress") return theme.fg("warning", icon.trim());
   return theme.fg("dim", icon);
 }
 
 function formatTodoTitle(todo: TodoItem, theme: Theme): string {
   if (todo.status === "completed") {
-    return theme.fg("dim", theme.strikethrough(todo.title));
+    return theme.fg("dim", theme.strikethrough(todo.content ?? ""));
   }
-  if (todo.status === "in-progress") {
-    return theme.fg("warning", todo.title);
+  if (todo.status === "in_progress") {
+    return theme.fg("warning", todo.content ?? "");
   }
-  return theme.fg("muted", todo.title);
+  return theme.fg("muted", todo.content ?? "");
 }
 
 /** Clear the widget */

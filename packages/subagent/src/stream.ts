@@ -2,6 +2,7 @@ import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
 import type { StreamState, SubagentProgress, SubagentResult } from "./types.js";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { normalizeTodoItems } from "@pi-archimedes/todo/prepare-args";
 import {
   type JsonEvent,
   handleToolStart,
@@ -111,6 +112,12 @@ export function streamEvents(
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
+    // toolCallId → raw todoList from tool_execution_start, consumed by the
+    // matching tool_execution_end. pi emits tool_execution_start with the
+    // raw (pre-prepareToolCall) arguments, so these may be unrepaired.
+    const pendingTodoArgs = new Map<string, unknown[]>();
+    let subagentSource = `subagent:${callbacks.agent ?? "general"}`;
+
     rl.on("line", (line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
@@ -130,26 +137,46 @@ export function streamEvents(
         case "session": {
           if (typeof event.id === "string" && event.id) {
             state.childSessionId = event.id;
+            // A child with a session id gets a unique per-child todo source so
+            // concurrent children sharing an agent name don't clobber each
+            // other's accepted state when one clears on exit. Children without
+            // a session id (e.g. tests) keep the legacy subagent:<agent> form.
+            subagentSource = `subagent:${callbacks.agent ?? "general"}:${event.id}`;
           }
           break;
         }
         case "tool_execution_start": {
           handleToolStart(state, event);
           emitProgress();
-          // Forward manage_todo_list writes to the parent's todo widget
-          if (event.toolName === "manage_todo_list") {
+          if (event.toolName === "manage_todo_list" && typeof event.toolCallId === "string") {
             const args = event.args as Record<string, unknown> | undefined;
-            const todoList = args?.todoList as Array<unknown> | undefined;
+            const todoList = args?.todoList;
             if (Array.isArray(todoList)) {
-              getBus().emit(Events.TODOS_UPDATE, {
-                source: `subagent:${callbacks.agent ?? "general"}`,
-                todos: todoList,
-              });
+              pendingTodoArgs.set(event.toolCallId, todoList);
             }
           }
           break;
         }
         case "tool_execution_end": {
+          if (event.toolName === "manage_todo_list") {
+            const id = typeof event.toolCallId === "string" ? event.toolCallId : undefined;
+            const stowed = id ? pendingTodoArgs.get(id) : undefined;
+            if (id) pendingTodoArgs.delete(id);
+            const result = event.result as Record<string, unknown> | undefined;
+            // Tool-level failure (todo's execute() RETURNS {isError:true} on validation
+            // rejection — it does not throw) arrives as event.isError=false with
+            // result.isError=true. Harness failures (abort, not-found, block, throw)
+            // arrive as event.isError=true. Check BOTH — the same convention
+            // handleToolResult in handlers.ts already uses.
+            const failed = event.isError === true || result?.isError === true;
+            if (!failed) {
+              const detailsTodos = (result?.details as Record<string, unknown> | undefined)?.todos;
+              const todos = normalizeTodoItems(Array.isArray(detailsTodos) ? detailsTodos : stowed);
+              if (todos) {
+                getBus().emit(Events.TODOS_UPDATE, { source: subagentSource, todos });
+              }
+            }
+          }
           handleToolEnd(state);
           emitProgress();
           handleToolResult(state, event);
@@ -218,7 +245,7 @@ export function streamEvents(
 
       // Clear subagent todos from the bus on exit
       getBus().emit(Events.TODOS_CLEAR, {
-        source: `subagent:${callbacks.agent ?? "general"}`,
+        source: subagentSource,
       });
 
       resolve(result);
