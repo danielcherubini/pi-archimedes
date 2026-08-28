@@ -93,6 +93,20 @@ describe("registerSudo — session lifecycle + /sudo command", () => {
 		expect(credentialCache.get()).toBeNull();
 	});
 
+	it("registers the sudo_exec tool whose parameters are exactly {command, reason, timeoutMs}", () => {
+		const fake = fakePi();
+		registerSudo(fake.pi);
+
+		expect(fake.tools).toHaveLength(1);
+		const tool = fake.tools[0] as {
+			name: string;
+			parameters: { properties: Record<string, unknown>; required?: string[] };
+		};
+		expect(tool.name).toBe("sudo_exec");
+		expect(Object.keys(tool.parameters.properties).sort()).toEqual(["command", "reason", "timeoutMs"]);
+		expect(tool.parameters.required?.sort()).toEqual(["command", "reason"]);
+	});
+
 	it("registers a /sudo command whose forget subcommand clears the credential cache", async () => {
 		const fake = fakePi();
 		registerSudo(fake.pi);
@@ -109,6 +123,19 @@ describe("registerSudo — session lifecycle + /sudo command", () => {
 
 		expect(credentialCache.get()).toBeNull();
 		expect(notified).toEqual(["Sudo credential cleared."]);
+	});
+
+	it("responds to an unknown /sudo subcommand with usage info — no exception, cache unchanged", async () => {
+		const fake = fakePi();
+		registerSudo(fake.pi);
+		const def = fake.commands.get("sudo")!;
+
+		credentialCache.set("hunter2", 900_000);
+		const { ctx, notified } = fakeCtx();
+		await expect(def.handler("noop", ctx)).resolves.toBeUndefined(); // must not throw
+
+		expect(notified).toEqual(["Unknown /sudo subcommand. Usage: /sudo, /sudo forget"]);
+		expect(credentialCache.get()).not.toBeNull(); // live credential untouched
 	});
 
 	it("bare /sudo reports the cache state (expiry-aware) and does not clear a live credential", async () => {

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { maskLine, promptForPassword } from "./prompt.js";
+import { confirmCommand, maskLine, promptForPassword } from "./prompt.js";
 
 // ── minimal ui.custom fakes ──────────────────────────────────────────────────
 
@@ -66,7 +66,39 @@ describe("promptForPassword — headless block", () => {
 	});
 });
 
-// ── component behavior ────────────────────────────────────────────────────────
+// ── confirmCommand ─────────────────────────────────────────────────────────
+
+describe("confirmCommand", () => {
+	function confirmCtx(answer: boolean) {
+		const confirm = vi.fn(async (_title: string, _message: string) => answer);
+		const ctx = { mode: "tui" as const, hasUI: true, ui: { confirm } } as unknown as ExtensionContext;
+		return { ctx, confirm };
+	}
+
+	it("resolves true when the user confirms", async () => {
+		const { ctx, confirm } = confirmCtx(true);
+		await expect(confirmCommand(ctx, "apt install ripgrep", "install ripgrep")).resolves.toBe(true);
+		expect(confirm).toHaveBeenCalledTimes(1);
+	});
+
+	it("resolves false when the user declines", async () => {
+		const { ctx, confirm } = confirmCtx(false);
+		await expect(confirmCommand(ctx, "reboot", "retry service")).resolves.toBe(false);
+		expect(confirm).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows the exact command and reason in the confirmation message", async () => {
+		const { ctx, confirm } = confirmCtx(true);
+		await confirmCommand(ctx, "systemctl restart 'open rest api'", "service keeps wedging");
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		const [title, message] = confirm.mock.calls[0] as [string, string];
+		expect(title).toMatch(/confirm privileged command/i);
+		expect(message).toContain(`$ systemctl restart 'open rest api'`);
+		expect(message).toContain("service keeps wedging");
+		expect(message).toMatch(/elevated privileges/i);
+	});
+});
 
 describe("promptForPassword — masked component", () => {
 	it("buffers printable chars, applies Backspace, resolves on Enter, and never renders raw chars", async () => {

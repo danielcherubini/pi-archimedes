@@ -17,7 +17,7 @@ vi.mock("@pi-archimedes/core/settings-io", () => ({
 	},
 }));
 
-import { buildSudoArgv, createSudoExecTool } from "./tool.js";
+import { buildSudoArgv, createSudoExecTool, scrubSecret } from "./tool.js";
 import { credentialCache } from "./cache.js";
 
 // ── fakes ────────────────────────────────────────────────────────────────────
@@ -27,15 +27,21 @@ interface FakeChild {
 	stdout: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	stderr: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	killed: boolean;
-	kill(): boolean;
-	on(evt: string, cb: (code: number) => void): unknown;
+	/** signals passed to kill(), in order. */
+	killSignals: Array<NodeJS.Signals | undefined>;
+	kill(signal?: NodeJS.Signals): boolean;
+	on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void): unknown;
 }
 
-function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number }): {
+function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number | null; signal?: NodeJS.Signals; exitOn?: "register" | "kill" }): {
 	spawner: (command: string, args: string[]) => FakeChild;
 	last: { command: string; args: string[]; child: FakeChild };
 } {
 	const last: { command: string; args: string[]; child: FakeChild } = { command: "", args: [], child: undefined as unknown as FakeChild };
+	const registeredExits = new Map<string, (code: number | null, signal?: NodeJS.Signals | null) => void>();
+	const fireExit = (signal?: NodeJS.Signals): void => {
+		for (const cb of registeredExits.values()) queueMicrotask(() => cb(opts.code ?? null, signal ?? opts.signal ?? null));
+	};
 	const spawner = (command: string, args: string[]): FakeChild => {
 		last.command = command;
 		last.args = args;
@@ -62,12 +68,18 @@ function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number 
 			stdout,
 			stderr,
 			killed: false,
-			kill() {
+			killSignals: [],
+			kill(signal?: NodeJS.Signals) {
 				this.killed = true;
+				this.killSignals.push(signal);
+				if (opts.exitOn === "kill") fireExit(signal); // async, like a real child
 				return true;
 			},
-			on(evt: string, cb: (code: number) => void) {
-				if (evt === "exit" || evt === "close") queueMicrotask(() => cb(opts.code));
+			on(evt: string, cb: (code: number | null, signal?: NodeJS.Signals | null) => void) {
+				if (evt === "exit" || evt === "close") {
+					if (opts.exitOn === "kill") registeredExits.set(evt, cb);
+				else queueMicrotask(() => cb(opts.code ?? null, opts.signal ?? null));
+				}
 				return child;
 			},
 		};
@@ -87,8 +99,13 @@ interface RunResult {
 	isError?: boolean;
 }
 
-function run(tool: ReturnType<typeof createSudoExecTool>, ctx: ExtensionContext, params: Record<string, unknown>): Promise<RunResult> {
-	return tool.execute("call-1", params as never, undefined, undefined, ctx) as unknown as Promise<RunResult>;
+function run(
+	tool: ReturnType<typeof createSudoExecTool>,
+	ctx: ExtensionContext,
+	params: Record<string, unknown>,
+	signal: AbortSignal | undefined = undefined,
+): Promise<RunResult> {
+	return tool.execute("call-1", params as never, signal, undefined, ctx) as unknown as Promise<RunResult>;
 }
 
 describe("sudo_exec tool", () => {
@@ -261,6 +278,104 @@ describe("sudo_exec tool", () => {
 			const result = await run(tool, ctx, { command: "true", reason: "test" });
 			const whole = JSON.stringify({ details: result.details, content: result.content });
 			expect(whole).not.toContain("secret-leak-value");
+		});
+
+		it("maps a timeout SIGKILL exit to exit code 137 and reports the timeout error (runSudo contract: code null + SIGKILL → 137)", async () => {
+			// exitOn:'kill' — the child only exits when runSudo's timeout kills it.
+			const { spawner, last } = makeFakeSpawner({ stderr: "", code: null, exitOn: "kill" });
+			const tool = createSudoExecTool({ spawner });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "sleep", reason: "test", timeoutMs: 10 });
+
+			expect(result.isError).toBe(true);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(137);
+			expect(details.error).toMatch(/timed out after 10ms/i);
+			expect(last.child.killed).toBe(true);
+			expect(last.child.killSignals).toContain("SIGKILL");
+		});
+
+		it("maps an external abort to exit code 130, kills with SIGKILL, and resolves exactly once (settle-guard)", async () => {
+			// No automatic exit: only abort's kill ever settles the child.
+			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
+			const tool = createSudoExecTool({ spawner });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			let rejected = false;
+			promise.catch(() => {
+				rejected = true;
+			});
+			// let execute pass the gate and spawn
+			await new Promise((r) => setTimeout(r, 1));
+			expect(last.command).toBe("sudo");
+
+			controller.abort(); // runSudo: child.kill(SIGKILL) + settle(130), before any exit event
+
+			const result = await promise;
+			// the fake's kill() also fires BOTH registered 'exit' and 'close' handlers
+			// after the abort — the settled guard must swallow them, keeping 130 stable
+			await new Promise((r) => setTimeout(r, 1));
+
+			expect(result.isError).toBe(true);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(130);
+			expect(details.error).toMatch(/exit code 130/);
+			expect(last.child.killed).toBe(true);
+			expect(last.child.killSignals).toContain("SIGKILL");
+			expect(rejected).toBe(false);
+		});
+
+		it("fails with 'password entry cancelled' when the masked prompt is cancelled — no spawn, nothing cached", async () => {
+			let spawned = false;
+			const tool = createSudoExecTool({
+				spawner: () => {
+					spawned = true;
+					throw new Error("spawner must not be called");
+				},
+			});
+			// spiesNoPrompt's ui.custom resolves "" = the user cancelled the
+			// masked password prompt (Esc / Enter on an empty buffer).
+			const spies = spiesNoPrompt();
+			const ctx = tuiCtxWithSpies(true, spies);
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/password entry cancelled/i);
+			expect(spies.confirmCalls).toHaveLength(1); // confirmed, THEN prompted
+			expect(spies.customCalls).toHaveLength(1);
+			expect(spawned).toBe(false);
+			expect(credentialCache.get()).toBeNull(); // nothing cached on cancel
+		});
+	});
+
+	describe("scrubSecret", () => {
+		it("replaces a whole line containing the secret with [redacted]", () => {
+			expect(scrubSecret("line one\nsudo: secret-leak-value here\nline three", "secret-leak-value")).toBe(
+				"line one\n[redacted]\nline three",
+			);
+		});
+
+		it("in multi-line text only the offending line is affected", () => {
+			expect(scrubSecret("keep a\nhas the p@ssword in it\nkeep c", "p@ssword")).toBe("keep a\n[redacted]\nkeep c");
+		});
+
+		it("does NOT scrub a secret split across a newline (line-level matching limit — accepted residual)", () => {
+			expect(scrubSecret("pa\nss\nsurrounding", "pa\nss")).toBe("pa\nss\nsurrounding");
+		});
+
+		it("returns empty text unchanged", () => {
+			expect(scrubSecret("", "secret")).toBe("");
+		});
+
+		it("returns the input unchanged for an empty secret (guard against wiping everything)", () => {
+			const text = "a\nb\nc";
+			expect(scrubSecret(text, "")).toBe(text);
 		});
 	});
 });
