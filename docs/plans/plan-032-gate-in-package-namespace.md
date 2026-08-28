@@ -41,8 +41,8 @@
 
 **Verification commands:**
 - `npx tsc --noEmit` in the 4 touched package dirs (`packages/core`, `meta`, `packages/notify`, `packages/session-name`) every task
-- `npx vitest run` in `packages/core` and `meta` every task; in `packages/notify` + `packages/session-name` after Task 3
-- Final: full repo gate — tsc in all 11 valid dirs (10 packages + meta, NOT repo root) + vitest in **all 10 test dirs**: the 9 packages in the root `vitest.config.ts` `projects` (core, diff, footer, subagent, todo, notify, ask, image-paste, mcp) PLUS `meta/` (its own `vitest.config.ts`). `session-name` has no test dir.
+- `npx vitest run` in `packages/core` and `meta` every task (both have local `vitest.config.ts`). **`notify` has NO local vitest config — run its suite from the REPO ROOT: `npx vitest run` (root `projects` config covers it; `cd packages/notify && npx vitest run` fails with a cwd-relative `projects` startup error). `session-name` has no tests (tsc only).**
+- Final: full repo gate — tsc in all 11 valid dirs (10 packages + meta, NOT repo root) + **repo-root `npx vitest run`** (root config's 9 `projects`: core, diff, footer, subagent, todo, notify, ask, image-paste, mcp) **PLUS `cd meta && npx vitest run`** (meta's own config). Never `cd` into notify/image-paste to run vitest (no local config → startup error). `session-name` has no test dir.
 
 ---
 
@@ -230,13 +230,13 @@ Docs:
 **Steps:**
 - [ ] Read `packages/notify/src/index.ts` and `packages/session-name/src/index.ts` fully (items arrays, prompts maps, onChange wiring for the enabled items).
 - [ ] Grep: `grep -rn 'enabled' packages/notify/src packages/session-name/src meta/src | grep -v test` — enumerate every read; classify (suite-gate = keep only in meta/plugins.ts; runtime-guard/item/onChange-branch = delete — this surfaces the two cases in `meta/src/settings.ts`).
-- [ ] Remove notify surface → `cd packages/notify && npx vitest run && npx tsc --noEmit` green (update `default-export.test.ts` only if it pins `enabled`).
+- [ ] Remove notify surface → run notify's suite from the **repo root** (`npx vitest run` — do NOT `cd packages/notify` and run vitest there: no local config, cwd-relative `projects` startup error) + `cd packages/notify && npx tsc --noEmit` green (update `default-export.test.ts` only if it pins `enabled`).
 - [ ] Remove session-name surface → `cd packages/session-name && npx tsc --noEmit` green (no test dir expected).
 - [ ] `cd meta && npx vitest run && npx tsc --noEmit` green (meta composes these packages' items — `/archimedes` tests, if any assert the removed rows, update them).
 - [ ] Remove the two dead `onChange` cases (`"enabled"`, `"sessionNameEnabled"`) from `meta/src/settings.ts` + refresh its two stale `archimedes.plugins` comments.
 - [ ] Remove the `enabled`/`sessionNameEnabled` entries from the `vi.mock` item arrays in `meta/src/plugins.test.ts` (see Files).
 - [ ] Update README.md (all six rows) + AGENTS.md per above.
-- [ ] Full repo gate: `npx tsc --noEmit` in ALL 11 valid dirs (10 packages + meta, not repo root); `npx vitest run` in ALL 10 test dirs (9 root-config packages + meta).
+- [ ] Full repo gate: `npx tsc --noEmit` in ALL 11 valid dirs (10 packages + meta, not repo root); `npx vitest run` from the **repo root** (9 root-config packages incl. notify + image-paste) + `cd meta && npx vitest run`.
 - [ ] Plan index: `git mv` + README table/stats edits.
 - [ ] Commit: `docs+fix: per-namespace plugin gate surface — dead-flag cleanup (notify, session-name) + docs (plan 032)`
 
@@ -263,7 +263,7 @@ Docs:
 ## Cross-task notes for the executing agent
 
 - Monorepo has NO build step — `tsc --noEmit` + vitest only. Run vitest inside each package dir.
-- Final gate = 11 tsc dirs + **10** vitest dirs (9 packages from the root config — notify and image-paste have `default-export.test.ts` suites — plus meta). Do not stop at 8.
+- Final gate = 11 tsc dirs + repo-root `npx vitest run` (9 packages — notify and image-paste have `default-export.test.ts` suites reachable ONLY from the root config) + `cd meta && npx vitest run`. Do not stop at 8, and never run vitest from inside notify/image-paste.
 - Since Tasks 1 and 2 modify different packages, run each package's own suite before committing that task; the full 11-tsc/10-vitest gate is Task 3's final step.
 - The in-memory settings mock in `meta/src/plugins.test.ts` must implement `removeConfig`/`isConfigEnabled`/`setConfigEnabled` with core's exact semantics (including delete-on-On and empty-namespace removal) — meta tests verify the manager flow through those primitives.
 - ADR 0012 + plan 032 file + plans README Backlog entry are planned together at planning time (before execution) — the executing agent only touches `docs/plans/README.md` in Task 3.
