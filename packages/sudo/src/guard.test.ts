@@ -135,6 +135,176 @@ describe("isInteractiveSudoAttempt — tokenizer + lookahead hardening", () => {
 	});
 });
 
+// ── review G-4a: `$`-preservation in the tokenizer (no `$`-dropping) ────────
+
+describe("isInteractiveSudoAttempt — G-4a `$`-preservation stays identical", () => {
+	it("does not treat a `$`-prefixed echo operand as a command word", () => {
+		expect(isInteractiveSudoAttempt("echo $SUDO").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("echo ${SUDO}").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("for i in 1; do echo $i; done").blocked).toBe(false);
+	});
+
+	it("keeps substitution/interpolation cases unchanged (no false `$` detection)", () => {
+		expect(isInteractiveSudoAttempt("X=$( sudo apt)").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("echo $(sudo -l)").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("git log -S sudo").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("ps aux | grep sudo").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("find . -name sudo").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("echo use sudo -n carefully").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("$(kill 1); sudo apt update").blocked).toBe(true);
+	});
+});
+
+// ── review G-4b: sudo-named variable reference in command position ──────────
+
+describe("isInteractiveSudoAttempt — G-4b variable-ref command word", () => {
+	it("blocks `$SUDO apt` when `SUDO` is a variable reference (cross-token attribution missed — conservative)", () => {
+		const r = isInteractiveSudoAttempt("SUDO=sudo; $SUDO apt");
+		expect(r.blocked).toBe(true);
+	});
+
+	it("blocks lowercase `$sudo apt` (over-block, safe direction — `sudo` unset expands to empty)", () => {
+		expect(isInteractiveSudoAttempt("$sudo apt").blocked).toBe(true);
+	});
+
+	it("blocks braced `${SUDO} apt"
+	, () => {
+		expect(isInteractiveSudoAttempt("${SUDO} apt").blocked).toBe(true);
+	});
+
+	it("allows `$SUDO -n true` (same no-prompt lookahead as a literal sudo)", () => {
+		expect(isInteractiveSudoAttempt("$SUDO -n true").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("$SUDO -l").blocked).toBe(false);
+	});
+
+	it("allows non-sudo-named pure variable references and non-command-position refs", () => {
+		expect(isInteractiveSudoAttempt("$SUDOTO apt").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("echo $SUDO").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("$SUDO echo hi").blocked).toBe(true); // `$SUDO` as the command with an operand
+	});
+});
+
+// ── review G-1: runner-wrapper pass-through (env / nohup / nice / ...) ──────
+
+describe("isInteractiveSudoAttempt — G-1 runner wrappers", () => {
+	it.each([
+		"env sudo apt update",
+		"nice -n 10 sudo apt update",
+		"nohup sudo apt >/dev/null",
+		"time sudo apt",
+		"ionice -c2 -n0 sudo apt",
+		"timeout 5 sudo apt update",
+		"command sudo apt update",
+		"exec sudo apt",
+		"xargs -I {} sudo {} < list",
+		"env FOO=bar sudo apt",
+	])("blocks `%s`", (command) => {
+		expect(isInteractiveSudoAttempt(command).blocked).toBe(true);
+	});
+
+	it("allows a no-prompt sudo inside a runner wrapper", () => {
+		expect(isInteractiveSudoAttempt("env sudo -n true").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("timeout 5 sudo -n ls").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("nice -n 10 sudo -l").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("command -v sudo").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("which sudo").blocked).toBe(false);
+	});
+
+	it("allows a bare runner with `sudo` and no command operand (cannot prompt)", () => {
+		expect(isInteractiveSudoAttempt("env sudo").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("sudo -n ls && timeout 10 sudo").blocked).toBe(false);
+	});
+
+	it("blocks a sudo-named variable reference in the runner remainder (over-block, safe direction)", () => {
+		expect(isInteractiveSudoAttempt("env $SUDO apt").blocked).toBe(true);
+	});
+});
+
+// ── review G-2: nested-shell / eval recursion ───────────────────────────────
+
+describe("isInteractiveSudoAttempt — G-2 nested shells and eval", () => {
+	/** Nest a program string in N `bash -c "..."` levels (inner quotes escaped). */
+	function nestBashC(program: string, levels: number): string {
+		let s = program;
+		for (let i = 0; i < levels; i++) {
+			s = `bash -c "${s.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+		}
+		return s;
+	}
+
+	it.each([
+		"sh -c 'sudo apt update'",
+		'bash -c "sudo apt update"',
+		"bash -c 'sudo apt update'",
+		"dash -xc 'sudo apt update'",
+		"su -c \"sudo apt\"",
+		"ksh -c sudo apt",
+		"eval 'sudo apt update'",
+		"eval sudo apt",
+		"zsh -c 'sudo apt update'",
+	])("blocks `%s`", (command) => {
+		expect(isInteractiveSudoAttempt(command).blocked).toBe(true);
+	});
+
+	it("allows a no-prompt or non-sudo program string", () => {
+		expect(isInteractiveSudoAttempt("bash -c 'sudo -n true'").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("sh -c 'echo sudo'").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("bash -c 'apt update'").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("su -c \"sudo -n true\"").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("eval 'sudo -n ls'").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("bash script.sh").blocked).toBe(false); // known gap: program from file
+	});
+
+	it("blocks a deeply-quoted `bash -c` fixture that exceeds the depth cap", () => {
+		// fixture: `bash -c 'bash -c "bash -c \\(escaped inner levels) sudo apt''`
+		const command = `bash -c 'bash -c "bash -c \\"bash -c \\\\\\\"sudo apt\\\\\\\"\\""''`;
+		const r = isInteractiveSudoAttempt(command);
+		expect(r.blocked).toBe(true);
+		expect(r.reason).toContain("depth");
+	});
+
+	it("blocks a 3-level nested `bash -c` chain reaching a real interactive sudo (not the depth cap)", () => {
+		const r = isInteractiveSudoAttempt(nestBashC("sudo apt", 3));
+		expect(r.blocked).toBe(true);
+		expect(r.reason).not.toContain("depth");
+		expect(isInteractiveSudoAttempt(nestBashC("sudo -n true", 3)).blocked).toBe(false);
+	});
+
+	it("blocks beyond the nesting depth cap (4 levels): reason names the depth limit", () => {
+		const r = isInteractiveSudoAttempt(nestBashC("sudo apt", 4));
+		expect(r.blocked).toBe(true);
+		expect(r.reason).toContain("depth");
+	});
+});
+
+// ── review G-3: compound-command keyword transparency ───────────────────────
+
+describe("isInteractiveSudoAttempt — G-3 compound-command keywords", () => {
+	it.each([
+		"if true; then sudo apt update; fi",
+		"while :; do sudo apt update; done",
+		"for i in 1; do sudo apt update; done",
+		"{ sudo apt update; }",
+		"! sudo apt update",
+		"( sudo apt update )",
+	])("blocks `%s`", (command) => {
+		expect(isInteractiveSudoAttempt(command).blocked).toBe(true);
+	});
+
+	it("allows a no-prompt sudo inside a compound body", () => {
+		expect(isInteractiveSudoAttempt("if true; then sudo -n true; fi").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("while :; do sudo -n true; done").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("for i in 1; do echo $i; done").blocked).toBe(false);
+	});
+
+	it("treats bare keyboard-none segments as having no command word", () => {
+		expect(isInteractiveSudoAttempt("fi").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("done").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("else").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("}").blocked).toBe(false);
+	});
+});
+
 // ── integration: handleBashToolCall (called directly, as the tool_call veto) ─
 
 describe("handleBashToolCall — tool_call veto integration", () => {
