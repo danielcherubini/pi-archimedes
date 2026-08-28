@@ -15,14 +15,14 @@ type TriggerType = (typeof TRIGGER)[keyof typeof TRIGGER];
 // ── Config ──────────────────────────────────────────────────────────────────
 
 export interface NotifyConfig {
-  enabled: boolean;
+  // suite-managed by meta's plugin gate (archimedes.notify.enabled — see ADR 0012); notify never reads this
+  enabled?: boolean;
   notifyOnAgentEnd: boolean;
   notifyOnQuestion: boolean;
   delayMs: number;
 }
 
 export const DEFAULT_NOTIFY_CONFIG: NotifyConfig = {
-  enabled: true,
   notifyOnAgentEnd: true,
   notifyOnQuestion: true,
   delayMs: 30_000,
@@ -153,10 +153,6 @@ export function scheduleNotify(trigger: TriggerType): void {
   // Load config fresh on each trigger
   const config = loadNotifyConfig();
 
-  if (!config.enabled) {
-    return;
-  }
-
   if (trigger === TRIGGER.AGENT_END && !config.notifyOnAgentEnd) {
     return;
   }
@@ -226,13 +222,6 @@ export default function (pi: ExtensionAPI): void {
 /** Build settings UI items for the notify package. */
 export function getNotifySettingsItems(config: NotifyConfig): SettingItem[] {
   return [
-    {
-      id: "enabled",
-      label: "Notifications",
-      description: "Enable desktop notifications",
-      currentValue: config.enabled ? "On" : "Off",
-      values: ["On", "Off"],
-    },
     {
       id: "notifyOnAgentEnd",
       label: "Notify on task complete",

@@ -33,8 +33,9 @@ After a conversation ends (`agent_end`), the extension extracts the first user m
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable automatic session naming |
 | `model` | string | _(current model)_ | Override model for title generation (e.g., `openai/gpt-4o-mini`) |
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
 
 Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.sessionName` namespace.
 

@@ -31,6 +31,8 @@
 | 27 | [MCP commands + panels (port phase 3)](done/plan-027-mcp-commands-panels.md) | ✅ COMPLETED (squash `09dd105`) | 2026-08-17 |
 | 28 | [Codebase improvement — dead API, DRY, config patterns, file splits](done/plan-028-codebase-improvement.md) | ✅ COMPLETED (PR #35) | 2026-08-25 |
 | 29 | [Todo schema alignment + subagent-visibility fix](done/plan-029-todo-schema-alignment.md) | ✅ COMPLETED (PR #37) | 2026-08-27 |
+| 31 | [Plugin enable/disable via a single global gate](done/plan-031-plugin-manager.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
+| 32 | [Plugin gate in each package's own namespace](done/plan-032-gate-in-package-namespace.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -42,13 +44,12 @@
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 | 30 | [archimedes-sudo — safe privileged execution](plan-030-archimedes-sudo.md) | 🔧 IN PROGRESS | 2026-08-28 | |
-| 31 | [Plugin enable/disable via a single global gate](plan-031-plugin-manager.md) | 🔧 IN PROGRESS | 2026-08-28 | |
 
 ## Quick Stats
 
-- Total Plans: 31
-- Completed: 29
-- In Progress: 2
-- Backlog: 2
+- Total Plans: 32
+- Completed: 31
+- In Progress: 1
+- Backlog: 1
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).

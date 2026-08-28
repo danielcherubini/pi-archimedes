@@ -1,5 +1,7 @@
 # Plugin enable/disable via a single global gate
 
+> **Status:** partially superseded by [ADR 0012 — plugin gate in each package's own namespace](./0012-plugin-gate-in-package-namespace.md). The standalone `archimedes.plugins` map as config shape is replaced by `archimedes.<pkg>.enabled` in each package's namespace; the manifest, three gate points, `/plugins` overlay, and session-scoped effect stand as decided here.
+
 We decided (2026-08, design discussion) to add a plugin manager to the meta orchestrator: an explicit manifest of the non-core packages meta composes, an `archimedes.plugins` settings namespace (`{ [pluginId]: boolean }`) as the **single global enable gate**, and a `/plugins` slash command that opens a toggle-list overlay (the existing `SettingsManager` TUI) so users can enable/disable optional packages and isolate them out.
 
 The manifest is **discovery-driven, not a hardcoded optional list**: each entry carries an `import()` loader; an entry is shown as installed only when its import resolves, and core is never listed (it cannot be disabled). This satisfies "only show what's installed" — someone who installs just `footer` gets only a footer entry, someone who installs the full meta suite gets the full list, all default-enabled.

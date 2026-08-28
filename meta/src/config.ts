@@ -92,7 +92,6 @@ import { loadSessionNameConfig } from "@pi-archimedes/session-name";
 export type { SessionNameSettings } from "@pi-archimedes/session-name";
 
 export const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
-  enabled: true,
   model: undefined,
 };
 
