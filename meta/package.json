@@ -20,7 +20,8 @@
     "@pi-archimedes/todo": "workspace:*",
     "@pi-archimedes/notify": "workspace:*",
     "@pi-archimedes/session-name": "workspace:*",
-    "@pi-archimedes/mcp": "workspace:*"
+    "@pi-archimedes/mcp": "workspace:*",
+    "@pi-archimedes/sudo": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

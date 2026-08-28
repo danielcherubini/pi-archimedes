@@ -28,7 +28,7 @@ export const PLUGINS: PluginDef[] = [
   { id: "image-paste",  label: "Image paste",        description: "Clipboard image paste",                           namespace: "archimedes.imagePaste",  load: () => import("@pi-archimedes/image-paste") },
   { id: "subagent",     label: "Subagents",          description: "Live subagent dispatch (general, reviewer, …)",  namespace: "archimedes.subagent",    load: () => import("@pi-archimedes/subagent") },
   { id: "mcp",          label: "MCP",                description: "MCP client adapter + /mcp commands",             namespace: "archimedes.mcp",         load: () => import("@pi-archimedes/mcp") },
-  // future: sudo (plan-030) — added there; until then a non-existent entry is just "not installed"
+  { id: "sudo",         label: "Sudo",                 description: "Safe privileged execution",                      namespace: "archimedes.sudo",      load: () => import("@pi-archimedes/sudo") },
 ];
 
 // ── Gate: settings[archimedes.<pkg>].enabled, strict `!== false` ─────────
