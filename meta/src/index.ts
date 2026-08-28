@@ -15,6 +15,7 @@ import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
+import { registerPluginsCommand } from "./plugin-manager.js"
 
 // Module-level ref for shutdown (survives session replacements)
 let imagePasteShutdown: (() => void) | undefined;
@@ -55,7 +56,9 @@ export default function (pi: ExtensionAPI): void {
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
-    imagePasteShutdown?.();
+    // imagePasteShutdown is only assigned when image-paste registered
+    // (gated in session_start) — the explicit check keeps the intent visible.
+    if (isPluginEnabled("image-paste")) imagePasteShutdown?.();
     unpatchConsoleLog();
     archPrintTimings();
   });
@@ -118,4 +121,8 @@ export default function (pi: ExtensionAPI): void {
       await openSettings(pi, ctx);
     },
   });
+
+  // Register /plugins command (plugin manager — single home in plugin-manager.ts)
+  registerPluginsCommand(pi);
+  archTime("registerCommands");
 }

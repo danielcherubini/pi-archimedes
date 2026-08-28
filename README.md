@@ -230,6 +230,16 @@ The adapter writes to exactly two targets, one field at a time:
 
 Changes to either file take effect on the next `/reload`.
 
+### 🧩 Plugin manager (`pi-archimedes`)
+
+*Available when installed via `pi-archimedes` (the meta package), not via individual standalone installs.*
+
+Every non-core package is an **optional plugin** — the nine components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown.
+
+#### `/plugins` command
+
+Run `/plugins` to open the plugin manager. Each installed plugin appears as a row with its description and current state (On/Off). Navigate with arrow keys, press ←/→ on a row to flip its state — the change persists immediately to `archimedes.plugins` — and press ESC to close. A disabled plugin stops being registered on the next `/reload`: its tools, commands, and `/archimedes` settings rows disappear with it.
+
 ## Quick Start
 
 ```bash
@@ -256,6 +266,12 @@ That's it. Reload Pi and you're set.
 Run `/archimedes` to open the interactive settings panel. Navigate with arrow keys, press Enter to toggle or edit, Save to persist, ESC to cancel.
 
 Each package reads from its own namespace in `~/.pi/agent/settings.json` — for example, `@pi-archimedes/footer` reads from `archimedes.footer`.
+
+### `pi-archimedes` (meta)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `archimedes.plugins` | map | _(empty — all on)_ | Per-plugin On/Off toggles, edited via the `/plugins` command. Partial map: absent or `true` = enabled, `false` = disabled |
 
 ### [`@pi-archimedes/core`](packages/core/README.md)
 
