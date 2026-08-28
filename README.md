@@ -243,6 +243,8 @@ Safe privileged execution: a dedicated `sudo_exec` tool with a masked password p
 > **Caveat:** the bash guard blocks interactive sudo *everywhere* — including one-off human-directed agent runs. Use `sudo_exec` for anything privileged.
 >
 > **Caveat:** the timeout/abort kill covers the command's process group; a command that detaches itself into its own session (`setsid`/daemonizing) is beyond that kill by design (same reach as `tmux kill-pane`) — give it a managed lifecycle flag (e.g. `--foreground`) instead.
+>
+> **Caveat:** on sudoers that retain no reusable credential ticket, an unrecognizable failure can't be told apart from auth failure — it follows a two-consecutive-failure rule: warning on the first, cache cleared on the second, so a wrong password is detected on the second failure, not the first.
 
 ### 🧩 Plugin manager (`pi-archimedes`)
 

@@ -55,6 +55,10 @@ The guard is a heuristic with accepted residual bypasses documented in the [ADR 
 
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on). Config is JSON-only in the `archimedes.sudo` namespace of `~/.pi/agent/settings.json` — there is no settings-panel UI in v1.
 
+### Credential limitation on sudoers that retain no reusable ticket
+
+On sudoers policies that retain no reusable credential ticket (e.g. `timestamp_timeout=0` plus strict `Defaults`), an authenticated **command** failure is indistinguishable from an authentication failure to any non-interactive check — so the tool uses a two-consecutive-failure rule: the first failure keeps the cached password (with a visible warning), the second clears it. A wrong password on such a sudo is therefore detected on the second failure rather than the first — the bounded cost of a policy that exposes no ticket to verify against.
+
 ## Integration
 
 When installed via `pi-archimedes` (the meta package), the sudo package is registered and gated by the suite's plugin manifest (ADR 0012); the bash guard and `sudo_exec` are loaded in both the main session and subagent children — the guard still vetoes there, while `sudo_exec` itself refuses to run headless. Standalone installs work independently.

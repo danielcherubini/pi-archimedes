@@ -53,18 +53,41 @@ export type SudoSpawner = (command: string, args: string[], options?: { detached
 
 const defaultSpawner: SudoSpawner = (command, args, options) => spawn(command, args, options);
 
+/** Short delay before the ONE retry of a transient group-kill failure. */
+const GROUP_KILL_RETRY_DELAY_MS = 50;
+
+function sleepMs(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Kill the command's ENTIRE process group — the child is spawned detached
  * (own group), so a root process that forked further survives
- * `child.kill()` alone. Group first; on ESRCH / EPERM / unsupported
- * (or no pid at all) fall back to the single-process kill.
+ * `child.kill()` alone. Group first: a DEFINITIVE ESRCH means the group no
+ * longer exists — the whole group is already dead, so that is complete
+ * success (no retry, no fallback). Only a non-ESRCH throw (transient /
+ * state-uncertain) waits one short tick and retries the group signal ONCE
+ * before falling back to the single-process kill; that last-ditch kill is
+ * swallowed if it throws too — the child is gone in that case.
  */
-function killProcessTree(child: SudoChild): void {
+async function killProcessTree(child: SudoChild): Promise<void> {
 	if (!child.pid) return;
 	try {
 		process.kill(-child.pid, "SIGKILL");
-	} catch {
-		child.kill("SIGKILL");
+		return;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException | undefined)?.code === "ESRCH") return; // group definitively dead — done
+		await sleepMs(GROUP_KILL_RETRY_DELAY_MS);
+		try {
+			process.kill(-child.pid, "SIGKILL");
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException | undefined)?.code === "ESRCH") return; // retry confirmed the group is dead
+			try {
+				child.kill("SIGKILL");
+			} catch {
+				// even the single-process signal failed — the child is gone; nothing left to do
+			}
+		}
 	}
 }
 
@@ -200,14 +223,16 @@ export function runSudo(
 			resolve(result);
 		};
 
+		// The kill may transiently need its one retry (short real delay), so
+		// it runs async: finish() stays EXACTLY ONCE via the settled guard,
+		// called only AFTER the kill — same ordering as before.
 		const onAbort = (): void => {
-			killProcessTree(child);
-			finish(130);
+			void killProcessTree(child).then(() => finish(130));
 		};
 
 		const timer = setTimeout(() => {
 			timedOut = true;
-			killProcessTree(child);
+			void killProcessTree(child); // fire-and-forget: the 2s exit fallback below settles if no exit comes
 			// belt-and-braces: resolve even if no exit/close ever fires
 			exitFallback = setTimeout(() => finish(124), 2000);
 		}, timeoutMs);
@@ -219,8 +244,7 @@ export function runSudo(
 		child.on("close", onExit);
 
 		if (signal && signal.aborted) {
-			killProcessTree(child);
-			finish(130);
+			void killProcessTree(child).then(() => finish(130));
 			return;
 		}
 		if (signal) {
@@ -505,7 +529,7 @@ export function createSudoExecTool(options: {
 					if ((credentialCache.get()?.failStreak ?? 0) >= 2) {
 						credentialCache.clear();
 						return fail(
-							`sudo authentication failed — exit code ${run.exitCode}. The cached password failed twice in a way that looks like authentication failure — the credential cache was cleared; you will be re-prompted for the password next time.`,
+							`sudo authentication failed — exit code ${run.exitCode}. The cached password produced two consecutive failures without a verifiable credential — the credential cache was cleared; you will be re-prompted for the password on the next sudo_exec.`,
 							{ command, reason, exitCode: run.exitCode, stdout, stderr, error: "authentication failed" },
 						);
 					}

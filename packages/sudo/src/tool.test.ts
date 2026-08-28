@@ -335,6 +335,12 @@ describe("sudo_exec tool", () => {
 		it("maps a timeout SIGKILL exit to exit code 137 and reports the timeout error (runSudo contract: code null + SIGKILL → 137)", async () => {
 			// exitOn:'kill' — the child only exits when runSudo's timeout kills it.
 			const { spawner, last } = makeFakeSpawner({ stderr: "", code: null, exitOn: "kill" });
+			// model the group SIGKILL landing: -pid delivered successfully → the fake
+			// child reports a real SIGKILL exit (null code)
+			vi.spyOn(process, "kill").mockImplementation((pid?: number) => {
+				if (pid === -4242) last.child.kill("SIGKILL");
+				return true;
+			});
 			const tool = createSudoExecTool({ spawner });
 			credentialCache.set("pw", 60_000);
 			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
@@ -349,9 +355,10 @@ describe("sudo_exec tool", () => {
 			expect(last.child.killSignals).toContain("SIGKILL");
 		});
 
-		it("maps an external abort to exit code 130, kills with SIGKILL, and resolves exactly once (settle-guard)", async () => {
+		it("maps an external abort to exit code 130, kills the process group with SIGKILL, and resolves exactly once (settle-guard)", async () => {
 			// No automatic exit: only abort's kill ever settles the child.
 			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true); // group SIGKILL delivered, no exit echoed here — the settle-guard is the point
 			const { authProbe, calls } = probeSpy(true);
 			const tool = createSudoExecTool({ spawner, authProbe });
 			credentialCache.set("pw", 60_000);
@@ -378,8 +385,9 @@ describe("sudo_exec tool", () => {
 			const details = result.details as { exitCode: number; error?: string };
 			expect(details.exitCode).toBe(130);
 			expect(details.error).toMatch(/exit code 130/);
-			expect(last.child.killed).toBe(true);
-			expect(last.child.killSignals).toContain("SIGKILL");
+			// the whole process group received SIGKILL (delivered to -pid, not just the direct child)
+			expect(killSpy).toHaveBeenCalledWith(-4242, "SIGKILL");
+			expect(last.child.killSignals).toHaveLength(0); // group kill succeeded — single-process fallback not needed
 			expect(rejected).toBe(false);
 			expect(calls()).toBe(0); // abort (130) never probes
 		});
@@ -898,7 +906,9 @@ describe("sudo_exec tool", () => {
 			expect(second.isError).toBe(true);
 			const text = (second.content[0] as { text: string }).text;
 			expect(text).toMatch(/authentication failed/i);
-			expect(text).toMatch(/twice in a way that looks like authentication failure/i);
+			// cause-NEUTRAL wording: states the consequence, never a cross-checked cause
+			expect(text).toMatch(/two consecutive failures/i);
+			expect(text).toMatch(/without a verifiable credential/i);
 			expect(text).toMatch(/re-prompt/i);
 			expect(credentialCache.get()).toBeNull(); // bad-password reuse is finally cut off
 			expect(calls()).toBe(2); // both runs probed
@@ -1043,9 +1053,9 @@ describe("sudo_exec tool", () => {
 			expect(killSpy).toHaveBeenCalledWith(-4242, "SIGKILL");
 		});
 
-		it("falls back to a single-process SIGKILL when the group kill is impossible (ESRCH / already dead)", async () => {
+		it("treats an ESRCH group kill as COMPLETE — one group attempt, no retry, no single-process fallback (the group is already dead)", async () => {
 			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
-			vi.spyOn(process, "kill").mockImplementation(() => {
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
 				throw Object.assign(new Error("no such process"), { code: "ESRCH" });
 			});
 			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
@@ -1060,9 +1070,139 @@ describe("sudo_exec tool", () => {
 
 			const result = await promise;
 			expect((result.details as { exitCode: number }).exitCode).toBe(130);
-			// the group kill threw → the single-process fallback ran and settled the run
-			expect(last.child.killed).toBe(true);
-			expect(last.child.killSignals).toContain("SIGKILL");
+			expect(killSpy).toHaveBeenCalledTimes(1); // ESRCH short-circuits — definitively dead, no retry
+			expect(killSpy).toHaveBeenCalledWith(-4242, "SIGKILL");
+			expect(last.child.killed).toBe(false); // the group is already gone — no single-process fallback needed
+		});
+	});
+
+	describe("hardened process-group kill retry (single-process fallback only after non-ESRCH group attempts are exhausted)", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		// A pid'd child that NEVER exits on its own and fires no exit events:
+		// kill() is recorded only, so the abort settles deterministically on the
+		// finish(130) path and the assertions are purely about the kill attempts.
+		function silentChild() {
+			const killSignals: Array<NodeJS.Signals | undefined> = [];
+			const child: SudoChild = {
+				stdin: { write() {}, end() {} },
+				stdout: { on: () => null },
+				stderr: { on: () => null },
+				pid: 4242,
+				kill(signal?: NodeJS.Signals) {
+					killSignals.push(signal);
+					return true;
+				},
+				on: () => null,
+			};
+			return { child, killSignals, spawner: (() => child) as SudoSpawner };
+		}
+
+		it("a transient (non-ESRCH) group-signal failure gets ONE retry after a short delay; retry-ESRCH = complete — exactly 2 group attempts, NO single-process fallback", async () => {
+			let groupAttempts = 0;
+			const killSpy = vi.spyOn(process, "kill").mockImplementation((pid?: number) => {
+				groupAttempts += 1;
+				if (groupAttempts === 1) {
+					// attempt 1: transient — the group state is uncertain, not confirmed dead
+					throw Object.assign(new Error("operation not permitted"), { code: "EACCES" });
+				}
+				// attempt 2: definitive — the (entire) group no longer exists
+				throw Object.assign(new Error("no such process"), { code: "ESRCH" });
+			});
+			const realSetTimeout = setTimeout;
+			const delays: number[] = [];
+			// the retry sleeps via a short REAL timer (no fake-timer entanglement);
+			// record the delay and delegate to the real timer.
+			vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: (...args: unknown[]) => void, ms?: number): unknown => {
+				if (ms !== undefined) delays.push(ms);
+				return (realSetTimeout as (fn: unknown, ms?: number) => unknown)(fn, ms);
+			}) as unknown as typeof setTimeout);
+			const { spawner, killSignals } = silentChild();
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise<void>((r) => { void realSetTimeout(r, 1); }); // let execute pass the gate and spawn
+
+			controller.abort(); // the retry delay is the ONLY armed timer now
+
+			const result = await promise;
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			expect(killSpy).toHaveBeenCalledTimes(2); // exactly one retry after the transient failure
+			expect(killSpy).toHaveBeenNthCalledWith(1, -4242, "SIGKILL");
+			expect(killSpy).toHaveBeenNthCalledWith(2, -4242, "SIGKILL");
+			expect(delays).toContain(50); // short real delay before the retry (the 60_000 run timer may also be recorded)
+			expect(killSignals).toHaveLength(0); // group definitively dead → fallback NOT called
+		});
+
+		it("a definitive ESRCH group-signal failure settles immediately — exactly 1 group attempt, no retry, no single-process fallback", async () => {
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+				throw Object.assign(new Error("no such process"), { code: "ESRCH" });
+			});
+			const { spawner, killSignals } = silentChild();
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1));
+
+			controller.abort();
+
+			const result = await promise;
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			expect(killSpy).toHaveBeenCalledTimes(1);
+			expect(killSpy).toHaveBeenCalledWith(-4242, "SIGKILL");
+			expect(killSignals).toHaveLength(0);
+		});
+
+		it("two consecutive transient group-signal failures exhaust the retries → then (and only then) the single-process SIGKILL fallback", async () => {
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+				throw Object.assign(new Error("operation not permitted"), { code: "EACCES" });
+			});
+			const { spawner, killSignals } = silentChild();
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1));
+
+			controller.abort();
+
+			const result = await promise;
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			expect(killSpy).toHaveBeenCalledTimes(2); // group attempted first, retried once
+			expect(killSpy).toHaveBeenNthCalledWith(1, -4242, "SIGKILL");
+			expect(killSpy).toHaveBeenNthCalledWith(2, -4242, "SIGKILL");
+			expect(killSignals).toEqual(["SIGKILL"]); // single fallback ran only after group attempts were exhausted
+		});
+
+		it("a throwing single-process fallback is swallowed — the abort still settles (130) and no error escapes", async () => {
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
+				throw Object.assign(new Error("process already dead"), { code: "EPERM" });
+			});
+			const silent = silentChild();
+			const throwingSpawner: SudoSpawner = () => ({ ...silent.child, kill: () => (() => { throw Object.assign(new Error("child gone"), { code: "ESRCH" }); })() });
+			const tool = createSudoExecTool({ spawner: throwingSpawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1));
+
+			controller.abort();
+
+			const result = await promise; // must resolve, not reject — the child is gone anyway
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			expect(killSpy).toHaveBeenCalledTimes(2);
 		});
 	});
 });
