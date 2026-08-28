@@ -36,7 +36,12 @@ export interface SudoExecDetails {
 /** Structural subset of ChildProcess used by runSudo — injectable for tests. */
 export interface SudoChild {
 	readonly pid?: number | undefined;
-	readonly stdin?: { write(chunk: string): void; end(): void } | null;
+	readonly stdin?: {
+		write(chunk: string): void;
+		end(): void;
+		/** Stream error registration — present on real child stdin; optional so fakes can omit it. */
+		on?(evt: "error", cb: (err: Error) => void): unknown;
+	} | null;
 	readonly stdout: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	readonly stderr: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	kill(signal?: NodeJS.Signals): boolean;
@@ -148,6 +153,32 @@ export function runSudo(
 			finish(-1, `failed to spawn ${command}: ${errDetail(err)}`);
 		});
 
+		let stdinReadSideClosed = false;
+		// Asynchronous stdin-stream 'error' events are NOT caught by the
+		// synchronous write/end try/catch below: a dead child's EPIPE can land
+		// on a later tick after the write already completed. With no 'error'
+		// listener on the stream, that event takes the whole host process
+		// down. Policy (never false-fail a legitimate fast-exit success):
+		//  • EPIPE / ECONNRESET — the child's read side is gone (e.g. a
+		//    NOPASSWD sudo that finishes without ever reading the password).
+		//    DECIDE NOTHING here: the 'exit' handler settles the run with the
+		//    child's real code; if no exit ever comes, the dead process's own
+		//    'error' path — or the timeout + exit fallback — settles it.
+		//  • anything else — the child is alive but the channel went bad and
+		//    the outcome is still undecided: settle a clean transport failure
+		//    (credential cache retained); once settled, 'exit' has already won
+		//    and this is ignored.
+		// Both branches run under `finish`'s settled guard, so 'exit'/'close'
+		// double events and out-of-order stream errors can't double-settle.
+		child.stdin?.on?.("error", (err) => {
+			const code = (err as NodeJS.ErrnoException | undefined)?.code;
+			if (code === "EPIPE" || code === "ECONNRESET") {
+				stdinReadSideClosed = true; // record only — 'exit' settles with the real code
+				return;
+			}
+			if (!settled) finish(-1, `stdin failed: ${errDetail(err)}`);
+		});
+
 		const finish = (exitCode: number, error?: string): void => {
 			if (settled) return;
 			settled = true;
@@ -213,18 +244,22 @@ export function runSudo(
 export const AUTH_PROBE_TIMEOUT_MS = 5000;
 
 /**
- * Locale-immune check that the credential is currently valid: run
- * `sudo -n true`. `-n` refuses to prompt, so nothing is written to its
- * stdin and it exits 0 iff a valid credential ticket exists (i.e. the
- * last-run authentication actually succeeded and the COMMAND failed),
- * or non-zero if no ticket is cached. Takes no password — by design.
+ * Locale-immune check that the cached credential is still usable: run
+ * `sudo -n -v`. `-v` VALIDATES the credential timestamp without executing
+ * any program — its success needs no program entry in the target sudoers,
+ * unlike `sudo -n true` (a restricted sudoers can permit the requested
+ * command while denying `true` (or not listing it), and a ticketless/no-reuse
+ * policy can hold a freshly valid credential with no replayable ticket
+ * for `-n true` to find). `-n` refuses to prompt, so nothing is written
+ * to its stdin and it exits 0 iff validation succeeded. Takes no password
+ * — by design.
  */
 export async function probeSudoTicket(
 	timeoutMs: number,
 	signal: AbortSignal | undefined,
 	spawner: SudoSpawner,
 ): Promise<boolean> {
-	const run = await runSudo(["sudo", "-n", "true"], "", timeoutMs, signal, spawner);
+	const run = await runSudo(["sudo", "-n", "-v"], "", timeoutMs, signal, spawner);
 	return !run.timedOut && run.error === undefined && run.exitCode === 0;
 }
 
@@ -273,10 +308,11 @@ export function createSudoExecTool(options: {
 	 * failed at the command level (normal non-zero exit) WITHOUT the
 	 * English "incorrect password" fast-path signature matching — e.g.
 	 * a non-English sudo. It is not gated on the prompt text: a
-	 * localized prompt leaves no recognizer, and `sudo -n true` is safe
-	 * to run after any command-level failure. Default: a spawner-based
-	 * `sudo -n true` ticket probe (probeSudoTicket). It never receives
-	 * the password, by design.
+	 * localized prompt leaves no recognizer, and `sudo -n -v` (a
+	 * password-free credential validation that executes no program)
+	 * is safe to run after any command-level failure. Default: a
+	 * spawner-based `sudo -n -v` ticket probe (probeSudoTicket). It
+	 * never receives the password, by design.
 	 */
 	authProbe?: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean>;
 } = {}) {
@@ -420,10 +456,13 @@ export function createSudoExecTool(options: {
 			// non-zero WITHOUT the English "incorrect password" fast-path
 			// signature — a wrong password is indistinguishable from a
 			// localized message (or a genuine command failure) on the
-			// signature path alone. Probe for a credential ticket
-			// (sudo -n true, no password): no ticket means the password was
-			// wrong → same treatment as the signature-detected auth failure;
-			// a valid ticket means the command itself failed → normal result.
+			// signature path alone. Probe the credential with `sudo -n -v`
+			// (validates the ticket, executes no program, no password):
+			// the probe failing means we cannot confirm the cached
+			// credential still works → same treatment as the
+			// signature-detected auth failure, erring safe; the probe
+			// succeeding means the credential is fine and the command
+			// itself failed → normal result.
 			// NOT gated on the prompt text — localized sudo emits a prompt in
 			// the user's language, and after ANY command-level failure the
 			// probe is safe (valid ticket → keep, no ticket → re-prompt).
@@ -440,7 +479,7 @@ export function createSudoExecTool(options: {
 				if (!ticketValid) {
 					credentialCache.clear();
 					return fail(
-						`sudo authentication failed (no valid credential ticket after the run — detected locale-immunely via a \`sudo -n true\` ticket probe because stderr carried no recognizable failure signature) — exit code ${run.exitCode}. The in-memory credential cache was cleared; the user will be re-prompted on the next attempt.`,
+						`sudo authentication failed (stderr carried no recognizable failure signature and the \`sudo -n -v\` credential probe could not confirm the cached credential still works — erring safe) — exit code ${run.exitCode}. The in-memory credential cache was cleared; the user will be re-prompted for the password on the next sudo_exec.`,
 						{ command, reason, exitCode: run.exitCode, stdout, stderr, error: "authentication failed" },
 					);
 				}

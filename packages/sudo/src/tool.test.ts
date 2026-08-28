@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
@@ -17,8 +18,8 @@ vi.mock("@pi-archimedes/core/settings-io", () => ({
 	},
 }));
 
-import { buildSudoArgv, createSudoExecTool, scrubSecret } from "./tool.js";
-import type { SudoChild } from "./tool.js";
+import { buildSudoArgv, createSudoExecTool, probeSudoTicket, scrubSecret } from "./tool.js";
+import type { SudoChild, SudoSpawner } from "./tool.js";
 import { credentialCache } from "./cache.js";
 
 // ── fakes ────────────────────────────────────────────────────────────────────
@@ -490,6 +491,212 @@ describe("sudo_exec tool", () => {
 			expect((result.details as { exitCode: number }).exitCode).toBe(-1);
 			// the child dying needs no re-auth of the password — keep it cached
 			expect(credentialCache.get()?.password).toBe("pw");
+		});
+	});
+
+	describe("async stream errors on the child's stdin (no unhandled 'error', no false fail)", () => {
+		/**
+		 * Fake child whose stdin is a REAL EventEmitter: `emit("error")` with
+		 * no listener throws — if runSudo didn't attach an 'error' listener
+		 * before the async emit, the queueMicrotask'd throw is an uncaught
+		 * exception and this entire test run fails (the crash-safety net for
+		 * the "no unhandled 'error'" requirement). Stdout/stderr are inert
+		 * sinks — these tests are about the stdin error path only.
+		 */
+		function streamingChild() {
+			const ee = new EventEmitter();
+			const written: string[] = [];
+			const exitCbs: Array<(code: number | null, signal?: NodeJS.Signals | null) => void> = [];
+			const child: SudoChild = {
+				stdin: Object.assign(ee, {
+					written,
+					write(chunk: string) {
+						written.push(chunk);
+					},
+					end() {},
+				}),
+				stdout: { on: () => null },
+				stderr: { on: () => null },
+				// no pid on purpose: a kill here is a no-op (killProcessTree
+				// skips pid-less children), so the 2s exit fallback is the only
+				// thing that settles a "child never reports exit" scenario.
+				kill: () => true,
+				on(
+					evt: string,
+					cb: ((code: number | null, signal?: NodeJS.Signals | null) => void) | ((err: Error) => void),
+				): unknown {
+					if (evt === "exit" || evt === "close") {
+						exitCbs.push(cb as (code: number | null, signal?: NodeJS.Signals | null) => void);
+					}
+					return null;
+				},
+			};
+			return {
+				child,
+				written,
+				emitStdinError(err: Error): void {
+					// async, like a real stream — a dead child's EPIPE can land
+					// on a later tick after the write already completed.
+					queueMicrotask(() => {
+						ee.emit("error", err);
+					});
+				},
+				/** fire BOTH 'exit' and 'close' (real children echo either). */
+				exit(code: number | null): void {
+					for (const cb of exitCbs) queueMicrotask(() => cb(code, null));
+				},
+			};
+		}
+
+		it("EPIPE on stdin (reader went away) followed by exit(0) settles as SUCCESS — no false failure for the NOPASSWD fast-exit path", async () => {
+			// NOPASSWD narrative: the host's sudoers grants NOPASSWD, the command
+			// finishes almost immediately and never reads the password from stdin
+			// (`sudo -S` ignores it), so the stdin write pipe breaks with EPIPE —
+			// asynchronously, after our write already completed. The read side
+			// dying says NOTHING about the credential or the command: the child's
+			// real exit code (0, here) must win. Treating the EPIPE as fatal would
+			// false-fail this perfectly legitimate fast-exit success.
+			credentialCache.set("nopw", 60_000);
+			const { child, emitStdinError, exit } = streamingChild();
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: () => child, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "hostname", reason: "test" });
+			await new Promise((r) => setTimeout(r, 1)); // spawn + stdin listener attached
+			emitStdinError(Object.assign(new Error("read EPIPE"), { code: "EPIPE" }));
+			exit(0); // 'exit' then 'close' — the settled guard must swallow the echo
+
+			const result = await promise;
+			expect(result.isError).toBeFalsy();
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(0);
+			expect(details.error).toBeUndefined();
+			expect(calls()).toBe(0); // success never probes
+		}, 3000);
+
+		it("EPIPE on stdin followed by exit(1) settles as a normal command failure (exit 1), no crash", async () => {
+			credentialCache.set("pw", 60_000);
+			const { child, emitStdinError, exit } = streamingChild();
+			const { authProbe, calls } = probeSpy(true); // gate probes; valid ticket → command failure, not auth
+			const tool = createSudoExecTool({ spawner: () => child, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "systemctl stop dnsmasq", reason: "test" });
+			await new Promise((r) => setTimeout(r, 1));
+			emitStdinError(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+			exit(1);
+
+			const result = await promise;
+			expect(result.isError).toBe(true);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(1);
+			expect(details.error).toMatch(/command failed with exit code 1/i);
+			expect((result.content[0] as { text: string }).text).not.toMatch(/authentication/i);
+			expect(calls()).toBe(1);
+		}, 3000);
+
+		it("anomalous stdin error while the child is still running (no exit) settles a clean transport failure — cache RETAINED, no probe", async () => {
+			credentialCache.set("pw", 60_000);
+			const { child, emitStdinError } = streamingChild();
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: () => child, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "apt update", reason: "maintain" });
+			await new Promise((r) => setTimeout(r, 1));
+			emitStdinError(Object.assign(new Error("boom"), { code: "ERR_STREAM_FAKE" }));
+			// no exit is fired at all — the handler itself must settle the run
+			// (a dead stdin with a live child is a broken transport).
+			const result = await promise;
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/failed to run privileged command/i);
+			expect(text).toMatch(/stdin failed: ERR_STREAM_FAKE/i);
+			expect(text).not.toMatch(/authentication failed|incorrect password/i);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(-1);
+			expect(details.error).toBe("stdin failed: ERR_STREAM_FAKE");
+			// transport failure says nothing about the credential — keep it cached
+			expect(credentialCache.get()?.password).toBe("pw");
+			expect(calls()).toBe(0); // the -1 error path never probes
+		}, 3000);
+
+		it("anomalous stdin error AFTER exit(0) already settled success is ignored — result stays success (no double-settle)", async () => {
+			credentialCache.set("pw", 60_000);
+			const { child, emitStdinError, exit } = streamingChild();
+			const { authProbe } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: () => child, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "true", reason: "test" });
+			await new Promise((r) => setTimeout(r, 1));
+			exit(0); // settles first — 'exit' wins
+			await new Promise((r) => setTimeout(r, 1)); // let the settle land
+			emitStdinError(Object.assign(new Error("late stream error"), { code: "ERR_STREAM_DESTROYED" }));
+			await new Promise((r) => setTimeout(r, 1)); // survive the (ignored) late error
+
+			const result = await promise;
+			expect(result.isError).toBeFalsy();
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(0);
+			expect(details.error).toBeUndefined();
+		}, 3000);
+
+		it("EPIPE with a child that never reports exit — no crash, the timeout fallback settles the run (safety harness)", async () => {
+			// The EPIPE policy defers to 'exit'; when the registerable process is
+			// dead-and-silent, the timeout + 2s exit fallback is what settles the
+			// run. Also the crash net: the stdin is a real EventEmitter, so an
+			// unattached 'error' listener would take down the run.
+			credentialCache.set("pw", 60_000);
+			const { child, emitStdinError, written } = streamingChild();
+			const tool = createSudoExecTool({ spawner: () => child, authProbe: () => Promise.resolve(true) });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "sleep-forever-in-spirit", reason: "test", timeoutMs: 10 });
+			await new Promise((r) => setTimeout(r, 1));
+			expect(written.join("")).toBe("pw\n"); // the password write happened before the error
+			emitStdinError(Object.assign(new Error("read EPIPE"), { code: "EPIPE" }));
+			// no exit ever comes — the exit fallback settles 124 ~2s after the timeout
+
+			const result = await promise;
+			expect(result.isError).toBe(true);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(124);
+			expect(details.error).toMatch(/timed out after 10ms/i);
+		});
+	});
+
+	describe("probeSudoTicket argv (password-free credential verification)", () => {
+		it("the probe argv is EXACTLY ['sudo','-n','-v'] — no program argument (that is the point of the fix)", async () => {
+			const calls: Array<{ command: string; args: string[] }> = [];
+			const { spawner } = makeFakeSpawner({ stderr: "", code: 0 });
+			const capturing: SudoSpawner = (command, args) => {
+				calls.push({ command, args });
+				return spawner(command, args);
+			};
+
+			const valid = await probeSudoTicket(5000, undefined, capturing);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0]).toEqual({ command: "sudo", args: ["-n", "-v"] });
+			expect(calls[0]!.args).not.toContain("true"); // never executes a program
+			expect(valid).toBe(true);
+		});
+
+		it("returns false when the credential check exits non-zero (non-zero = no valid credential)", async () => {
+			const calls: Array<{ command: string; args: string[] }> = [];
+			const { spawner } = makeFakeSpawner({ stderr: "sudo: a password is required\n", code: 1 });
+			const capturing: SudoSpawner = (command, args) => {
+				calls.push({ command, args });
+				return spawner(command, args);
+			};
+
+			const valid = await probeSudoTicket(5000, undefined, capturing);
+
+			expect(calls[0]).toEqual({ command: "sudo", args: ["-n", "-v"] });
+			expect(valid).toBe(false);
 		});
 	});
 
