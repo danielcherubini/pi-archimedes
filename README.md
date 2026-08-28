@@ -236,7 +236,7 @@ Safe privileged execution: a dedicated `sudo_exec` tool with a masked password p
 
 - `sudo_exec` tool — runs a privileged command via `sudo -S` with a masked interactive password prompt and a command confirmation; the password travels only over stdin — never argv, env, logs, or files — and the tool's output is scrubbed with the password masked
 - Single in-memory credential cache with TTL (default 15 min, `ttlMs`) — never written to disk or the OS keyring; cleared on `session_shutdown`, on `/sudo forget`, on auth failure, and at TTL expiry
-- Bash guard — active `tool_call` veto (ADR 0010): interactive `sudo` through the built-in `bash` tool is always **blocked**, funneling privileged execution through `sudo_exec`; non-interactive forms (`sudo -n`, `-l`, `-v`, `-K`, `-k`) pass through untouched
+- Bash guard — active `tool_call` veto (ADR 0010): interactive `sudo` through the built-in `bash` tool is always **blocked**, funneling privileged execution through `sudo_exec`; non-interactive forms (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) pass through untouched
 - `/sudo` command — reports whether a credential is cached; `/sudo forget` clears it from memory
 - Headless sessions (subagent children) are blocked on `sudo_exec` with a clear error rather than prompted — the mask prompt only ever appears in a human's TUI
 

@@ -78,9 +78,12 @@ describe("isInteractiveSudoAttempt — plan-030 Task 2 cases", () => {
 // ── lookahead / tokenization hardening (beyond the enumerated 12) ──────────
 
 describe("isInteractiveSudoAttempt — tokenizer + lookahead hardening", () => {
-	it("allows the full no-prompt flag set: -v, -K, -k", () => {
+	it("allows the full no-prompt flag set, one assertion per flag in flag-only form", () => {
+		expect(isInteractiveSudoAttempt("sudo").blocked).toBe(false); // bare `sudo` (session-escalation form; no command to elevate here)
+		expect(isInteractiveSudoAttempt("sudo -n").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("sudo -l").blocked).toBe(false);
 		expect(isInteractiveSudoAttempt("sudo -v").blocked).toBe(false);
-		expect(isInteractiveSudoAttempt("sudo -K").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("sudo -K").blocked).toBe(false); // flags only, no command to elevate
 		expect(isInteractiveSudoAttempt("sudo -k").blocked).toBe(false);
 	});
 
@@ -120,10 +123,6 @@ describe("isInteractiveSudoAttempt — tokenizer + lookahead hardening", () => {
 	it("does not false-positive on words that merely contain sudo", () => {
 		expect(isInteractiveSudoAttempt("find . -name 'sudo'").blocked).toBe(false);
 		expect(isInteractiveSudoAttempt("ls ./sudoku").blocked).toBe(false);
-	});
-
-	it("allows bare `sudo -K` (flags only, no command to elevate)", () => {
-		expect(isInteractiveSudoAttempt("sudo -K").blocked).toBe(false);
 	});
 
 	it("blocks a `); sudo apt` tail after substitution on the same line", () => {
@@ -365,5 +364,63 @@ describe("handleBashToolCall — tool_call veto integration", () => {
 
 	it("returns undefined for a bash event with an empty command", () => {
 		expect(handleBashToolCall(bashEvent(""))).toBeUndefined();
+	});
+});
+
+// ── header known-gaps — documented behavior pinned ─────────────────────────
+// One assertion per example in guard.ts's "Known gaps" header (drift-proof in
+// both directions: header example ⇄ pin), plus the F-1 value-taking flag
+// letter regressions (fixed, pinned to stop re-regressing).
+
+describe("isInteractiveSudoAttempt — header known-gaps, documented behavior pinned", () => {
+	it("gap (1): allows `S='sudo'; $S apt` (cross-token assignment attribution is out of model)", () => {
+		expect(isInteractiveSudoAttempt("S='sudo'; $S apt").blocked).toBe(false);
+	});
+
+	it("gap (2): allows sudo inside interpolation that never surfaces as a word", () => {
+		expect(isInteractiveSudoAttempt("echo \"$(sudo apt)\"").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("bash -c \"$(cat x)\"").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("eval \"$(echo 'sudo apt')\"").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("x=$(echo 1) sudo apt").blocked).toBe(false); // substitution-prefixed assignment word
+	});
+
+	it("gap (2): blocks substitution-word erasure (a following literal `sudo` claims command position)", () => {
+		expect(isInteractiveSudoAttempt("$(true) sudo apt").blocked).toBe(true);
+		expect(isInteractiveSudoAttempt("`x` sudo apt").blocked).toBe(true);
+	});
+
+	it("gap (3): allows program source from files/redirects (unresolvable without reading files)", () => {
+		expect(isInteractiveSudoAttempt("bash script.sh").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("bash < file").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("su -c file").blocked).toBe(false);
+	});
+
+	it("gap (5): allows an unknown wrapper-flag value hiding sudo (`timeout --signal SIGKILL sudo apt`)", () => {
+		expect(isInteractiveSudoAttempt("timeout --signal SIGKILL sudo apt").blocked).toBe(false);
+	});
+
+	it("gap (5)(b): allows the `env -c 'sudo apt update'` quoted-command-string form (-c consumes the word as a VALUE)", () => {
+		expect(isInteractiveSudoAttempt("env -c 'sudo apt update'").blocked).toBe(false);
+	});
+
+	it("gap (6): intentionally allows forwarding wrappers carrying sudo in their arguments", () => {
+		expect(isInteractiveSudoAttempt("ssh user@host \"sudo apt update\"").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("chroot / sudo apt").blocked).toBe(false);
+		expect(isInteractiveSudoAttempt("perf stat sudo apt").blocked).toBe(false);
+	});
+
+	it("F-1 pins: blocks short wrapper flags whose next word is the flag's VALUE (regression from 467b757)", () => {
+		expect(isInteractiveSudoAttempt("exec -a foo sudo apt").blocked).toBe(true); // exec -a NAME
+		expect(isInteractiveSudoAttempt("time -f '%e' sudo apt").blocked).toBe(true); // time -f FORMAT
+		expect(isInteractiveSudoAttempt("xargs -e STOP sudo cat").blocked).toBe(true); // xargs -e STOPWORD
+		expect(isInteractiveSudoAttempt("env -C /tmp sudo apt").blocked).toBe(true); // env -C DIR
+		expect(isInteractiveSudoAttempt("env -u FOO sudo apt").blocked).toBe(true); // env -u VAR
+		expect(isInteractiveSudoAttempt("env -f /tmp/x sudo apt").blocked).toBe(true); // env -f FILE
+	});
+
+	it("F-1 pins: allows value-semantics forms (the flagged word is a VALUE, not the wrapped command)", () => {
+		expect(isInteractiveSudoAttempt("env -u sudo apt").blocked).toBe(false); // unsets a var named `sudo`; runs `apt`
+		expect(isInteractiveSudoAttempt("exec -a sudo apt").blocked).toBe(false); // argv0 swap; runs `apt`
+		expect(isInteractiveSudoAttempt("xargs -e sudo cat").blocked).toBe(false); // the stopword IS `sudo`; runs `cat`
 	});
 });

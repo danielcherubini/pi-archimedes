@@ -57,26 +57,50 @@
  * 9. Heredoc bodies are treated as command text (a `bash <<EOF` heredoc
  *    executes; over-blocking a `cat <<EOF` body is the safe direction).
  *
- * Known gaps — accepted residual bypasses (heuristic, per ADR 0010):
+ * Known gaps — accepted residual bypasses (heuristic, per ADR 0010).
+ * Every example below is pinned in guard.test.ts (the "header known-gaps
+ * — documented behavior pinned" describe block, one assertion each,
+ * allow or block) — keep the two lists mirrored exactly, in both
+ * directions.
  *  (1) Arbitrary-name indirection requires cross-token assignment
- *      attribution (`S='sudo'; $S apt`) — only the sudo-*named* variable
- *      reference case ($SUDO) is caught.
+ *      attribution — `S='sudo'; $S apt` is allowed: only the sudo-*named*
+ *      variable reference case ($SUDO) is caught.
  *  (2) `$(...)`/backtick substitution: substitution-word erasure is
  *      BLOCKED (`$(true) sudo apt`, `` `x` sudo apt ``) — the broken
  *      substitution word is not command position, so a following literal
  *      `sudo` claims it and is caught. What remains plan-deferred is sudo
- *      *inside* interpolation that never surfaces as a word — e.g. `echo
- *      "$(sudo apt)"`, `bash -c "$(cat x)"`, `eval "$(echo 'sudo apt')"` —
- *      which the word-position model cannot see; a substitution *prefixed*
- *      assignment word (`x=$(echo 1) sudo apt`) likewise stays allowed.
- *  (3) Program source from files/redirects (`bash script.sh`, `bash < file`,
- *      `su -c file`) is unresolvable without reading files.
+ *      *inside* interpolation that never surfaces as a word — never seen
+ *      by the word-position model, so all allowed: `echo "$(sudo apt)"`,
+ *      `bash -c "$(cat x)"`, `eval "$(echo 'sudo apt')"`; a
+ *      substitution-*prefixed* assignment word (`x=$(echo 1) sudo apt`)
+ *      likewise stays allowed.
+ *  (3) Program source from files/redirects is unresolvable without reading
+ *      files, so all allowed: `bash script.sh`, `bash < file`, `su -c
+ *      file`.
  *  (4) Shell state persisting ACROSS separate bash-tool calls (assignments,
  *      aliases from earlier calls) is out of model.
  *  (5) A wrapper flag whose value the guard doesn't know consumes a
- *      following argument (`timeout --signal SIGKILL sudo apt`) — a `sudo`
- *      hidden in such a value position is not the first command-like token,
- *      so it is not dispatched as the wrapped command.
+ *      following argument, so a `sudo` hidden in such a value position is
+ *      not dispatched as the wrapped command. Covers both (a) long
+ *      `--flag value` forms and any unlisted short-flag value (e.g.
+ *      `timeout --signal SIGKILL sudo apt`), and (b) the
+ *      `env -c 'sudo apt update'` quoted-command-string form — `-c` there
+ *      consumes the following word as a VALUE, not a dispatched program
+ *      (accepted allow; the no-flag quoted form `env '"sudo" apt'` is
+ *      blocked and pinned).
+ *  (6) Forwarding wrappers that spawn an arbitrary remote/local command
+ *      with inherited stdin are not runner wrappers here (full
+ *      forwarding-wrapper coverage is follow-up), so a `sudo` carried in
+ *      their arguments never reaches a command position — intentionally
+ *      allowed: `ssh user@host "sudo apt update"`, `chroot / sudo apt`,
+ *      `perf stat sudo apt`.
+ *  F-1 regression pins (not a numbered gap — fixed behaviors pinned to
+ *      stop regression): six blocked value-taking short-flag forms (`exec
+ *      -a foo sudo apt`, `time -f '%e' sudo apt`, `xargs -e STOP sudo
+ *      cat`, `env -C /tmp sudo apt`, `env -u FOO sudo apt`, `env -f
+ *      /tmp/x sudo apt`) and three allowed value-semantics forms (`env
+ *      -u sudo apt`, `exec -a sudo apt`, `xargs -e sudo cat` — the
+ *      flagged word is consumed as a VALUE, not dispatched as a command).
  *
  * The scanner never mutates anything and has no I/O — the guarantee is a
  * tested function (ADR 0010).
@@ -135,11 +159,15 @@ const MAX_NEST_DEPTH = 3;
 const DEPTH_LIMIT_CAUSE = "Nested shell/eval depth limit reached (blocked conservatively).";
 /**
  * Bare single-letter short wrapper flags that consume the next bare word
- * as a value (`nice -n 10`, `xargs -I {}`, `timeout -k 5`, `ionice -c 2`).
- * A `--flag=value` long form carries its value in the token and consumes
- * no word; merged `-n0` forms likewise keep the value in the token.
+ * as a value (`nice -n 10`, `xargs -I {}`, `timeout -k 5`, `ionice -c 2`,
+ * `exec -a NAME`, `env -u VAR`/`-f FILE`, `time -f FORMAT`, `xargs -e
+ * STOPWORD`). A `--flag=value` long form carries its value in the token and
+ * consumes no word; merged `-n0` forms likewise keep the value in the token.
+ * A letter here means the flagged word is consumed as a VALUE, not
+ * dispatched as the wrapped command (`env -u sudo apt` unsets a var named
+ * `sudo` and runs `apt` — allowed).
  */
-const VALUE_TAKING_FLAG_CHARS = new Set(["n", "I", "c", "k", "s", "o", "P"]);
+const VALUE_TAKING_FLAG_CHARS = new Set(["n", "I", "c", "k", "s", "o", "P", "a", "f", "e", "E", "C", "u", "d", "T", "y"]);
 /** Bare numeric wrapper parameter — `timeout 5`, `timeout 500ms`, `nice 10`. */
 const NUMERIC_PARAM = /^[-+]?\d+(\.\d+)?[smhd]?$/;
 
