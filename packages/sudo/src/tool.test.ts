@@ -1205,6 +1205,129 @@ describe("sudo_exec tool", () => {
 			expect(killSpy).toHaveBeenCalledTimes(2);
 		});
 	});
+
+	describe("abort-vs-exit race (cancellation never touches credential bookkeeping)", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		// Pid'd child with collector-based 'exit'/'close' registration and a
+		// synchronous fire helper — the race pin needs control over EXACTLY
+		// when the exit event is dispatched relative to the abort's kill.
+		function racingChild() {
+			const exitCbs: Array<(code: number | null, sig?: NodeJS.Signals | null) => void> = [];
+			const child: SudoChild = {
+				stdin: { write() {}, end() {} },
+				stdout: { on: () => null },
+				stderr: { on: () => null },
+				pid: 4242,
+				kill: () => true,
+				on(evt: string, cb: unknown) {
+					if (evt === "exit" || evt === "close") exitCbs.push(cb as (code: number | null, sig?: NodeJS.Signals | null) => void);
+					return null;
+				},
+			};
+			/** fire BOTH registered 'exit' and 'close' synchronously — the worst-case interleaving. */
+			const exit = (code: number): void => {
+				for (const cb of exitCbs) cb(code, null);
+			};
+			return { child, exit, spawner: (() => child) as SudoSpawner };
+		}
+
+		it("a real 1–123 exit that fires inside the abort kill's async retry window does NOT win the settle — the run resolves as the abort (130), streak untouched, probe never called (race pin)", async () => {
+			credentialCache.set("pw", 60_000);
+			// Throws EACCES ONCE → killProcessTree's 50ms retry tick is in
+			// flight; afterwards the group kill 'succeeds' silently (no exit
+			// echo — the settle must come from the abort path alone).
+			let killAttempts = 0;
+			vi.spyOn(process, "kill").mockImplementation(() => {
+				killAttempts += 1;
+				if (killAttempts === 1) throw Object.assign(new Error("operation not permitted"), { code: "EACCES" });
+				return true;
+			});
+			const { authProbe, calls } = probeSpy(false); // non-terminal probe — any bad entry would bump the streak, VIEWABLE
+			const racing = racingChild();
+			const tool = createSudoExecTool({ spawner: racing.spawner, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1)); // spawn done — onAbort is registered
+			// Listener ORDER: runSudo's onAbort (registered first) runs first —
+			// it kicks off the async kill, and THIS exit(3) lands while that
+			// kill is still awaiting its 50ms retry tick: fire exit(3).
+			controller.signal.addEventListener("abort", () => racing.exit(3));
+			controller.abort();
+
+			const result = await promise;
+			expect(result.isError).toBe(true);
+			const details = result.details as { exitCode: number; error?: string };
+			expect(details.exitCode).toBe(130); // the abort outcome — NOT the ordinary failure code 3
+			expect(details.error).toMatch(/exit code 130/);
+			// Cancellation never touches credential bookkeeping:
+			expect(credentialCache.get()?.password).toBe("pw");
+			expect(credentialCache.get()?.failStreak).toBe(0); // neither bumped nor cleared
+			expect(calls()).toBe(0); // the ticket probe was NOT invoked
+			// The settle the full kill sequence completed (both attempts happened)
+			// — the exit(3) that landed during the retry window was swallowed, not honored.
+			expect(killAttempts).toBe(2); // attempt 1 EACCES → 50ms tick → attempt 2 → finish(130)
+		});
+
+		it("cancellation never accumulates across runs — a second run + abort on the same cached entry leaves the fail-streak at 0", async () => {
+			credentialCache.set("pw2", 60_000);
+			let killAttempts = 0;
+			vi.spyOn(process, "kill").mockImplementation(() => {
+				killAttempts += 1;
+				if (killAttempts % 2 === 1) throw Object.assign(new Error("operation not permitted"), { code: "EACCES" });
+				return true; // every odd attempt opens the 50ms retry window; the even one confirms
+			});
+			const { authProbe, calls } = probeSpy(false);
+			const races = [racingChild(), racingChild()]; // fresh child per run
+			let next = 0;
+			const tool = createSudoExecTool({ spawner: () => races[next++]!.child, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const abortRun = async (reason: string) => {
+				const controller = new AbortController();
+				const race = races[next]!;
+				const promise = run(tool, ctx, { command: "long job", reason, timeoutMs: 60_000 }, controller.signal);
+				await new Promise((r) => setTimeout(r, 1));
+				controller.signal.addEventListener("abort", () => race.exit(3));
+				controller.abort();
+				return promise;
+			};
+
+			const first = await abortRun("run 1");
+			expect((first.details as { exitCode: number }).exitCode).toBe(130);
+			expect(credentialCache.get()?.failStreak).toBe(0);
+
+			const second = await abortRun("run 2");
+			expect((second.details as { exitCode: number }).exitCode).toBe(130);
+			expect(credentialCache.get()?.password).toBe("pw2"); // still the same entry
+			expect(credentialCache.get()?.failStreak).toBe(0); // pinned: cancellation does not accumulate
+			expect(calls()).toBe(0); // neither aborted run entered the ticket-probe path
+		});
+
+		it("a normal (non-aborted) 1–123 exit still probes and bumps exactly as before — the swallow only applies post-abort", async () => {
+			credentialCache.set("pw", 60_000);
+			const { authProbe, calls } = probeSpy(false); // non-terminal probe → strike 1
+			const racing = racingChild();
+			const tool = createSudoExecTool({ spawner: racing.spawner, authProbe });
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const promise = run(tool, ctx, { command: "apt update", reason: "maintain" });
+			await new Promise((r) => setTimeout(r, 1)); // spawn done — no abort anywhere
+			racing.exit(1); // ordinary command failure; 'exit' then 'close'
+
+			const result = await promise;
+			expect(result.isError).toBe(true);
+			expect((result.details as { exitCode: number }).exitCode).toBe(1);
+			expect((result.details as { error?: string }).error).toMatch(/command failed with exit code 1/i);
+			expect((result.content[0] as { text: string }).text).toMatch(/one more attempt/i);
+			expect(calls()).toBe(1); // the probe WAS invoked — baseline preserved
+			expect(credentialCache.get()?.failStreak).toBe(1); // bumped exactly once, strike 1 of two
+		});
+	});
 });
 
 // The 'spiesNoPrompt' helper: confirmation says yes, and any accidental

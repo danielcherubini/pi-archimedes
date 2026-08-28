@@ -157,6 +157,15 @@ export function runSudo(
 		let stderr = "";
 		let timedOut = false;
 		let settled = false;
+		// An abort claims the settlement SYNCHRONOUSLY, before its (async,
+		// retrying) group kill. While that kill is in flight, the child's
+		// real 'exit'/'close' can still land with an ordinary 1–123 code —
+		// without the flag the settled-once guard would let that exit win,
+		// settling a user CANCELLATION as a command failure and dragging it
+		// into the ticket-probe/two-strike path. With the flag, post-abort
+		// exits/closes are swallowed: a cancellation is ALWAYS the 130 abort
+		// outcome and never touches the credential bookkeeping.
+		let abortSettled = false;
 		let exitFallback: ReturnType<typeof setTimeout> | undefined;
 
 		const onStdout = (data: Buffer): void => {
@@ -225,8 +234,12 @@ export function runSudo(
 
 		// The kill may transiently need its one retry (short real delay), so
 		// it runs async: finish() stays EXACTLY ONCE via the settled guard,
-		// called only AFTER the kill — same ordering as before.
+		// called only AFTER the kill — same ordering as before. The
+		// abortSettled flag is set FIRST (synchronously) so any exit/close
+		// event landing while the kill awaits its retry tick cannot win the
+		// settled-once race against the 130 settle.
 		const onAbort = (): void => {
+			abortSettled = true;
 			void killProcessTree(child).then(() => finish(130));
 		};
 
@@ -238,12 +251,18 @@ export function runSudo(
 		}, timeoutMs);
 
 		const onExit = (code: number | null, sig: NodeJS.Signals | null | undefined): void => {
+			// Post-abort exit/close (the child finally died while the abort's
+			// async group kill was still retrying): swallow — the abort already
+			// claimed the settlement and finish(130) will land when the bounded
+			// kill completes.
+			if (abortSettled) return;
 			finish(code === null ? (sig === "SIGKILL" ? 137 : timedOut ? 124 : -1) : code);
 		};
 		child.on("exit", onExit);
 		child.on("close", onExit);
 
 		if (signal && signal.aborted) {
+			abortSettled = true;
 			void killProcessTree(child).then(() => finish(130));
 			return;
 		}
