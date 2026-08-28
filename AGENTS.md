@@ -74,7 +74,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 - Always commit per logical unit — don't batch unrelated changes
 
 ### Plans
-- Plans live in `docs/plans/YYYY-MM-DD-<feature>.md`
+- Plans live in `docs/plans/plan-NNN-<feature>.md` (sequential number, e.g. `plan-029-todo-schema-alignment.md`)
 - Use the `create-plan` skill to generate plans, then dispatch the `reviewer` subagent to review them
 - **Always commit the plan file to git** — it is an untracked file by default and will be lost if not added
 - Update `docs/plans/README.md` to track plan status (IN PROGRESS → COMPLETED)
