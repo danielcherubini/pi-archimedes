@@ -29,10 +29,10 @@
 | 25 | [MCP core reliability (port phase 1)](done/plan-025-mcp-core-reliability.md) | ✅ COMPLETED (squash `de324c6`) | 2026-08-17 |
 | 26 | [MCP OAuth (port phase 2)](done/plan-026-mcp-oauth.md) | ✅ COMPLETED (squash `2861660`) | 2026-08-18 |
 | 27 | [MCP commands + panels (port phase 3)](done/plan-027-mcp-commands-panels.md) | ✅ COMPLETED (squash `09dd105`) | 2026-08-17 |
-| 28 | [Codebase improvement — dead API, DRY, config patterns, file splits](plan-028-codebase-improvement.md) | ✅ COMPLETED (PR #35) | 2026-08-25 |
-| 29 | [Todo schema alignment + subagent-visibility fix](plan-029-todo-schema-alignment.md) | ✅ COMPLETED (PR #37) | 2026-08-27 |
+| 28 | [Codebase improvement — dead API, DRY, config patterns, file splits](done/plan-028-codebase-improvement.md) | ✅ COMPLETED (PR #35) | 2026-08-25 |
+| 29 | [Todo schema alignment + subagent-visibility fix](done/plan-029-todo-schema-alignment.md) | ✅ COMPLETED (PR #37) | 2026-08-27 |
 
-> **Notes:****
+> **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
 > - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
 > - Plan-023 follow-up (deferred): Kitty keyboard-protocol CSI-u text decoding — pre-existing gap in both `/agents` search and `/archimedes` prompt/search input on CSI-u terminals (Kitty/Ghostty/WezTerm/iTerm2); consider a follow-up using pi-tui's `decodePrintableKey`.
