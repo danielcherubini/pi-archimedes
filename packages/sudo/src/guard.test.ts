@@ -422,5 +422,6 @@ describe("isInteractiveSudoAttempt — header known-gaps, documented behavior pi
 		expect(isInteractiveSudoAttempt("env -u sudo apt").blocked).toBe(false); // unsets a var named `sudo`; runs `apt`
 		expect(isInteractiveSudoAttempt("exec -a sudo apt").blocked).toBe(false); // argv0 swap; runs `apt`
 		expect(isInteractiveSudoAttempt("xargs -e sudo cat").blocked).toBe(false); // the stopword IS `sudo`; runs `cat`
+		expect(isInteractiveSudoAttempt("env '\"sudo\" -n' true").blocked).toBe(false); // allow-direction of the quoted-cluster no-prompt lookahead (guard.ts ~411): `env '"sudo" apt'` is pinned blocked, this pins the allow side
 	});
 });
