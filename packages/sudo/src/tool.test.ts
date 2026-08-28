@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // Mock core/settings-io BEFORE importing the tool — the real module builds
@@ -27,6 +27,7 @@ interface FakeChild {
 	stdin: { written: string[]; write(chunk: string): void; end(): void };
 	stdout: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	stderr: { on(evt: string, cb: (data: Buffer) => void): unknown };
+	pid: number;
 	killed: boolean;
 	/** signals passed to kill(), in order. */
 	killSignals: Array<NodeJS.Signals | undefined>;
@@ -69,6 +70,7 @@ function makeFakeSpawner(opts: { stderr?: string; stdout?: string; code: number 
 			},
 			stdout,
 			stderr,
+			pid: 4242,
 			killed: false,
 			killSignals: [],
 			kill(signal?: NodeJS.Signals) {
@@ -213,7 +215,8 @@ describe("sudo_exec tool", () => {
 	describe("execution", () => {
 		it("runs the command and returns stdout with scrubbed details on success", async () => {
 			const { spawner, last } = makeFakeSpawner({ stdout: "hello\n", stderr: "[sudo] password for daniel: ", code: 0 });
-			const tool = createSudoExecTool({ spawner });
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner, authProbe });
 			credentialCache.set("cachedpw", 60_000);
 			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
 
@@ -228,6 +231,7 @@ describe("sudo_exec tool", () => {
 			expect((result.content[0] as { text: string }).text).toBe("hello\n");
 			expect(details.command).toBe("echo hello");
 			expect(details.reason).toBe("test");
+			expect(calls()).toBe(0); // success path never probes
 		});
 
 		it("clears the credential cache on auth failure and reports an error", async () => {
@@ -263,7 +267,8 @@ describe("sudo_exec tool", () => {
 
 		it("reports non-zero exit codes as errors", async () => {
 			const { spawner } = makeFakeSpawner({ stderr: "E: not found", code: 100 });
-			const tool = createSudoExecTool({ spawner });
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner, authProbe });
 			credentialCache.set("pw", 60_000);
 			const spies = spiesNoPrompt();
 			const ctx = tuiCtxWithSpies(true, spies);
@@ -271,6 +276,10 @@ describe("sudo_exec tool", () => {
 			const result = await run(tool, ctx, { command: "apt install nope", reason: "test" });
 			expect(result.isError).toBe(true);
 			expect((result.details as { exitCode: number }).exitCode).toBe(100);
+			// a plain command failure (no English auth signature) now ticket-probes;
+			// the valid ticket keeps it a normal command failure, not an auth failure
+			expect(calls()).toBe(1);
+			expect((result.content[0] as { text: string }).text).not.toMatch(/authentication/i);
 		});
 
 		it("never lets the raw password leak into the result details (scrub)", async () => {
@@ -305,7 +314,8 @@ describe("sudo_exec tool", () => {
 		it("maps an external abort to exit code 130, kills with SIGKILL, and resolves exactly once (settle-guard)", async () => {
 			// No automatic exit: only abort's kill ever settles the child.
 			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
-			const tool = createSudoExecTool({ spawner });
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner, authProbe });
 			credentialCache.set("pw", 60_000);
 			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
 			const controller = new AbortController();
@@ -333,6 +343,7 @@ describe("sudo_exec tool", () => {
 			expect(last.child.killed).toBe(true);
 			expect(last.child.killSignals).toContain("SIGKILL");
 			expect(rejected).toBe(false);
+			expect(calls()).toBe(0); // abort (130) never probes
 		});
 
 		it("fails with 'password entry cancelled' when the masked prompt is cancelled — no spawn, nothing cached", async () => {
@@ -414,7 +425,8 @@ describe("sudo_exec tool", () => {
 			// never produced a process) → the review's crash/hang finding.
 			credentialCache.set("pw", 60_000);
 			const err = Object.assign(new Error("spawn sudo ENOENT"), { code: "ENOENT" });
-			const tool = createSudoExecTool({ spawner: () => errorChild(err) });
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: () => errorChild(err), authProbe });
 			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
 
 			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
@@ -429,6 +441,7 @@ describe("sudo_exec tool", () => {
 			// The password STAYS cached: a spawn/transport failure says nothing
 			// about the credential — it may be a transient fs/permission hiccup.
 			expect(credentialCache.get()?.password).toBe("pw");
+			expect(calls()).toBe(0); // the -1 error path never probes
 		}, 3000);
 
 		it("resolves a clean tool failure when the spawner itself throws synchronously — no unhandled rejection, cache retained", async () => {
@@ -481,22 +494,23 @@ describe("sudo_exec tool", () => {
 	});
 
 	describe("locale-immune auth-failure invalidation (credential ticket probe)", () => {
-		// sudo asked for a password, the command failed non-zero, but stderr
-		// carries NO English "incorrect password" signature (non-English sudo).
+		// The probe gate no longer requires the English prompt: it fires on any
+		// command-level failure (normal non-zero exit) whose stderr did not
+		// already match the English "incorrect password" fast-path signature.
+		// `nonEnglishStderr` (English prompt + localized failure text) is the
+		// case (a) fixture: prompt present — the probe must still run.
 		const nonEnglishStderr = '[sudo] password for daniel: \nFalsches Passwort "daniel".\n';
-
-		function probeSpy(ok: boolean, throws = false) {
-			let calls = 0;
-			const authProbe: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean> = () => {
-				calls += 1;
-				if (throws) return Promise.reject(new Error("probe transport error"));
-				return Promise.resolve(ok);
-			};
-			return { authProbe, calls: () => calls };
-		}
+		// case (b) fixture: NO English text at all — promptSeen is false, and
+		// the probe must STILL run (the localized-auth regression).
+		const localizedOnlyStderr = 'Falsches Passwort "daniel".\n';
 
 		function ambiguousRunSpawner() {
 			const { spawner } = makeFakeSpawner({ stderr: nonEnglishStderr, code: 1 });
+			return spawner;
+		}
+
+		function localizedOnlyRunSpawner() {
+			const { spawner } = makeFakeSpawner({ stderr: localizedOnlyStderr, code: 1 });
 			return spawner;
 		}
 
@@ -582,6 +596,121 @@ describe("sudo_exec tool", () => {
 			expect((result.details as { error?: string }).error).toMatch(/timed out after 10ms/i);
 			expect(calls()).toBe(0);
 		});
+
+		it("clears the cache even when stderr carries NO English prompt text at all (localized sudo, promptSeen=false — the key regression)", async () => {
+			const { authProbe, calls } = probeSpy(false);
+			const tool = createSudoExecTool({ spawner: localizedOnlyRunSpawner(), authProbe });
+			credentialCache.set("badpw-de", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "reboot", reason: "retry service" });
+
+			expect(result.isError).toBe(true);
+			const text = (result.content[0] as { text: string }).text;
+			expect(text).toMatch(/authentication failed/i);
+			expect(text).toMatch(/probe|ticket/i);
+			expect(credentialCache.get()).toBeNull(); // stale localized password dropped
+			expect(calls()).toBe(1); // the probe ran despite promptSeen=false
+		});
+
+		it("keeps the cache on a no-English-prompt failure when the ticket is valid (probe disambiguates auth from command failure)", async () => {
+			const { authProbe, calls } = probeSpy(true);
+			const tool = createSudoExecTool({ spawner: localizedOnlyRunSpawner(), authProbe });
+			credentialCache.set("goodpw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			const result = await run(tool, ctx, { command: "systemctl restart dnsmasq", reason: "flip" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).not.toMatch(/authentication/i);
+			expect((result.details as { error?: string }).error).toMatch(/command failed with exit code 1/i);
+			expect(credentialCache.get()?.password).toBe("goodpw");
+			expect(calls()).toBe(1);
+		});
+	});
+
+	describe("process-group kill on timeout/abort (elevated descendants)", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it("spawns with { detached: true } so the command owns its own process group", async () => {
+			const { spawner } = makeFakeSpawner({ stderr: "", code: 0 });
+			const captured: Array<{ detached: boolean } | undefined> = [];
+			const wrapping = (command: string, args: string[], options?: { detached: boolean }) => {
+				captured.push(options);
+				return spawner(command, args);
+			};
+			const tool = createSudoExecTool({ spawner: wrapping, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			await run(tool, ctx, { command: "echo hi", reason: "test" });
+
+			expect(captured).toEqual([{ detached: true }]);
+		});
+
+		it("timeout kill hits the whole process group first (-pid SIGKILL), so root descendants cannot survive", async () => {
+			const { spawner } = makeFakeSpawner({ stderr: "", code: null, exitOn: "kill" });
+			const killSpy = vi.spyOn(process, "kill").mockImplementation((pid?: number) => {
+				if (pid !== -4242) {
+					throw Object.assign(new Error("unexpected kill target"), { code: "ESRCH" });
+				}
+				return true; // pretend the group kill succeeds — the fake child never exits on its own
+			});
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+
+			// settles via runSudo's 2s exit fallback (the faked group kill leaves the
+			// fake child unexited) → exercises the 124 branch, which must never probe
+			const result = await run(tool, ctx, { command: "sleep", reason: "test", timeoutMs: 10 });
+
+			expect(result.isError).toBe(true);
+			expect((result.details as { error?: string }).error).toMatch(/timed out after 10ms/i);
+			expect(killSpy).toHaveBeenLastCalledWith(-4242, "SIGKILL");
+		}, 10_000);
+
+		it("abort kill hits the whole process group first (-pid SIGKILL)", async () => {
+			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
+			const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1)); // let execute pass the gate and spawn
+			expect(last.command).toBe("sudo");
+
+			controller.abort();
+
+			const result = await promise;
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			expect(killSpy).toHaveBeenCalledWith(-4242, "SIGKILL");
+		});
+
+		it("falls back to a single-process SIGKILL when the group kill is impossible (ESRCH / already dead)", async () => {
+			const { spawner, last } = makeFakeSpawner({ stderr: "starting…", code: null, exitOn: "kill" });
+			vi.spyOn(process, "kill").mockImplementation(() => {
+				throw Object.assign(new Error("no such process"), { code: "ESRCH" });
+			});
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			credentialCache.set("pw", 60_000);
+			const ctx = tuiCtxWithSpies(true, spiesNoPrompt());
+			const controller = new AbortController();
+
+			const promise = run(tool, ctx, { command: "long job", reason: "test", timeoutMs: 60_000 }, controller.signal);
+			await new Promise((r) => setTimeout(r, 1)); // let execute pass the gate and spawn
+
+			controller.abort();
+
+			const result = await promise;
+			expect((result.details as { exitCode: number }).exitCode).toBe(130);
+			// the group kill threw → the single-process fallback ran and settled the run
+			expect(last.child.killed).toBe(true);
+			expect(last.child.killSignals).toContain("SIGKILL");
+		});
 	});
 });
 
@@ -592,6 +721,16 @@ function spiesNoPrompt() {
 		confirmCalls: [] as Array<{ title: string; message: string }>,
 		customCalls: [] as unknown[],
 	};
+}
+
+function probeSpy(ok: boolean, throws = false) {
+	let calls = 0;
+	const authProbe: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean> = () => {
+		calls += 1;
+		if (throws) return Promise.reject(new Error("probe transport error"));
+		return Promise.resolve(ok);
+	};
+	return { authProbe, calls: () => calls };
 }
 
 function tuiCtxWithSpies(confirmAnswer: boolean, spies: { confirmCalls: Array<{ title: string; message: string }>; customCalls: unknown[] }): ExtensionContext {

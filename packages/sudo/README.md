@@ -4,7 +4,7 @@ Safe privileged execution for the [Pi coding agent](https://github.com/earendil-
 
 ## What you get
 
-- **`sudo_exec` tool** — runs a privileged command via `sudo -S`, showing the exact command and reason for confirmation before any credential is requested
+- **`sudo_exec` tool** — runs a privileged command via `sudo -S`, showing the exact command and reason for confirmation before any credential is requested; on timeout/abort the kill applies to the command's entire process group, so privileged (root) descendants are killed too, not just the direct sudo process
 - **Masked password prompt** — the password is entered only through a masked UI, cached in memory for the session, and passed to sudo via stdin only — never in argv, env, logs, or files
 - **Defensive scrubbing** — command output lines containing the password are redacted before they appear in tool results
 - **Credential lifecycle** — single in-memory cache with TTL (default 15 min, `ttlMs`); cleared on auth failure, `session_start`/`session_shutdown`, and `/sudo forget`

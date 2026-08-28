@@ -35,6 +35,7 @@ export interface SudoExecDetails {
 
 /** Structural subset of ChildProcess used by runSudo — injectable for tests. */
 export interface SudoChild {
+	readonly pid?: number | undefined;
 	readonly stdin?: { write(chunk: string): void; end(): void } | null;
 	readonly stdout: { on(evt: string, cb: (data: Buffer) => void): unknown };
 	readonly stderr: { on(evt: string, cb: (data: Buffer) => void): unknown };
@@ -43,9 +44,24 @@ export interface SudoChild {
 	on(evt: "error", cb: (err: Error) => void): unknown;
 }
 
-export type SudoSpawner = (command: string, args: string[]) => SudoChild;
+export type SudoSpawner = (command: string, args: string[], options?: { detached: boolean }) => SudoChild;
 
-const defaultSpawner: SudoSpawner = (command, args) => spawn(command, args);
+const defaultSpawner: SudoSpawner = (command, args, options) => spawn(command, args, options);
+
+/**
+ * Kill the command's ENTIRE process group — the child is spawned detached
+ * (own group), so a root process that forked further survives
+ * `child.kill()` alone. Group first; on ESRCH / EPERM / unsupported
+ * (or no pid at all) fall back to the single-process kill.
+ */
+function killProcessTree(child: SudoChild): void {
+	if (!child.pid) return;
+	try {
+		process.kill(-child.pid, "SIGKILL");
+	} catch {
+		child.kill("SIGKILL");
+	}
+}
 
 export interface SudoRunResult {
 	exitCode: number;
@@ -79,8 +95,10 @@ function errDetail(err: unknown): string {
  * Run `sudo -S <argv>`, writing the password to stdin only. `argv` is the
  * FULL argv (command first, e.g. ["sudo", "-S", "apt", "update"] from
  * buildSudoArgv); this splits the leading command off for the spawner. The
- * password never appears in argv or env. Uses spawn (never exec), enforces
- * the timeout with SIGKILL, and honours an externally-supplied abort signal.
+ * password never appears in argv or env. Uses spawn (never exec) with
+ * `detached: true` so the command owns its process group; the timeout and
+ * the honoured externally-supplied abort signal kill the WHOLE group with
+ * SIGKILL (privileged descendants cannot survive).
  */
 export function runSudo(
 	commandArgv: string[],
@@ -98,7 +116,7 @@ export function runSudo(
 
 		let child: SudoChild;
 		try {
-			child = spawner(command, args);
+			child = spawner(command, args, { detached: true });
 		} catch (err) {
 			// the spawner itself threw (platform/transport) — resolving the
 			// failed shape instead of letting the throw escape the promise
@@ -152,13 +170,13 @@ export function runSudo(
 		};
 
 		const onAbort = (): void => {
-			child.kill("SIGKILL");
+			killProcessTree(child);
 			finish(130);
 		};
 
 		const timer = setTimeout(() => {
 			timedOut = true;
-			child.kill("SIGKILL");
+			killProcessTree(child);
 			// belt-and-braces: resolve even if no exit/close ever fires
 			exitFallback = setTimeout(() => finish(124), 2000);
 		}, timeoutMs);
@@ -170,7 +188,7 @@ export function runSudo(
 		child.on("close", onExit);
 
 		if (signal && signal.aborted) {
-			child.kill("SIGKILL");
+			killProcessTree(child);
 			finish(130);
 			return;
 		}
@@ -251,11 +269,14 @@ const SUDO_EXEC_DESCRIPTION = `Run a command with elevated privileges using sudo
 export function createSudoExecTool(options: {
 	spawner?: SudoSpawner;
 	/**
-	 * Locale-immune credential check used to disambiguate a run where the
-	 * prompt appeared and the command exited non-zero WITHOUT a readable
-	 * failure signature (e.g. non-English sudo). Default: a spawner-based
-	 * `sudo -n true` ticket probe (probeSudoTicket). It never receives the
-	 * password, by design.
+	 * Locale-immune credential check used to disambiguate a run that
+	 * failed at the command level (normal non-zero exit) WITHOUT the
+	 * English "incorrect password" fast-path signature matching — e.g.
+	 * a non-English sudo. It is not gated on the prompt text: a
+	 * localized prompt leaves no recognizer, and `sudo -n true` is safe
+	 * to run after any command-level failure. Default: a spawner-based
+	 * `sudo -n true` ticket probe (probeSudoTicket). It never receives
+	 * the password, by design.
 	 */
 	authProbe?: (timeoutMs: number, signal: AbortSignal | undefined) => Promise<boolean>;
 } = {}) {
@@ -395,15 +416,21 @@ export function createSudoExecTool(options: {
 				};
 			}
 
-			// Locale-immune auth-failure disambiguation: the prompt appeared and
-			// the run exited non-zero, yet stderr carried no English
-			// "incorrect password" signature — a wrong password is
-			// indistinguishable from a localized message on the signature path
-			// alone. Probe for a credential ticket (sudo -n true, no password):
-			// no ticket means the password was wrong → same treatment as the
-			// signature-detected auth failure. Timeout/signal kills (124/130/
-			// 137) are excluded: those aren't auth evidence.
-			if (run.exitCode >= 1 && run.exitCode < 124 && /\[sudo\] password for/i.test(stderr)) {
+			// Locale-immune auth-failure disambiguation: the run exited
+			// non-zero WITHOUT the English "incorrect password" fast-path
+			// signature — a wrong password is indistinguishable from a
+			// localized message (or a genuine command failure) on the
+			// signature path alone. Probe for a credential ticket
+			// (sudo -n true, no password): no ticket means the password was
+			// wrong → same treatment as the signature-detected auth failure;
+			// a valid ticket means the command itself failed → normal result.
+			// NOT gated on the prompt text — localized sudo emits a prompt in
+			// the user's language, and after ANY command-level failure the
+			// probe is safe (valid ticket → keep, no ticket → re-prompt).
+			// Control/kill exits are excluded: -1 process error (handled
+			// above), 124 timeout (handled above), 130 abort, 137 SIGKILL —
+			// those aren't auth evidence.
+			if (run.exitCode >= 1 && run.exitCode < 124) {
 				let ticketValid = false;
 				try {
 					ticketValid = await authProbe(AUTH_PROBE_TIMEOUT_MS, signal);
