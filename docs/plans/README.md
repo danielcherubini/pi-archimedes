@@ -44,13 +44,13 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| — | none | | |
+| 33 | [Pi 0.84.4 sync](plan-033-pi-0844-sync.md) | IN PROGRESS | 2026-08-28 |
 
 ## Quick Stats
 
-- Total Plans: 32
+- Total Plans: 33
 - Completed: 32
-- In Progress: 0
+- In Progress: 1
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).

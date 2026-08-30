@@ -61,3 +61,13 @@ _Avoid_: Foreign config, external config, imported config
 **Config write-back**:
 Writing a changed field (`disabled`, `directTools`) back to the project-local `.pi/mcp.json` override — always that file, only the changed field, never copying credentials (see ADR 0002).
 _Avoid_: Config save, config persist, config update
+
+## Notify terminology
+
+**Settled wait**:
+The notification condition "the agent's run has fully settled" — work is done, no automatic retry, compaction, or queued continuation will still run. Sourced from the pi `agent_settled` event (not `agent_end`, which can fire while a continuation is pending). Distinct from UI-prompt wait.
+_Avoid_: Agent end, idle, done notification
+
+**UI-prompt wait**:
+The notification condition "an extension is blocking mid-run on a user-facing `ctx.ui` prompt" — a tabbed ask (direct or subagent-relayed), a sudo password prompt, or an mcp OAuth loader. Sourced from the pi `ui_prompt_start` event, which fires in the parent process for every blocking prompt of any kind. Distinct from settled wait (the run is not over — it is paused on a prompt).
+_Avoid_: Waiting for input (overloaded — the settled-wait notification also says "waiting for input"), question, ask request
