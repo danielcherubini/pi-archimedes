@@ -34,5 +34,17 @@ export const thinkingLevelColors: Record<string, string> = {
   max: "thinkingMax",
 };
 
+// Thinking level glyphs — fill ramp: off/minimal open ○, low 25% ◔,
+// medium 50% ◑, high 75% ◕, xhigh/max fully filled ● (level labeled by text)
+export const thinkingLevelIcons: Record<string, string> = {
+  off: "○",
+  minimal: "○",
+  low: "◔",
+  medium: "◑",
+  high: "◕",
+  xhigh: "●",
+  max: "●",
+};
+
 // Color function type used by formatting functions
 export type ColorFn = (token: string, s: string) => string;

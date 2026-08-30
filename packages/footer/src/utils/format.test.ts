@@ -6,8 +6,7 @@ import {
   formatGitStatusIndicators,
   formatThinkingIndicator,
 } from "./format.js";
-import { thinkingLevelColors } from "./icons.js";
-import type { ColorFn } from "./icons.js";
+import { thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.js";
 
 // ── Mock ColorFn ────────────────────────────────────────────────────────────
 // Passthrough — we test structure, not actual coloring.
@@ -138,20 +137,27 @@ describe("formatGitStatusIndicators", () => {
 // ── formatThinkingIndicator ─────────────────────────────────────────────────
 
 describe("formatThinkingIndicator", () => {
-  it("off returns empty string", () => {
-    expect(formatThinkingIndicator("off", mockColor)).toBe("");
+  it("off renders the open circle in dim", () => {
+    expect(formatThinkingIndicator("off", mockColor)).toBe("○ off");
   });
 
-  it("other levels return indicator with level name", () => {
-    expect(formatThinkingIndicator("minimal", mockColor)).toBe("◐ minimal");
-    expect(formatThinkingIndicator("low", mockColor)).toBe("◐ low");
-    expect(formatThinkingIndicator("medium", mockColor)).toBe("◐ medium");
-    expect(formatThinkingIndicator("high", mockColor)).toBe("◐ high");
-    expect(formatThinkingIndicator("xhigh", mockColor)).toBe("◐ xhigh");
-    expect(formatThinkingIndicator("max", mockColor)).toBe("◐ max");
+  it.each([
+    ["minimal", "○"],
+    ["low", "◔"],
+    ["medium", "◑"],
+    ["high", "◕"],
+    ["xhigh", "●"],
+    ["max", "●"],
+  ])("renders the %s glyph", (level, glyph) => {
+    expect(formatThinkingIndicator(level, mockColor)).toBe(`${glyph} ${level}`);
   });
 
-  it("max uses the thinkingMax theme token", () => {
+  it("uses themed color tokens per level", () => {
     expect(thinkingLevelColors["max"]).toBe("thinkingMax");
+    expect(thinkingLevelColors["high"]).toBe("thinkingHigh");
+  });
+
+  it("falls back for unknown levels", () => {
+    expect(formatThinkingIndicator("unknown", mockColor)).toBe("◑ unknown");
   });
 });

@@ -1,4 +1,4 @@
-import { footerIcons, gitDisplayIcons, gitStatusColors, thinkingLevelColors, type ColorFn } from "./icons.js";
+import { footerIcons, gitDisplayIcons, gitStatusColors, thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.js";
 
 // Token counts use binary units (1K = 1024)
 const TOKEN_K = 1_024;
@@ -50,5 +50,5 @@ export function formatGitStatusIndicators(
 }
 
 export function formatThinkingIndicator(thinkingLevel: string, colorize: ColorFn): string {
-  return thinkingLevel !== "off" ? colorize(thinkingLevelColors[thinkingLevel] || "dim", "◐ " + thinkingLevel) : "";
+  return colorize(thinkingLevelColors[thinkingLevel] || "dim", `${thinkingLevelIcons[thinkingLevel] || "◑"} ${thinkingLevel}`);
 }

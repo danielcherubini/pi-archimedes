@@ -11,7 +11,7 @@ const DIR = "📁 auth";
 const BRANCH = "⎇ feat/plan-040-jwt-cookie-security+~3"; // + fake status
 const WORKTREE = "⛅ feat/plan-040-jwt-cookie-security";
 const MODEL = "🧠 claude-sonnet-4-6";
-const THINKING = "◐ high";
+const THINKING = "◕ high"; // current format for the 'high' level
 const STATS = "↑141 ↓42k R8.7M W220k $4.25 116k/977k";
 
 function buildLines(width: number, pct: number, splitThreshold = 150) {
