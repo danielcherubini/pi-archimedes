@@ -34,6 +34,7 @@
 | 31 | [Plugin enable/disable via a single global gate](done/plan-031-plugin-manager.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
 | 32 | [Plugin gate in each package's own namespace](done/plan-032-gate-in-package-namespace.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
 | 30 | [archimedes-sudo — safe privileged execution](done/plan-030-archimedes-sudo.md) | ✅ COMPLETED (PR #40) | 2026-08-28 |
+| 33 | [Pi 0.84.4 sync](done/plan-033-pi-0844-sync.md) | ✅ COMPLETED (PR #42, `30e2457`) | 2026-08-28 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -44,13 +45,11 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| 33 | [Pi 0.84.4 sync](plan-033-pi-0844-sync.md) | IN PROGRESS | 2026-08-28 |
-
 ## Quick Stats
 
 - Total Plans: 33
-- Completed: 32
-- In Progress: 1
+- Completed: 33
+- In Progress: 0
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).

@@ -11,7 +11,7 @@ Get notified when Pi finishes long tasks or needs an answer, without constant po
 - **Terminal-aware dispatch** — auto-detects your terminal and uses the optimal protocol (OSC 99, OSC 9, OSC 777, or PowerShell toasts)
 - **tmux passthrough** — all sequences wrapped via DCS for correct rendering inside tmux
 - **Per-trigger toggles** — independently enable/disable notifications for task completion and unanswered questions
-- **Bus-driven** — listens for `agent_end` and `ASK_REQUEST` bus events, so it works with any package that emits them
+- **Pi-native triggers** — keyed on pi's `agent_settled` and `ui_prompt_start` lifecycle events, so task completion works and *any* blocking extension prompt (ask, sudo, mcp OAuth) can hold your attention
 
 ## Install
 
@@ -27,7 +27,7 @@ pi install npm:pi-archimedes
 
 ## Usage
 
-When the agent finishes a task (`agent_end`) or a question is asked (`ASK_REQUEST`), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
+When the agent's run has settled (`agent_settled`) or an extension opens a blocking prompt (`ui_prompt_start` — ask, sudo, mcp OAuth), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
 
 ## Settings
 
@@ -54,6 +54,6 @@ Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify`
 
 ## Integration
 
-When installed via `pi-archimedes` (the meta package), the notify package is automatically registered and its settings appear in the `/archimedes` settings panel. Standalone installs work independently — any package emitting `agent_end` or `ASK_REQUEST` bus events will trigger notifications.
+When installed via `pi-archimedes` (the meta package), the notify package is automatically registered and its settings appear in the `/archimedes` settings panel. Standalone installs work independently — any blocking extension UI prompt will trigger the question notification.
 
 ← Back to [pi-archimedes](../../README.md)

@@ -13,7 +13,9 @@ describe("notify default export (standalone factory)", () => {
 		const events = on.mock.calls.map((c: Array<unknown>) => c[0]);
 		expect(events).toEqual(
 			expect.arrayContaining([
-				"agent_end",
+				"agent_settled",
+				"ui_prompt_end",
+			"ui_prompt_start",
 				"input",
 				"before_agent_start",
 				"agent_start",

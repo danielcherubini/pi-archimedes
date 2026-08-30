@@ -1,5 +1,8 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { highlightCode as piHighlightCode } from "@earendil-works/pi-coding-agent";
+import {
+  highlightCode as piHighlightCode,
+  initTheme as piInitTheme,
+} from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme } from "@earendil-works/pi-tui";
 import {
   deriveDimColor,
@@ -22,6 +25,26 @@ const DEFAULT_CODE_DEFAULT_L = 0.85;
 // We intentionally only target fg color escapes; bg (48;...) and style escapes
 // (bold/italic/reset/etc.) are left untouched.
 const FG_COLOR_ESCAPE_RE = /\x1b\[38;(?:2;\d{1,3};\d{1,3};\d{1,3}|5;\d{1,3})m/g;
+
+// pi 0.84.4's module-level `highlightCode` reads a *global* Theme
+// singleton that throws until `initTheme()` runs. pi's interactive
+// mode initializes it at startup, but contexts that build the muted
+// theme without going through that initialization (e.g. unit tests)
+// would otherwise get "Theme not initialized. Call initTheme() first."
+// We probe on first use and, only when the global is not set, call
+// `initTheme("dark")` — built-in theme, no file watcher attached.
+let piThemeReady = false;
+function ensurePiHighlightable(): void {
+  if (piThemeReady) return;
+  piThemeReady = true;
+  try {
+    piHighlightCode(""); // probe: throws when the global is unset
+  } catch (err) {
+    // Only fall back when the probe failed for the known reason, so an
+    // already-established pi theme is never clobbered by a surprise. 
+    if (String(err).includes("Theme not initialized")) piInitTheme("dark");
+  }
+}
 
 /**
  * Rewrite every foreground-color SGR escape in `line` to its dimmed truecolor
@@ -114,6 +137,7 @@ export function buildMutedMarkdownTheme(
     strikethrough: (text) => `\x1b[9m${fg("dim", text)}\x1b[29m`,
     underline: (text) => `\x1b[4m${fg("thinkingText", text)}\x1b[24m`,
     highlightCode: (code, lang) => {
+      ensurePiHighlightable();
       const lines = piHighlightCode(code, lang);
       return lines.map((l) => {
         const dimmed = dimAnsiLine(l, anchorL, saturationFactor, dimCache);

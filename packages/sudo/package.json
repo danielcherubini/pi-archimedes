@@ -23,8 +23,8 @@
     "typebox": ">=1.1.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.84.2",
-    "@earendil-works/pi-tui": "^0.84.2",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "@earendil-works/pi-tui": "^0.84.4",
     "typebox": "^1.1.38",
     "typescript": "^6.0.0"
   },

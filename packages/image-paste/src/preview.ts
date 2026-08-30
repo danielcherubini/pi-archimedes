@@ -12,10 +12,6 @@ interface PreviewDetails {
 export function registerImagePreview(pi: ExtensionAPI): void {
   pi.registerMessageRenderer<PreviewDetails>(CUSTOM_TYPE, (message, _options, theme) => {
     try {
-      // Theme.fg is runtime-available but not exposed in the Theme type definition
-      const fg = (theme as any).fg?.bind(theme) as ((color: string, text: string) => string) | undefined;
-      if (!fg) return undefined;
-
       // Extract image data from content array
       const content = message.content;
       if (!Array.isArray(content) || content.length === 0) return undefined;
@@ -28,7 +24,7 @@ export function registerImagePreview(pi: ExtensionAPI): void {
           container.addChild(new Spacer(1));
           container.addChild(
             new Image(item.data, item.mimeType, {
-              fallbackColor: (text: string) => fg("toolOutput", text),
+              fallbackColor: (text: string) => theme.fg("toolOutput", text),
             }, {
               maxWidthCells: 60,
             }),
