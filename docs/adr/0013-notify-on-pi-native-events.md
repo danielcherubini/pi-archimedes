@@ -10,6 +10,6 @@ The bus `ASK_REQUEST` event is **not** retired — it remains ask↔subagent tra
 
 Consequences:
 - Notify no longer imports `@pi-archimedes/core/bus` (it keeps core for `settings-io`).
-- No `ui_prompt_end` listener, no reusing `event.title` in the copy, no kind filter: answering any prompt necessarily passes through terminal input, which already cancels the timer; the notification copy is unchanged ("A question needs your answer"); every `UIPromptKind` mid-run is a "come back" moment.
+- No reusing `event.title` in the copy, no kind filter; the notification copy is unchanged ("A question needs your answer"). A `ui_prompt_end` handler cancels the question timer when a prompt closes — needed for prompts that close without terminal input (e.g. the mcp OAuth `done()`), which the earlier "answers pass through terminal input" assumption got wrong; it is scoped so it never wipes a pending "task complete" timer.
 - Accepted edge: a user AFK on a `/mcp` panel mid-run gets a question notification — same tolerated trade as `agent_end` already made, defused by the delay and any-key cancel.
 - Asymmetric peer floors across the monorepo are deliberate: packages whose new code only needs *types* from pi (`pi-tui` floor, `Theme.fg` cleanup) stay `>=0.1.0` peers because those call sites are runtime-safe on older pi.

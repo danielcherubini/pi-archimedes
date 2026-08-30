@@ -14,6 +14,7 @@ describe("notify default export (standalone factory)", () => {
 		expect(events).toEqual(
 			expect.arrayContaining([
 				"agent_settled",
+				"ui_prompt_end",
 			"ui_prompt_start",
 				"input",
 				"before_agent_start",

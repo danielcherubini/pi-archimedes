@@ -191,6 +191,15 @@ export function registerNotify(pi: ExtensionAPI): void {
   pi.on("input", () => cancelPending());
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
+  // A prompt that closes without terminal input (e.g. the mcp OAuth
+  // loader finishing from the browser's `done()`) cancels the question
+  // timer so a long-gone prompt does not fire a stale "question needs
+  // your answer". Scoped so it never wipes a pending "task complete" timer.
+  pi.on("ui_prompt_end", () => {
+    if (pendingTrigger === TRIGGER.UI_PROMPT) {
+      cancelPending();
+    }
+  });
 
   // Listen for raw terminal keystrokes — cancel on any key press
   let unsubTerminalInput: (() => void) | null = null;
