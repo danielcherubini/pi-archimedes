@@ -1,14 +1,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
-import { getBus, Events } from "@pi-archimedes/core/bus";
 import { execFile } from "node:child_process";
 
 // ── Trigger constants ────────────────────────────────────────────────────────
 
 const TRIGGER = {
-  AGENT_END: "agent_end",
-  ASK_REQUEST: "ask_request",
+  AGENT_SETTLED: "agent_settled",
+  UI_PROMPT: "ui_prompt",
 } as const;
 type TriggerType = (typeof TRIGGER)[keyof typeof TRIGGER];
 
@@ -153,11 +152,11 @@ export function scheduleNotify(trigger: TriggerType): void {
   // Load config fresh on each trigger
   const config = loadNotifyConfig();
 
-  if (trigger === TRIGGER.AGENT_END && !config.notifyOnAgentEnd) {
+  if (trigger === TRIGGER.AGENT_SETTLED && !config.notifyOnAgentEnd) {
     return;
   }
 
-  if (trigger === TRIGGER.ASK_REQUEST && !config.notifyOnQuestion) {
+  if (trigger === TRIGGER.UI_PROMPT && !config.notifyOnQuestion) {
     return;
   }
 
@@ -174,7 +173,7 @@ export function scheduleNotify(trigger: TriggerType): void {
 
 /** Fire the actual notification based on the pending trigger. */
 function fireNotification(trigger: TriggerType | null): void {
-  if (trigger === TRIGGER.AGENT_END) {
+  if (trigger === TRIGGER.AGENT_SETTLED) {
     notify("Pi", "Task complete — waiting for input");
   } else {
     notify("Pi", "A question needs your answer");
@@ -185,15 +184,13 @@ function fireNotification(trigger: TriggerType | null): void {
 
 /** Register the notify extension with the Pi agent. */
 export function registerNotify(pi: ExtensionAPI): void {
-  pi.on("agent_end", () => scheduleNotify(TRIGGER.AGENT_END));
+  pi.on("agent_settled", () => scheduleNotify(TRIGGER.AGENT_SETTLED));
+  // Any blocking extension UI prompt (ask, sudo, mcp OAuth) — fires in the
+  // parent process for direct and subagent-relayed prompts alike.
+  pi.on("ui_prompt_start", (_event) => scheduleNotify(TRIGGER.UI_PROMPT));
   pi.on("input", () => cancelPending());
   pi.on("before_agent_start", () => cancelPending());
   pi.on("agent_start", () => cancelPending());
-
-  // Listen for ask requests from the bus (ask package emits this)
-  const unsubAskRequest = getBus().on(Events.ASK_REQUEST, () =>
-    scheduleNotify(TRIGGER.ASK_REQUEST),
-  );
 
   // Listen for raw terminal keystrokes — cancel on any key press
   let unsubTerminalInput: (() => void) | null = null;

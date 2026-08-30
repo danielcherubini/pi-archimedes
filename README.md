@@ -121,7 +121,7 @@ Most question tools only work when the main agent calls them. Ask works everywhe
 
 Desktop notifications when you've stepped away — with a circuit breaker that cancels if you interact.
 
-- Delayed notification on task complete or unanswered questions
+- Delayed notification on settled tasks or when any extension prompt (ask, sudo, mcp OAuth) needs your attention
 - Terminal-aware dispatch: Ghostty, WezTerm, iTerm2, Kitty, Windows Terminal
 - tmux passthrough for all OSC sequences
 - Configurable delay and per-trigger toggles
