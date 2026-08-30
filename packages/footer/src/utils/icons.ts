@@ -31,6 +31,7 @@ export const thinkingLevelColors: Record<string, string> = {
   medium: "thinkingMedium",
   high: "thinkingHigh",
   xhigh: "thinkingXhigh",
+  max: "thinkingMax",
 };
 
 // Color function type used by formatting functions
