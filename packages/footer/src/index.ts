@@ -1,5 +1,5 @@
 /**
- * dir | branch [+status] | worktree | model | ◐thinking | ↑↓R W $cost ━ context%
+ * dir | branch [+status] | worktree | model | ◕thinking | ↑↓R W $cost ━ context%
  *
  * Adaptive layout — wraps to additional lines instead of truncating:
  * - fits width → single line (system info · stats · context bar)

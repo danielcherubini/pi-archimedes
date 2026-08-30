@@ -144,8 +144,8 @@ describe("formatThinkingIndicator", () => {
   it.each([
     ["minimal", "○"],
     ["low", "◔"],
-    ["medium", "◐"],
-    ["high", "●"],
+    ["medium", "◑"],
+    ["high", "◕"],
     ["xhigh", "●"],
     ["max", "●"],
   ])("renders the %s glyph", (level, glyph) => {
@@ -158,6 +158,6 @@ describe("formatThinkingIndicator", () => {
   });
 
   it("falls back for unknown levels", () => {
-    expect(formatThinkingIndicator("unknown", mockColor)).toBe("◐ unknown");
+    expect(formatThinkingIndicator("unknown", mockColor)).toBe("◑ unknown");
   });
 });

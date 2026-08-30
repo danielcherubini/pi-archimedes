@@ -35,13 +35,13 @@ export const thinkingLevelColors: Record<string, string> = {
 };
 
 // Thinking level glyphs — fill ramp: off/minimal open ○, low 25% ◔,
-// medium 50% ◐, high and above fully filled ● (level still labeled by text)
+// medium 50% ◑, high 75% ◕, xhigh/max fully filled ● (level labeled by text)
 export const thinkingLevelIcons: Record<string, string> = {
   off: "○",
   minimal: "○",
   low: "◔",
-  medium: "◐",
-  high: "●",
+  medium: "◑",
+  high: "◕",
   xhigh: "●",
   max: "●",
 };

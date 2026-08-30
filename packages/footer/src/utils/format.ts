@@ -50,5 +50,5 @@ export function formatGitStatusIndicators(
 }
 
 export function formatThinkingIndicator(thinkingLevel: string, colorize: ColorFn): string {
-  return colorize(thinkingLevelColors[thinkingLevel] || "dim", `${thinkingLevelIcons[thinkingLevel] || "◐"} ${thinkingLevel}`);
+  return colorize(thinkingLevelColors[thinkingLevel] || "dim", `${thinkingLevelIcons[thinkingLevel] || "◑"} ${thinkingLevel}`);
 }
