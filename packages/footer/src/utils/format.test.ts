@@ -6,6 +6,7 @@ import {
   formatGitStatusIndicators,
   formatThinkingIndicator,
 } from "./format.js";
+import { thinkingLevelColors } from "./icons.js";
 import type { ColorFn } from "./icons.js";
 
 // ── Mock ColorFn ────────────────────────────────────────────────────────────
@@ -147,5 +148,10 @@ describe("formatThinkingIndicator", () => {
     expect(formatThinkingIndicator("medium", mockColor)).toBe("◐ medium");
     expect(formatThinkingIndicator("high", mockColor)).toBe("◐ high");
     expect(formatThinkingIndicator("xhigh", mockColor)).toBe("◐ xhigh");
+    expect(formatThinkingIndicator("max", mockColor)).toBe("◐ max");
+  });
+
+  it("max uses the thinkingMax theme token", () => {
+    expect(thinkingLevelColors["max"]).toBe("thinkingMax");
   });
 });
