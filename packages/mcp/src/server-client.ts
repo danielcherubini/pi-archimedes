@@ -364,7 +364,10 @@ export class ServerClient {
           if (e instanceof StreamableHTTPError && e.code === 401) {
             const c = this.client;
             this.client = null;
-            await c.close().catch(() => {});
+            // A failed connect auto-closes the transport (SDK Client.connect())
+            // which fires onclose and may already have nulled this.client —
+            // without this guard the TypeError masked the needs-auth state.
+            if (c) await c.close().catch(() => {});
             this._status = "needs-auth";
             this._error = NEEDS_AUTH_MESSAGE;
             return;
