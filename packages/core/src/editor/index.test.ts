@@ -60,7 +60,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   return { CustomEditor };
 });
 
-import { HephaestusEditor } from "./index.js";
+import { HephaestusEditor, SPIN_TICK_MS } from "./index.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ describe("timer lifecycle & gating", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(setSpy.mock.calls[0]![1]).toBe(80);
+    expect(setSpy.mock.calls[0]![1]).toBe(SPIN_TICK_MS);
     expect(onSpinInterval).toHaveBeenCalledTimes(1);
     const spy = onSpinInterval!; // makeEditor always provisions a spy
     expect(spy).toHaveBeenCalledTimes(1);
@@ -261,7 +261,7 @@ describe("timer lifecycle & gating", () => {
   it("fake 80ms ticks drive render while the agent is busy", () => {
     const { editor, tui } = makeEditor({ spin: true });
     (editor as any).isIdle = () => false;
-    vi.advanceTimersByTime(80);
+    vi.advanceTimersByTime(SPIN_TICK_MS);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
   });
 });
