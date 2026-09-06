@@ -93,6 +93,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           // ── Core settings ──
           case "mutedTheme": coreConfig.mutedTheme = newValue === "On"; break;
           case "codeUnindent": coreConfig.codeUnindent = newValue === "On"; break;
+          case "editorSpinPrompt": coreConfig.editorSpinPrompt = newValue === "On"; break;
           case "labelText": coreConfig.labelText = newValue; break;
           case "labelColor": coreConfig.labelColor = newValue; break;
           case "animationStyle": coreConfig.animationStyle = newValue as CoreConfig["animationStyle"]; break;
