@@ -29,6 +29,7 @@ describe("loadCoreConfig", () => {
       labelText: "Thinking...",
       labelColor: "255,215,0",
       animationStyle: "vertical-up",
+      editorSpinPrompt: true,
     });
   });
 
@@ -65,6 +66,7 @@ describe("DEFAULT_CORE_CONFIG", () => {
       labelText: "Thinking...",
       labelColor: "255,215,0",
       animationStyle: "vertical-up",
+      editorSpinPrompt: true,
     });
   });
 });

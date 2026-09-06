@@ -51,6 +51,13 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       currentValue: config.animationStyle,
       values: [...ANIMATION_STYLES],
     },
+    {
+      id: "editorSpinPrompt",
+      label: "Editor Spin Prompt",
+      description: "Spin the > prompt while the agent is working (hides the “Working” line)",
+      currentValue: config.editorSpinPrompt ? "On" : "Off",
+      values: ["On", "Off"],
+    },
   ];
 }
 

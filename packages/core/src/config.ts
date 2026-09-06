@@ -19,6 +19,7 @@ export interface CoreConfig {
   labelText: string;
   labelColor: string;
   animationStyle: AnimationStyle;
+  editorSpinPrompt: boolean;
 }
 
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
@@ -27,6 +28,7 @@ export const DEFAULT_CORE_CONFIG: CoreConfig = {
   labelText: "Thinking...",
   labelColor: "255,215,0",
   animationStyle: "vertical-up",
+  editorSpinPrompt: true,
 };
 
 const NAMESPACE = "archimedes.core";
