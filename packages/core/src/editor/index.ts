@@ -25,6 +25,20 @@ import { isParentBorder, formatKey } from "../text.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
 
+const SPIN_FRAMES_BRAILLE = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+];
+const SPIN_FRAMES_FALLBACK = ["|", "/", "-", "\\"];
+
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
   private readonly getTheme: () => Theme;
@@ -34,6 +48,15 @@ export class HephaestusEditor extends CustomEditor {
   private hintMessage: string | undefined;
   private pendingQuitUntil = 0;
 
+  private readonly spinFrames: string[];
+  private readonly spinEnabled: boolean;
+  private readonly onSpinInterval:
+    | ((interval: ReturnType<typeof setInterval> | undefined) => void)
+    | undefined;
+  private frameIdx = 0;
+  private wasBusy = false;
+  private spinTimer: ReturnType<typeof setInterval> | undefined;
+
   constructor(
     tui: TUI,
     editorTheme: EditorTheme,
@@ -42,10 +65,18 @@ export class HephaestusEditor extends CustomEditor {
       getTheme,
       isIdle,
       shutdown,
+      spin = false,
+      onSpinInterval,
     }: {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
+      /** Spin the > prompt while the agent is busy. */
+      spin?: boolean;
+      /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
+      onSpinInterval?: (
+        interval: ReturnType<typeof setInterval> | undefined,
+      ) => void;
     },
   ) {
     super(tui, editorTheme, keybindings);
@@ -53,6 +84,41 @@ export class HephaestusEditor extends CustomEditor {
     this.getTheme = getTheme;
     this.isIdle = isIdle;
     this.shutdown = shutdown;
+    this.onSpinInterval = onSpinInterval;
+    this.spinEnabled = spin;
+    this.spinFrames = SPIN_FRAMES_BRAILLE.every(
+      (f) => visibleWidth(f) === 1,
+    )
+      ? SPIN_FRAMES_BRAILLE
+      : SPIN_FRAMES_FALLBACK;
+    if (spin) {
+      this.spinTimer = setInterval(() => this.tickSpin(), 80);
+      this.onSpinInterval?.(this.spinTimer);
+    }
+  }
+
+  dispose(): void {
+    if (this.spinTimer) {
+      clearInterval(this.spinTimer);
+      this.spinTimer = undefined;
+      this.onSpinInterval?.(undefined);
+    }
+  }
+
+  // ── Prompt spin ───────────────────────────────────────
+
+  private tickSpin(): void {
+    const busy = !this.isIdle();
+    if (busy) {
+      this.frameIdx = this.wasBusy
+        ? (this.frameIdx + 1) % this.spinFrames.length
+        : 0;
+      this.tui.requestRender();
+    } else if (this.wasBusy) {
+      this.frameIdx = 0;
+      this.tui.requestRender();
+    }
+    this.wasBusy = busy;
   }
 
   // ── Quit hint ─────────────────────────────────────────────
@@ -151,7 +217,11 @@ export class HephaestusEditor extends CustomEditor {
       const botLine =
         p.frame("└") + p.frame("─".repeat(inner)) + p.frame("┘");
 
-      const piPrefix = p.prefix(PI_STR);
+      const spinPrefix =
+        this.spinEnabled && !this.isIdle()
+          ? this.spinFrames[this.frameIdx] + " "
+          : PI_STR;
+      const piPrefix = p.prefix(spinPrefix);
 
       const midLines = contentLines.map((line, i) => {
         if (i !== 0) {
