@@ -38,6 +38,7 @@ const SPIN_FRAMES_BRAILLE = [
   "⠏",
 ];
 const SPIN_FRAMES_FALLBACK = ["|", "/", "-", "\\"];
+export const SPIN_TICK_MS = 80;
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -92,11 +93,12 @@ export class HephaestusEditor extends CustomEditor {
       ? SPIN_FRAMES_BRAILLE
       : SPIN_FRAMES_FALLBACK;
     if (spin) {
-      this.spinTimer = setInterval(() => this.tickSpin(), 80);
+      this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
     }
   }
 
+  /** Clears the spinner timer and drops the module handle; idempotent. Pi 0.85.1 never calls dispose on a replaced editor — module-scope reaping is the operative safety net. */
   dispose(): void {
     if (this.spinTimer) {
       clearInterval(this.spinTimer);

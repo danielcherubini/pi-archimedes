@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
+import { SPIN_TICK_MS } from "./editor/index.js";
 
 // ── Mock surface ────────────────────────────────────────────────────────
 // Only seam that MUST be mocked: loadCoreConfig (drives the spin flag).
@@ -110,9 +111,9 @@ let si: TimerSpy;
 let cl: TimerSpy;
 let constructed: unknown[];
 
-/** Count of timers registered with delay 80 (the spinner cadence). */
+/** Count of timers registered with delay SPIN_TICK_MS (the spinner cadence). */
 function spinTimerCount(): number {
-  return si.mock.calls.filter((c) => c[1] === 80).length;
+  return si.mock.calls.filter((c) => c[1] === SPIN_TICK_MS).length;
 }
 
 beforeEach(() => {
