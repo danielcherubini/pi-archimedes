@@ -68,12 +68,30 @@ let coreRef: ListingRef | undefined;
 let coreCtx: ExtensionContext | undefined;
 let coreTui: TUI | undefined;
 
+// Spin-prompt lifecycle state: the editor self-drives its timer and reports it
+// back via onSpinInterval so the session handlers can reap it (no circular import
+// — editor/index.ts must never import this module).
+let spinFlag = false;
+let spinInterval: ReturnType<typeof setInterval> | undefined;
+function clearSpinInterval(): void {
+  if (spinInterval) {
+    clearInterval(spinInterval);
+    spinInterval = undefined;
+  }
+}
+
 export function registerCore(pi: ExtensionAPI): void {
   // Patch console.log for model scope capture
   patchConsoleLog();
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
+    // Restore the Working line if we hid it, and reap the editor's spinner
+    // timer. Runs FIRST: unconditional cleanup before anything else settles.
+    if (spinFlag) { _ctx.ui.setWorkingVisible(true); }
+    clearSpinInterval();
+    spinFlag = false;
+
     // Mark listing as settled
     if (coreRef) { coreRef.settled = true; }
     const g: Record<string | symbol, unknown> = globalThis as unknown as typeof global & Record<string | symbol, unknown>;
@@ -143,6 +161,10 @@ export function registerCore(pi: ExtensionAPI): void {
     // Save context for shutdown cleanup
     coreCtx = ctx;
 
+    // Spin-prompt flag (drives the editor self-timer + Working-line visibility)
+    const config = loadCoreConfig();
+    spinFlag = config.editorSpinPrompt;
+
     // Set animated header
     coreRef = {
       sections: [],
@@ -166,20 +188,25 @@ export function registerCore(pi: ExtensionAPI): void {
     };
     ctx.ui.setHeader(headerFactory);
 
-    // Set editor component
+    // Set editor component (reap any orphaned timer from a previous editor /
+    // /reload rebind first — pi does not dispose the old editor's timer)
+    clearSpinInterval();
+    // Unconditional: OFF idempotently recovers a carried-over hidden state
+    // (pi's resetExtensionUI() resets workingVisible = true before session_start
+    // re-applies it, so this is always safe)
+    ctx.ui.setWorkingVisible(!spinFlag);
     ctx.ui.setEditorComponent((tui: TUI, editorTheme: EditorTheme, keybindings: KeybindingsManager) => {
       const theme = ctx.ui.theme;
       return new HephaestusEditor(tui, editorTheme, keybindings, {
         getTheme: () => theme,
         isIdle: () => ctx.isIdle(),
         shutdown: () => ctx.shutdown(),
+        spin: spinFlag,
+        onSpinInterval: (i) => { spinInterval = i; },
       });
     });
 
-    // Load config for thinking transformation + label overrides
-    const config = loadCoreConfig();
-
-    // Patch thinking renderer
+    // Patch thinking renderer (config was hoisted above the editor factory)
     patchThinkingRenderer(() => ctx.ui.theme, {
       labelText: config.labelText,
       labelColor: config.labelColor,
