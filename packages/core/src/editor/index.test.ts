@@ -124,6 +124,10 @@ const tick = (ed: HephaestusEditor): void => {
   (ed as any).tickSpin();
 };
 
+// Rendered lines are wrapped in SGR sequences by wrap(); strip them so a
+// position-based prefix check sees pad + prefix + content.
+const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
+
 // ── Setup / teardown ────────────────────────────────────────────────────────
 
 beforeAll(() => {
@@ -160,17 +164,19 @@ describe("idle-static prefix", () => {
     const { editor } = makeEditor({ spin: true });
     tick(editor);
     const lines = editor.render(60);
-    const prefixLine = lines.find((l) => l.includes(">"));
+    // Prefix is attached to the first content line (mock's "input line" row);
+    // wrapped lines start with an SGR, so strip it before checking the position
+    const prefixLine = lines.find((l) => l.includes("input line"));
     expect(prefixLine).toBeDefined();
-    expect(prefixLine).toContain("> ");
+    expect(plain(prefixLine!).trimStart().startsWith("> ")).toBe(true);
   });
 
   it("spin=false also renders the static > prefix", () => {
     const { editor } = makeEditor({ spin: false });
     const lines = editor.render(60);
-    const prefixLine = lines.find((l) => l.includes(">"));
+    const prefixLine = lines.find((l) => l.includes("input line"));
     expect(prefixLine).toBeDefined();
-    expect(prefixLine).toContain("> ");
+    expect(plain(prefixLine!).trimStart().startsWith("> ")).toBe(true);
   });
 });
 
@@ -217,8 +223,9 @@ describe("busy/idle tick state machine", () => {
 describe("timer lifecycle & gating", () => {
   it("spin=false: no interval is set up", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
+    const before = setSpy.mock.calls.length;
     makeEditor({ spin: false });
-    expect(setSpy).not.toHaveBeenCalled();
+    expect(setSpy.mock.calls.length).toBe(before);
   });
 
   it("spin=true: one 80ms interval; onSpinInterval receives the handle", () => {
@@ -276,8 +283,16 @@ describe("EAW width fallback", () => {
     // The painted prefix must come from the fallback set
     (editor as any).isIdle = () => false;
     const lines = editor.render(60);
-    const prefixLine = lines.find((l) => l.includes("/ ")) ?? lines.find((l) => l.includes("| ") || l.includes("- ") || l.includes("\\ "));
+    // Prefix is attached to the first content line (mock's "input line" row);
+    // wrapped lines start with an SGR — strip before the position check
+    const prefixLine = lines.find((l) => l.includes("input line"));
     expect(prefixLine).toBeDefined();
+    // Position-based: prefix at start is exactly one fallback frame + space
+    expect(
+      FALLBACK_FRAMES.some(
+        (f) => plain(prefixLine!).trimStart().startsWith(f + " "),
+      ),
+    ).toBe(true);
     expect(BRAILLE_FRAMES.some((f) => prefixLine!.includes(f))).toBe(false);
   });
 
