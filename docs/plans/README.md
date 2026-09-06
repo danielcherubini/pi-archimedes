@@ -41,15 +41,23 @@
 > - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
 > - Plan-023 follow-up (deferred): Kitty keyboard-protocol CSI-u text decoding — pre-existing gap in both `/agents` search and `/archimedes` prompt/search input on CSI-u terminals (Kitty/Ghostty/WezTerm/iTerm2); consider a follow-up using pi-tui's `decodePrintableKey`.
 
+## In Progress
+
+| # | Plan | Status | Created |
+|---|------|--------|---------|
+| — | [Prompt-slot spinner (prompt-prefix "Working" indicator)](../roadmap/prompt-slot-spinner.md) | 🔄 IN PROGRESS | 2026-09-07 |
+
+> **Note:** this plan lives in `docs/roadmap/` rather than `docs/plans/plan-NNN-*` due to skill-driven file naming at creation time (the next `docs/plans` number would have been `034`); it is tracked here instead. Mark **COMPLETED** when the implementing PR merges. Decision: [ADR 0014](../adr/0014-prompt-slot-spinner.md).
+
 ## Backlog
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 ## Quick Stats
 
-- Total Plans: 33
+- Total Plans: 34
 - Completed: 33
-- In Progress: 0
+- In Progress: 1
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
