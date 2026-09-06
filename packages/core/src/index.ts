@@ -87,7 +87,8 @@ export function registerCore(pi: ExtensionAPI): void {
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
     // Restore the Working line if we hid it, and reap the editor's spinner
-    // timer. Runs FIRST: unconditional cleanup before anything else settles.
+    // timer. Runs FIRST: enabled-only restore of the Working line +
+    // unconditional spinner-timer reap (idempotent when spin is off).
     if (spinFlag) { _ctx.ui.setWorkingVisible(true); }
     clearSpinInterval();
     spinFlag = false;
