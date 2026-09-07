@@ -28,14 +28,14 @@ const DOUBLE_PRESS_WINDOW_MS = 500;
 export const SPIN_TICK_MS = 80;
 /** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
 export const SPIN_TYPE_CELLS = 4;
-/** Growth stages of the 2×4 braille dot block the window shows (⠁ → ⣿). */
-export const SPIN_TYPE_STAGES = 8;
+/** Fill-sweep step count: each of the 4 lines walks the 8-stage chart order, 2 stage steps per cell (32 = CELLS × 8). */
+export const SPIN_TYPE_STEPS = SPIN_TYPE_CELLS * 8; // 32
 export const SPIN_TYPE_HOLD = 6;
-export const SPIN_TYPE_CYCLE = SPIN_TYPE_STAGES + SPIN_TYPE_HOLD; // 14
+export const SPIN_TYPE_CYCLE = SPIN_TYPE_STEPS + SPIN_TYPE_HOLD; // 38
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
 export const SPIN_TYPE_START = 6;
 
-/** Growing 2×4 braille dot block, Unicode braille-chart dot order (U+2801 → U+28FF). */
+/** Growing 2×4 braille dot block, Unicode braille-chart dot order (U+2801 → U+28FF) — its 8 stages run through the 4-cell window in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿). */
 const STAGE_BRAILLE = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
 /** Width-1 shading fallback for EAW terminals (⣿ reports visible width 2) — the same 8 stages. */
 const STAGE_SHADE = ["░", "░", "░", "░", "▒", "▒", "▓", "█"];
@@ -52,6 +52,8 @@ export class HephaestusEditor extends CustomEditor {
   private readonly spinEnabled: boolean;
   /** Stage set: growing 2×4 braille dot block (Unicode chart order); EAW terminals (⣿ width 2) fall back to the width-1 shading set ░→█. */
   private readonly spinStageSet: readonly string[];
+  /** Precomputed 32-frame fill sequence (deterministic per instance, computed in the ctor): cells fill cell-by-cell left→right, each cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿). */
+  private readonly stageSeq: string[];
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
@@ -73,7 +75,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: the window grows a 2×4 braille dot block (⠁ → ⣿, Unicode chart order) over 8 stages, cloned across the 4 cells, holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -89,6 +91,18 @@ export class HephaestusEditor extends CustomEditor {
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
     this.spinStageSet = visibleWidth("⣿") === 1 ? STAGE_BRAILLE : STAGE_SHADE;
+    const cells: string[] = [];
+    for (let i = 0; i < SPIN_TYPE_CELLS; i++) cells.push(" ");
+    const seq: string[] = [];
+    for (let k = 0; k < 4; k++) {
+      for (let i = 0; i < SPIN_TYPE_CELLS; i++) {
+        cells[i] = this.spinStageSet[2 * k]!;
+        seq.push(cells.join(""));
+        cells[i] = this.spinStageSet[2 * k + 1]!;
+        seq.push(cells.join(""));
+      }
+    }
+    this.stageSeq = seq;
     if (spin) {
       this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
@@ -118,13 +132,13 @@ export class HephaestusEditor extends CustomEditor {
     this.wasBusy = busy;
   }
 
-  /** The 4-cell window that replaces a segment of the border: every cell clones the current stage of the growing 2×4 braille dot block (Unicode chart order; EAW: width-1 shading ░→█) via the spin (accent) palette, the empty clear stage is plain spaces (the border line breaks) — plain " " (U+0020). */
+  /** The 4-cell window that replaces a segment of the border: cells fill cell-by-cell left→right, each cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿) via the spin (accent) palette, so the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (typeStep 0) is all spaces; hold steps clamp to the last (fully grown) frame. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
-    const n = Math.min(this.typeStep, SPIN_TYPE_STAGES);
-    const ch = n > 0 ? this.spinStageSet[n - 1]! : " ";
-    return Array.from({ length: SPIN_TYPE_CELLS }, () =>
-      ch === " " ? " " : p.spin(ch),
+    const idx = Math.min(this.typeStep, SPIN_TYPE_STEPS) - 1;
+    if (idx < 0) return " ".repeat(SPIN_TYPE_CELLS);
+    return this.stageSeq[idx]!.split("").map(
+      (c) => (c === " " ? " " : p.spin(c)),
     ).join("");
   }
 
@@ -221,10 +235,12 @@ export class HephaestusEditor extends CustomEditor {
 
       // Top border row: while busy, a 4-cell window replaces a segment of
       // the `─` border — 6 dashes in, shifted left on narrow boxes, plain
-      // when too narrow to fit. The window grows a 2×4 braille dot block
-      // (⠁ → ⣿, Unicode chart order; EAW: shading ░ → █) over 8 stages,
-      // cloned across the 4 cells, then holds — on the empty clear stage
-      // the window cells are spaces (the border line breaks there).
+      // when too narrow to fit. The window fills cell-by-cell left→right,
+      // each cell walking the 8 chart-order stages in 2-step line pairs
+      // (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4
+      // dot block grows across the window line by line, then holds — on
+      // the empty clear step the window cells are spaces (the border line
+      // breaks there).
       const borderRun = (() => {
         if (this.spinEnabled && !this.isIdle()) {
           let start = SPIN_TYPE_START; // 6
