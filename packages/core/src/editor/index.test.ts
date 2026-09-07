@@ -16,8 +16,8 @@ import type { TUI, EditorTheme } from "@earendil-works/pi-tui";
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const widthProbe = vi.hoisted(() => ({
-  /** Mutable EAW probe: default reports every char as width 1 (non-EAW). */
-  probe: (_s: string): number => 1,
+  /** Mutable width probe: default reports each char as width 1 (non-EAW), so `visibleWidth(s)` = `s.length` for ASCII. */
+  probe: (s: string): number => s.length,
 }));
 
 vi.mock("@earendil-works/pi-tui", () => ({
@@ -363,6 +363,28 @@ describe("typing strip on the top border row", () => {
     rowFirmsToDashes(run, 16);
   });
 
+  it("CJK 4-char label (visible width 8 per 4-char CJK label): shows from inner 17 (= 8 + 9), absent at inner 16 (widths, not chars)", () => {
+    widthProbe.probe = (s: string) => (s === "你好世界" ? 8 : s.length);
+    try {
+      const onAll = borderRun(busyAt(4, { spinLabel: "你好世界" }).render(21), 21); // inner 17, 13 chars
+      const on = onAll.slice(0, 13); // the row (borderRun over-fetches the corner when chars ≠ visible cells)
+      expect(on.slice(0, 1)).toBe(" ");
+      expect(on.slice(1, 5)).toBe("⠉⠉  ");
+      expect(on.slice(5, 11)).toBe(" 你好世界 "); // own leading + trailing space (the 4 CJK chars are visible-width 8)
+      expect(on.slice(11)).toBe("─".repeat(2)); // trailing = 17 − 0 − 1 − 4 − (1 + 8 + 1) = 2 visible cells
+      rowFirmsToDashes(on, 13); // char length: 5 + (1 + 4 + 1) + 2
+      const offAll = borderRun(busyAt(4, { spinLabel: "你好世界" }).render(20), 20); // inner = 16 < 17, 16 chars
+      const off = offAll.slice(0, 16);
+      expect(off).not.toContain("你好世界");
+      expect(off.slice(0, 1)).toBe(" ");
+      expect(off.slice(1, 5)).toBe("⠉⠉  ");
+      expect(off.slice(5)).toBe("─".repeat(11)); // window-only tier: 16 − 1 − 4 = 11
+      rowFirmsToDashes(off, 16);
+    } finally {
+      widthProbe.probe = (s: string) => s.length;
+    }
+  });
+
   it("below the floor (width 10, inner 6): no window, no label, plain border", () => {
     const run = borderRun(busyAt(4).render(10), 10);
     expect(run).toBe("─".repeat(6));
@@ -510,6 +532,13 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls[0]![1]).toBe(32);
   });
 
+  it("hand-edited speed string (out of the union, e.g. `turbo`): the multiplier resolves to ×1 (never a NaN hot timer)", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinSpeed: "tourbo" as any });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(80); // 80 × (undefined ?? 1)
+  });
+
   it("dispose clears the interval and notifies onSpinInterval(undefined)", () => {
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     const clearSpy = vi.spyOn(globalThis, "clearInterval");
@@ -547,7 +576,7 @@ describe("timer lifecycle & gating", () => {
 describe("EAW terminal fallback", () => {
   it("⣿ reports width 2: the window uses the shade set (░→█) in the same cell-wise order, no braille in the row, the ` Working ` label stays (ASCII-safe)", () => {
     const braille = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
-    widthProbe.probe = (s: string) => (s === "⣿" ? 2 : 1);
+    widthProbe.probe = (s: string) => (s === "⣿" ? 2 : s.length);
     try {
       const expectWindow = (s: number, window: string) => {
         const run = borderRun(busyAt(s).render(60), 60);
@@ -576,7 +605,7 @@ describe("EAW terminal fallback", () => {
       expectWindow(26, "█▒▒▒");
       expectWindow(32, "████");
     } finally {
-      widthProbe.probe = (_s: string) => 1;
+      widthProbe.probe = (s: string) => s.length;
     }
   });
 });

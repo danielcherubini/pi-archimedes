@@ -226,8 +226,10 @@ export class HephaestusEditor extends CustomEditor {
       // corner, then the window; the config label (`editorSpinLabel`,
       // default "Working") follows the window typed as `Working ` — one
       // space before AND after the label — when the box is wide enough
-      // (inner >= 0 + 1 + 4 + 1 + label.length + 1 + 2 = label.length + 9,
-      // a margin of 2 after the trailing space; empty label or too-narrow
+      // (inner >= 0 + 1 + 4 + 1 + labelW + 1 + 2 = labelW + 9, where
+      // labelW = visibleWidth(label) — 9 for the default label; a CJK
+      // label's visible width exceeds its char length — a margin of 2
+      // after the trailing space; empty label or too-narrow
       // box → window only, not standalone), plain when too narrow to fit
       // (inner < 7, the minimum busy row is start 0 + 1 leading space +
       // 4 cells + 2 trailing margin). The window fills cell-by-cell
@@ -241,16 +243,18 @@ export class HephaestusEditor extends CustomEditor {
       // up (the border line breaks there); the leading space + window +
       // label's columns replace trailing dashes, so the row width stays
       // constant (the trailing run shortens accordingly: inner − 0 − 1 −
-      // 4 − (1 + label.length + 1) when the label shows, inner − 1 − 4
+      // 4 − (1 + labelW + 1) when the label shows, inner − 1 − 4
       // otherwise).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
         const label = this.spinLabel;
+        // Visible width (not `.length`): a 4-char CJK label is 8 cells wide — `label.length` would short the row.
+        const labelW = visibleWidth(label);
         const labelShown =
           busy &&
           label !== "" &&
           inner >=
-            SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + 1 + label.length + 1 + 2; // labelFit = 0 + 1 (left padding) + 4 (window) + (" " + label + " " = 1 + label.length + 1) + 2 (trailing margin) = label.length + 9
+            SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + 1 + labelW + 1 + 2; // labelFit = 0 + 1 (left padding) + 4 (window) + (" " + label + " " = 1 + labelW + 1) + 2 (trailing margin) = labelW + 9
         if (!busy || inner < SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + 2) { // inner < 7 → plain (no window, no label)
           return p.frame("─".repeat(inner));
         }
@@ -259,7 +263,7 @@ export class HephaestusEditor extends CustomEditor {
         // space; the Math.max floor means an over-long label can never
         // sink the trailing below zero (those boxes degraded to
         // window-only above).
-        const labelCost = labelShown ? 1 + label.length + 1 : 0;
+        const labelCost = labelShown ? 1 + labelW + 1 : 0;
         return (
           p.frame("─".repeat(start)) +
           " " +
