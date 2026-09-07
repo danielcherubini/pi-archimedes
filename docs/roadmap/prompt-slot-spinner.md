@@ -1,6 +1,6 @@
 ---
 status: committed
-done-when: With default settings, the > prompt prefix in pi's editor shows a spinner while the agent is working and pi's standalone "Working" status line is hidden; the static > returns within one tick (~80 ms) when idle; East-Asian-width terminals get |/-\ frames; toggling "Editor Spin Prompt" off in the settings UI restores pi's default "Working" line on next session (including after /reload).
+done-when: With default settings, the > prompt prefix in pi's editor shows a spinner while the agent is working and pi's standalone "Working" status line is hidden; the static > returns within one tick (~80 ms) when idle; EAW terminals get the ░▒▓█ shading walk (per-stage for typing, density-mapped for ported styles); toggling `editorSpinBorder` off in the settings UI restores pi's default "Working" line on next session (including after /reload).
 ---
 
 # Prompt-Slot Spinner Plan
