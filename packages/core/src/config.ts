@@ -20,6 +20,8 @@ export interface CoreConfig {
   labelColor: string;
   animationStyle: AnimationStyle;
   editorSpinBorder: boolean;
+  editorSpinSpeed: "slow" | "normal" | "fast";
+  editorSpinLabel: string;
 }
 
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
@@ -29,6 +31,15 @@ export const DEFAULT_CORE_CONFIG: CoreConfig = {
   labelColor: "255,215,0",
   animationStyle: "vertical-up",
   editorSpinBorder: true,
+  editorSpinSpeed: "normal",
+  editorSpinLabel: "Working",
+};
+
+/** Border-spinner tick period per speed setting (ms) — the `editorSpinSpeed` setting maps onto the editor's `spinTickMs` ctor param (`SPIN_TICK_MS` is the "normal" default). */
+export const SPIN_SPEED_MS: Record<CoreConfig["editorSpinSpeed"], number> = {
+  slow: 160,
+  normal: 80,
+  fast: 48,
 };
 
 const NAMESPACE = "archimedes.core";

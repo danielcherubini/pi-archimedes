@@ -30,6 +30,8 @@ describe("loadCoreConfig", () => {
       labelColor: "255,215,0",
       animationStyle: "vertical-up",
       editorSpinBorder: true,
+      editorSpinSpeed: "normal",
+      editorSpinLabel: "Working",
     });
   });
 
@@ -67,7 +69,14 @@ describe("DEFAULT_CORE_CONFIG", () => {
       labelColor: "255,215,0",
       animationStyle: "vertical-up",
       editorSpinBorder: true,
+      editorSpinSpeed: "normal",
+      editorSpinLabel: "Working",
     });
+  });
+
+  it("exposes a speed→ms map (slow/normal/fast = 160/80/48)", async () => {
+    const { SPIN_SPEED_MS } = await import("./config.js");
+    expect(SPIN_SPEED_MS).toEqual({ slow: 160, normal: 80, fast: 48 });
   });
 });
 

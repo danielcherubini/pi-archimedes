@@ -31,8 +31,6 @@ export const SPIN_TICK_MS = 80;
 export const SPIN_TYPE_CELLS = BorderTypeSpinner.CELLS;
 /** Window start (in cells) inside the `┌───┐` border row, after `┌` — position 1, immediately after the corner dash (`┌─␠⠛⠛⠛⠛ …`). */
 export const SPIN_TYPE_START = 1;
-/** Literal label rendered straight after the 4-cell window in every busy state (typing steps 1–32, hold, and the step-38 clear beat) — 1 leading space + the word; present from `inner >= 15` (start 1 + cells 4 + label 8 + trailing margin 2), omitted (not standalone) on narrower boxes in the 8 ≤ inner < 15 window-only tier (whose right-hand padding is the label's own leading space), gone when idle. */
-export const SPIN_TYPE_LABEL = " Working";
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -44,6 +42,8 @@ export class HephaestusEditor extends CustomEditor {
   private pendingQuitUntil = 0;
 
   private readonly spinEnabled: boolean;
+  /** Label typed after the 4-cell window while busy (the `editorSpinLabel` setting): an empty string hides it. */
+  private readonly spinLabel: string;
   /** The border-row typing spinner (mechanism in `BorderTypeSpinner`): created only when `spin` is on — never when it is off, so the off path stays fully inert. */
   private readonly borderSpinner: BorderTypeSpinner | undefined;
   private readonly onSpinInterval:
@@ -60,6 +60,8 @@ export class HephaestusEditor extends CustomEditor {
       isIdle,
       shutdown,
       spin = false,
+      spinTickMs = SPIN_TICK_MS,
+      spinLabel = "Working",
       onSpinInterval,
     }: {
       getTheme: () => Theme;
@@ -67,6 +69,10 @@ export class HephaestusEditor extends CustomEditor {
       shutdown: () => void;
       /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
       spin?: boolean;
+      /** Tick period in ms; the speed setting maps onto it (default: `SPIN_TICK_MS` — `editorSpinSpeed` "normal"). */
+      spinTickMs?: number;
+      /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. */
+      spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
         interval: ReturnType<typeof setInterval> | undefined,
@@ -80,9 +86,10 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
+    this.spinLabel = spinLabel;
     this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle) : undefined;
     if (spin) {
-      this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
+      this.spinTimer = setInterval(() => this.tickSpin(), spinTickMs);
       this.onSpinInterval?.(this.spinTimer);
     }
   }
@@ -104,7 +111,7 @@ export class HephaestusEditor extends CustomEditor {
     }
   }
 
-  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after the dash run (left padding lived in the border run; the ` Working` label's own leading space provides the right-hand padding). */
+  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after the dash run (left padding lived in the border run; the label's own leading space — ` " + spinLabel` — provides the right-hand padding). */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     if (!this.borderSpinner) return " ".repeat(SPIN_TYPE_CELLS);
@@ -206,39 +213,45 @@ export class HephaestusEditor extends CustomEditor {
 
       // Top border row: while busy, a 4-cell window at start 1 replaces a
       // segment of the `─` border — 1 dash in, then one leading space (left
-      // padding), then the window; the ` Working` label right after the
-      // window when the box is wide enough (inner >= 15; omitted, not
-      // standalone, in the 8 ≤ inner < 15 window-only tier, whose right-hand
-      // padding is the absent label's leading space), plain when too narrow
-      // to fit (inner < 8). The window fills cell-by-cell left→right, each
-      // cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ /
-      // ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4 dot block grows
-      // across the window line by line, followed by a " Working" label
-      // (label shown when the box is wide enough; omitted, not standalone,
-      // on narrow boxes), then holds — on the empty clear step (step 38) the
-      // window cells are spaces and the label stays up (the border line
-      // breaks there); the space + window + label's columns replace trailing
+      // padding), then the window; the config label (`editorSpinLabel`,
+      // default "Working") right after the window when the box is wide
+      // enough (inner >= start 1 + cells 4 + label.length + 2; empty label
+      // or too-narrow box → window only, not standalone), plain when too
+      // narrow to fit (inner < 8). The window fills cell-by-cell left→right,
+      // each cell walking the 8 chart-order stages in 2-step line pairs
+      // (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4 dot
+      // block grows across the window line by line, followed by the label
+      // (shown when the box hosts it; over-long labels never sink the row —
+      // Math.max keeps the trailing ≥ 0 and the window-only tier handles
+      // them), then holds — on the empty clear step (step 38) the window
+      // cells are spaces and the label stays up (the border line breaks
+      // there); the space + window + label's columns replace trailing
       // dashes, so the row width stays constant (the trailing run is
       // shortened by the one leading space).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
+        const label = this.spinLabel;
         const labelShown =
           busy &&
+          label !== "" &&
           inner >=
-            SPIN_TYPE_START + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length + 2; // 15
+            SPIN_TYPE_START + SPIN_TYPE_CELLS + label.length + 2; // labelFit = 1 + 4 + label.length + 2
         if (!busy || inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain (no window, no label)
           return p.frame("─".repeat(inner));
         }
         const start = SPIN_TYPE_START; // 1 — the window sits at start 1 whenever it shows
-        const labelLen = labelShown ? SPIN_TYPE_LABEL.length : 0;
+        // Label cost = its own leading space + the label itself; the
+        // Math.max floor means an over-long label can never sink the
+        // trailing below zero (those boxes degraded to window-only above).
+        const labelCost = labelShown ? 1 + label.length : 0;
         return (
           p.frame("─".repeat(start)) +
           " " +
           this.typeStrip() +
-          (labelShown ? p.time(SPIN_TYPE_LABEL) : "") +
+          (labelShown ? p.time(" " + label) : "") +
           p.frame(
             "─".repeat(
-              Math.max(0, inner - start - 1 - SPIN_TYPE_CELLS - labelLen),
+              Math.max(0, inner - start - 1 - SPIN_TYPE_CELLS - labelCost),
             ),
           )
         );

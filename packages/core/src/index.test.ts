@@ -75,7 +75,14 @@ function buildEditor(ui: UiSpies): unknown {
     theme: unknown,
     keybindings: unknown,
   ) => unknown;
-  const editor = factory({}, {}, {});
+  // `borderColor` set (like the custom editor mock in editor/index.test.ts) so
+  // the real pi-coding-agent `renderTopBorder` doesn't trip on an unset
+  // base-class field when these tests render through the real editor.
+  const editor = factory(
+    { terminal: { rows: 24 } },
+    { borderColor: (s: string) => s },
+    {},
+  );
   constructed.push(editor);
   return editor;
 }
@@ -173,6 +180,62 @@ describe("editorSpinBorder = true (default)", () => {
     shutdown(ctx); // spinFlag already reset, handle already cleared
     expect(ui.setWorkingVisible.mock.calls.length).toBe(visAfter);
     expect(cl.mock.calls.length).toBe(clearAfter);
+  });
+
+  it("editorSpinSpeed = \"fast\": the editor's interval period is the mapped 48ms (SPIN_SPEED_MS)", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinSpeed: "fast",
+    });
+
+    start(ctx);
+    buildEditor(ui);
+    const setCall = si.mock.calls.at(-1)!;
+    expect(setCall[1]).toBe(48);
+  });
+
+  it("editorSpinSpeed = \"slow\": the editor's interval period is the mapped 160ms (SPIN_SPEED_MS)", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinSpeed: "slow",
+    });
+
+    start(ctx);
+    buildEditor(ui);
+    const setCall = si.mock.calls.at(-1)!;
+    expect(setCall[1]).toBe(160);
+  });
+
+  it("editorSpinLabel = \"Thinking\" → the factory-built editor's busy border carries ` Thinking`, not ` Working`", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinLabel: "Thinking",
+    });
+
+    start(ctx);
+    vi.mocked(ctx.isIdle).mockReturnValue(false); // busy
+    const editor = buildEditor(ui) as { render(w: number): string[] };
+    const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
+    const row = plain(editor.render(60)[1]!);
+    expect(row).toContain(" Thinking");
+    expect(row).not.toContain("Working");
+  });
+
+  it("editorSpinLabel = \"\" → the factory-built editor's busy border shows the window only (no label, dash-compensated)", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinLabel: "",
+    });
+
+    start(ctx);
+    vi.mocked(ctx.isIdle).mockReturnValue(false); // busy
+    const editor = buildEditor(ui) as { render(w: number): string[] };
+    const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
+    // Step-0 (clear beat): leading space + 4 spaces, full trailing run.
+    expect(plain(editor.render(60)[1]!)).toContain(
+      "─" + " " + "    " + "─".repeat(50),
+    );
+    expect(plain(editor.render(60)[1]!)).not.toContain("Working");
   });
 });
 

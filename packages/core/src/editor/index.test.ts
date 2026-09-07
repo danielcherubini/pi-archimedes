@@ -66,8 +66,10 @@ import {
   SPIN_TICK_MS,
   SPIN_TYPE_START,
   SPIN_TYPE_CELLS,
-  SPIN_TYPE_LABEL,
 } from "./index.js";
+
+/** The default label (no `spinLabel` in the ctor options), including the leading space the renderer contributes. */
+const LABEL = " Working";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,10 @@ const stubTheme = {
 
 interface ConstructOpts {
   spin?: boolean;
+  /** Tick period in ms; maps the `editorSpinSpeed` setting onto the ctor. */
+  spinTickMs?: number;
+  /** Label typed after the window (empty hides it; unset → "Working"). */
+  spinLabel?: string;
   /** Values consumed one per isIdle() call (idle if no values left). */
   idleSeq?: boolean[];
   onSpinInterval?: (h: ReturnType<typeof setInterval> | undefined) => void;
@@ -103,6 +109,8 @@ function makeEditor(opts: ConstructOpts = {}): {
     isIdle: () => (seq.length > 0 ? (seq.shift() as boolean) : true),
     shutdown: vi.fn(),
     spin: opts.spin,
+    spinTickMs: opts.spinTickMs,
+    spinLabel: opts.spinLabel,
     onSpinInterval,
   } as any);
   createdEditors.push(editor);
@@ -122,9 +130,10 @@ const tick = (ed: HephaestusEditor): void => {
 const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
 
 // An editor that has been `step` busy ticks and reports busy to render.
-function busyAt(step: number): HephaestusEditor {
+function busyAt(step: number, opts: ConstructOpts = {}): HephaestusEditor {
   const { editor } = makeEditor({
     spin: true,
+    ...opts,
     idleSeq: Array.from({ length: step }, () => false),
   });
   for (let i = 0; i < step; i++) tick(editor);
@@ -153,11 +162,10 @@ const rowFirmsToDashes = (run: string, len: number): void => {
 // + label's 13 columns replaced trailing dashes, so the row width stays
 // constant.
 const compensatedAt60 = (run: string): void => {
-  const end =
-    SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length;
+  const end = SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length;
   const rest = run.slice(0, SPIN_TYPE_START) + run.slice(end);
   expect(rest).toBe(
-    "─".repeat(56 - 1 - SPIN_TYPE_CELLS - SPIN_TYPE_LABEL.length),
+    "─".repeat(56 - 1 - SPIN_TYPE_CELLS - LABEL.length),
   );
 };
 
@@ -270,19 +278,19 @@ describe("busy/idle repaint at the render level", () => {
     expect(
       cleared.slice(
         SPIN_TYPE_START,
-        SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length,
+        SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
       ),
     ).toBe( // `     Working` — the leading space + 4 clear spaces + the label
-      " " + "    " + SPIN_TYPE_LABEL,
+      " " + "    " + LABEL,
     );
     tick(editor); // back to step 1 — cell 1 enters at ⠁
     const regrown = borderRun(editor.render(60), 60);
     expect(
       regrown.slice(
         SPIN_TYPE_START,
-        SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length,
+        SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
       ),
-    ).toBe(" ⠁   " + SPIN_TYPE_LABEL); // `⠁    Working`
+    ).toBe(" ⠁   " + LABEL); // `⠁    Working`
     
   });
 });
@@ -299,31 +307,31 @@ describe("typing strip on the top border row", () => {
   const beat = (ed: HephaestusEditor): string =>
     borderRun(ed.render(60), 60).slice(
       SPIN_TYPE_START,
-      SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length,
+      SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
     );
 
   it("step 1: leading space, then only cell 1 is `⠁` (dot block starts to grow), ` Working` label follows", () => {
-    expect(beat(busyAt(1))).toBe(" ⠁   " + SPIN_TYPE_LABEL);
+    expect(beat(busyAt(1))).toBe(" ⠁   " + LABEL);
     rowFirmsToDashes(borderRun(busyAt(1).render(60), 60), 56);
     compensatedAt60(borderRun(busyAt(1).render(60), 60));
   });
 
   it("step 8 (line 1 complete): leading space, all 4 cells are `⠉`, label follows", () => {
     const ed = busyAt(8);
-    expect(beat(ed)).toBe(" ⠉⠉⠉⠉" + SPIN_TYPE_LABEL);
+    expect(beat(ed)).toBe(" ⠉⠉⠉⠉" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("step 32 (fully grown): leading space, all 4 cells are `⣿`, label follows", () => {
     const ed = busyAt(32);
-    expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + SPIN_TYPE_LABEL);
+    expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("hold region (step 37): leading space, full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
-    expect(beat(busyAt(37))).toBe(" ⣿⣿⣿⣿" + SPIN_TYPE_LABEL);
+    expect(beat(busyAt(37))).toBe(" ⣿⣿⣿⣿" + LABEL);
   });
 
   it("narrow width (14, inner 10): leading space at 1, window at start 1, no label, row dash-compensated", () => {
@@ -342,7 +350,7 @@ describe("typing strip on the top border row", () => {
     expect(run.slice(0, 1)).toBe("─");
     expect(run.slice(1, 2)).toBe(" ");
     expect(run.slice(2, 6)).toBe("⠛⠛⠛⠛");
-    expect(run.slice(6, 14)).toBe(SPIN_TYPE_LABEL); // ` Working` immediately after the window
+    expect(run.slice(6, 14)).toBe(LABEL); // ` Working` immediately after the window
     expect(run.slice(14)).toBe("─"); // trailing = 15 − 1 − 1 − 4 − 8 = 1
     rowFirmsToDashes(run, 15);
   });
@@ -362,6 +370,62 @@ describe("typing strip on the top border row", () => {
     }
     expect(run).not.toContain("Working");
   });
+
+  // ── Configurable label (archimedes.core.editorSpinLabel) ────────────────
+
+  it("custom label (\"Thinking\"): the wide beat ends in ` Thinking`, no ` Working` anywhere in the row", () => {
+    const ed = busyAt(1, { spinLabel: "Thinking" });
+    const run = borderRun(ed.render(60), 60);
+    expect(run).toContain(" Thinking");
+    expect(run).not.toContain("Working");
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 1)).toBe(
+      " ⠁   " + " Thinking",
+    );
+    // Compensated: trailing = 56 − 1 − 1 − 4 − 9 = 41 dashes
+    expect(run.slice(SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 1)).toBe("─".repeat(41));
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("custom label (\"Thinking\") survives the cycle: clear beat holds the label, regrowth keeps it (the spin machine is untouched by the label)", () => {
+    const { editor } = makeEditor({
+      spin: true,
+      spinLabel: "Thinking",
+      idleSeq: Array.from({ length: 40 }, () => false),
+    });
+    for (let i = 0; i < 37; i++) tick(editor);
+    (editor as any).isIdle = () => false;
+    tick(editor); // wraps to 0 — clear beat
+    expect(borderRun(editor.render(60), 60)).toContain(" Thinking");
+    tick(editor); // step 1
+    expect(borderRun(editor.render(60), 60)).toContain(" ⠁   " + " Thinking");
+    // Label drop-off on narrow boxes follows the same width tiers as the default label
+    const run14 = borderRun(editor.render(14), 14);
+    expect(run14).not.toContain("Thinking");
+  });
+
+  it("empty label (\"\"): no label text in any tier — wide (win + trailing dashes), narrow (window-only tier identical)", () => {
+    const wide = borderRun(busyAt(4, { spinLabel: "" }).render(60), 60);
+    expect(wide).not.toContain("Working");
+    expect(wide.slice(0, 1)).toBe("─");
+    expect(wide.slice(1, 2)).toBe(" ");
+    expect(wide.slice(2, 6)).toBe("⠉⠉  ");
+    expect(wide.slice(6)).toBe("─".repeat(50)); // trailing = 56 − 1 − 1 − 4 = 50
+    rowFirmsToDashes(wide, 56);
+    const narrow = borderRun(busyAt(4, { spinLabel: "" }).render(14), 14);
+    expect(narrow).not.toContain("Working");
+    expect(narrow.slice(6)).toBe("─".repeat(4)); // window-only tier, same as a narrow default-label box
+    rowFirmsToDashes(narrow, 10);
+  });
+
+  it("label longer than the inner width can host (60 chars at inner 56): window-only tier even at the wide width, no negative trailing — row width constant", () => {
+    const run = borderRun(busyAt(4, { spinLabel: "A".repeat(60) }).render(60), 60);
+    expect(run).not.toContain("A");
+    expect(run.slice(0, 1)).toBe("─");
+    expect(run.slice(1, 2)).toBe(" ");
+    expect(run.slice(2, 6)).toBe("⠉⠉  ");
+    expect(run.slice(6)).toBe("─".repeat(50));
+    rowFirmsToDashes(run, 56);
+  });
 });
 
 // ── 4. Timer lifecycle & gating ────────────────────────────────────────────
@@ -374,7 +438,7 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls.length).toBe(before);
   });
 
-  it("spin=true: one 80ms interval; onSpinInterval receives the handle", () => {
+  it("spin=true (default ctor): one 80ms interval; onSpinInterval receives the handle", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     expect(setSpy).toHaveBeenCalledTimes(1);
@@ -383,6 +447,13 @@ describe("timer lifecycle & gating", () => {
     const handle = onSpinInterval!.mock.calls[0]![0];
     expect(handle).not.toBeUndefined();
     expect(handle).toBe((editor as any).spinTimer);
+  });
+
+  it("explicit spinTickMs (160 — editorSpinSpeed \"slow\"): the interval period is the mapped value", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinTickMs: 160 });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(160);
   });
 
   it("dispose clears the interval and notifies onSpinInterval(undefined)", () => {
@@ -408,6 +479,13 @@ describe("timer lifecycle & gating", () => {
     vi.advanceTimersByTime(SPIN_TICK_MS);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
   });
+
+  it("fast tick (48ms — editorSpinSpeed \"fast\"): the mapped period drives the render", () => {
+    const { editor, tui } = makeEditor({ spin: true, spinTickMs: 48, idleSeq: [false] });
+    (editor as any).isIdle = () => false;
+    vi.advanceTimersByTime(48);
+    expect(tui.requestRender).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ── 5. EAW fallback (⣿ reports width 2 → stage set flips to shading) ──────
@@ -429,9 +507,9 @@ describe("EAW terminal fallback", () => {
         expect(
           run.slice(
             SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS,
-            SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length,
+            SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
           ),
-        ).toBe(SPIN_TYPE_LABEL);
+        ).toBe(LABEL);
         for (const c of braille) expect(run).not.toContain(c);
         rowFirmsToDashes(run, 56);
         compensatedAt60(run);

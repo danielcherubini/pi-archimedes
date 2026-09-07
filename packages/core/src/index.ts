@@ -8,7 +8,7 @@ import { renderHeader, patchStartupListing, type ListingRef } from "./startup/in
 import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
-import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, type CoreConfig } from "./config.js";
+import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, SPIN_SPEED_MS, type CoreConfig } from "./config.js";
 import { initBus } from "./bus.js";
 
 // Re-export for session lifecycle management
@@ -57,6 +57,19 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       description: "Type across the editor's top border while the agent is working (hides the “Working” line)",
       currentValue: config.editorSpinBorder ? "On" : "Off",
       values: ["On", "Off"],
+    },
+    {
+      id: "editorSpinSpeed",
+      label: "Spin Speed",
+      description: "Border spinner speed (slow 160 ms / normal 80 ms / fast 48 ms)",
+      currentValue: config.editorSpinSpeed[0]!.toUpperCase() + config.editorSpinSpeed.slice(1),
+      values: ["Slow", "Normal", "Fast"],
+    },
+    {
+      id: "editorSpinLabel",
+      label: "Spinner Label",
+      description: "Label typed after the spin window (empty hides it)",
+      currentValue: config.editorSpinLabel,
     },
   ];
 }
@@ -203,6 +216,8 @@ export function registerCore(pi: ExtensionAPI): void {
         isIdle: () => ctx.isIdle(),
         shutdown: () => ctx.shutdown(),
         spin: spinFlag,
+        spinTickMs: SPIN_SPEED_MS[config.editorSpinSpeed],
+        spinLabel: config.editorSpinLabel,
         onSpinInterval: (i) => { spinInterval = i; },
       });
     });
