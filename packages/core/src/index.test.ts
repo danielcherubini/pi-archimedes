@@ -279,6 +279,26 @@ describe("getCoreSettingsItems with hand-edited (corrupt) values", () => {
     expect(item).toBeTruthy();
     expect(item!.currentValue).toBe("Wave");
   });
+
+  it("a number editorSpinSpeed (corrupt — non-string) projects to \"Normal\" without throwing", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinSpeed: 2 as never,
+    });
+    const item = items.find((i) => i.id === "editorSpinSpeed");
+    expect(item).toBeTruthy();
+    expect(item!.currentValue).toBe("Normal");
+  });
+
+  it("a null editorSpinStyle (corrupt — non-string) projects to \"Typing\" without throwing", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinStyle: null as never,
+    });
+    const item = items.find((i) => i.id === "editorSpinStyle");
+    expect(item).toBeTruthy();
+    expect(item!.currentValue).toBe("Typing");
+  });
 });
 
 // ── 2. Off ──────────────────────────────────────────────────────────────

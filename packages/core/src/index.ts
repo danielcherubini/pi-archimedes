@@ -63,8 +63,14 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       label: "Spin Speed",
       description: "Border spinner speed (slow / normal / fast — the × 1.5 / × 1 / × 0.6 of the style's native tempo)",
       currentValue: (() => {
-        // Hand-edited (corrupt) values — an empty string — fall back to `normal` (the guard keeps the settings panel from TypeError-ing on a truncated setting).
-        const s = config.editorSpinSpeed || "normal";
+        // Hand-edited (corrupt) values — non-strings (null/number/boolean) or an
+        // empty string — fall back to `normal` (the `typeof` guard keeps the
+        // settings panel from TypeError-ing on a non-string setting; the
+        // falsy check keeps an empty string from projecting as a `NaN` label).
+        const s =
+          typeof config.editorSpinSpeed === "string" && config.editorSpinSpeed
+            ? config.editorSpinSpeed
+            : "normal";
         return s[0]!.toUpperCase() + s.slice(1);
       })(),
       values: ["Slow", "Normal", "Fast"],
@@ -73,11 +79,14 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       id: "editorSpinStyle",
       label: "Spin Style",
       description: "Which animation the editor border runs while working",
-      currentValue: config.editorSpinStyle
-        .split("-")
-        .filter(Boolean)
-        .map((w) => w[0]!.toUpperCase() + w.slice(1))
-        .join(" "),
+      currentValue:
+        typeof config.editorSpinStyle === "string"
+          ? config.editorSpinStyle
+              .split("-")
+              .filter(Boolean)
+              .map((w) => w[0]!.toUpperCase() + w.slice(1))
+              .join(" ")
+          : "Typing",
       values: [
         "Typing",
         "Wave Rows",

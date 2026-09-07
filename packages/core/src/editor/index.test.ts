@@ -454,6 +454,12 @@ describe("typing strip on the top border row", () => {
     expect(run.slice(5)).toBe("─".repeat(51));
     rowFirmsToDashes(run, 56);
   });
+
+  it("non-string label (corrupt config): the ctor falls back to \"Working\" (never throws in visibleWidth)", () => {
+    const ed = busyAt(4, { spinLabel: null as unknown as string });
+    const run = borderRun(ed.render(60), 60);
+    expect(run).toContain(LABEL);
+  });
 });
 
 // ── 4. Timer lifecycle & gating ────────────────────────────────────────────
@@ -534,7 +540,7 @@ describe("timer lifecycle & gating", () => {
 
   it("hand-edited speed string (out of the union, e.g. `turbo`): the multiplier resolves to ×1 (never a NaN hot timer)", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
-    makeEditor({ spin: true, spinSpeed: "tourbo" as any });
+    makeEditor({ spin: true, spinSpeed: "turbo" as any });
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(setSpy.mock.calls[0]![1]).toBe(80); // 80 × (undefined ?? 1)
   });

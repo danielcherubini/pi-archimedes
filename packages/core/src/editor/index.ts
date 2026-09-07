@@ -74,7 +74,7 @@ export class HephaestusEditor extends CustomEditor {
       spinSpeed?: CoreConfig["editorSpinSpeed"];
       /** The `editorSpinStyle` setting (raw setting strings tolerated; normalized — unknown names fall back to typing frames). */
       spinStyle?: SpinnerStyle | string;
-      /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. */
+      /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. Non-string values (corrupt config) fall back to "Working". */
       spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -89,7 +89,10 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
-    this.spinLabel = spinLabel;
+    // Non-string values (corrupt config) fall back to "Working" before `spinLabel` reaches `visibleWidth(label)`.
+    const safeSpinLabel =
+      typeof spinLabel === "string" ? spinLabel : "Working";
+    this.spinLabel = safeSpinLabel;
     this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle, spinStyle) : undefined;
     if (spin) {
       // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback).
