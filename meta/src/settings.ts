@@ -96,6 +96,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           case "codeUnindent": coreConfig.codeUnindent = newValue === "On"; break;
           case "editorSpinBorder": coreConfig.editorSpinBorder = newValue === "On"; break;
           case "editorSpinSpeed": coreConfig.editorSpinSpeed = newValue.toLowerCase() as CoreConfig["editorSpinSpeed"]; break;
+          case "editorSpinStyle": coreConfig.editorSpinStyle = newValue.toLowerCase().replace(/ /g, "-") as CoreConfig["editorSpinStyle"]; break;
           case "editorSpinLabel": coreConfig.editorSpinLabel = newValue; break;
           case "labelText": coreConfig.labelText = newValue; break;
           case "labelColor": coreConfig.labelColor = newValue; break;
