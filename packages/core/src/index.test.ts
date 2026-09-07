@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { SPIN_TICK_MS } from "./editor/index.js";
 
 // ── Mock surface ────────────────────────────────────────────────────────
 // Only seam that MUST be mocked: loadCoreConfig (drives the spin flag).
@@ -79,7 +78,7 @@ function buildEditor(ui: UiSpies): unknown {
   // the real pi-coding-agent `renderTopBorder` doesn't trip on an unset
   // base-class field when these tests render through the real editor.
   const editor = factory(
-    { terminal: { rows: 24 } },
+    { terminal: { rows: 24 }, requestRender: () => {} },
     { borderColor: (s: string) => s },
     {},
   );
@@ -118,9 +117,9 @@ let si: TimerSpy;
 let cl: TimerSpy;
 let constructed: unknown[];
 
-/** Count of timers registered with delay SPIN_TICK_MS (the spinner cadence). */
+/** Count of timers registered with delay 80 ms (the spinner cadence — the typing 80 ms native × the normal multiplier). */
 function spinTimerCount(): number {
-  return si.mock.calls.filter((c) => c[1] === SPIN_TICK_MS).length;
+  return si.mock.calls.filter((c) => c[1] === 80).length;
 }
 
 beforeEach(() => {
@@ -182,7 +181,7 @@ describe("editorSpinBorder = true (default)", () => {
     expect(cl.mock.calls.length).toBe(clearAfter);
   });
 
-  it("editorSpinSpeed = \"fast\": the editor's interval period is the mapped 48ms (SPIN_SPEED_MS)", () => {
+  it("editorSpinSpeed = \"fast\": the editor's interval period is 48 ms (the typing 80 ms native × 0.6)", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
       editorSpinSpeed: "fast",
@@ -194,7 +193,7 @@ describe("editorSpinBorder = true (default)", () => {
     expect(setCall[1]).toBe(48);
   });
 
-  it("editorSpinSpeed = \"slow\": the editor's interval period is the mapped 160ms (SPIN_SPEED_MS)", () => {
+  it("editorSpinSpeed = \"slow\": the editor's interval period is 120 ms (the typing 80 ms native × 1.5)", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
       editorSpinSpeed: "slow",
@@ -203,7 +202,27 @@ describe("editorSpinBorder = true (default)", () => {
     start(ctx);
     buildEditor(ui);
     const setCall = si.mock.calls.at(-1)!;
-    expect(setCall[1]).toBe(160);
+    expect(setCall[1]).toBe(120);
+  });
+
+  it("editorSpinStyle = \"rain\" → the factory pass-through: the editor's interval period is 40 × 1 (normal) = 40 (rain's native tempo) and the border shows typing frames (unported — normalized until batch 4)", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinStyle: "rain",
+    });
+    vi.mocked(ctx.isIdle).mockReturnValue(false); // busy
+
+    start(ctx);
+    buildEditor(ui);
+    const setCall = si.mock.calls.at(-1)!;
+    expect(setCall[1]).toBe(40); // 40 × 1 — not 80 (typing), so the style reached the editor
+
+    const editor = buildEditor(ui) as unknown as { tickSpin(): void; render(w: number): string[] };
+    editor.tickSpin(); // advance the border spinner to its first busy frame
+    const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
+    // Step 1 typing frame (the unported style normalizes to typing frames until its entry lands): the 4-cell window shows ⠁, with the default ` Working ` label still up
+    expect(plain(editor.render(60)[1]!)).toContain("⠁");
+    expect(plain(editor.render(60)[1]!)).toContain(" Working ");
   });
 
   it("editorSpinLabel = \"Thinking\" → the factory-built editor's busy border carries ` Thinking`, not ` Working`", () => {

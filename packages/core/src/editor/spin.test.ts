@@ -1,15 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { BorderTypeSpinner } from "./spin.js";
+import {
+  BorderTypeSpinner,
+  SPIN_INTERVALS,
+  SPIN_VARIANTS,
+  STAGE_MASKS,
+  normalizeSpinnerStyle,
+  shadeForMask,
+} from "./spin.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** A spinner whose isIdle() consumes `seq` one value per call (idle afterwards). */
-function spinner(seq: boolean[], probe: (s: string) => number): BorderTypeSpinner {
-  return new BorderTypeSpinner(() => (seq.length > 0 ? (seq.shift() as boolean) : true), probe);
+/** A spinner (the `typing` style, the one that ships in batch 1) whose isIdle() consumes `seq` one value per call (idle afterwards). */
+function spinner(
+  seq: boolean[],
+  probe: (s: string) => number,
+): BorderTypeSpinner {
+  return new BorderTypeSpinner(
+    () => (seq.length > 0 ? (seq.shift() as boolean) : true),
+    "typing",
+    probe,
+  );
 }
 
 /** A always-busy spinner: enough `false` isIdle values for `n` ticks. */
-function busyAt(seq: boolean[], probe: (s: string) => number, n: number): BorderTypeSpinner {
+function busyAt(
+  seq: boolean[],
+  probe: (s: string) => number,
+  n: number,
+): BorderTypeSpinner {
   const sp = spinner(seq, probe);
   for (let i = 0; i < n; i++) sp.tick();
   return sp;
@@ -204,5 +222,149 @@ describe("EAW terminal fallback (ctor probe)", () => {
       const f = sp.frame();
       for (const c of ["░", "▒", "▓", "█"]) expect(f).not.toContain(c);
     }
+  });
+});
+
+// ── 4. Style-selector architecture (batch 1: SPIN_INTERVALS, variants,
+// normalize, shade mapping, mask sets, typing compute round-trip) ────────
+
+describe("SPIN_INTERVALS (native per-tick ms from the source library)", () => {
+  it("is the exact ten-style map — the 32 ms tick floor is applied at the editor, not here", () => {
+    expect(SPIN_INTERVALS).toEqual({
+      typing: 80,
+      pulse: 60,
+      rain: 40,
+      cascade: 40,
+      columns: 40,
+      "wave-rows": 40,
+      "diagonal-swipe": 30,
+      sparkle: 40,
+      pendulum: 12,
+      marquee: 55,
+    });
+  });
+});
+
+describe("normalizeSpinnerStyle (library normalizeVariant fallback)", () => {
+  it("each registered variant name normalizes to itself", () => {
+    expect(normalizeSpinnerStyle("typing")).toBe("typing");
+  });
+
+  it("unregistered gallery styles (batches 2–4) and unknown strings normalize to typing", () => {
+    for (const s of ["wave-rows", "columns", "pulse", "marquee", "pendulum", "rain", "cascade", "diagonal-swipe", "sparkle", "nope", "", "Typing"]) {
+      expect(normalizeSpinnerStyle(s)).toBe("typing");
+    }
+  });
+});
+
+describe("shadeForMask (EAW density tier by popcount)", () => {
+  it("tier 0 (0 dots) → space", () => {
+    expect(shadeForMask(0)).toBe(" ");
+  });
+
+  it("tier 1–2 → ░ (e.g. mask 0x81 popcount 2)", () => {
+    expect(shadeForMask(0x01)).toBe("░");
+    expect(shadeForMask(0x81)).toBe("░");
+  });
+
+  it("tier 3–4 → ▒", () => {
+    expect(shadeForMask(0b111)).toBe("▒");
+    expect(shadeForMask(0b1111)).toBe("▒");
+  });
+
+  it("tier 5–6 → ▓", () => {
+    expect(shadeForMask(0b11111)).toBe("▓");
+    expect(shadeForMask(0b110111)).toBe("▓");
+  });
+
+  it("tier 7–8 → █ (e.g. the two extreme masks)", () => {
+    expect(shadeForMask(0b1111111)).toBe("█");
+    expect(shadeForMask(0xff)).toBe("█");
+  });
+
+  it("the 8 chart-order STAGE_MASKS query the tiers 1/2/3/4/5/6/7/8 (e.g. 0x0B popcount 3 → ▒) through the density mapping (the hypothetical port-mask set the EAW leg port-styles will use)", () => {
+    expect(STAGE_MASKS.map(shadeForMask)).toEqual([
+      "░", "░", "▒", "▒", "▓", "▓", "█", "█",
+    ]);
+  });
+});
+
+describe("STAGE_MASKS (the 8 chart-order masks)", () => {
+  const BRAILLE = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
+  const SHADE = ["░", "░", "░", "░", "▒", "▒", "▓", "█"];
+
+  it("char k = String.fromCharCode(0x2800 + mask) exactly reproduces the old braille stage set (8 non-empty chars, all SE-width-by-mask)", () => {
+    expect(STAGE_MASKS).toHaveLength(8);
+    for (let k = 0; k < 8; k++) {
+      const mask = STAGE_MASKS[k]!;
+      expect(String.fromCharCode(0x2800 + mask)).toBe(BRAILLE[k]);
+      expect(String.fromCharCode(0x2800 + mask)).not.toBe(" ");
+    }
+  });
+
+  it("the STAGE_SHADE lookup index covers all 8: mask → old shade char is the char at the same index (STAGE_MASKS.indexOf(m) covers 0–7)", () => {
+    for (let k = 0; k < 8; k++) {
+      const mask = STAGE_MASKS[k]!;
+      expect(STAGE_MASKS.indexOf(mask)).toBe(k);
+      expect(SHADE[STAGE_MASKS.indexOf(mask)]).toBe(SHADE[k]);
+    }
+  });
+
+  it("each mask is exactly 8-bit (0 ≤ m ≤ 0xff) and distinct", () => {
+    for (const m of STAGE_MASKS) {
+      expect(m).toBeGreaterThanOrEqual(0);
+      expect(m).toBeLessThanOrEqual(0xff);
+    }
+    expect(new Set(STAGE_MASKS).size).toBe(8);
+  });
+});
+
+describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
+  const typing = SPIN_VARIANTS.typing!;
+
+  it("is registered with steps 38, hold 6 (the 38-cycle machine)", () => {
+    expect(typing.steps).toBe(38);
+    expect(typing.hold).toBe(6);
+    expect(normalizeSpinnerStyle("typing")).toBe("typing");
+  });
+
+  it("compute returns 4 8-bit masks; the braille path renders byte-identical to the old frames (spot: step 1/8/16/17/24/32)", () => {
+    const render = (f: number): string =>
+      typing
+        .compute(f)
+        .map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m)))
+        .join("");
+    expect(render(0)).toBe("⠁   "); // fill step 1
+    expect(render(7)).toBe("⠉⠉⠉⠉"); // fill step 8
+    expect(render(15)).toBe("⠛⠛⠛⠛"); // fill step 16
+    expect(render(16)).toBe("⠟⠛⠛⠛"); // fill step 17
+    expect(render(23)).toBe("⠿⠿⠿⠿"); // fill step 24
+    expect(render(31)).toBe("⣿⣿⣿⣿"); // fill step 32
+  });
+
+  it("compute(15) (fill step 16) is all cell masks of the 4th chart-order stage (0x1B)", () => {
+    expect(typing.compute(15)).toEqual([0x1b, 0x1b, 0x1b, 0x1b]);
+  });
+
+  it("the EAW path (typing → STAGE_SHADE by STAGE_MASKS index) renders byte-identical to the old EAW frames via the live spinner: steps 1/8/16/17 (stage for ⠛ is the 4th → ░, NOT ▒)", () => {
+    const sp = busyAt(Array.from({ length: 17 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 1);
+    expect(sp.frame()).toBe("░   ");
+    const sp8 = busyAt(Array.from({ length: 8 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 8);
+    expect(sp8.frame()).toBe("░░░░");
+    const sp16 = busyAt(Array.from({ length: 16 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 16);
+    expect(sp16.frame()).toBe("░░░░");
+    const sp17 = busyAt(Array.from({ length: 17 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 17);
+    expect(sp17.frame()).toBe("▒░░░");
+  });
+
+  it("a not-yet-ported style name constructs as typing frames (the normalize fallback): after 16 busy ticks it renders the same typing frames", () => {
+    const sp = busyAt(Array.from({ length: 16 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 16);
+    const unported = new BorderTypeSpinner(
+      () => false,
+      "wave-rows",
+      (s: string) => (s === "⣿" ? 2 : 1),
+    );
+    for (let i = 0; i < 16; i++) unported.tick();
+    expect(unported.frame()).toBe(sp.frame()); // same typing frames
   });
 });

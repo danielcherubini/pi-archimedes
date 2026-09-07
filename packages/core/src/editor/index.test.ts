@@ -30,7 +30,8 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   // Minimal stand-in for pi's CustomEditor: mirrors the verified 0.85.1
   // behavior of reading `tui.terminal.rows` in render() and touching
   // `borderColor` (set from theme.borderColor in the ctor) so missing
-  // stubs fail fast.
+  // stubs fail fast. `getAgentDir` serves config.ts's module-scope
+  // settings path (the mock never reads or writes it).
   class CustomEditor {
     tui: TUI;
     borderColor: (s: string) => string;
@@ -58,12 +59,11 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
       ];
     }
   }
-  return { CustomEditor };
+  return { CustomEditor, getAgentDir: () => "/nonexistent-pi-agent-dir" };
 });
 
 import {
   HephaestusEditor,
-  SPIN_TICK_MS,
   SPIN_TYPE_START,
   SPIN_TYPE_CELLS,
 } from "./index.js";
@@ -79,8 +79,10 @@ const stubTheme = {
 
 interface ConstructOpts {
   spin?: boolean;
-  /** Tick period in ms; maps the `editorSpinSpeed` setting onto the ctor. */
-  spinTickMs?: number;
+  /** The `editorSpinSpeed` setting; × multiplies the style's native per-tick tempo (× 1.5 / × 1 / × 0.6), 32 ms tick floor. */
+  spinSpeed?: "slow" | "normal" | "fast";
+  /** The `editorSpinStyle` setting (raw setting string tolerated; an unported style normalizes to typing frames until batches 2–4 land). */
+  spinStyle?: string;
   /** Label typed after the window (empty hides it; unset → "Working"). */
   spinLabel?: string;
   /** Values consumed one per isIdle() call (idle if no values left). */
@@ -109,7 +111,8 @@ function makeEditor(opts: ConstructOpts = {}): {
     isIdle: () => (seq.length > 0 ? (seq.shift() as boolean) : true),
     shutdown: vi.fn(),
     spin: opts.spin,
-    spinTickMs: opts.spinTickMs,
+    spinSpeed: opts.spinSpeed,
+    spinStyle: opts.spinStyle,
     spinLabel: opts.spinLabel,
     onSpinInterval,
   } as any);
@@ -440,22 +443,36 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls.length).toBe(before);
   });
 
-  it("spin=true (default ctor): one 80ms interval; onSpinInterval receives the handle", () => {
+  it("spin=true (default ctor): one 80ms interval — the typing 80ms native tempo × the normal multiplier; onSpinInterval receives the handle", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(setSpy.mock.calls[0]![1]).toBe(SPIN_TICK_MS);
+    expect(setSpy.mock.calls[0]![1]).toBe(80); // 80 × 1
     expect(onSpinInterval).toHaveBeenCalledTimes(1);
     const handle = onSpinInterval!.mock.calls[0]![0];
     expect(handle).not.toBeUndefined();
     expect(handle).toBe((editor as any).spinTimer);
   });
 
-  it("explicit spinTickMs (160 — editorSpinSpeed \"slow\"): the interval period is the mapped value", () => {
+  it("spinSpeed \"slow\" (the typing 80 ms × 1.5): the interval period is the mapped 120ms", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
-    makeEditor({ spin: true, spinTickMs: 160 });
+    makeEditor({ spin: true, spinSpeed: "slow" });
     expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(setSpy.mock.calls[0]![1]).toBe(160);
+    expect(setSpy.mock.calls[0]![1]).toBe(120);
+  });
+
+  it("spinStyle \"wave-rows\" (not ported yet — batch 3): the frames normalize to typing in the border (⠁ at step 1)", () => {
+    const ed = busyAt(1, { spinStyle: "wave-rows" });
+    expect(borderRun(ed.render(60), 60)).toContain(
+      " ⠁   " + LABEL,
+    );
+  });
+
+  it("spinSpeed \"fast\" with style \"diagonal-swipe\" (30ms native): the period clamps at the 32ms tick floor (30 × 0.6 = 18 → 32)", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinSpeed: "fast", spinStyle: "diagonal-swipe" });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(32);
   });
 
   it("dispose clears the interval and notifies onSpinInterval(undefined)", () => {
@@ -478,12 +495,12 @@ describe("timer lifecycle & gating", () => {
   it("fake 80ms ticks drive render while the agent is busy", () => {
     const { editor, tui } = makeEditor({ spin: true, idleSeq: [false] });
     (editor as any).isIdle = () => false;
-    vi.advanceTimersByTime(SPIN_TICK_MS);
+    vi.advanceTimersByTime(80);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
   });
 
   it("fast tick (48ms — editorSpinSpeed \"fast\"): the mapped period drives the render", () => {
-    const { editor, tui } = makeEditor({ spin: true, spinTickMs: 48, idleSeq: [false] });
+    const { editor, tui } = makeEditor({ spin: true, spinSpeed: "fast", idleSeq: [false] });
     (editor as any).isIdle = () => false;
     vi.advanceTimersByTime(48);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);

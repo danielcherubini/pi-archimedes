@@ -32,6 +32,7 @@ describe("loadCoreConfig", () => {
       editorSpinBorder: true,
       editorSpinSpeed: "normal",
       editorSpinLabel: "Working",
+      editorSpinStyle: "typing",
     });
   });
 
@@ -71,12 +72,29 @@ describe("DEFAULT_CORE_CONFIG", () => {
       editorSpinBorder: true,
       editorSpinSpeed: "normal",
       editorSpinLabel: "Working",
+      editorSpinStyle: "typing",
     });
   });
 
-  it("exposes a speed→ms map (slow/normal/fast = 160/80/48)", async () => {
-    const { SPIN_SPEED_MS } = await import("./config.js");
-    expect(SPIN_SPEED_MS).toEqual({ slow: 160, normal: 80, fast: 48 });
+  it("exposes a speed→multiplier map (slow/normal/fast = 1.5/1/0.6 × native tempo)", async () => {
+    const { SPIN_SPEED_MULT } = await import("./config.js");
+    expect(SPIN_SPEED_MULT).toEqual({ slow: 1.5, normal: 1, fast: 0.6 });
+  });
+
+  it("exposes the SpinnerStyle union (ten gallery-derived styles)", async () => {
+    const { SPIN_INTERVALS } = await import("./editor/spin.js");
+    expect(Object.keys(SPIN_INTERVALS)).toEqual([
+      "typing",
+      "pulse",
+      "rain",
+      "cascade",
+      "columns",
+      "wave-rows",
+      "diagonal-swipe",
+      "sparkle",
+      "pendulum",
+      "marquee",
+    ]);
   });
 });
 

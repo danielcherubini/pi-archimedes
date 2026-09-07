@@ -8,7 +8,7 @@ import { renderHeader, patchStartupListing, type ListingRef } from "./startup/in
 import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
-import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, SPIN_SPEED_MS, type CoreConfig } from "./config.js";
+import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, type CoreConfig } from "./config.js";
 import { initBus } from "./bus.js";
 
 // Re-export for session lifecycle management
@@ -61,9 +61,30 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
     {
       id: "editorSpinSpeed",
       label: "Spin Speed",
-      description: "Border spinner speed (slow 160 ms / normal 80 ms / fast 48 ms)",
+      description: "Border spinner speed (slow / normal / fast — the × 1.5 / × 1 / × 0.6 of the style's native tempo)",
       currentValue: config.editorSpinSpeed[0]!.toUpperCase() + config.editorSpinSpeed.slice(1),
       values: ["Slow", "Normal", "Fast"],
+    },
+    {
+      id: "editorSpinStyle",
+      label: "Spin Style",
+      description: "Which animation the editor border runs while working",
+      currentValue: config.editorSpinStyle
+        .split("-")
+        .map((w) => w[0]!.toUpperCase() + w.slice(1))
+        .join(" "),
+      values: [
+        "Typing",
+        "Wave Rows",
+        "Columns",
+        "Pulse",
+        "Marquee",
+        "Pendulum",
+        "Rain",
+        "Cascade",
+        "Diagonal Swipe",
+        "Sparkle",
+      ],
     },
     {
       id: "editorSpinLabel",
@@ -216,7 +237,8 @@ export function registerCore(pi: ExtensionAPI): void {
         isIdle: () => ctx.isIdle(),
         shutdown: () => ctx.shutdown(),
         spin: spinFlag,
-        spinTickMs: SPIN_SPEED_MS[config.editorSpinSpeed],
+        spinSpeed: config.editorSpinSpeed,
+        spinStyle: config.editorSpinStyle,
         spinLabel: config.editorSpinLabel,
         onSpinInterval: (i) => { spinInterval = i; },
       });

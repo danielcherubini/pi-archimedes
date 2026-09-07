@@ -22,11 +22,11 @@ import {
   resolvePalette,
 } from "../chrome.js";
 import { isParentBorder, formatKey } from "../text.js";
-import { BorderTypeSpinner } from "./spin.js";
+import { SPIN_INTERVALS, BorderTypeSpinner } from "./spin.js";
+import { SPIN_SPEED_MULT, type CoreConfig, type SpinnerStyle } from "../config.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
 
-export const SPIN_TICK_MS = 80;
 /** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
 export const SPIN_TYPE_CELLS = BorderTypeSpinner.CELLS;
 /** Window start (in cells) inside the `┌───┐` border row, after `┌` — position 0, the block sits directly after the corner; the window's leading padding space is the first cell after it (`┌␠⠛⠛⠛⠛ …`). */
@@ -44,7 +44,7 @@ export class HephaestusEditor extends CustomEditor {
   private readonly spinEnabled: boolean;
   /** Label typed after the 4-cell window while busy (the `editorSpinLabel` setting): an empty string hides it. */
   private readonly spinLabel: string;
-  /** The border-row typing spinner (mechanism in `BorderTypeSpinner`): created only when `spin` is on — never when it is off, so the off path stays fully inert. */
+  /** The border-row spin spinner (mechanism in `BorderTypeSpinner`): the `spinStyle` (a not-yet-ported style normalizes to typing frames until batches 2–4 land) — created only when `spin` is on, so the off path stays fully inert. The tick period is the style's native tempo × the `spinSpeed` multiplier, 32 ms floor. */
   private readonly borderSpinner: BorderTypeSpinner | undefined;
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
@@ -60,17 +60,20 @@ export class HephaestusEditor extends CustomEditor {
       isIdle,
       shutdown,
       spin = false,
-      spinTickMs = SPIN_TICK_MS,
+      spinSpeed = "normal",
+      spinStyle = "typing",
       spinLabel = "Working",
       onSpinInterval,
     }: {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the style-configured 4-cell window (the gallery-derived styles in `SPIN_VARIANTS` — batch 1: the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █); a not-yet-ported style normalizes to typing frames until its `SPIN_VARIANTS` entry lands in batches 2–4). */
       spin?: boolean;
-      /** Tick period in ms; the speed setting maps onto it (default: `SPIN_TICK_MS` — `editorSpinSpeed` "normal"). */
-      spinTickMs?: number;
+      /** Tick period = the style's native per-tick tempo (`SPIN_INTERVALS[normalizeSpinnerStyle(spinStyle)]`) × the `editorSpinSpeed` multiplier (1.5 / 1 / 0.6), clamped at the 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32). */
+      spinSpeed?: CoreConfig["editorSpinSpeed"];
+      /** The `editorSpinStyle` setting (raw setting strings tolerated; normalized — unknown falls back to typing frames until batches 2–4 land). */
+      spinStyle?: SpinnerStyle | string;
       /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. */
       spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
@@ -87,8 +90,14 @@ export class HephaestusEditor extends CustomEditor {
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
     this.spinLabel = spinLabel;
-    this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle) : undefined;
+    this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle, spinStyle) : undefined;
     if (spin) {
+      // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback). Not-yet-ported names keep their registered native tempo — only the frames normalize to typing until their `SPIN_VARIANTS` entry lands in batches 2–4.
+      const nativeMs = SPIN_INTERVALS[spinStyle as SpinnerStyle];
+      const spinTickMs = Math.max(
+        32,
+        (nativeMs ?? SPIN_INTERVALS["typing"]) * SPIN_SPEED_MULT[spinSpeed],
+      );
       this.spinTimer = setInterval(() => this.tickSpin(), spinTickMs);
       this.onSpinInterval?.(this.spinTimer);
     }
