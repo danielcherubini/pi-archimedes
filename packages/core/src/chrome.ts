@@ -29,6 +29,7 @@ export interface PanePalette {
   panelEdge: string;
   frame(text: string): string;
   prefix(text: string): string;
+  spin(text: string): string;
   time(text: string): string;
   hint(text: string): string;
 }
@@ -80,6 +81,7 @@ export function resolvePalette(theme: Theme): PanePalette {
     panelEdge: bgToFgAnsi(panelBg),
     frame: (t) => safeThemeColor(theme, ["borderMuted", "border"], t),
     prefix: (t) => safeThemeColor(theme, ["borderMuted", "border"], t),
+    spin: (t) => safeThemeColor(theme, ["accent", "borderMuted"], t),
     time: (t) => safeThemeColor(theme, ["muted", "accent"], t),
     hint: (t) => safeThemeColor(theme, ["dim", "muted"], t),
   };

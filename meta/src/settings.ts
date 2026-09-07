@@ -26,6 +26,7 @@ import { createSettingsManager, type PromptDescriptor } from "./settings-manager
 
 const PROMPTS: Record<string, PromptDescriptor> = {
   labelText: { kind: "text", label: "Label text" },
+  editorSpinLabel: { kind: "text", label: "Spinner label" },
   labelColor: { kind: "text", label: "RGB color (e.g. 255,215,0)" },
   diffTheme: { kind: "text", label: "Shiki theme" },
   diffSplitMinWidth: { kind: "number", label: "Diff split min width", min: 100 },
@@ -93,6 +94,10 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           // ── Core settings ──
           case "mutedTheme": coreConfig.mutedTheme = newValue === "On"; break;
           case "codeUnindent": coreConfig.codeUnindent = newValue === "On"; break;
+          case "editorSpinBorder": coreConfig.editorSpinBorder = newValue === "On"; break;
+          case "editorSpinSpeed": coreConfig.editorSpinSpeed = newValue.toLowerCase() as CoreConfig["editorSpinSpeed"]; break;
+          case "editorSpinStyle": coreConfig.editorSpinStyle = newValue.toLowerCase().replace(/ /g, "-") as CoreConfig["editorSpinStyle"]; break;
+          case "editorSpinLabel": coreConfig.editorSpinLabel = newValue; break;
           case "labelText": coreConfig.labelText = newValue; break;
           case "labelColor": coreConfig.labelColor = newValue; break;
           case "animationStyle": coreConfig.animationStyle = newValue as CoreConfig["animationStyle"]; break;

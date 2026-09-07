@@ -35,20 +35,25 @@
 | 32 | [Plugin gate in each package's own namespace](done/plan-032-gate-in-package-namespace.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
 | 30 | [archimedes-sudo — safe privileged execution](done/plan-030-archimedes-sudo.md) | ✅ COMPLETED (PR #40) | 2026-08-28 |
 | 33 | [Pi 0.84.4 sync](done/plan-033-pi-0844-sync.md) | ✅ COMPLETED (PR #42, `30e2457`) | 2026-08-28 |
+| 34 | [Prompt-slot spinner (border spinner, 10 styles)](../adr/0014-prompt-slot-spinner.md) | ✅ COMPLETED (PR #48) | 2026-09-07 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
 > - [README overhaul (plan variant)](done/plan-005-readme-overhaul-plan.md) — supporting plan file, completed 2026-06-14.
 > - Plan-023 follow-up (deferred): Kitty keyboard-protocol CSI-u text decoding — pre-existing gap in both `/agents` search and `/archimedes` prompt/search input on CSI-u terminals (Kitty/Ghostty/WezTerm/iTerm2); consider a follow-up using pi-tui's `decodePrintableKey`.
 
+## In Progress
+
+| # | Plan | Status | Created |
+|---|------|--------|---------|
 ## Backlog
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 ## Quick Stats
 
-- Total Plans: 33
-- Completed: 33
+- Total Plans: 34
+- Completed: 34
 - In Progress: 0
 - Backlog: 0
 

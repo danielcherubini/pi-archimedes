@@ -19,7 +19,24 @@ export interface CoreConfig {
   labelText: string;
   labelColor: string;
   animationStyle: AnimationStyle;
+  editorSpinBorder: boolean;
+  editorSpinSpeed: "slow" | "normal" | "fast";
+  editorSpinLabel: string;
+  editorSpinStyle: SpinnerStyle;
 }
+
+/** Border-spinner style (the ten gallery-derived variants, all registered in `SPIN_VARIANTS` (`editor/spin.ts`); unknown values normalize to `typing` via `normalizeSpinnerStyle`). */
+export type SpinnerStyle =
+  | "typing"
+  | "pulse"
+  | "rain"
+  | "cascade"
+  | "columns"
+  | "wave-rows"
+  | "diagonal-swipe"
+  | "sparkle"
+  | "pendulum"
+  | "marquee";
 
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
   mutedTheme: false,
@@ -27,6 +44,17 @@ export const DEFAULT_CORE_CONFIG: CoreConfig = {
   labelText: "Thinking...",
   labelColor: "255,215,0",
   animationStyle: "vertical-up",
+  editorSpinBorder: true,
+  editorSpinSpeed: "normal",
+  editorSpinLabel: "Working",
+  editorSpinStyle: "pendulum",
+};
+
+/** Border-spinner speed setting → the multipliers the `editorSpinSpeed` setting applies to the style's native per-tick interval (SPIN_INTERVALS, `editor/spin.ts` — typing: 120 / 80 / 48 ms). */
+export const SPIN_SPEED_MULT: Record<CoreConfig["editorSpinSpeed"], number> = {
+  slow: 1.5,
+  normal: 1,
+  fast: 0.6,
 };
 
 const NAMESPACE = "archimedes.core";
