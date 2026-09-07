@@ -218,9 +218,8 @@ describe("editorSpinBorder = true (default)", () => {
     expect(setCall[1]).toBe(40); // 40 × 1 — not 80 (typing), so the style reached the editor
 
     const editor = buildEditor(ui) as unknown as { tickSpin(): void; render(w: number): string[] };
-    editor.tickSpin(); // advance the border spinner to its first busy frame
+    // hold-0 port styles run the full source loop: a never-ticked box is at step 0, so the border shows rain's real step-0 frame (the seeded drops — NOT the typing ⠁; NOT a blank beat)
     const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
-    // The step-0 rain frame (3 seeded drops, live-verified — NOT the typing ⠁): the 4-cell window shows ⠈⠠⠠, with the default ` Working ` label still up
     expect(plain(editor.render(60)[1]!)).toContain("⠈⠠⠠ Working");
     expect(plain(editor.render(60)[1]!)).not.toContain("⠁   Working"); // not the typing fallback
   });

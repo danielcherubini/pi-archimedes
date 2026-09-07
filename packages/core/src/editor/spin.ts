@@ -456,9 +456,12 @@ export class BorderTypeSpinner {
     return busy || wasBusy;
   }
 
-  /** The 4-cell window for the current step: step 0 is 4 spaces (the empty clear beat); the `steps − hold` fill steps walk the precomputed table; the hold tail clamps to the last (fully grown) frame. */
+  /** The 4-cell window for the current step: the blank clear beat applies only to beat styles (`hold > 0` — typing: step 0 is 4 spaces, hold tail clamps); `hold = 0` port styles run the full source loop over the precomputed table (step 0 → frames[0] — the real first frame; the last step → frames[steps − 1]). */
   frame(): string {
-    const idx = Math.min(this.step, this.cfg.steps - this.cfg.hold) - 1;
+    const idx =
+      this.cfg.hold > 0
+        ? Math.min(this.step, this.cfg.steps - this.cfg.hold) - 1
+        : this.step;
     if (idx < 0) return " ".repeat(BorderTypeSpinner.CELLS);
     return this.frames[idx]!;
   }

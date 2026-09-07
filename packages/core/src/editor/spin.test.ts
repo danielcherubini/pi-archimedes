@@ -146,6 +146,36 @@ describe("frame table (non-EAW braille set)", () => {
   });
 });
 
+describe("hold-0 port styles: the full source loop (no blank clear beat)", () => {
+  const renderMask = (masks: number[]): string =>
+    masks.map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m))).join("");
+  const wave = SPIN_VARIANTS["wave-rows"]!;
+
+  it("step 0 (never ticked) renders frames[0] — the real first frame, not a blank beat", () => {
+    const sp = new BorderTypeSpinner(() => false, "wave-rows", probe1);
+    expect(sp.frame()).toBe(renderMask(wave.compute(0)));
+  });
+
+  it("step 5 renders frames[5] (real mask, NOT blank)", () => {
+    const sp = new BorderTypeSpinner(() => false, "wave-rows", probe1);
+    for (let i = 0; i < 5; i++) sp.tick();
+    expect(sp.frame()).toBe(renderMask(wave.compute(5)));
+  });
+
+  it("the last step (steps − 1) renders frames[steps − 1] (previously unreachable)", () => {
+    const sp = new BorderTypeSpinner(() => false, "wave-rows", probe1);
+    for (let i = 0; i < wave.steps - 1; i++) sp.tick();
+    expect(sp.frame()).toBe(renderMask(wave.compute(wave.steps - 1)));
+  });
+
+  it("typing (hold > 0) keeps its blank beat: step 0 is 4 spaces, the wrap tick too", () => {
+    const sp = new BorderTypeSpinner(() => false, "typing", probe1);
+    expect(sp.frame()).toBe("    "); // step 0 — the blank beat
+    for (let i = 0; i < 38; i++) sp.tick(); // wraps to 0
+    expect(sp.frame()).toBe("    ");
+  });
+});
+
 // ── 2. Busy/idle tick state machine ─────────────────────────────────────────
 // idle→idle no repaint; idle→busy advances; busy→busy advances;
 // busy→idle resets + exactly one repaint; the machine re-arms after idle.
