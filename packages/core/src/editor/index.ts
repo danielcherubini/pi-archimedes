@@ -29,6 +29,10 @@ export const SPIN_TICK_MS = 80;
 export const SPIN_TYPE_CELLS = 4;
 export const SPIN_TYPE_HOLD = 6;
 export const SPIN_TYPE_CYCLE = SPIN_TYPE_CELLS + SPIN_TYPE_HOLD; // 10
+/** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
+export const SPIN_TYPE_START = 8;
+/** Lit-cell char: width-1, vertically centered, EAW-safe. */
+export const SPIN_LIT_CHAR = ":";
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -43,8 +47,6 @@ export class HephaestusEditor extends CustomEditor {
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
-  /** Lit-dot char for the top-edge typing strip (EAW fallback to "·"). */
-  private readonly spinLitChar: string;
   private typeStep = 0;
   private blinkOn = true;
   private wasBusy = false;
@@ -64,7 +66,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a lit-dot strip across the editor's top edge while the agent is busy. */
+      /** Type lit-colon dots into the editor's top border while the agent is busy. */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -79,7 +81,6 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
-    this.spinLitChar = visibleWidth("⠰") === 1 ? "⠰" : "·";
     if (spin) {
       this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
@@ -111,18 +112,16 @@ export class HephaestusEditor extends CustomEditor {
     this.wasBusy = busy;
   }
 
-  /** The 4-cell lit-dot typing strip for the top edge row. */
+  /** The 4-cell lit-dot window that replaces a segment of the `┌───┐` top border row. Unlit cells are `─` (the natural border char), lit cells a width-1 `:` via the spin (accent) palette. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     const s = this.typeStep;
     const filled = Math.min(s, SPIN_TYPE_CELLS);
     const cursor = Math.min(s, SPIN_TYPE_CELLS - 1);
-    let out = "";
-    for (let i = 0; i < SPIN_TYPE_CELLS; i++) {
+    return Array.from({ length: SPIN_TYPE_CELLS }, (_, i) => {
       const lit = i < filled || (i === cursor && this.blinkOn);
-      out += lit ? p.spin(this.spinLitChar) : "▁";
-    }
-    return out;
+      return lit ? p.spin(SPIN_LIT_CHAR) : p.frame("─");
+    }).join("");
   }
 
   // ── Quit hint ─────────────────────────────────────────────
@@ -216,8 +215,27 @@ export class HephaestusEditor extends CustomEditor {
           ),
       );
 
-      const topLine =
-        p.frame("┌") + p.frame("─".repeat(inner)) + p.frame("┐");
+      // Top border row: while busy, a 4-cell lit-dot window replaces a
+      // segment of the `─` border — 8 dashes in, shifted left on narrow
+      // boxes, plain when too narrow to fit.
+      const borderRun = (() => {
+        if (this.spinEnabled && !this.isIdle()) {
+          let start = SPIN_TYPE_START;
+          if (inner < start + SPIN_TYPE_CELLS + 2) {
+            start = Math.max(2, inner - SPIN_TYPE_CELLS - 2); // shrink window left for narrow boxes
+            if (inner < SPIN_TYPE_CELLS + 4) {
+              return p.frame("─".repeat(inner)); // too narrow → plain
+            }
+          }
+          return (
+            p.frame("─".repeat(start)) +
+            this.typeStrip() +
+            p.frame("─".repeat(inner - start - SPIN_TYPE_CELLS))
+          );
+        }
+        return p.frame("─".repeat(inner));
+      })();
+      const topLine = p.frame("┌") + borderRun + p.frame("┐");
       const botLine =
         p.frame("└") + p.frame("─".repeat(inner)) + p.frame("┘");
 
@@ -257,17 +275,7 @@ export class HephaestusEditor extends CustomEditor {
         return p.panelBg + pad + patched + pad + RESET;
       };
 
-      let topEdge = p.panelEdge + "▁".repeat(width) + RESET;
-      if (this.spinEnabled && !this.isIdle() && width >= SPIN_TYPE_CELLS + 2) {
-        const start = Math.floor((width - SPIN_TYPE_CELLS) / 2);
-        const seg = this.typeStrip();
-        topEdge =
-          p.panelEdge +
-          "▁".repeat(start) +
-          seg +
-          "▁".repeat(width - start - SPIN_TYPE_CELLS) +
-          RESET;
-      }
+      const topEdge = p.panelEdge + "▁".repeat(width) + RESET;
       const botEdge = p.panelEdge + "▔".repeat(width) + RESET;
 
       return [topEdge, ...raw.map(wrap), botEdge];

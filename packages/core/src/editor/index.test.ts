@@ -5,7 +5,6 @@ import {
   vi,
   beforeAll,
   afterAll,
-  beforeEach,
   afterEach,
 } from "vitest";
 import type {
@@ -16,13 +15,10 @@ import type { TUI, EditorTheme } from "@earendil-works/pi-tui";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-// Probe-driven width so the EAW fallback test can flip the answer.
-let widthProbe: (s: string) => number = () => 1;
-
 vi.mock("@earendil-works/pi-tui", () => ({
   truncateToWidth: (s: string, _w: number, _pad?: string, _incl?: boolean) => s,
   isKeyRelease: () => false,
-  visibleWidth: (s: string) => widthProbe(s),
+  visibleWidth: () => 1,
 }));
 
 vi.mock("@earendil-works/pi-coding-agent", () => {
@@ -63,8 +59,9 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
 import {
   HephaestusEditor,
   SPIN_TICK_MS,
-  SPIN_TYPE_CELLS,
   SPIN_TYPE_CYCLE,
+  SPIN_TYPE_START,
+  SPIN_TYPE_CELLS,
 } from "./index.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -130,14 +127,14 @@ function busyAt(step: number): HephaestusEditor {
   return editor;
 }
 
-// The 4-cell typing window on the first rendered line (the top edge).
-const topEdgeWindow = (lines: string[], width: number): string => {
-  const first = plain(lines[0]!);
-  const start = Math.floor((width - SPIN_TYPE_CELLS) / 2);
-  return first.slice(start, start + SPIN_TYPE_CELLS);
+// The `┌───┐` border row is the second rendered line (first is the plain
+// `▁` top edge, which is un-padded; wrapped raw lines carry one PAD_X space).
+// Strip pad + corners and SGR; width→inner = width - 4 (PAD_X = 1).
+const borderRun = (lines: string[], width: number): string => {
+  const top = plain(lines[1]!);
+  return top.slice(2, 2 + (width - 4));
 };
-const litCount = (window: string): number =>
-  [...window].filter((c) => c !== "▁").length;
+const litCount = (s: string): number => [...s].filter((c) => c === ":").length;
 
 // ── Setup / teardown ────────────────────────────────────────────────────────
 
@@ -147,10 +144,6 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.useRealTimers();
-});
-
-beforeEach(() => {
-  widthProbe = () => 1;
 });
 
 afterEach(() => {
@@ -254,36 +247,48 @@ describe("busy/idle typing state machine", () => {
   });
 });
 
-// ── 3. Typing strip on the top edge ─────────────────────────────────────
+// ── 3. Typing strip on the top border row ─────────────────────────────────────
 
-describe("typing strip on the top edge", () => {
-  it("s=1: one literal in the centered 4-cell window", () => {
-    const window = topEdgeWindow(busyAt(1).render(60), 60);
-    expect(window.length).toBe(SPIN_TYPE_CELLS);
-    expect(litCount(window)).toBe(1);
+describe("typing strip on the top border row", () => {
+  it("s=1: one lit `:` after ─×start, rest of the row is ─", () => {
+    const run = borderRun(busyAt(1).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe(":───");
+    expect(litCount(run)).toBe(1);
+    expect(run.replace(/:/g, "─")).toBe("─".repeat(56));
   });
 
-  it("s=4 (fill complete): four lit, the rest of the row is ▁", () => {
-    const editor = busyAt(4);
-    const lines = editor.render(60);
-    expect(litCount(topEdgeWindow(lines, 60))).toBe(4);
-    expect(plain(lines[0]!).replace(/[⠰·]/g, "▁")).toBe("▁".repeat(60));
+  it("s=4 (fill complete): four lit, the rest of the row is ─", () => {
+    const run = borderRun(busyAt(4).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("::::");
+    expect(litCount(run)).toBe(4);
+    expect(run.replace(/:/g, "─")).toBe("─".repeat(56));
   });
 
   it("hold region (s=6, s=9): all 4 still lit, cursor overlap included", () => {
-    expect(litCount(topEdgeWindow(busyAt(6).render(60), 60))).toBe(4);
-    expect(litCount(topEdgeWindow(busyAt(9).render(60), 60))).toBe(4);
+    expect(litCount(borderRun(busyAt(6).render(60), 60))).toBe(4);
+    expect(litCount(borderRun(busyAt(9).render(60), 60))).toBe(4);
   });
 
-  it("window is centered: everything outside it on the row is ▁", () => {
-    const first = plain(busyAt(4).render(60)[0]!);
-    const start = Math.floor((60 - SPIN_TYPE_CELLS) / 2);
-    expect(first.slice(0, start)).toBe("▁".repeat(start));
-    expect(first.slice(start + SPIN_TYPE_CELLS)).toBe("▁".repeat(60 - start - SPIN_TYPE_CELLS));
+  it("narrow-but-adequate width (15): window shifted left, rest is ─", () => {
+    // inner = 11 → start = max(2, 11 - 4 - 2) = 5
+    const run = borderRun(busyAt(4).render(15), 15);
+    expect(run.slice(5, 9)).toBe("::::");
+    expect(run.replace(/:/g, "─")).toBe("─".repeat(11));
   });
 
-  it("narrow width (below CELLS + 2): no window, edge stays plain", () => {
-    expect(plain(busyAt(4).render(5)[0]!)).toBe("▁".repeat(5));
+  it("narrowest adequate width (12, inner 8): window at start 2, no trailing run", () => {
+    const run = borderRun(busyAt(4).render(12), 12);
+    expect(run.slice(2, 6)).toBe("::::");
+    expect(run.replace(/:/g, "─")).toBe("─".repeat(8));
+  });
+
+  it("below the floor (width 11, inner < CELLS + 4): no window, plain border", () => {
+    expect(borderRun(busyAt(4).render(11), 11)).toBe("─".repeat(7));
+  });
+
+  it("idle: no `:` in the border row at all (spin on, never busy)", () => {
+    const { editor } = makeEditor({ spin: true });
+    expect(litCount(borderRun(editor.render(60), 60))).toBe(0);
   });
 });
 
@@ -333,23 +338,4 @@ describe("timer lifecycle & gating", () => {
   });
 });
 
-// ── 5. EAW width fallback ──────────────────────────────────────────────────
-
-describe("EAW width fallback", () => {
-  it("visibleWidth(\"⠰\") === 2 → lit char is \"·\", 4-cell window intact, no ⠰", () => {
-    widthProbe = (s: string) => (s === "⠰" ? 2 : 1);
-    const editor = busyAt(4);
-    expect((editor as any).spinLitChar).toBe("·");
-    const lines = editor.render(60);
-    expect(litCount(topEdgeWindow(lines, 60))).toBe(4);
-    expect(
-      [...topEdgeWindow(lines, 60)].every((c) => c === "·" || c === "▁"),
-    ).toBe(true);
-    expect(plain(lines[0]!).includes("⠰")).toBe(false);
-  });
-
-  it("default probe (width 1) → lit char is \"⠰\"", () => {
-    const editor = busyAt(4);
-    expect((editor as any).spinLitChar).toBe("⠰");
-  });
-});
+// ── (EAW width-fallback section removed: `:` is width-1, no probe) ──────
