@@ -139,7 +139,7 @@ afterEach(() => {
 
 // ── 1. Default (on) ────────────────────────────────────────────────────
 
-describe("editorSpinPrompt = true (default)", () => {
+describe("editorSpinBorder = true (default)", () => {
   it("session_start hides the Working line; the editor drives an 80ms timer stored onSpinInterval; shutdown restores and reaps", () => {
     vi.mocked(loadCoreConfig).mockReturnValue(DEFAULT_CORE_CONFIG);
 
@@ -178,11 +178,11 @@ describe("editorSpinPrompt = true (default)", () => {
 
 // ── 2. Off ──────────────────────────────────────────────────────────────
 
-describe("editorSpinPrompt = false", () => {
+describe("editorSpinBorder = false", () => {
   it("no timer; setWorkingVisible(true) (default); shutdown is inert; re-start re-applies the flag", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
-      editorSpinPrompt: false,
+      editorSpinBorder: false,
     });
 
     start(ctx);

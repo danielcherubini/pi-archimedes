@@ -52,10 +52,10 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       values: [...ANIMATION_STYLES],
     },
     {
-      id: "editorSpinPrompt",
-      label: "Editor Spin Prompt",
-      description: "Spin the > prompt while the agent is working (hides the “Working” line)",
-      currentValue: config.editorSpinPrompt ? "On" : "Off",
+      id: "editorSpinBorder",
+      label: "Editor Spin Border",
+      description: "Type across the editor's top border while the agent is working (hides the “Working” line)",
+      currentValue: config.editorSpinBorder ? "On" : "Off",
       values: ["On", "Off"],
     },
   ];
@@ -164,7 +164,7 @@ export function registerCore(pi: ExtensionAPI): void {
 
     // Spin-prompt flag (drives the editor self-timer + Working-line visibility)
     const config = loadCoreConfig();
-    spinFlag = config.editorSpinPrompt;
+    spinFlag = config.editorSpinBorder;
 
     // Set animated header
     coreRef = {
