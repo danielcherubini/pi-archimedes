@@ -44,7 +44,7 @@ export class HephaestusEditor extends CustomEditor {
   private readonly spinEnabled: boolean;
   /** Label typed after the 4-cell window while busy (the `editorSpinLabel` setting): an empty string hides it. */
   private readonly spinLabel: string;
-  /** The border-row spin spinner (mechanism in `BorderTypeSpinner`): the `spinStyle` (a not-yet-ported style normalizes to typing frames until batches 2–4 land) — created only when `spin` is on, so the off path stays fully inert. The tick period is the style's native tempo × the `spinSpeed` multiplier, 32 ms floor. */
+  /** The border-row spin spinner (mechanism in `BorderTypeSpinner`): the `spinStyle` (raw setting strings normalize — unknown names fall back to typing frames) — created only when `spin` is on, so the off path stays fully inert. The tick period is the style's native tempo × the `spinSpeed` multiplier, 32 ms floor. */
   private readonly borderSpinner: BorderTypeSpinner | undefined;
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
@@ -68,11 +68,11 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the style-configured 4-cell window (the gallery-derived styles in `SPIN_VARIANTS` — batch 1: the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █); a not-yet-ported style normalizes to typing frames until its `SPIN_VARIANTS` entry lands in batches 2–4). */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the style-configured 4-cell window (the gallery-derived styles in `SPIN_VARIANTS` — the 2×4 braille dot block (⠁ → ⣿, Unicode chart order, `typing`) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █; raw setting strings are tolerated — unknown names normalize to typing frames). */
       spin?: boolean;
       /** Tick period = the style's native per-tick tempo (`SPIN_INTERVALS[normalizeSpinnerStyle(spinStyle)]`) × the `editorSpinSpeed` multiplier (1.5 / 1 / 0.6), clamped at the 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32). */
       spinSpeed?: CoreConfig["editorSpinSpeed"];
-      /** The `editorSpinStyle` setting (raw setting strings tolerated; normalized — unknown falls back to typing frames until batches 2–4 land). */
+      /** The `editorSpinStyle` setting (raw setting strings tolerated; normalized — unknown names fall back to typing frames). */
       spinStyle?: SpinnerStyle | string;
       /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. */
       spinLabel?: string;

@@ -25,7 +25,7 @@ export interface CoreConfig {
   editorSpinStyle: SpinnerStyle;
 }
 
-/** Border-spinner style (the ten gallery-derived variants; `typing` ships, the other nine port in follow-up batches, and unknown values normalize to `typing` in the meantime). */
+/** Border-spinner style (the ten gallery-derived variants, all registered in `SPIN_VARIANTS` (`editor/spin.ts`); unknown values normalize to `typing` via `normalizeSpinnerStyle`). */
 export type SpinnerStyle =
   | "typing"
   | "pulse"

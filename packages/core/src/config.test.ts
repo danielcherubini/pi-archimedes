@@ -81,7 +81,7 @@ describe("DEFAULT_CORE_CONFIG", () => {
     expect(SPIN_SPEED_MULT).toEqual({ slow: 1.5, normal: 1, fast: 0.6 });
   });
 
-  it("exposes the SpinnerStyle union (ten gallery-derived styles)", async () => {
+  it("exposes the SPIN_INTERVALS key set (ten gallery-derived styles)", async () => {
     const { SPIN_INTERVALS } = await import("./editor/spin.js");
     expect(Object.keys(SPIN_INTERVALS)).toEqual([
       "typing",

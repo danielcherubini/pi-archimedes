@@ -51,14 +51,14 @@ const RAIN_COL_RANDOM: number[] = (() => {
   return Array.from({ length: 8 }, () => rand());
 })();
 
-/** One gallery-derived spin style: `steps` (tick cycle incl. hold — typing: 32 + 6 = 38), `hold` (the clamp tail after the fill walk), and `compute(step)`, which returns the 4 braille dot-masks (8-bit each) for the 4-cell window at `step` (0-based: 0 = the first fill tick after the clear beat; beyond `steps - hold` the frames clamp to the last one). */
+/** One gallery-derived spin style: `steps` (tick cycle incl. hold — typing: 32 + 6 = 38; a hold-0 port style walks the table over all `steps`), `hold` (the clamp tail after the fill walk), and `compute(step)`, which returns the 4 braille dot-masks (8-bit each) for the 4-cell window at `step` (0-based: a hold-0 style's step 0 is its real first frame; for hold > 0, 0 is the blank beat and beyond `steps - hold` the frames clamp to the last one). */
 export interface SpinStyleConfig {
   steps: number;
   hold: number;
   compute: (step: number) => number[];
 }
 
-/** The gallery-derived variants. Batch 1: `typing`; batch 2: `wave-rows`, `columns`, `pulse`, `marquee`; batch 3 (below): `pendulum`, `cascade`, `diagonal-swipe`; batch 4 (below): `rain`, `sparkle` — the full ten-style set; an unregistered / unknown name normalizes to typing (`normalizeSpinnerStyle`). */
+/** The gallery-derived variants — the full ten-style set (all registered); an unregistered / unknown name normalizes to typing (`normalizeSpinnerStyle`). */
 export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
   typing: {
     steps: 38,
