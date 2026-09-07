@@ -34,7 +34,7 @@ vi.mock("./thinking/patch.js", () => ({
   patchThinkingRenderer: vi.fn(),
 }));
 
-const { registerCore } = await import("./index.js");
+const { registerCore, getCoreSettingsItems } = await import("./index.js");
 const { loadCoreConfig, DEFAULT_CORE_CONFIG } = await import("./config.js");
 
 // ── Sparse spy handles (real casts strip the spy typing) ───────────────
@@ -255,6 +255,30 @@ describe("editorSpinBorder = true (default)", () => {
       " " + "    " + "─".repeat(51),
     );
     expect(plain(editor.render(60)[1]!)).not.toContain("Working");
+  });
+});
+
+// ── 2b. Corrupt (hand-edited) config robustness ────────────────────────────
+
+describe("getCoreSettingsItems with hand-edited (corrupt) values", () => {
+  it("an empty-string editorSpinSpeed (corrupt) projects to \"Normal\" without throwing", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinSpeed: "" as never,
+    });
+    const item = items.find((i) => i.id === "editorSpinSpeed");
+    expect(item).toBeTruthy();
+    expect(item!.currentValue).toBe("Normal");
+  });
+
+  it("a trailing-dash editorSpinStyle (empty split word) projects without throwing", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      editorSpinStyle: "wave-" as never,
+    });
+    const item = items.find((i) => i.id === "editorSpinStyle");
+    expect(item).toBeTruthy();
+    expect(item!.currentValue).toBe("Wave");
   });
 });
 

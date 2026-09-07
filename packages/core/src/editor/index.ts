@@ -92,11 +92,11 @@ export class HephaestusEditor extends CustomEditor {
     this.spinLabel = spinLabel;
     this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle, spinStyle) : undefined;
     if (spin) {
-      // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback). Not-yet-ported names keep their registered native tempo — only the frames normalize to typing until their `SPIN_VARIANTS` entry lands in batches 2–4.
+      // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback).
       const nativeMs = SPIN_INTERVALS[spinStyle as SpinnerStyle];
       const spinTickMs = Math.max(
         32,
-        (nativeMs ?? SPIN_INTERVALS["typing"]) * SPIN_SPEED_MULT[spinSpeed],
+        (nativeMs ?? SPIN_INTERVALS["typing"]) * (SPIN_SPEED_MULT[spinSpeed] ?? 1),
       );
       this.spinTimer = setInterval(() => this.tickSpin(), spinTickMs);
       this.onSpinInterval?.(this.spinTimer);

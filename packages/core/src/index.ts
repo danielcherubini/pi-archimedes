@@ -62,7 +62,11 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       id: "editorSpinSpeed",
       label: "Spin Speed",
       description: "Border spinner speed (slow / normal / fast — the × 1.5 / × 1 / × 0.6 of the style's native tempo)",
-      currentValue: config.editorSpinSpeed[0]!.toUpperCase() + config.editorSpinSpeed.slice(1),
+      currentValue: (() => {
+        // Hand-edited (corrupt) values — an empty string — fall back to `normal` (the guard keeps the settings panel from TypeError-ing on a truncated setting).
+        const s = config.editorSpinSpeed || "normal";
+        return s[0]!.toUpperCase() + s.slice(1);
+      })(),
       values: ["Slow", "Normal", "Fast"],
     },
     {
@@ -71,6 +75,7 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       description: "Which animation the editor border runs while working",
       currentValue: config.editorSpinStyle
         .split("-")
+        .filter(Boolean)
         .map((w) => w[0]!.toUpperCase() + w.slice(1))
         .join(" "),
       values: [

@@ -462,15 +462,17 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls[0]![1]).toBe(120);
   });
 
-  it("spinStyle \"wave-rows\" (ported — batch 2): the border shows the wave-rows step-0 window (⢦⣠⠞⠙), NOT the typing fallback (⠁)", () => {
-    const ed = busyAt(1, { spinStyle: "wave-rows" });
+  it("spinStyle \"wave-rows\" (ported — batch 2): a never-ticked busy box shows the wave-rows step-0 window (⢦⣠⠞⠙), NOT the typing fallback (⠁)", () => {
+    // hold-0 port styles run the full source loop: step 0 is the real first frame (no blank beat).
+    const { editor } = makeEditor({ spin: true, spinStyle: "wave-rows" });
+    (editor as any).isIdle = () => false;
     const wave0 = SPIN_VARIANTS["wave-rows"]!.compute(0);
     const cellStr = wave0
       .map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m)))
       .join("");
-    const run = borderRun(ed.render(60), 60);
+    const run = borderRun(editor.render(60), 60);
     expect(run).toContain(" " + cellStr + LABEL);
-    expect(run).not.toContain(" ⠁ " + LABEL); // not the typing fallback
+    expect(run).not.toContain(" ⠁ "); // not the typing fallback
   });
 
   it("spinStyle \"marquee\" + normal speed: the interval period is the marquee 55ms native tempo × the normal multiplier", () => {
