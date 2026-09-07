@@ -35,6 +35,7 @@
 | 32 | [Plugin gate in each package's own namespace](done/plan-032-gate-in-package-namespace.md) | ✅ COMPLETED (PR #39) | 2026-08-28 |
 | 30 | [archimedes-sudo — safe privileged execution](done/plan-030-archimedes-sudo.md) | ✅ COMPLETED (PR #40) | 2026-08-28 |
 | 33 | [Pi 0.84.4 sync](done/plan-033-pi-0844-sync.md) | ✅ COMPLETED (PR #42, `30e2457`) | 2026-08-28 |
+| 34 | [Prompt-slot spinner (border spinner, 10 styles)](../adr/0014-prompt-slot-spinner.md) | ✅ COMPLETED (PR #48) | 2026-09-07 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -45,10 +46,6 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| — | [Prompt-slot spinner (prompt-prefix "Working" indicator)](../roadmap/prompt-slot-spinner.md) | 📋 IN REVIEW (PR #48) | 2026-09-07 |
-
-> **Note:** this plan lives in `docs/roadmap/` rather than `docs/plans/plan-NNN-*` due to skill-driven file naming at creation time (the next `docs/plans` number would have been `034`); it is tracked here instead. Mark **COMPLETED** when the implementing PR merges. Decision: [ADR 0014](../adr/0014-prompt-slot-spinner.md).
-
 ## Backlog
 
 | # | Plan | Status | Created |
@@ -56,8 +53,8 @@
 ## Quick Stats
 
 - Total Plans: 34
-- Completed: 33
-- In Progress: 1
+- Completed: 34
+- In Progress: 0
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
