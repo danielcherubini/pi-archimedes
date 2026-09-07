@@ -297,7 +297,8 @@ No meta-specific user settings. Per-plugin on/off switches live in each package'
 | `labelText` | string | `Thinking...` | Custom prefix shown before thinking blocks |
 | `labelColor` | string | `255,215,0` | RGB color for the thinking label |
 | `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
-| `editorSpinSpeed` | string | `normal` | Border spinner speed (slow 160 ms / normal 80 ms / fast 48 ms) |
+| `editorSpinStyle` | string | `typing` | Which animation the editor border runs while working (ten gallery-derived styles; a not-yet-ported style shows typing frames until it lands) |
+| `editorSpinSpeed` | string | `normal` | Border spinner speed (slow / normal / fast — × 1.5 / × 1 / × 0.6 of the style's native tempo) |
 | `editorSpinLabel` | string | `Working` | Label typed after the spin window (empty hides it) |
 
 ### [`@pi-archimedes/footer`](packages/footer/README.md)
