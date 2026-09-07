@@ -26,11 +26,19 @@ import { isParentBorder, formatKey } from "../text.js";
 const DOUBLE_PRESS_WINDOW_MS = 500;
 
 export const SPIN_TICK_MS = 80;
+/** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
 export const SPIN_TYPE_CELLS = 4;
+/** Growth stages of the 2×4 braille dot block the window shows (⠁ → ⣿). */
+export const SPIN_TYPE_STAGES = 8;
 export const SPIN_TYPE_HOLD = 6;
-export const SPIN_TYPE_CYCLE = SPIN_TYPE_CELLS + SPIN_TYPE_HOLD; // 10
+export const SPIN_TYPE_CYCLE = SPIN_TYPE_STAGES + SPIN_TYPE_HOLD; // 14
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
 export const SPIN_TYPE_START = 6;
+
+/** Growing 2×4 braille dot block, Unicode braille-chart dot order (U+2801 → U+28FF). */
+const STAGE_BRAILLE = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
+/** Width-1 shading fallback for EAW terminals (⣿ reports visible width 2) — the same 8 stages. */
+const STAGE_SHADE = ["░", "░", "░", "░", "▒", "▒", "▓", "█"];
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -42,13 +50,12 @@ export class HephaestusEditor extends CustomEditor {
   private pendingQuitUntil = 0;
 
   private readonly spinEnabled: boolean;
-  /** Lit-cell char: 1-row braille dash; EAW terminals fall back to `:`. */
-  private readonly spinLitChar: string;
+  /** Stage set: growing 2×4 braille dot block (Unicode chart order); EAW terminals (⣿ width 2) fall back to the width-1 shading set ░→█. */
+  private readonly spinStageSet: readonly string[];
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
   private typeStep = 0;
-  private blinkOn = true;
   private wasBusy = false;
   private spinTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -66,7 +73,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: lit cells are the 1-row braille dash ("⠰", EAW falls back to `:`); the blank cells are plain spaces — the border line breaks. */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: the window grows a 2×4 braille dot block (⠁ → ⣿, Unicode chart order) over 8 stages, cloned across the 4 cells, holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -81,7 +88,7 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
-    this.spinLitChar = visibleWidth("⠰") === 1 ? "⠰" : ":";
+    this.spinStageSet = visibleWidth("⣿") === 1 ? STAGE_BRAILLE : STAGE_SHADE;
     if (spin) {
       this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
@@ -103,26 +110,22 @@ export class HephaestusEditor extends CustomEditor {
     const busy = !this.isIdle();
     if (busy) {
       this.typeStep = (this.typeStep + 1) % SPIN_TYPE_CYCLE;
-      this.blinkOn = !this.blinkOn;
       this.tui.requestRender();
     } else if (this.wasBusy) {
       this.typeStep = 0;
-      this.blinkOn = true;
       this.tui.requestRender();
     }
     this.wasBusy = busy;
   }
 
-  /** The 4-cell window that replaces a segment of the border; blank cells are spaces (the border line breaks) — plain " " (U+0020) — and lit cells are the 1-row braille dash `⠰` (EAW terminals fall back to `:`) via the spin (accent) palette. */
+  /** The 4-cell window that replaces a segment of the border: every cell clones the current stage of the growing 2×4 braille dot block (Unicode chart order; EAW: width-1 shading ░→█) via the spin (accent) palette, the empty clear stage is plain spaces (the border line breaks) — plain " " (U+0020). */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
-    const s = this.typeStep;
-    const filled = Math.min(s, SPIN_TYPE_CELLS);
-    const cursor = Math.min(s, SPIN_TYPE_CELLS - 1);
-    return Array.from({ length: SPIN_TYPE_CELLS }, (_, i) => {
-      const lit = i < filled || (i === cursor && this.blinkOn);
-      return lit ? p.spin(this.spinLitChar) : " ";
-    }).join("");
+    const n = Math.min(this.typeStep, SPIN_TYPE_STAGES);
+    const ch = n > 0 ? this.spinStageSet[n - 1]! : " ";
+    return Array.from({ length: SPIN_TYPE_CELLS }, () =>
+      ch === " " ? " " : p.spin(ch),
+    ).join("");
   }
 
   // ── Quit hint ─────────────────────────────────────────────
@@ -218,8 +221,10 @@ export class HephaestusEditor extends CustomEditor {
 
       // Top border row: while busy, a 4-cell window replaces a segment of
       // the `─` border — 6 dashes in, shifted left on narrow boxes, plain
-      // when too narrow to fit. Blank window cells are spaces (the border
-      // line breaks there).
+      // when too narrow to fit. The window grows a 2×4 braille dot block
+      // (⠁ → ⣿, Unicode chart order; EAW: shading ░ → █) over 8 stages,
+      // cloned across the 4 cells, then holds — on the empty clear stage
+      // the window cells are spaces (the border line breaks there).
       const borderRun = (() => {
         if (this.spinEnabled && !this.isIdle()) {
           let start = SPIN_TYPE_START; // 6

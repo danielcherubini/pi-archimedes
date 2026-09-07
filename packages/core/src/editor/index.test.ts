@@ -139,10 +139,12 @@ const borderRun = (lines: string[], width: number): string => {
   const top = plain(lines[1]!);
   return top.slice(2, 2 + (width - 4));
 };
-// Lit cells are `⠰` in the default (non-EAW) mock; the EAW flip test's
-// fallback uses `:`, so count both.
-const litCount = (s: string): number =>
-  [...s].filter((c) => c === "⠰" || c === ":").length;
+
+// Row shape: counting the window's cells (any char other than `─`, i.e.
+// stage chars or spaces) as cells, the whole row firms up to all dashes.
+const rowFirmsToDashes = (run: string, len: number): void => {
+  expect(run.replace(/[^─]/g, "─")).toBe("─".repeat(len));
+};
 
 // ── Setup / teardown ────────────────────────────────────────────────────────
 
@@ -162,15 +164,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ── 1. Static prefix (always >), plain edge while idle ──────────────────
+// ── 1. Static prefix, plain idle edge ──────────────────────────────────────
 
 describe("static prefix, plain idle edge", () => {
-  it("tickSpin is a no-op while idle: no render, typeStep stays 0, blink stays on", () => {
+  it("tickSpin is a no-op while idle: no render, typeStep stays 0", () => {
     const { editor, tui } = makeEditor({ spin: true });
     tick(editor);
     expect(tui.requestRender).not.toHaveBeenCalled();
     expect((editor as any).typeStep).toBe(0);
-    expect((editor as any).blinkOn).toBe(true);
   });
 
   it("renders the static > prefix while idle", () => {
@@ -200,7 +201,7 @@ describe("static prefix, plain idle edge", () => {
     expect(plain(prefixLine!).trimStart().startsWith("> ")).toBe(true);
   });
 
-  it("idle renders a plain edge row (no lit chars anywhere)", () => {
+  it("idle renders a plain edge row (no stage chars anywhere)", () => {
     const { editor } = makeEditor({ spin: true }); // never went busy
     const lines = editor.render(60);
     const first = plain(lines[0]!);
@@ -219,7 +220,7 @@ describe("static prefix, plain idle edge", () => {
   });
 });
 
-// ── 2. Busy typing state machine ────────────────────────────────────────
+// ── 2. Busy/idle typing state machine ──────────────────────────────────────
 
 describe("busy/idle typing state machine", () => {
   it("advances typeStep while busy, resets + repaints once on idle, then no-ops", () => {
@@ -228,17 +229,14 @@ describe("busy/idle typing state machine", () => {
 
     tick(editor); // busy #1
     expect((editor as any).typeStep).toBe(1);
-    expect((editor as any).blinkOn).toBe(false);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
 
     tick(editor); // busy #2
     expect((editor as any).typeStep).toBe(2);
-    expect((editor as any).blinkOn).toBe(true);
     expect(tui.requestRender).toHaveBeenCalledTimes(2);
 
     tick(editor); // idle after busy — reset + exactly one repaint
     expect((editor as any).typeStep).toBe(0);
-    expect((editor as any).blinkOn).toBe(true);
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
 
     tick(editor); // idle after idle — full no-op
@@ -246,50 +244,92 @@ describe("busy/idle typing state machine", () => {
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
   });
 
-  it("busy streak wraps at SPIN_TYPE_CYCLE (10)", () => {
-    const editor = busyAt(SPIN_TYPE_CYCLE - 1); // 9 toggling: s=1..9
+  it("busy streak wraps at SPIN_TYPE_CYCLE (14): clear beat is 4 spaces, then the block grows again", () => {
+    const editor = busyAt(SPIN_TYPE_CYCLE - 1); // 13 ticks: s=1..13
     expect((editor as any).typeStep).toBe(SPIN_TYPE_CYCLE - 1);
-    tick(editor); // wraps to 0
+    tick(editor); // wraps to 0 — the clear beat
     (editor as any).isIdle = () => false;
     expect((editor as any).typeStep).toBe(0);
+    const cleared = borderRun(editor.render(60), 60);
+    expect(
+      cleared.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS),
+    ).toBe("    ");
+    tick(editor); // back to stage 1
+    expect((editor as any).typeStep).toBe(1);
+    const regrown = borderRun(editor.render(60), 60);
+    expect(
+      regrown.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS),
+    ).toBe("⠁⠁⠁⠁");
   });
 });
 
 // ── 3. Typing strip on the top border row ─────────────────────────────────────
 
 describe("typing strip on the top border row", () => {
-  it("s=1: one lit `⠰` after ─×start, blank window cells are spaces (border break)", () => {
+  it("stage 1: all 4 cells clone `⠁` (block starts to grow)", () => {
     const run = borderRun(busyAt(1).render(60), 60);
-    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠰   ");
-    expect(litCount(run)).toBe(1);
-    // Row shape: dashes + window (⠰ / spaces) + dashes — counting the window's
-    // spaces as cells, the whole row firms up to all dashes
-    expect(run.replace(/[⠰: ]/g, "─")).toBe("─".repeat(56));
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠁⠁⠁⠁");
+    rowFirmsToDashes(run, 56);
   });
 
-  it("s=4 (fill complete): four lit, the rest of the row is ─", () => {
+  it("stage 2: all 4 cells clone `⠉`", () => {
+    const run = borderRun(busyAt(2).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠉⠉⠉⠉");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("stage 3: all 4 cells clone `⠋`", () => {
+    const run = borderRun(busyAt(3).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠋⠋⠋⠋");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("stage 4: all 4 cells clone `⠛`", () => {
     const run = borderRun(busyAt(4).render(60), 60);
-    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠰⠰⠰⠰");
-    expect(litCount(run)).toBe(4);
-    expect(run.replace(/[⠰: ]/g, "─")).toBe("─".repeat(56));
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠛⠛⠛⠛");
+    rowFirmsToDashes(run, 56);
   });
 
-  it("hold region (s=6, s=9): all 4 still lit, cursor overlap included", () => {
-    expect(litCount(borderRun(busyAt(6).render(60), 60))).toBe(4);
-    expect(litCount(borderRun(busyAt(9).render(60), 60))).toBe(4);
+  it("stage 5: all 4 cells clone `⠟`", () => {
+    const run = borderRun(busyAt(5).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠟⠟⠟⠟");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("stage 6: all 4 cells clone `⠿`", () => {
+    const run = borderRun(busyAt(6).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠿⠿⠿⠿");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("stage 7: all 4 cells clone `⡿`", () => {
+    const run = borderRun(busyAt(7).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⡿⡿⡿⡿");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("stage 8: all 4 cells clone `⣿` (block fully grown)", () => {
+    const run = borderRun(busyAt(8).render(60), 60);
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⣿⣿⣿⣿");
+    rowFirmsToDashes(run, 56);
+  });
+
+  it("hold region (s=9, s=13): full block holds — all 4 cells still `⣿`", () => {
+    expect(borderRun(busyAt(9).render(60), 60).slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⣿⣿⣿⣿");
+    expect(borderRun(busyAt(13).render(60), 60).slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⣿⣿⣿⣿");
   });
 
   it("narrow-but-adequate width (15): window shifted left, rest is ─", () => {
     // inner = 11 → start = max(2, 11 - 4 - 2) = 5
     const run = borderRun(busyAt(4).render(15), 15);
-    expect(run.slice(5, 9)).toBe("⠰⠰⠰⠰");
-    expect(run.replace(/[⠰: ]/g, "─")).toBe("─".repeat(11));
+    expect(run.slice(5, 9)).toBe("⠛⠛⠛⠛");
+    rowFirmsToDashes(run, 11);
   });
 
   it("narrowest adequate width (12, inner 8): window at start 2, no trailing run", () => {
     const run = borderRun(busyAt(4).render(12), 12);
-    expect(run.slice(2, 6)).toBe("⠰⠰⠰⠰");
-    expect(run.replace(/[⠰: ]/g, "─")).toBe("─".repeat(8));
+    expect(run.slice(2, 6)).toBe("⠛⠛⠛⠛");
+    rowFirmsToDashes(run, 8);
   });
 
   it("below the floor (width 11, inner < CELLS + 4): no window, plain border", () => {
@@ -349,26 +389,22 @@ describe("timer lifecycle & gating", () => {
   });
 });
 
-// ── 5. EAW fallback (⠰ reports width 2 → lit char flips to `:`) ───────────
+// ── 5. EAW fallback (⣿ reports width 2 → stage set flips to shading) ──────
 
 describe("EAW terminal fallback", () => {
-  it("⠰ reports width 2: the window uses `:` only, no `⠰` in the row, 4 cells wide", () => {
-    widthProbe.probe = (s: string) => (s === "⠰" ? 2 : 1);
+  it("⣿ reports width 2: the window uses the shade set (░→█), no braille in the row, 4 cells wide", () => {
+    const braille = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
+    widthProbe.probe = (s: string) => (s === "⣿" ? 2 : 1);
     try {
-      // Busy-tick windows (`:` = lit, space = unlit): the cursor cell blinks on
-      // tick parity and overlaps the filled run — s=1 ":   " (blink off),
-      // s=2 "::: " (2 filled + cursor lit), s=3 "::: " (blink off), s=4 "::::"
-      const expectWindow = (s: number, window: string, lit: number) => {
+      const expectWindow = (s: number, window: string) => {
         const run = borderRun(busyAt(s).render(60), 60);
         expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe(window);
-        expect(run).not.toContain("⠰");
-        expect(litCount(run)).toBe(lit);
-        expect(run.replace(/[⠰: ]/g, "─")).toBe("─".repeat(56));
+        for (const c of braille) expect(run).not.toContain(c);
+        rowFirmsToDashes(run, 56);
       };
-      expectWindow(1, ":   ", 1);
-      expectWindow(2, "::: ", 3);
-      expectWindow(3, "::: ", 3);
-      expectWindow(4, "::::", 4);
+      expectWindow(1, "░░░░");
+      expectWindow(5, "▒▒▒▒");
+      expectWindow(8, "████");
     } finally {
       widthProbe.probe = (_s: string) => 1;
     }
