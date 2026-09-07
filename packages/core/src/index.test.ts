@@ -231,9 +231,9 @@ describe("editorSpinBorder = true (default)", () => {
     vi.mocked(ctx.isIdle).mockReturnValue(false); // busy
     const editor = buildEditor(ui) as { render(w: number): string[] };
     const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
-    // Step-0 (clear beat): leading space + 4 spaces, full trailing run.
+    // Step-0 (clear beat): block at the corner — leading space at 0 + 4 spaces, full (51) trailing run.
     expect(plain(editor.render(60)[1]!)).toContain(
-      "─" + " " + "    " + "─".repeat(50),
+      " " + "    " + "─".repeat(51),
     );
     expect(plain(editor.render(60)[1]!)).not.toContain("Working");
   });

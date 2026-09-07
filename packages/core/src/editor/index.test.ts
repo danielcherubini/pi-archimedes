@@ -68,8 +68,8 @@ import {
   SPIN_TYPE_CELLS,
 } from "./index.js";
 
-/** The default label (no `spinLabel` in the ctor options), including the leading space the renderer contributes. */
-const LABEL = " Working";
+/** The default label (no `spinLabel` in the ctor options), including the leading AND trailing spaces the renderer contributes (`" " + label + " "`). */
+const LABEL = " Working ";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,22 +150,22 @@ const borderRun = (lines: string[], width: number): string => {
 };
 
 // Row shape: counting the window's cells (any char other than `─`, i.e.
-// stage chars, spaces, and the label chars of ` Working` when present)
+// stage chars, spaces, and the label chars of ` Working ` when present)
 // as cells, the whole row firms up to all dashes.
 const rowFirmsToDashes = (run: string, len: number): void => {
   expect(run.replace(/[^─]/g, "─")).toBe("─".repeat(len));
 };
 
-// Compensated width for a 60-wide box (inner = 56, leading space at 1, window
-// after it, ` Working` label right after the window): the row minus the
-// leading space, the window and the label is all hard `─` — the space + window
-// + label's 13 columns replaced trailing dashes, so the row width stays
-// constant.
+// Compensated width for a 60-wide box (inner = 56): the block sits at start 0
+// right at the corner (leading space at column 0, the 4-cell window at 1–4,
+// ` Working ` with its leading AND trailing space at 5–13): the row minus the
+// block's 14 columns is all hard `─` — those columns replaced trailing dashes,
+// so the row width stays constant.
 const compensatedAt60 = (run: string): void => {
-  const end = SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length;
+  const end = SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length; // 0 + 1 + 4 + 9 = 14
   const rest = run.slice(0, SPIN_TYPE_START) + run.slice(end);
   expect(rest).toBe(
-    "─".repeat(56 - 1 - SPIN_TYPE_CELLS - LABEL.length),
+    "─".repeat(56 - 1 - SPIN_TYPE_CELLS - LABEL.length), // 42
   );
 };
 
@@ -266,7 +266,7 @@ describe("busy/idle repaint at the render level", () => {
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
   });
 
-  it("busy streak wraps at the 38-step cycle: clear beat is 4 spaces + ` Working` (label stays up), then the block grows again", () => {
+  it("busy streak wraps at the 38-step cycle: clear beat is 4 spaces + ` Working ` (label stays up), then the block grows again", () => {
     // 40 busy values: 37 to reach step 37, then the wrap tick (→ 0, clear beat)
     // and the regrowth tick (→ step 1); the render decision uses the
     // overridden isIdle below, the tick machine uses the constructor sequence.
@@ -301,63 +301,67 @@ describe("busy/idle repaint at the render level", () => {
 // line 2 9–16, line 3 17–24, line 4 25–32, hold 33–37, clear at the wrap (0).
 
 describe("typing strip on the top border row", () => {
-  // 60-wide box (inner = 56 ≥ 15): the full beat = leading space + 4-cell
-  // window + ` Working` label, all replacing dashed segments of the `┌───┐`
-  // border row.
+  // 60-wide box (inner = 56): the full beat = leading space at 0 + 4-cell
+  // window + ` Working ` label (leading AND trailing space) when labelFit
+  // (16 for the default label) is met.
   const beat = (ed: HephaestusEditor): string =>
     borderRun(ed.render(60), 60).slice(
       SPIN_TYPE_START,
       SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
     );
 
-  it("step 1: leading space, then only cell 1 is `⠁` (dot block starts to grow), ` Working` label follows", () => {
+  it("step 1: leading space at 0, then only cell 1 is `⠁` (dot block starts to grow), ` Working ` label follows", () => {
     expect(beat(busyAt(1))).toBe(" ⠁   " + LABEL);
     rowFirmsToDashes(borderRun(busyAt(1).render(60), 60), 56);
     compensatedAt60(borderRun(busyAt(1).render(60), 60));
   });
 
-  it("step 8 (line 1 complete): leading space, all 4 cells are `⠉`, label follows", () => {
+  it("step 8 (line 1 complete): leading space at 0, all 4 cells are `⠉`, label follows", () => {
     const ed = busyAt(8);
     expect(beat(ed)).toBe(" ⠉⠉⠉⠉" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
-  it("step 32 (fully grown): leading space, all 4 cells are `⣿`, label follows", () => {
+  it("step 32 (fully grown): leading space at 0, all 4 cells are `⣿`, label follows", () => {
     const ed = busyAt(32);
     expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
-  it("hold region (step 37): leading space, full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
+  it("hold region (step 37): leading space at 0, full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
     expect(beat(busyAt(37))).toBe(" ⣿⣿⣿⣿" + LABEL);
   });
 
-  it("narrow width (14, inner 10): leading space at 1, window at start 1, no label, row dash-compensated", () => {
-    // inner = 10 → 8 ≤ 10 < 15: window-only tier at start 1; trailing = 10 − 1 − 1 − 4 = 4
+  it("narrow width (14, inner 10): block at the corner (leading space at 0), window at 1, no label, row dash-compensated", () => {
+    // inner = 10 → 7 ≤ 10 < 16: window-only tier at start 0; trailing = 10 − 1 − 4 = 5
     const run = borderRun(busyAt(4).render(14), 14);
-    expect(run.slice(0, 1)).toBe("─");
-    expect(run.slice(1, 2)).toBe(" ");
-    expect(run.slice(2, 6)).toBe("⠉⠉  ");
-    expect(run.slice(6)).toBe("─".repeat(4));
+    expect(run.slice(0, 1)).toBe(" ");
+    expect(run.slice(1, 5)).toBe("⠉⠉  ");
+    expect(run.slice(5)).toBe("─".repeat(5));
     expect(run).not.toContain("Working");
     rowFirmsToDashes(run, 10);
   });
 
-  it("label-fit width (19, inner 15): start 1 + cells 4 + label 8 + trailing margin 2 = 15 — verbatim beat ` ⠛⠛⠛⠛ Working`, one trailing dash", () => {
-    const run = borderRun(busyAt(16).render(19), 19);
-    expect(run.slice(0, 1)).toBe("─");
-    expect(run.slice(1, 2)).toBe(" ");
-    expect(run.slice(2, 6)).toBe("⠛⠛⠛⠛");
-    expect(run.slice(6, 14)).toBe(LABEL); // ` Working` immediately after the window
-    expect(run.slice(14)).toBe("─"); // trailing = 15 − 1 − 1 − 4 − 8 = 1
-    rowFirmsToDashes(run, 15);
+  it("label-fit tiers: window-only at inner 15 (19, 10 trailing dashes); label on at inner 16 (20 = L + 9) — verbatim beat ` ⠛⠛⠛⠛ Working ` with 2 trailing dashes", () => {
+    const run15 = borderRun(busyAt(16).render(19), 19);
+    expect(run15).not.toContain("Working"); // inner 15 < 16 → window-only tier
+    expect(run15.slice(0, 1)).toBe(" ");
+    expect(run15.slice(1, 5)).toBe("⠛⠛⠛⠛");
+    expect(run15.slice(5)).toBe("─".repeat(10)); // trailing = 15 − 1 − 4 = 10
+    rowFirmsToDashes(run15, 15);
+    const run = borderRun(busyAt(16).render(20), 20); // inner = 16 = 0 + 1 + 4 + (1 + 7 + 1) + 2 (labelFit for L = 7)
+    expect(run.slice(0, 1)).toBe(" ");
+    expect(run.slice(1, 5)).toBe("⠛⠛⠛⠛");
+    expect(run.slice(5, 14)).toBe(LABEL); // ` Working ` — leading AND trailing space
+    expect(run.slice(14)).toBe("─".repeat(2)); // trailing = 16 − 0 − 1 − 4 − (1 + 7 + 1) = 2
+    rowFirmsToDashes(run, 16);
   });
 
-  it("below the floor (width 11, inner < CELLS + 4): no window, no label, plain border", () => {
-    const run = borderRun(busyAt(4).render(11), 11);
-    expect(run).toBe("─".repeat(7));
+  it("below the floor (width 10, inner 6): no window, no label, plain border", () => {
+    const run = borderRun(busyAt(4).render(10), 10);
+    expect(run).toBe("─".repeat(6));
     expect(run).not.toContain("Working");
   });
 
@@ -373,16 +377,16 @@ describe("typing strip on the top border row", () => {
 
   // ── Configurable label (archimedes.core.editorSpinLabel) ────────────────
 
-  it("custom label (\"Thinking\"): the wide beat ends in ` Thinking`, no ` Working` anywhere in the row", () => {
+  it("custom label (\"Thinking\"): the wide beat ends in ` Thinking ` (leading AND trailing space), no ` Working ` anywhere in the row", () => {
     const ed = busyAt(1, { spinLabel: "Thinking" });
     const run = borderRun(ed.render(60), 60);
-    expect(run).toContain(" Thinking");
+    expect(run).toContain(" Thinking ");
     expect(run).not.toContain("Working");
-    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 1)).toBe(
-      " ⠁   " + " Thinking",
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 2)).toBe(
+      " ⠁   " + " Thinking ",
     );
-    // Compensated: trailing = 56 − 1 − 1 − 4 − 9 = 41 dashes
-    expect(run.slice(SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 1)).toBe("─".repeat(41));
+    // Compensated: trailing = 56 − 0 − 1 − 4 − (1 + 8 + 1) = 41 dashes
+    expect(run.slice(SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + "Thinking".length + 2)).toBe("─".repeat(41));
     rowFirmsToDashes(run, 56);
   });
 
@@ -397,8 +401,8 @@ describe("typing strip on the top border row", () => {
     tick(editor); // wraps to 0 — clear beat
     expect(borderRun(editor.render(60), 60)).toContain(" Thinking");
     tick(editor); // step 1
-    expect(borderRun(editor.render(60), 60)).toContain(" ⠁   " + " Thinking");
-    // Label drop-off on narrow boxes follows the same width tiers as the default label
+    expect(borderRun(editor.render(60), 60)).toContain(" ⠁   " + " Thinking ");
+    // Label drop-off on narrow boxes follows the same width tiers as the default label (labelFit = 8 + 9 = 17 > 10)
     const run14 = borderRun(editor.render(14), 14);
     expect(run14).not.toContain("Thinking");
   });
@@ -406,24 +410,22 @@ describe("typing strip on the top border row", () => {
   it("empty label (\"\"): no label text in any tier — wide (win + trailing dashes), narrow (window-only tier identical)", () => {
     const wide = borderRun(busyAt(4, { spinLabel: "" }).render(60), 60);
     expect(wide).not.toContain("Working");
-    expect(wide.slice(0, 1)).toBe("─");
-    expect(wide.slice(1, 2)).toBe(" ");
-    expect(wide.slice(2, 6)).toBe("⠉⠉  ");
-    expect(wide.slice(6)).toBe("─".repeat(50)); // trailing = 56 − 1 − 1 − 4 = 50
+    expect(wide.slice(0, 1)).toBe(" ");
+    expect(wide.slice(1, 5)).toBe("⠉⠉  ");
+    expect(wide.slice(5)).toBe("─".repeat(51)); // trailing = 56 − 1 − 4 = 51
     rowFirmsToDashes(wide, 56);
     const narrow = borderRun(busyAt(4, { spinLabel: "" }).render(14), 14);
     expect(narrow).not.toContain("Working");
-    expect(narrow.slice(6)).toBe("─".repeat(4)); // window-only tier, same as a narrow default-label box
+    expect(narrow.slice(5)).toBe("─".repeat(5)); // window-only tier (inner 10), same as a narrow default-label box
     rowFirmsToDashes(narrow, 10);
   });
 
-  it("label longer than the inner width can host (60 chars at inner 56): window-only tier even at the wide width, no negative trailing — row width constant", () => {
+  it("label longer than the inner width can host (60 chars at inner 56, labelFit = 60 + 9 = 69 > 56): window-only tier even at the wide width, no negative trailing — row width constant", () => {
     const run = borderRun(busyAt(4, { spinLabel: "A".repeat(60) }).render(60), 60);
     expect(run).not.toContain("A");
-    expect(run.slice(0, 1)).toBe("─");
-    expect(run.slice(1, 2)).toBe(" ");
-    expect(run.slice(2, 6)).toBe("⠉⠉  ");
-    expect(run.slice(6)).toBe("─".repeat(50));
+    expect(run.slice(0, 1)).toBe(" ");
+    expect(run.slice(1, 5)).toBe("⠉⠉  ");
+    expect(run.slice(5)).toBe("─".repeat(51));
     rowFirmsToDashes(run, 56);
   });
 });
@@ -491,7 +493,7 @@ describe("timer lifecycle & gating", () => {
 // ── 5. EAW fallback (⣿ reports width 2 → stage set flips to shading) ──────
 
 describe("EAW terminal fallback", () => {
-  it("⣿ reports width 2: the window uses the shade set (░→█) in the same cell-wise order, no braille in the row, the ` Working` label stays (ASCII-safe)", () => {
+  it("⣿ reports width 2: the window uses the shade set (░→█) in the same cell-wise order, no braille in the row, the ` Working ` label stays (ASCII-safe)", () => {
     const braille = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
     widthProbe.probe = (s: string) => (s === "⣿" ? 2 : 1);
     try {

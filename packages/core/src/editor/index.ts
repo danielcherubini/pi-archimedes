@@ -29,8 +29,8 @@ const DOUBLE_PRESS_WINDOW_MS = 500;
 export const SPIN_TICK_MS = 80;
 /** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
 export const SPIN_TYPE_CELLS = BorderTypeSpinner.CELLS;
-/** Window start (in cells) inside the `┌───┐` border row, after `┌` — position 1, immediately after the corner dash (`┌─␠⠛⠛⠛⠛ …`). */
-export const SPIN_TYPE_START = 1;
+/** Window start (in cells) inside the `┌───┐` border row, after `┌` — position 0, the block sits directly after the corner; the window's leading padding space is the first cell after it (`┌␠⠛⠛⠛⠛ …`). */
+export const SPIN_TYPE_START = 0;
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -111,7 +111,7 @@ export class HephaestusEditor extends CustomEditor {
     }
   }
 
-  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after the dash run (left padding lived in the border run; the label's own leading space — ` " + spinLabel` — provides the right-hand padding). */
+  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after `┌` at start 0 (right at the corner), and the label follows it typed as `" " + spinLabel + " "` — its own leading and trailing spaces, with the trailing one providing the margin to the trailing dashes. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     if (!this.borderSpinner) return " ".repeat(SPIN_TYPE_CELLS);
@@ -211,23 +211,29 @@ export class HephaestusEditor extends CustomEditor {
           ),
       );
 
-      // Top border row: while busy, a 4-cell window at start 1 replaces a
-      // segment of the `─` border — 1 dash in, then one leading space (left
-      // padding), then the window; the config label (`editorSpinLabel`,
-      // default "Working") right after the window when the box is wide
-      // enough (inner >= start 1 + cells 4 + label.length + 2; empty label
-      // or too-narrow box → window only, not standalone), plain when too
-      // narrow to fit (inner < 8). The window fills cell-by-cell left→right,
-      // each cell walking the 8 chart-order stages in 2-step line pairs
-      // (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4 dot
-      // block grows across the window line by line, followed by the label
-      // (shown when the box hosts it; over-long labels never sink the row —
-      // Math.max keeps the trailing ≥ 0 and the window-only tier handles
-      // them), then holds — on the empty clear step (step 38) the window
-      // cells are spaces and the label stays up (the border line breaks
-      // there); the space + window + label's columns replace trailing
-      // dashes, so the row width stays constant (the trailing run is
-      // shortened by the one leading space).
+      // Top border row: while busy, a 4-cell window at start 0 replaces a
+      // segment of the `─` border and the block sits directly after `┌` —
+      // the window's leading padding space is the first cell after the
+      // corner, then the window; the config label (`editorSpinLabel`,
+      // default "Working") follows the window typed as `Working ` — one
+      // space before AND after the label — when the box is wide enough
+      // (inner >= 0 + 1 + 4 + 1 + label.length + 1 + 2 = label.length + 9,
+      // a margin of 2 after the trailing space; empty label or too-narrow
+      // box → window only, not standalone), plain when too narrow to fit
+      // (inner < 7, the minimum busy row is start 0 + 1 leading space +
+      // 4 cells + 2 trailing margin). The window fills cell-by-cell
+      // left→right, each cell walking the 8 chart-order stages in 2-step
+      // line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so
+      // the 2×4 dot block grows across the window line by line, followed
+      // by the label (shown when the box hosts it; over-long labels never
+      // sink the row — Math.max keeps the trailing ≥ 0 and the
+      // window-only tier handles them), then holds — on the empty clear
+      // step (step 38) the window cells are spaces and the label stays
+      // up (the border line breaks there); the leading space + window +
+      // label's columns replace trailing dashes, so the row width stays
+      // constant (the trailing run shortens accordingly: inner − 0 − 1 −
+      // 4 − (1 + label.length + 1) when the label shows, inner − 1 − 4
+      // otherwise).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
         const label = this.spinLabel;
@@ -235,20 +241,21 @@ export class HephaestusEditor extends CustomEditor {
           busy &&
           label !== "" &&
           inner >=
-            SPIN_TYPE_START + SPIN_TYPE_CELLS + label.length + 2; // labelFit = 1 + 4 + label.length + 2
-        if (!busy || inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain (no window, no label)
+            SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + 1 + label.length + 1 + 2; // labelFit = 0 + 1 (left padding) + 4 (window) + (" " + label + " " = 1 + label.length + 1) + 2 (trailing margin) = label.length + 9
+        if (!busy || inner < SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + 2) { // inner < 7 → plain (no window, no label)
           return p.frame("─".repeat(inner));
         }
-        const start = SPIN_TYPE_START; // 1 — the window sits at start 1 whenever it shows
-        // Label cost = its own leading space + the label itself; the
-        // Math.max floor means an over-long label can never sink the
-        // trailing below zero (those boxes degraded to window-only above).
-        const labelCost = labelShown ? 1 + label.length : 0;
+        const start = SPIN_TYPE_START; // 0 — the block sits directly after `┌` whenever it shows
+        // Label cost = its own leading space + the label + its own trailing
+        // space; the Math.max floor means an over-long label can never
+        // sink the trailing below zero (those boxes degraded to
+        // window-only above).
+        const labelCost = labelShown ? 1 + label.length + 1 : 0;
         return (
           p.frame("─".repeat(start)) +
           " " +
           this.typeStrip() +
-          (labelShown ? p.time(" " + label) : "") +
+          (labelShown ? p.time(" " + label + " ") : "") +
           p.frame(
             "─".repeat(
               Math.max(0, inner - start - 1 - SPIN_TYPE_CELLS - labelCost),
