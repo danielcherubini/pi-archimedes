@@ -64,7 +64,6 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
 import {
   HephaestusEditor,
   SPIN_TICK_MS,
-  SPIN_TYPE_CYCLE,
   SPIN_TYPE_START,
   SPIN_TYPE_CELLS,
   SPIN_TYPE_LABEL,
@@ -182,11 +181,10 @@ afterEach(() => {
 // ── 1. Static prefix, plain idle edge ──────────────────────────────────────
 
 describe("static prefix, plain idle edge", () => {
-  it("tickSpin is a no-op while idle: no render, typeStep stays 0", () => {
+  it("tickSpin is a no-op while idle: no render", () => {
     const { editor, tui } = makeEditor({ spin: true });
     tick(editor);
     expect(tui.requestRender).not.toHaveBeenCalled();
-    expect((editor as any).typeStep).toBe(0);
   });
 
   it("renders the static > prefix while idle", () => {
@@ -235,36 +233,38 @@ describe("static prefix, plain idle edge", () => {
   });
 });
 
-// ── 2. Busy/idle typing state machine ──────────────────────────────────────
+// ── 2. Busy/idle repaint at the render level ───────────────────────────────
+// (the tick state machine itself — advance, wrap, reset, repaint counts,
+// and the full frame table — is tested against BorderTypeSpinner in
+// spin.test.ts; here the edge is the plain-border repaint, which the
+// typing strip must NOT freeze on screen — an idle→no-op would.)
 
-describe("busy/idle typing state machine", () => {
-  it("advances typeStep while busy, resets + repaints once on idle, then no-ops", () => {
+describe("busy/idle repaint at the render level", () => {
+  it("busy→idle: the plain border repaints exactly once, then idle ticks are no-ops", () => {
     // isIdle() returns false, false, true, true across the four ticks
     const { editor, tui } = makeEditor({ spin: true, idleSeq: [false, false, true, true] });
 
     tick(editor); // busy #1
-    expect((editor as any).typeStep).toBe(1);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
 
     tick(editor); // busy #2
-    expect((editor as any).typeStep).toBe(2);
     expect(tui.requestRender).toHaveBeenCalledTimes(2);
 
     tick(editor); // idle after busy — reset + exactly one repaint
-    expect((editor as any).typeStep).toBe(0);
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
 
     tick(editor); // idle after idle — full no-op
-    expect((editor as any).typeStep).toBe(0);
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
   });
 
-  it("busy streak wraps at SPIN_TYPE_CYCLE (38): clear beat is 4 spaces + ` Working` (label stays up), then the block grows again", () => {
-    const editor = busyAt(SPIN_TYPE_CYCLE - 1); // 37 ticks: s=1..37
-    expect((editor as any).typeStep).toBe(SPIN_TYPE_CYCLE - 1);
-    tick(editor); // wraps to 0 — the clear beat
+  it("busy streak wraps at the 38-step cycle: clear beat is 4 spaces + ` Working` (label stays up), then the block grows again", () => {
+    // 40 busy values: 37 to reach step 37, then the wrap tick (→ 0, clear beat)
+    // and the regrowth tick (→ step 1); the render decision uses the
+    // overridden isIdle below, the tick machine uses the constructor sequence.
+    const { editor } = makeEditor({ spin: true, idleSeq: Array.from({ length: 40 }, () => false) });
+    for (let i = 0; i < 37; i++) tick(editor); // s=1..37
     (editor as any).isIdle = () => false;
-    expect((editor as any).typeStep).toBe(0);
+    tick(editor); // wraps to 0 — the clear beat
     const cleared = borderRun(editor.render(60), 60);
     expect(
       cleared.slice(
@@ -273,7 +273,6 @@ describe("busy/idle typing state machine", () => {
       ),
     ).toBe("    " + SPIN_TYPE_LABEL); // `     Working` — 4 spaces + the label
     tick(editor); // back to step 1 — cell 1 enters at ⠁
-    expect((editor as any).typeStep).toBe(1);
     const regrown = borderRun(editor.render(60), 60);
     expect(
       regrown.slice(
@@ -304,54 +303,11 @@ describe("typing strip on the top border row", () => {
     compensatedAt60(borderRun(busyAt(1).render(60), 60));
   });
 
-  it("step 2: cell 1 advances to `⠉`", () => {
-    expect(beat(busyAt(2))).toBe("⠉   " + SPIN_TYPE_LABEL);
-  });
-
-  it("step 3: cell 2 enters at `⠁`, cell 1 holds `⠉`", () => {
-    expect(beat(busyAt(3))).toBe("⠉⠁  " + SPIN_TYPE_LABEL);
-  });
-
-  it("step 4: cell 2 completes its line pair at `⠉`", () => {
-    expect(beat(busyAt(4))).toBe("⠉⠉  " + SPIN_TYPE_LABEL);
-  });
-
   it("step 8 (line 1 complete): all 4 cells are `⠉`, label follows", () => {
     const ed = busyAt(8);
     expect(beat(ed)).toBe("⠉⠉⠉⠉" + SPIN_TYPE_LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
-  });
-
-  it("step 9 (inter-line 1→2): cell 1 re-enters at `⠋`, the rest hold `⠉`", () => {
-    expect(beat(busyAt(9))).toBe("⠋⠉⠉⠉" + SPIN_TYPE_LABEL);
-  });
-
-  it("step 10: cell 1 completes at `⠛`", () => {
-    expect(beat(busyAt(10))).toBe("⠛⠉⠉⠉" + SPIN_TYPE_LABEL);
-  });
-
-  it("step 16 (line 2 complete): all 4 cells are `⠛`, label follows", () => {
-    const ed = busyAt(16);
-    expect(beat(ed)).toBe("⠛⠛⠛⠛" + SPIN_TYPE_LABEL);
-    rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
-    compensatedAt60(borderRun(ed.render(60), 60));
-  });
-
-  it("step 17 (inter-line 2→3): cell 1 re-enters at `⠟`, the rest hold `⠛`", () => {
-    expect(beat(busyAt(17))).toBe("⠟⠛⠛⠛" + SPIN_TYPE_LABEL);
-  });
-
-  it("step 22: cells 2–3 are `⠿` (cell 3 just completed), cells 1 and 4 hold `⠛`", () => {
-    expect(beat(busyAt(22))).toBe("⠿⠿⠿⠛" + SPIN_TYPE_LABEL);
-  });
-
-  it("step 24 (line 3 complete): all 4 cells are `⠿`", () => {
-    expect(beat(busyAt(24))).toBe("⠿⠿⠿⠿" + SPIN_TYPE_LABEL);
-  });
-
-  it("step 25 (inter-line 3→4): cell 1 re-enters at `⡿`, the rest hold `⠿`", () => {
-    expect(beat(busyAt(25))).toBe("⡿⠿⠿⠿" + SPIN_TYPE_LABEL);
   });
 
   it("step 32 (fully grown): all 4 cells are `⣿`, label follows", () => {
@@ -361,8 +317,7 @@ describe("typing strip on the top border row", () => {
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
-  it("hold region (step 33, step 37): full block holds — all 4 cells still `⣿`, label still up", () => {
-    expect(beat(busyAt(33))).toBe("⣿⣿⣿⣿" + SPIN_TYPE_LABEL);
+  it("hold region (step 37): full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
     expect(beat(busyAt(37))).toBe("⣿⣿⣿⣿" + SPIN_TYPE_LABEL);
   });
 
@@ -446,7 +401,7 @@ describe("timer lifecycle & gating", () => {
   });
 
   it("fake 80ms ticks drive render while the agent is busy", () => {
-    const { editor, tui } = makeEditor({ spin: true });
+    const { editor, tui } = makeEditor({ spin: true, idleSeq: [false] });
     (editor as any).isIdle = () => false;
     vi.advanceTimersByTime(SPIN_TICK_MS);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);

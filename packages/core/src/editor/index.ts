@@ -22,25 +22,17 @@ import {
   resolvePalette,
 } from "../chrome.js";
 import { isParentBorder, formatKey } from "../text.js";
+import { BorderTypeSpinner } from "./spin.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
 
 export const SPIN_TICK_MS = 80;
 /** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
-export const SPIN_TYPE_CELLS = 4;
-/** Fill-sweep step count: each of the 4 lines walks the 8-stage chart order, 2 stage steps per cell (32 = CELLS × 8). */
-export const SPIN_TYPE_STEPS = SPIN_TYPE_CELLS * 8; // 32
-export const SPIN_TYPE_HOLD = 6;
-export const SPIN_TYPE_CYCLE = SPIN_TYPE_STEPS + SPIN_TYPE_HOLD; // 38
+export const SPIN_TYPE_CELLS = BorderTypeSpinner.CELLS;
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
 export const SPIN_TYPE_START = 6;
 /** Literal label rendered straight after the 4-cell window in every busy state (typing steps 1–32, hold, and the step-38 clear beat) — 1 leading space + the word; present from `inner >= 20`, omitted (not standalone) on narrower boxes, gone when idle. */
 export const SPIN_TYPE_LABEL = " Working";
-
-/** Growing 2×4 braille dot block, Unicode braille-chart dot order (U+2801 → U+28FF) — its 8 stages run through the 4-cell window in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿). */
-const STAGE_BRAILLE = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
-/** Width-1 shading fallback for EAW terminals (⣿ reports visible width 2) — the same 8 stages. */
-const STAGE_SHADE = ["░", "░", "░", "░", "▒", "▒", "▓", "█"];
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -52,15 +44,11 @@ export class HephaestusEditor extends CustomEditor {
   private pendingQuitUntil = 0;
 
   private readonly spinEnabled: boolean;
-  /** Stage set: growing 2×4 braille dot block (Unicode chart order); EAW terminals (⣿ width 2) fall back to the width-1 shading set ░→█. */
-  private readonly spinStageSet: readonly string[];
-  /** Precomputed 32-frame fill sequence (deterministic per instance, computed in the ctor): cells fill cell-by-cell left→right, each cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿). */
-  private readonly stageSeq: string[];
+  /** The border-row typing spinner (mechanism in `BorderTypeSpinner`): created only when `spin` is on — never when it is off, so the off path stays fully inert. */
+  private readonly borderSpinner: BorderTypeSpinner | undefined;
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
-  private typeStep = 0;
-  private wasBusy = false;
   private spinTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
@@ -77,7 +65,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the 2×4 braille dot block (⠁ → ⣿, Unicode chart order) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █). */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -92,19 +80,7 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
-    this.spinStageSet = visibleWidth("⣿") === 1 ? STAGE_BRAILLE : STAGE_SHADE;
-    const cells: string[] = [];
-    for (let i = 0; i < SPIN_TYPE_CELLS; i++) cells.push(" ");
-    const seq: string[] = [];
-    for (let k = 0; k < 4; k++) {
-      for (let i = 0; i < SPIN_TYPE_CELLS; i++) {
-        cells[i] = this.spinStageSet[2 * k]!;
-        seq.push(cells.join(""));
-        cells[i] = this.spinStageSet[2 * k + 1]!;
-        seq.push(cells.join(""));
-      }
-    }
-    this.stageSeq = seq;
+    this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle) : undefined;
     if (spin) {
       this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
@@ -123,23 +99,16 @@ export class HephaestusEditor extends CustomEditor {
   // ── Prompt spin ───────────────────────────────────────
 
   private tickSpin(): void {
-    const busy = !this.isIdle();
-    if (busy) {
-      this.typeStep = (this.typeStep + 1) % SPIN_TYPE_CYCLE;
-      this.tui.requestRender();
-    } else if (this.wasBusy) {
-      this.typeStep = 0;
+    if (this.borderSpinner && this.borderSpinner.tick()) {
       this.tui.requestRender();
     }
-    this.wasBusy = busy;
   }
 
-  /** The 4-cell window that replaces a segment of the border: cells fill cell-by-cell left→right, each cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿) via the spin (accent) palette, so the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (typeStep 0) is all spaces; hold steps clamp to the last (fully grown) frame. */
+  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
-    const idx = Math.min(this.typeStep, SPIN_TYPE_STEPS) - 1;
-    if (idx < 0) return " ".repeat(SPIN_TYPE_CELLS);
-    return this.stageSeq[idx]!.split("").map(
+    if (!this.borderSpinner) return " ".repeat(SPIN_TYPE_CELLS);
+    return this.borderSpinner.frame().split("").map(
       (c) => (c === " " ? " " : p.spin(c)),
     ).join("");
   }
