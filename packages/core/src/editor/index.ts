@@ -30,7 +30,7 @@ export const SPIN_TYPE_CELLS = 4;
 export const SPIN_TYPE_HOLD = 6;
 export const SPIN_TYPE_CYCLE = SPIN_TYPE_CELLS + SPIN_TYPE_HOLD; // 10
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
-export const SPIN_TYPE_START = 8;
+export const SPIN_TYPE_START = 6;
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -66,7 +66,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type lit braille-dash cells ("⠰", EAW falls back to `:") into the editor's top border while the agent is busy. */
+      /** Type a 4-cell spinner window into the editor's top border while the agent is busy: lit cells are the 1-row braille dash ("⠰", EAW falls back to `:`); the blank cells are plain spaces — the border line breaks. */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -113,7 +113,7 @@ export class HephaestusEditor extends CustomEditor {
     this.wasBusy = busy;
   }
 
-  /** The 4-cell lit-dot window that replaces a segment of the `┌───┐` top border row. Unlit cells are `─` (the natural border char), lit cells the 1-row braille dash `⠰` (EAW terminals fall back to `:`) via the spin (accent) palette. */
+  /** The 4-cell window that replaces a segment of the border; blank cells are spaces (the border line breaks) — plain " " (U+0020) — and lit cells are the 1-row braille dash `⠰` (EAW terminals fall back to `:`) via the spin (accent) palette. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     const s = this.typeStep;
@@ -121,7 +121,7 @@ export class HephaestusEditor extends CustomEditor {
     const cursor = Math.min(s, SPIN_TYPE_CELLS - 1);
     return Array.from({ length: SPIN_TYPE_CELLS }, (_, i) => {
       const lit = i < filled || (i === cursor && this.blinkOn);
-      return lit ? p.spin(this.spinLitChar) : p.frame("─");
+      return lit ? p.spin(this.spinLitChar) : " ";
     }).join("");
   }
 
@@ -216,15 +216,16 @@ export class HephaestusEditor extends CustomEditor {
           ),
       );
 
-      // Top border row: while busy, a 4-cell lit-dot window replaces a
-      // segment of the `─` border — 8 dashes in, shifted left on narrow
-      // boxes, plain when too narrow to fit.
+      // Top border row: while busy, a 4-cell window replaces a segment of
+      // the `─` border — 6 dashes in, shifted left on narrow boxes, plain
+      // when too narrow to fit. Blank window cells are spaces (the border
+      // line breaks there).
       const borderRun = (() => {
         if (this.spinEnabled && !this.isIdle()) {
-          let start = SPIN_TYPE_START;
-          if (inner < start + SPIN_TYPE_CELLS + 2) {
+          let start = SPIN_TYPE_START; // 6
+          if (inner < start + SPIN_TYPE_CELLS + 2) { // inner < 12 → shift
             start = Math.max(2, inner - SPIN_TYPE_CELLS - 2); // shrink window left for narrow boxes
-            if (inner < SPIN_TYPE_CELLS + 4) {
+            if (inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain
               return p.frame("─".repeat(inner)); // too narrow → plain
             }
           }
