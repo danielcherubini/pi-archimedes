@@ -67,6 +67,7 @@ import {
   SPIN_TYPE_START,
   SPIN_TYPE_CELLS,
 } from "./index.js";
+import { SPIN_VARIANTS } from "./spin.js";
 
 /** The default label (no `spinLabel` in the ctor options), including the leading AND trailing spaces the renderer contributes (`" " + label + " "`). */
 const LABEL = " Working ";
@@ -81,7 +82,7 @@ interface ConstructOpts {
   spin?: boolean;
   /** The `editorSpinSpeed` setting; × multiplies the style's native per-tick tempo (× 1.5 / × 1 / × 0.6), 32 ms tick floor. */
   spinSpeed?: "slow" | "normal" | "fast";
-  /** The `editorSpinStyle` setting (raw setting string tolerated; an unported style normalizes to typing frames until batches 2–4 land). */
+  /** The `editorSpinStyle` setting (raw setting string tolerated; a style not registered in `SPIN_VARIANTS` yet (batches 3–4) normalizes to typing frames). */
   spinStyle?: string;
   /** Label typed after the window (empty hides it; unset → "Working"). */
   spinLabel?: string;
@@ -461,11 +462,22 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls[0]![1]).toBe(120);
   });
 
-  it("spinStyle \"wave-rows\" (not ported yet — batch 3): the frames normalize to typing in the border (⠁ at step 1)", () => {
+  it("spinStyle \"wave-rows\" (ported — batch 2): the border shows the wave-rows step-0 window (⢦⣠⠞⠙), NOT the typing fallback (⠁)", () => {
     const ed = busyAt(1, { spinStyle: "wave-rows" });
-    expect(borderRun(ed.render(60), 60)).toContain(
-      " ⠁   " + LABEL,
-    );
+    const wave0 = SPIN_VARIANTS["wave-rows"]!.compute(0);
+    const cellStr = wave0
+      .map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m)))
+      .join("");
+    const run = borderRun(ed.render(60), 60);
+    expect(run).toContain(" " + cellStr + LABEL);
+    expect(run).not.toContain(" ⠁ " + LABEL); // not the typing fallback
+  });
+
+  it("spinStyle \"marquee\" + normal speed: the interval period is the marquee 55ms native tempo × the normal multiplier", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinStyle: "marquee" });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(55);
   });
 
   it("spinSpeed \"fast\" with style \"diagonal-swipe\" (30ms native): the period clamps at the 32ms tick floor (30 × 0.6 = 18 → 32)", () => {

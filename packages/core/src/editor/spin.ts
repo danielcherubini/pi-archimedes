@@ -23,6 +23,14 @@ export const SPIN_INTERVALS: Record<SpinnerStyle, number> = {
 /** The 8 chart-order dot masks of the 2×4 braille block; char k = `String.fromCharCode(0x2800 + mask)` MUST exactly reproduce the STAGE_BRAILLE / STAGE_SHADE chars (⠁ ⠉ ⠋ ⠛ ⠟ ⠿ ⡿ ⣿). */
 export const STAGE_MASKS = [0x01, 0x09, 0x0B, 0x1B, 0x1F, 0x3F, 0x7F, 0xFF];
 
+/** The per-row dot bits of one braille cell (8-bit mask), by dot column — row 0: L 0x01 / R 0x08, row 1: 0x02 / 0x10, row 2: 0x04 / 0x20, row 3: 0x40 / 0x80. Shared by the 1×4 grid ports in `SPIN_VARIANTS` (dot column = pc % 2). */
+const DOT_BITS = [
+  [0x01, 0x08] as const,
+  [0x02, 0x10] as const,
+  [0x04, 0x20] as const,
+  [0x40, 0x80] as const,
+];
+
 /** One gallery-derived spin style: `steps` (tick cycle incl. hold — typing: 32 + 6 = 38), `hold` (the clamp tail after the fill walk), and `compute(step)`, which returns the 4 braille dot-masks (8-bit each) for the 4-cell window at `step` (0-based: 0 = the first fill tick after the clear beat; beyond `steps - hold` the frames clamp to the last one). */
 export interface SpinStyleConfig {
   steps: number;
@@ -30,7 +38,7 @@ export interface SpinStyleConfig {
   compute: (step: number) => number[];
 }
 
-/** The gallery-derived variants. Batch 1 defines ONLY `typing` — the other nine styles (wave-rows, columns, pulse, marquee, pendulum, rain, cascade, diagonal-swipe, sparkle) land in batches 2–4; a unknown / not-yet-ported name normalizes to typing in the meantime (`normalizeSpinnerStyle`). */
+/** The gallery-derived variants. Batch 1: `typing`; batch 2 (below): `wave-rows`, `columns`, `pulse`, `marquee` — the remaining five (pendulum, rain, cascade, diagonal-swipe, sparkle) land in batches 3–4; an unregistered / unknown name normalizes to typing in the meantime (`normalizeSpinnerStyle`). */
 export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
   typing: {
     steps: 38,
@@ -49,9 +57,100 @@ export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
       return cells;
     },
   },
+  // ── Batch 2: ported from the shadcn braille-loader gallery, 1×4 (8 dot-columns × 4 rows) adaptation — formulas and constants unchanged from the source (source width 4 = 4 cells = 8 dot-columns, height 4). Each `compute` returns the 4 braille cell masks (8-bit each). ──
+  /** A vertical band riding a phase-offset sine wave in each of the 8 dot-columns — 4 cells, equalizer look. */
+  "wave-rows": {
+    steps: 20,
+    hold: 0,
+    compute(step: number): number[] {
+      const progress = step / 20;
+      const basePhase = progress * Math.PI * 2;
+      const colPhaseStep = (Math.PI * 2) / Math.max(2, 8);
+      const bandWidth = 0.9;
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        const colWave = Math.sin(basePhase + pc * colPhaseStep);
+        const centerRow = ((colWave + 1) / 2) * 3;
+        for (let row = 0; row < 4; row++) {
+          if (Math.abs(row - centerRow) <= bandWidth) {
+            cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+          }
+        }
+      }
+      return cells;
+    },
+  },
+  /** The 4 sequential bottom-up column fills. */
+  columns: {
+    steps: 48,
+    hold: 0,
+    compute(step: number): number[] {
+      const stepsPerColumn = 4 + 1; // height + 1
+      const totalSteps = 8 * stepsPerColumn;
+      const s = Math.floor((step / 48) * totalSteps) % totalSteps;
+      const activePc = Math.floor(s / stepsPerColumn);
+      const activeFill = s % stepsPerColumn;
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        const ci = Math.floor(pc / 2);
+        const dc = pc % 2;
+        if (pc < activePc) {
+          for (let row = 0; row < 4; row++) cells[ci]! |= DOT_BITS[row]![dc]!;
+        } else if (pc === activePc) {
+          const fill = Math.max(0, Math.min(4, activeFill));
+          for (let i = 0; i < fill; i++) cells[ci]! |= DOT_BITS[3 - i]![dc]!;
+        }
+      }
+      return cells;
+    },
+  },
+  /** A ring expanding and contracting around the center of the 4 cells. */
+  pulse: {
+    steps: 23,
+    hold: 0,
+    compute(step: number): number[] {
+      const period = 900;
+      const t = step * 40;
+      const scale = 1 + 0.06 * Math.sin((2 * Math.PI * t) / period);
+      const centerX = (8 - 1) / 2; // (width · 2 − 1) / 2, width 4
+      const centerY = (4 - 1) / 2;
+      const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
+      const ringWidth = 0.8;
+      const ringPos =
+        ((Math.sin(((2 * Math.PI * t) / period) * 2) + 1) / 2) * maxDist;
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        for (let row = 0; row < 4; row++) {
+          const dx = (pc - centerX) / scale;
+          const dy = (row - centerY) / scale;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (Math.abs(dist - ringPos) < ringWidth) {
+            cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+          }
+        }
+      }
+      return cells;
+    },
+  },
+  /** Diagonal stripe bands sliding across the 8 dot-columns. */
+  marquee: {
+    steps: 48,
+    hold: 0,
+    compute(step: number): number[] {
+      const offset = Math.floor((step / 48) * 8);
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        for (let row = 0; row < 4; row++) {
+          const stripe = (pc + row + offset) % 4;
+          if (stripe < 2) cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+        }
+      }
+      return cells;
+    },
+  },
 };
 
-/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (not-yet-ported gallery styles, unknown strings) falls back to `typing`. */
+/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (not-yet-ported gallery styles — batches 3–4: pendulum, rain, cascade, diagonal-swipe, sparkle — and unknown strings) falls back to `typing`. */
 export function normalizeSpinnerStyle(s: string): SpinnerStyle {
   return SPIN_VARIANTS[s as SpinnerStyle] ? (s as SpinnerStyle) : "typing";
 }

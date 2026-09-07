@@ -246,12 +246,14 @@ describe("SPIN_INTERVALS (native per-tick ms from the source library)", () => {
 });
 
 describe("normalizeSpinnerStyle (library normalizeVariant fallback)", () => {
-  it("each registered variant name normalizes to itself", () => {
-    expect(normalizeSpinnerStyle("typing")).toBe("typing");
+  it("each registered variant name (batch 1 + batch 2) normalizes to itself", () => {
+    for (const s of ["typing", "wave-rows", "columns", "pulse", "marquee"]) {
+      expect(normalizeSpinnerStyle(s)).toBe(s);
+    }
   });
 
-  it("unregistered gallery styles (batches 2–4) and unknown strings normalize to typing", () => {
-    for (const s of ["wave-rows", "columns", "pulse", "marquee", "pendulum", "rain", "cascade", "diagonal-swipe", "sparkle", "nope", "", "Typing"]) {
+  it("the 4 remaining unregistered gallery styles (batches 3–4) and unknown strings normalize to typing", () => {
+    for (const s of ["pendulum", "rain", "cascade", "diagonal-swipe", "sparkle", "nope", "", "Typing"]) {
       expect(normalizeSpinnerStyle(s)).toBe("typing");
     }
   });
@@ -357,14 +359,140 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
     expect(sp17.frame()).toBe("▒░░░");
   });
 
-  it("a not-yet-ported style name constructs as typing frames (the normalize fallback): after 16 busy ticks it renders the same typing frames", () => {
+  it("SPIN_VARIANTS completeness: 5 entries — typing (batch 1) + wave-rows, columns, pulse, marquee (batch 2), in display order", () => {
+    expect(Object.keys(SPIN_VARIANTS)).toEqual([
+      "typing",
+      "wave-rows",
+      "columns",
+      "pulse",
+      "marquee",
+    ]);
+  });
+
+  it("the 4 batch-2 entries are registered with steps = the source's totalFrames and hold 0 (frames wrap, no clamp tail — the idx clamp is N/A)", () => {
+    const expected = [
+      ["wave-rows", 20],
+      ["columns", 48],
+      ["pulse", 23],
+      ["marquee", 48],
+    ] as const;
+    for (const [name, steps] of expected) {
+      const cfg = SPIN_VARIANTS[name]!;
+      expect(cfg.steps).toBe(steps);
+      expect(cfg.hold).toBe(0);
+      expect(normalizeSpinnerStyle(name)).toBe(name);
+    }
+  });
+
+  it("a not-yet-registered style name constructs as typing frames (the normalize fallback — a batch 3–4 style): after 16 busy ticks it renders the same typing frames", () => {
     const sp = busyAt(Array.from({ length: 16 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 16);
     const unported = new BorderTypeSpinner(
       () => false,
-      "wave-rows",
+      "sparkle",
       (s: string) => (s === "⣿" ? 2 : 1),
     );
     for (let i = 0; i < 16; i++) unported.tick();
     expect(unported.frame()).toBe(sp.frame()); // same typing frames
+  });
+
+  // ── Batch 2: the 4 gallery ports (1×4 — 8 dot-columns × 4 rows; bit map: row 0 L 0x01 / R 0x08, row 1 0x02/0x10, row 2 0x04/0x20, row 3 0x40/0x80; cell = floor(pc/2), dot-column = pc%2) ──
+
+  const brailleRender = (masks: number[]): string =>
+    masks.map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m))).join("");
+
+  describe("wave-rows compute (source waveRows, totalFrames 20, interval 40; colPhaseStep 2π/8 = 45° per dot-column, band 0.9)", () => {
+    const wave = SPIN_VARIANTS["wave-rows"]!;
+
+    it("step 0 (basePhase 0): per-column sine centerRows 1.5 / 2.56 / 3.0 / 2.56 / 1.5 / 0.44 / 0 / 0.44 — bands land on rows (1,2) (2,3) (3) (2,3) (1,2) (0,1) (0) (0,1)", () => {
+      expect(wave.compute(0)).toEqual([0xa6, 0xe0, 0x1e, 0x19]);
+      expect(brailleRender(wave.compute(0))).toBe(
+        ["⢦", "⣠", "⠞", "⠙"].join(""),
+      );
+    });
+
+    it("mid (step 10, basePhase π — the mirror of 0): bands on (1,2) (0,1) (0) (0,1) (1,2) (2,3) (3) (2,3)", () => {
+      expect(wave.compute(10)).toEqual([0x1e, 0x19, 0xa6, 0xe0]);
+    });
+
+    it("step 19 differs from step 0 in at least one cell (a full squelch does not re-create the frame; wrap is being squelced, not extrapolated)", () => {
+      const c19 = wave.compute(19);
+      const c0 = wave.compute(0);
+      expect(c19.some((m, i) => m !== c0[i!])).toBe(true);
+    });
+
+    it("EAW: the live cell masks hit the density tiers (0x19 popcount 3 → ▒, 0x1E popcount 4 → ▒)", () => {
+      expect(shadeForMask(0x19)).toBe("▒");
+      expect(shadeForMask(0x1e)).toBe("▒");
+    });
+  });
+
+  describe("columns compute (source columns, totalFrames 48, hold 0; stepsPerColumn height+1 = 5, totalSteps 8×5 = 40)", () => {
+    const col = SPIN_VARIANTS.columns!;
+
+    it("step 0: progress 0 → step 0, column 0 only unfilled (fill 0) — 4 blank cells", () => {
+      expect(col.compute(0)).toEqual([0, 0, 0, 0]);
+    });
+
+    it("step 10: step floor(10/48×40) = 8 → activePc 1, activeFill 3 — pc 0 (cell 0 left dot-column) full (0x47), pc 1 (right) bottom-up to row 3 (0x80+0x20+0x10 = 0xB0) — cell 0 = 0xF7, cells 1–3 still blank", () => {
+      expect(col.compute(10)).toEqual([0xf7, 0, 0, 0]);
+    });
+
+    it("step 24: step 20 → activePc 4, activeFill 0 — the first 4 dot-columns (cells 0 and 1, both dot-columns per cell) fully lit, the last 4 blank", () => {
+      expect(col.compute(24)).toEqual([0xff, 0xff, 0, 0]);
+    });
+
+    it("EAW: the full bottom-up column mask 0x47 (popcount 4) renders ▒ via shadeForMask", () => {
+      expect(shadeForMask(0x47)).toBe("▒");
+    });
+  });
+
+  describe("pulse compute (source pulse, totalFrames 23, interval 60; t = frame×40, period 900, center (3.5, 1.5), maxDist √14.5 ≈ 3.808, ring width 0.8)", () => {
+    const pulse = SPIN_VARIANTS.pulse!;
+
+    it("step 0 (scale 1, ringPos 0.5×maxDist ≈ 1.904, band (1.104, 2.704)): dot-column x-offsets ±3.5 → nothing, ±2.5 → rows 1&2, ±1.5 → all 4 rows, ±0.5 → rows 0&3", () => {
+      // cell 0 = L (dist −3.5: nothing) | R (−2.5: rows 1, 2 = 0x30); cell 1 = L (−1.5: full 0x47) | R (−0.5: rows 0, 3 = 0x88); cell 2 = L (+0.5: rows 0, 3 = 0x41) | R (+1.5: full 0xB8); cell 3 = L (+2.5: rows 1, 2 = 0x06) | R (+3.5: nothing).
+      expect(pulse.compute(0)).toEqual([0x30, 0xcf, 0xf9, 0x06]);
+    });
+
+    it("mid (step 10): non-empty, 4 cells, no crash", () => {
+      const m = pulse.compute(10);
+      expect(m).toHaveLength(4);
+      for (const x of m) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(0xff);
+      }
+      expect(m.some((x) => x > 0)).toBe(true);
+    });
+
+    it("the ring come-back: step 0 and step 22 (the last frame) both light — one cycle does not degenerate to narrow", () => {
+      expect(pulse.compute(0).some((x) => x > 0)).toBe(true);
+      expect(pulse.compute(22).some((x) => x > 0)).toBe(true);
+    });
+
+    it("EAW: the step-0 frame renders density tiers (0x30 popcount 2 → ░, 0xCF popcount 6 → ▓, 0xF9 popcount 6 → ▓, 0x06 popcount 2 → ░)", () => {
+      expect(
+        pulse
+          .compute(0)
+          .map((m) => shadeForMask(m))
+          .join(""),
+      ).toBe("░▓▓░");
+    });
+  });
+
+  describe("marquee compute (source marquee, totalFrames 48, interval 55; offset floor(f/48×8), stripe (pc+row+offset)%4, lit < 2)", () => {
+    const marquee = SPIN_VARIANTS.marquee!;
+
+    it("step 0 (offset 0): light strips are on rows 0-1 (L 0x03), 0&3 (R 0x88), 2-3 (L 0x44), 1-2 (R 0x30) — cell 1 ≡ cells 2/3", () => {
+      expect(marquee.compute(0)).toEqual([0x8b, 0x74, 0x8b, 0x74]);
+    });
+
+    it("mid (step 10, offset floor(10/48×8) = 1): strip +1 — rows 0&3 (L 0x41), 2-3 (R 0xA0), 1-2 (L 0x06), 0-1 (R 0x18)", () => {
+      expect(marquee.compute(10)).toEqual([0xe1, 0x1e, 0xe1, 0x1e]);
+    });
+
+    it("EAW: the live cell masks render ▒ (0x8B and 0x74 are both popcount 4)", () => {
+      expect(shadeForMask(0x8b)).toBe("▒");
+      expect(shadeForMask(0x74)).toBe("▒");
+    });
   });
 });
