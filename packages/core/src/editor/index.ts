@@ -29,9 +29,9 @@ const DOUBLE_PRESS_WINDOW_MS = 500;
 export const SPIN_TICK_MS = 80;
 /** The 4-cell window inside the `┌───┐` border row — both stage sets are 1 wide per stage char, so the window stays 4 chars wide. */
 export const SPIN_TYPE_CELLS = BorderTypeSpinner.CELLS;
-/** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
-export const SPIN_TYPE_START = 6;
-/** Literal label rendered straight after the 4-cell window in every busy state (typing steps 1–32, hold, and the step-38 clear beat) — 1 leading space + the word; present from `inner >= 20`, omitted (not standalone) on narrower boxes, gone when idle. */
+/** Window start (in cells) inside the `┌───┐` border row, after `┌` — position 1, immediately after the corner dash (`┌─␠⠛⠛⠛⠛ …`). */
+export const SPIN_TYPE_START = 1;
+/** Literal label rendered straight after the 4-cell window in every busy state (typing steps 1–32, hold, and the step-38 clear beat) — 1 leading space + the word; present from `inner >= 15` (start 1 + cells 4 + label 8 + trailing margin 2), omitted (not standalone) on narrower boxes in the 8 ≤ inner < 15 window-only tier (whose right-hand padding is the label's own leading space), gone when idle. */
 export const SPIN_TYPE_LABEL = " Working";
 
 export class HephaestusEditor extends CustomEditor {
@@ -204,35 +204,32 @@ export class HephaestusEditor extends CustomEditor {
           ),
       );
 
-      // Top border row: while busy, a 4-cell window replaces a segment of
-      // the `─` border — 6 dashes in, then one leading space (left padding),
-      // then the window; the ` Working` label right after the window when the
-      // box is wide enough (inner >= 20; omitted, not standalone, in the
-      // 8 ≤ inner < 20 window-only tier, whose right-hand padding is the
-      // absent label's leading space), plain when too narrow to fit. The
-      // window fills cell-by-cell left→right, each cell walking the 8
-      // chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the
-      // width-1 shading ░ → █), so the 2×4 dot block grows across the window
-      // line by line, followed by a " Working" label (label shown when the
-      // box is wide enough; omitted, not standalone, on narrow boxes), then
-      // holds — on the empty clear step (step 38) the window cells are spaces
-      // and the label stays up (the border line breaks there); the space +
-      // window + label's columns replace trailing dashes, so the row width
-      // stays constant (the trailing run is shortened by the one leading
-      // space).
+      // Top border row: while busy, a 4-cell window at start 1 replaces a
+      // segment of the `─` border — 1 dash in, then one leading space (left
+      // padding), then the window; the ` Working` label right after the
+      // window when the box is wide enough (inner >= 15; omitted, not
+      // standalone, in the 8 ≤ inner < 15 window-only tier, whose right-hand
+      // padding is the absent label's leading space), plain when too narrow
+      // to fit (inner < 8). The window fills cell-by-cell left→right, each
+      // cell walking the 8 chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ /
+      // ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4 dot block grows
+      // across the window line by line, followed by a " Working" label
+      // (label shown when the box is wide enough; omitted, not standalone,
+      // on narrow boxes), then holds — on the empty clear step (step 38) the
+      // window cells are spaces and the label stays up (the border line
+      // breaks there); the space + window + label's columns replace trailing
+      // dashes, so the row width stays constant (the trailing run is
+      // shortened by the one leading space).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
         const labelShown =
           busy &&
           inner >=
-            SPIN_TYPE_START + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length + 2;
+            SPIN_TYPE_START + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length + 2; // 15
         if (!busy || inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain (no window, no label)
           return p.frame("─".repeat(inner));
         }
-        let start = SPIN_TYPE_START; // 6
-        if (!labelShown && inner < start + SPIN_TYPE_CELLS + 2) { // 8 ≤ inner < 12 → shift
-          start = Math.max(2, inner - SPIN_TYPE_CELLS - 2); // shrink window left for narrow boxes
-        }
+        const start = SPIN_TYPE_START; // 1 — the window sits at start 1 whenever it shows
         const labelLen = labelShown ? SPIN_TYPE_LABEL.length : 0;
         return (
           p.frame("─".repeat(start)) +

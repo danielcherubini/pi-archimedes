@@ -147,7 +147,7 @@ const rowFirmsToDashes = (run: string, len: number): void => {
   expect(run.replace(/[^─]/g, "─")).toBe("─".repeat(len));
 };
 
-// Compensated width for a 60-wide box (inner = 56, leading space at 6, window
+// Compensated width for a 60-wide box (inner = 56, leading space at 1, window
 // after it, ` Working` label right after the window): the row minus the
 // leading space, the window and the label is all hard `─` — the space + window
 // + label's 13 columns replaced trailing dashes, so the row width stays
@@ -293,7 +293,7 @@ describe("busy/idle repaint at the render level", () => {
 // line 2 9–16, line 3 17–24, line 4 25–32, hold 33–37, clear at the wrap (0).
 
 describe("typing strip on the top border row", () => {
-  // 60-wide box (inner = 56 ≥ 20): the full beat = leading space + 4-cell
+  // 60-wide box (inner = 56 ≥ 15): the full beat = leading space + 4-cell
   // window + ` Working` label, all replacing dashed segments of the `┌───┐`
   // border row.
   const beat = (ed: HephaestusEditor): string =>
@@ -326,41 +326,31 @@ describe("typing strip on the top border row", () => {
     expect(beat(busyAt(37))).toBe(" ⣿⣿⣿⣿" + SPIN_TYPE_LABEL);
   });
 
-  it("narrow-but-adequate width (15): leading space, window shifted left, rest is ─", () => {
-    // inner = 11 → start = max(2, 11 - 4 - 2) = 5; one trailing dash left
-    const ed = busyAt(4);
-    const run = borderRun(ed.render(15), 15);
-    expect(run.slice(0, 5)).toBe("─".repeat(5));
-    expect(run.slice(5, 6)).toBe(" ");
-    expect(run.slice(6, 10)).toBe("⠉⠉  ");
-    expect(run.slice(10)).toBe("─");
-    rowFirmsToDashes(run, 11);
+  it("narrow width (14, inner 10): leading space at 1, window at start 1, no label, row dash-compensated", () => {
+    // inner = 10 → 8 ≤ 10 < 15: window-only tier at start 1; trailing = 10 − 1 − 1 − 4 = 4
+    const run = borderRun(busyAt(4).render(14), 14);
+    expect(run.slice(0, 1)).toBe("─");
+    expect(run.slice(1, 2)).toBe(" ");
+    expect(run.slice(2, 6)).toBe("⠉⠉  ");
+    expect(run.slice(6)).toBe("─".repeat(4));
+    expect(run).not.toContain("Working");
+    rowFirmsToDashes(run, 10);
   });
 
-  it("narrowest adequate width (12, inner 8): leading space at 2, window, one trailing dash", () => {
-    const run = borderRun(busyAt(4).render(12), 12);
-    expect(run.slice(0, 2)).toBe("─".repeat(2));
-    expect(run.slice(2, 3)).toBe(" ");
-    expect(run.slice(3, 7)).toBe("⠉⠉  ");
-    expect(run.slice(7)).toBe("─");
-    rowFirmsToDashes(run, 8);
+  it("label-fit width (19, inner 15): start 1 + cells 4 + label 8 + trailing margin 2 = 15 — verbatim beat ` ⠛⠛⠛⠛ Working`, one trailing dash", () => {
+    const run = borderRun(busyAt(16).render(19), 19);
+    expect(run.slice(0, 1)).toBe("─");
+    expect(run.slice(1, 2)).toBe(" ");
+    expect(run.slice(2, 6)).toBe("⠛⠛⠛⠛");
+    expect(run.slice(6, 14)).toBe(SPIN_TYPE_LABEL); // ` Working` immediately after the window
+    expect(run.slice(14)).toBe("─"); // trailing = 15 − 1 − 1 − 4 − 8 = 1
+    rowFirmsToDashes(run, 15);
   });
 
   it("below the floor (width 11, inner < CELLS + 4): no window, no label, plain border", () => {
     const run = borderRun(busyAt(4).render(11), 11);
     expect(run).toBe("─".repeat(7));
     expect(run).not.toContain("Working");
-  });
-
-  it("narrow-mid width (20, inner 16): leading space, window present at start 7 (shift only kicks in below inner 12), ` Working` omitted, row dash-compensated", () => {
-    // inner = 16 → 8 ≤ 16 < 20: window-only tier, no shift (16 ≥ 12), no label
-    const run = borderRun(busyAt(4).render(20), 20);
-    expect(run.slice(0, 6)).toBe("─".repeat(6));
-    expect(run.slice(6, 7)).toBe(" ");
-    expect(run.slice(7, 11)).toBe("⠉⠉  ");
-    expect(run.slice(11)).toBe("─".repeat(5));
-    expect(run).not.toContain("Working");
-    rowFirmsToDashes(run, 16);
   });
 
   it("idle: all-dash border row — no leading space, no window, no stage chars, no label (spin on, never busy)", () => {
