@@ -219,11 +219,10 @@ export class HephaestusEditor extends CustomEditor {
       const botLine =
         p.frame("└") + p.frame("─".repeat(inner)) + p.frame("┘");
 
-      const spinPrefix =
+      const piPrefix =
         this.spinEnabled && !this.isIdle()
-          ? this.spinFrames[this.frameIdx] + " "
-          : PI_STR;
-      const piPrefix = p.prefix(spinPrefix);
+          ? p.spin(this.spinFrames[this.frameIdx] + " ")
+          : p.prefix(PI_STR);
 
       const midLines = contentLines.map((line, i) => {
         if (i !== 0) {
