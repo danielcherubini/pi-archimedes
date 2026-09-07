@@ -15,10 +15,15 @@ import type { TUI, EditorTheme } from "@earendil-works/pi-tui";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
+const widthProbe = vi.hoisted(() => ({
+  /** Mutable EAW probe: default reports every char as width 1 (non-EAW). */
+  probe: (_s: string): number => 1,
+}));
+
 vi.mock("@earendil-works/pi-tui", () => ({
   truncateToWidth: (s: string, _w: number, _pad?: string, _incl?: boolean) => s,
   isKeyRelease: () => false,
-  visibleWidth: () => 1,
+  visibleWidth: (s: string) => widthProbe.probe!(s),
 }));
 
 vi.mock("@earendil-works/pi-coding-agent", () => {
@@ -134,7 +139,10 @@ const borderRun = (lines: string[], width: number): string => {
   const top = plain(lines[1]!);
   return top.slice(2, 2 + (width - 4));
 };
-const litCount = (s: string): number => [...s].filter((c) => c === ":").length;
+// Lit cells are `⠰` in the default (non-EAW) mock; the EAW flip test's
+// fallback uses `:`, so count both.
+const litCount = (s: string): number =>
+  [...s].filter((c) => c === "⠰" || c === ":").length;
 
 // ── Setup / teardown ────────────────────────────────────────────────────────
 
@@ -250,18 +258,18 @@ describe("busy/idle typing state machine", () => {
 // ── 3. Typing strip on the top border row ─────────────────────────────────────
 
 describe("typing strip on the top border row", () => {
-  it("s=1: one lit `:` after ─×start, rest of the row is ─", () => {
+  it("s=1: one lit `⠰` after ─×start, rest of the row is ─", () => {
     const run = borderRun(busyAt(1).render(60), 60);
-    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe(":───");
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠰───");
     expect(litCount(run)).toBe(1);
-    expect(run.replace(/:/g, "─")).toBe("─".repeat(56));
+    expect(run.replace(/⠰/g, "─")).toBe("─".repeat(56));
   });
 
   it("s=4 (fill complete): four lit, the rest of the row is ─", () => {
     const run = borderRun(busyAt(4).render(60), 60);
-    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("::::");
+    expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("⠰⠰⠰⠰");
     expect(litCount(run)).toBe(4);
-    expect(run.replace(/:/g, "─")).toBe("─".repeat(56));
+    expect(run.replace(/⠰/g, "─")).toBe("─".repeat(56));
   });
 
   it("hold region (s=6, s=9): all 4 still lit, cursor overlap included", () => {
@@ -272,23 +280,25 @@ describe("typing strip on the top border row", () => {
   it("narrow-but-adequate width (15): window shifted left, rest is ─", () => {
     // inner = 11 → start = max(2, 11 - 4 - 2) = 5
     const run = borderRun(busyAt(4).render(15), 15);
-    expect(run.slice(5, 9)).toBe("::::");
-    expect(run.replace(/:/g, "─")).toBe("─".repeat(11));
+    expect(run.slice(5, 9)).toBe("⠰⠰⠰⠰");
+    expect(run.replace(/⠰/g, "─")).toBe("─".repeat(11));
   });
 
   it("narrowest adequate width (12, inner 8): window at start 2, no trailing run", () => {
     const run = borderRun(busyAt(4).render(12), 12);
-    expect(run.slice(2, 6)).toBe("::::");
-    expect(run.replace(/:/g, "─")).toBe("─".repeat(8));
+    expect(run.slice(2, 6)).toBe("⠰⠰⠰⠰");
+    expect(run.replace(/⠰/g, "─")).toBe("─".repeat(8));
   });
 
   it("below the floor (width 11, inner < CELLS + 4): no window, plain border", () => {
     expect(borderRun(busyAt(4).render(11), 11)).toBe("─".repeat(7));
   });
 
-  it("idle: no `:` in the border row at all (spin on, never busy)", () => {
+  it("idle: no `⠰` and no `:` in the border row (spin on, never busy)", () => {
     const { editor } = makeEditor({ spin: true });
-    expect(litCount(borderRun(editor.render(60), 60))).toBe(0);
+    const run = borderRun(editor.render(60), 60);
+    expect(run).not.toContain("⠰");
+    expect(run).not.toContain(":");
   });
 });
 
@@ -338,4 +348,19 @@ describe("timer lifecycle & gating", () => {
   });
 });
 
-// ── (EAW width-fallback section removed: `:` is width-1, no probe) ──────
+// ── 5. EAW fallback (⠰ reports width 2 → lit char flips to `:`) ───────────
+
+describe("EAW terminal fallback", () => {
+  it("⠰ reports width 2: the window uses `:` only, no `⠰` in the row, 4 cells wide", () => {
+    widthProbe.probe = (s: string) => (s === "⠰" ? 2 : 1);
+    try {
+      const run = borderRun(busyAt(4).render(60), 60);
+      expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + SPIN_TYPE_CELLS)).toBe("::::");
+      expect(run).not.toContain("⠰");
+      expect(litCount(run)).toBe(4);
+      expect(run.replace(/:/g, "─")).toBe("─".repeat(56));
+    } finally {
+      widthProbe.probe = (_s: string) => 1;
+    }
+  });
+});

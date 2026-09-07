@@ -31,8 +31,6 @@ export const SPIN_TYPE_HOLD = 6;
 export const SPIN_TYPE_CYCLE = SPIN_TYPE_CELLS + SPIN_TYPE_HOLD; // 10
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
 export const SPIN_TYPE_START = 8;
-/** Lit-cell char: width-1, vertically centered, EAW-safe. */
-export const SPIN_LIT_CHAR = ":";
 
 export class HephaestusEditor extends CustomEditor {
   private readonly piKeybindings: KeybindingsManager;
@@ -44,6 +42,8 @@ export class HephaestusEditor extends CustomEditor {
   private pendingQuitUntil = 0;
 
   private readonly spinEnabled: boolean;
+  /** Lit-cell char: 1-row braille dash; EAW terminals fall back to `:`. */
+  private readonly spinLitChar: string;
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
@@ -66,7 +66,7 @@ export class HephaestusEditor extends CustomEditor {
       getTheme: () => Theme;
       isIdle: () => boolean;
       shutdown: () => void;
-      /** Type lit-colon dots into the editor's top border while the agent is busy. */
+      /** Type lit braille-dash cells ("⠰", EAW falls back to `:") into the editor's top border while the agent is busy. */
       spin?: boolean;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -81,6 +81,7 @@ export class HephaestusEditor extends CustomEditor {
     this.shutdown = shutdown;
     this.onSpinInterval = onSpinInterval;
     this.spinEnabled = spin;
+    this.spinLitChar = visibleWidth("⠰") === 1 ? "⠰" : ":";
     if (spin) {
       this.spinTimer = setInterval(() => this.tickSpin(), SPIN_TICK_MS);
       this.onSpinInterval?.(this.spinTimer);
@@ -112,7 +113,7 @@ export class HephaestusEditor extends CustomEditor {
     this.wasBusy = busy;
   }
 
-  /** The 4-cell lit-dot window that replaces a segment of the `┌───┐` top border row. Unlit cells are `─` (the natural border char), lit cells a width-1 `:` via the spin (accent) palette. */
+  /** The 4-cell lit-dot window that replaces a segment of the `┌───┐` top border row. Unlit cells are `─` (the natural border char), lit cells the 1-row braille dash `⠰` (EAW terminals fall back to `:`) via the spin (accent) palette. */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     const s = this.typeStep;
@@ -120,7 +121,7 @@ export class HephaestusEditor extends CustomEditor {
     const cursor = Math.min(s, SPIN_TYPE_CELLS - 1);
     return Array.from({ length: SPIN_TYPE_CELLS }, (_, i) => {
       const lit = i < filled || (i === cursor && this.blinkOn);
-      return lit ? p.spin(SPIN_LIT_CHAR) : p.frame("─");
+      return lit ? p.spin(this.spinLitChar) : p.frame("─");
     }).join("");
   }
 
