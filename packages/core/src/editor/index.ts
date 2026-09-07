@@ -104,7 +104,7 @@ export class HephaestusEditor extends CustomEditor {
     }
   }
 
-  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. */
+  /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after the dash run (left padding lived in the border run; the ` Working` label's own leading space provides the right-hand padding). */
   private typeStrip(): string {
     const p = resolvePalette(this.getTheme());
     if (!this.borderSpinner) return " ".repeat(SPIN_TYPE_CELLS);
@@ -205,18 +205,21 @@ export class HephaestusEditor extends CustomEditor {
       );
 
       // Top border row: while busy, a 4-cell window replaces a segment of
-      // the `─` border — 6 dashes in; the ` Working` label right after the
-      // window when the box is wide enough (inner >= 20; omitted, not
-      // standalone, in the 8 ≤ inner < 20 window-only tier), plain when too
-      // narrow to fit. The window fills cell-by-cell left→right,
-      // each cell walking the 8 chart-order stages in 2-step line pairs
-      // (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4
-      // dot block grows across the window line by line, followed by a
-      // " Working" label (label shown when the box is wide enough; omitted,
-      // not standalone, on narrow boxes), then holds — on
-      // the empty clear step (step 38) the window cells are spaces and the
-      // label stays up (the border line breaks there); the label's 8
-      // columns replace trailing dashes, so the row width stays constant.
+      // the `─` border — 6 dashes in, then one leading space (left padding),
+      // then the window; the ` Working` label right after the window when the
+      // box is wide enough (inner >= 20; omitted, not standalone, in the
+      // 8 ≤ inner < 20 window-only tier, whose right-hand padding is the
+      // absent label's leading space), plain when too narrow to fit. The
+      // window fills cell-by-cell left→right, each cell walking the 8
+      // chart-order stages in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the
+      // width-1 shading ░ → █), so the 2×4 dot block grows across the window
+      // line by line, followed by a " Working" label (label shown when the
+      // box is wide enough; omitted, not standalone, on narrow boxes), then
+      // holds — on the empty clear step (step 38) the window cells are spaces
+      // and the label stays up (the border line breaks there); the space +
+      // window + label's columns replace trailing dashes, so the row width
+      // stays constant (the trailing run is shortened by the one leading
+      // space).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
         const labelShown =
@@ -233,10 +236,13 @@ export class HephaestusEditor extends CustomEditor {
         const labelLen = labelShown ? SPIN_TYPE_LABEL.length : 0;
         return (
           p.frame("─".repeat(start)) +
+          " " +
           this.typeStrip() +
           (labelShown ? p.time(SPIN_TYPE_LABEL) : "") +
           p.frame(
-            "─".repeat(Math.max(0, inner - start - SPIN_TYPE_CELLS - labelLen)),
+            "─".repeat(
+              Math.max(0, inner - start - 1 - SPIN_TYPE_CELLS - labelLen),
+            ),
           )
         );
       })();
