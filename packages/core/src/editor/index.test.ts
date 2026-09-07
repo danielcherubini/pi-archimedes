@@ -82,7 +82,7 @@ interface ConstructOpts {
   spin?: boolean;
   /** The `editorSpinSpeed` setting; × multiplies the style's native per-tick tempo (× 1.5 / × 1 / × 0.6), 32 ms tick floor. */
   spinSpeed?: "slow" | "normal" | "fast";
-  /** The `editorSpinStyle` setting (raw setting string tolerated; a style not registered in `SPIN_VARIANTS` yet (batch 4) normalizes to typing frames). */
+  /** The `editorSpinStyle` setting (raw setting string tolerated; a style not registered in `SPIN_VARIANTS` yet (batch 4) normalizes to typing frames — the fallback, which stays typing even though the default setting is now pendulum). */
   spinStyle?: string;
   /** Label typed after the window (empty hides it; unset → "Working"). */
   spinLabel?: string;
@@ -274,7 +274,8 @@ describe("busy/idle repaint at the render level", () => {
     // 40 busy values: 37 to reach step 37, then the wrap tick (→ 0, clear beat)
     // and the regrowth tick (→ step 1); the render decision uses the
     // overridden isIdle below, the tick machine uses the constructor sequence.
-    const { editor } = makeEditor({ spin: true, idleSeq: Array.from({ length: 40 }, () => false) });
+    // The intent is the typing cycle (38 steps, braille frames) — explicit, since the default style is now pendulum.
+    const { editor } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: Array.from({ length: 40 }, () => false) });
     for (let i = 0; i < 37; i++) tick(editor); // s=1..37
     (editor as any).isIdle = () => false;
     tick(editor); // wraps to 0 — the clear beat
@@ -315,32 +316,32 @@ describe("typing strip on the top border row", () => {
     );
 
   it("step 1: leading space at 0, then only cell 1 is `⠁` (dot block starts to grow), ` Working ` label follows", () => {
-    expect(beat(busyAt(1))).toBe(" ⠁   " + LABEL);
-    rowFirmsToDashes(borderRun(busyAt(1).render(60), 60), 56);
-    compensatedAt60(borderRun(busyAt(1).render(60), 60));
+    expect(beat(busyAt(1, { spinStyle: "typing" }))).toBe(" ⠁   " + LABEL);
+    rowFirmsToDashes(borderRun(busyAt(1, { spinStyle: "typing" }).render(60), 60), 56);
+    compensatedAt60(borderRun(busyAt(1, { spinStyle: "typing" }).render(60), 60));
   });
 
   it("step 8 (line 1 complete): leading space at 0, all 4 cells are `⠉`, label follows", () => {
-    const ed = busyAt(8);
+    const ed = busyAt(8, { spinStyle: "typing" });
     expect(beat(ed)).toBe(" ⠉⠉⠉⠉" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("step 32 (fully grown): leading space at 0, all 4 cells are `⣿`, label follows", () => {
-    const ed = busyAt(32);
+    const ed = busyAt(32, { spinStyle: "typing" });
     expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("hold region (step 37): leading space at 0, full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
-    expect(beat(busyAt(37))).toBe(" ⣿⣿⣿⣿" + LABEL);
+    expect(beat(busyAt(37, { spinStyle: "typing" }))).toBe(" ⣿⣿⣿⣿" + LABEL);
   });
 
   it("narrow width (14, inner 10): block at the corner (leading space at 0), window at 1, no label, row dash-compensated", () => {
     // inner = 10 → 7 ≤ 10 < 16: window-only tier at start 0; trailing = 10 − 1 − 4 = 5
-    const run = borderRun(busyAt(4).render(14), 14);
+    const run = borderRun(busyAt(4, { spinStyle: "typing" }).render(14), 14);
     expect(run.slice(0, 1)).toBe(" ");
     expect(run.slice(1, 5)).toBe("⠉⠉  ");
     expect(run.slice(5)).toBe("─".repeat(5));
@@ -349,13 +350,13 @@ describe("typing strip on the top border row", () => {
   });
 
   it("label-fit tiers: window-only at inner 15 (19, 10 trailing dashes); label on at inner 16 (20 = L + 9) — verbatim beat ` ⠛⠛⠛⠛ Working ` with 2 trailing dashes", () => {
-    const run15 = borderRun(busyAt(16).render(19), 19);
+    const run15 = borderRun(busyAt(16, { spinStyle: "typing" }).render(19), 19);
     expect(run15).not.toContain("Working"); // inner 15 < 16 → window-only tier
     expect(run15.slice(0, 1)).toBe(" ");
     expect(run15.slice(1, 5)).toBe("⠛⠛⠛⠛");
     expect(run15.slice(5)).toBe("─".repeat(10)); // trailing = 15 − 1 − 4 = 10
     rowFirmsToDashes(run15, 15);
-    const run = borderRun(busyAt(16).render(20), 20); // inner = 16 = 0 + 1 + 4 + (1 + 7 + 1) + 2 (labelFit for L = 7)
+    const run = borderRun(busyAt(16, { spinStyle: "typing" }).render(20), 20); // inner = 16 = 0 + 1 + 4 + (1 + 7 + 1) + 2 (labelFit for L = 7)
     expect(run.slice(0, 1)).toBe(" ");
     expect(run.slice(1, 5)).toBe("⠛⠛⠛⠛");
     expect(run.slice(5, 14)).toBe(LABEL); // ` Working ` — leading AND trailing space
@@ -366,14 +367,14 @@ describe("typing strip on the top border row", () => {
   it("CJK 4-char label (visible width 8 per 4-char CJK label): shows from inner 17 (= 8 + 9), absent at inner 16 (widths, not chars)", () => {
     widthProbe.probe = (s: string) => (s === "你好世界" ? 8 : s.length);
     try {
-      const onAll = borderRun(busyAt(4, { spinLabel: "你好世界" }).render(21), 21); // inner 17, 13 chars
+      const onAll = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "你好世界" }).render(21), 21); // inner 17, 13 chars
       const on = onAll.slice(0, 13); // the row (borderRun over-fetches the corner when chars ≠ visible cells)
       expect(on.slice(0, 1)).toBe(" ");
       expect(on.slice(1, 5)).toBe("⠉⠉  ");
       expect(on.slice(5, 11)).toBe(" 你好世界 "); // own leading + trailing space (the 4 CJK chars are visible-width 8)
       expect(on.slice(11)).toBe("─".repeat(2)); // trailing = 17 − 0 − 1 − 4 − (1 + 8 + 1) = 2 visible cells
       rowFirmsToDashes(on, 13); // char length: 5 + (1 + 4 + 1) + 2
-      const offAll = borderRun(busyAt(4, { spinLabel: "你好世界" }).render(20), 20); // inner = 16 < 17, 16 chars
+      const offAll = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "你好世界" }).render(20), 20); // inner = 16 < 17, 16 chars
       const off = offAll.slice(0, 16);
       expect(off).not.toContain("你好世界");
       expect(off.slice(0, 1)).toBe(" ");
@@ -386,7 +387,7 @@ describe("typing strip on the top border row", () => {
   });
 
   it("below the floor (width 10, inner 6): no window, no label, plain border", () => {
-    const run = borderRun(busyAt(4).render(10), 10);
+    const run = borderRun(busyAt(4, { spinStyle: "typing" }).render(10), 10);
     expect(run).toBe("─".repeat(6));
     expect(run).not.toContain("Working");
   });
@@ -404,7 +405,7 @@ describe("typing strip on the top border row", () => {
   // ── Configurable label (archimedes.core.editorSpinLabel) ────────────────
 
   it("custom label (\"Thinking\"): the wide beat ends in ` Thinking ` (leading AND trailing space), no ` Working ` anywhere in the row", () => {
-    const ed = busyAt(1, { spinLabel: "Thinking" });
+    const ed = busyAt(1, { spinStyle: "typing", spinLabel: "Thinking" });
     const run = borderRun(ed.render(60), 60);
     expect(run).toContain(" Thinking ");
     expect(run).not.toContain("Working");
@@ -419,6 +420,7 @@ describe("typing strip on the top border row", () => {
   it("custom label (\"Thinking\") survives the cycle: clear beat holds the label, regrowth keeps it (the spin machine is untouched by the label)", () => {
     const { editor } = makeEditor({
       spin: true,
+      spinStyle: "typing",
       spinLabel: "Thinking",
       idleSeq: Array.from({ length: 40 }, () => false),
     });
@@ -434,20 +436,20 @@ describe("typing strip on the top border row", () => {
   });
 
   it("empty label (\"\"): no label text in any tier — wide (win + trailing dashes), narrow (window-only tier identical)", () => {
-    const wide = borderRun(busyAt(4, { spinLabel: "" }).render(60), 60);
+    const wide = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "" }).render(60), 60);
     expect(wide).not.toContain("Working");
     expect(wide.slice(0, 1)).toBe(" ");
     expect(wide.slice(1, 5)).toBe("⠉⠉  ");
     expect(wide.slice(5)).toBe("─".repeat(51)); // trailing = 56 − 1 − 4 = 51
     rowFirmsToDashes(wide, 56);
-    const narrow = borderRun(busyAt(4, { spinLabel: "" }).render(14), 14);
+    const narrow = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "" }).render(14), 14);
     expect(narrow).not.toContain("Working");
     expect(narrow.slice(5)).toBe("─".repeat(5)); // window-only tier (inner 10), same as a narrow default-label box
     rowFirmsToDashes(narrow, 10);
   });
 
   it("label longer than the inner width can host (60 chars at inner 56, labelFit = 60 + 9 = 69 > 56): window-only tier even at the wide width, no negative trailing — row width constant", () => {
-    const run = borderRun(busyAt(4, { spinLabel: "A".repeat(60) }).render(60), 60);
+    const run = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "A".repeat(60) }).render(60), 60);
     expect(run).not.toContain("A");
     expect(run.slice(0, 1)).toBe(" ");
     expect(run.slice(1, 5)).toBe("⠉⠉  ");
@@ -456,7 +458,7 @@ describe("typing strip on the top border row", () => {
   });
 
   it("non-string label (corrupt config): the ctor falls back to \"Working\" (never throws in visibleWidth)", () => {
-    const ed = busyAt(4, { spinLabel: null as unknown as string });
+    const ed = busyAt(4, { spinStyle: "typing", spinLabel: null as unknown as string });
     const run = borderRun(ed.render(60), 60);
     expect(run).toContain(LABEL);
   });
@@ -472,11 +474,11 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls.length).toBe(before);
   });
 
-  it("spin=true (default ctor): one 80ms interval — the typing 80ms native tempo × the normal multiplier; onSpinInterval receives the handle", () => {
+  it("spin=true (default ctor): one 32ms interval — the default pendulum 12ms native tempo × the normal multiplier, clamped at the 32ms tick floor (12 × 1 = 12 < 32 → 32); onSpinInterval receives the handle", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(setSpy.mock.calls[0]![1]).toBe(80); // 80 × 1
+    expect(setSpy.mock.calls[0]![1]).toBe(32); // 12 clamped at the 32ms floor
     expect(onSpinInterval).toHaveBeenCalledTimes(1);
     const handle = onSpinInterval!.mock.calls[0]![0];
     expect(handle).not.toBeUndefined();
@@ -485,7 +487,7 @@ describe("timer lifecycle & gating", () => {
 
   it("spinSpeed \"slow\" (the typing 80 ms × 1.5): the interval period is the mapped 120ms", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
-    makeEditor({ spin: true, spinSpeed: "slow" });
+    makeEditor({ spin: true, spinSpeed: "slow", spinStyle: "typing" });
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(setSpy.mock.calls[0]![1]).toBe(120);
   });
@@ -540,7 +542,7 @@ describe("timer lifecycle & gating", () => {
 
   it("hand-edited speed string (out of the union, e.g. `turbo`): the multiplier resolves to ×1 (never a NaN hot timer)", () => {
     const setSpy = vi.spyOn(globalThis, "setInterval");
-    makeEditor({ spin: true, spinSpeed: "turbo" as any });
+    makeEditor({ spin: true, spinSpeed: "turbo" as any, spinStyle: "typing" });
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(setSpy.mock.calls[0]![1]).toBe(80); // 80 × (undefined ?? 1)
   });
@@ -563,14 +565,14 @@ describe("timer lifecycle & gating", () => {
   });
 
   it("fake 80ms ticks drive render while the agent is busy", () => {
-    const { editor, tui } = makeEditor({ spin: true, idleSeq: [false] });
+    const { editor, tui } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: [false] });
     (editor as any).isIdle = () => false;
     vi.advanceTimersByTime(80);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
   });
 
   it("fast tick (48ms — editorSpinSpeed \"fast\"): the mapped period drives the render", () => {
-    const { editor, tui } = makeEditor({ spin: true, spinSpeed: "fast", idleSeq: [false] });
+    const { editor, tui } = makeEditor({ spin: true, spinSpeed: "fast", spinStyle: "typing", idleSeq: [false] });
     (editor as any).isIdle = () => false;
     vi.advanceTimersByTime(48);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
@@ -585,7 +587,7 @@ describe("EAW terminal fallback", () => {
     widthProbe.probe = (s: string) => (s === "⣿" ? 2 : s.length);
     try {
       const expectWindow = (s: number, window: string) => {
-        const run = borderRun(busyAt(s).render(60), 60);
+        const run = borderRun(busyAt(s, { spinStyle: "typing" }).render(60), 60);
         expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + 1)).toBe(" ");
         expect(
           run.slice(

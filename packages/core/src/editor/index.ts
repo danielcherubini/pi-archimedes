@@ -61,7 +61,7 @@ export class HephaestusEditor extends CustomEditor {
       shutdown,
       spin = false,
       spinSpeed = "normal",
-      spinStyle = "typing",
+      spinStyle = "pendulum",
       spinLabel = "Working",
       onSpinInterval,
     }: {
@@ -72,7 +72,7 @@ export class HephaestusEditor extends CustomEditor {
       spin?: boolean;
       /** Tick period = the style's native per-tick tempo (`SPIN_INTERVALS[normalizeSpinnerStyle(spinStyle)]`) × the `editorSpinSpeed` multiplier (1.5 / 1 / 0.6), clamped at the 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32). */
       spinSpeed?: CoreConfig["editorSpinSpeed"];
-      /** The `editorSpinStyle` setting (raw setting strings tolerated; normalized — unknown names fall back to typing frames). */
+      /** The `editorSpinStyle` setting — the default style, from the config default (pendulum); raw setting strings are tolerated, but unknown names still normalize to typing frames (the normalizer's fallback, kept distinct from the default). */
       spinStyle?: SpinnerStyle | string;
       /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. Non-string values (corrupt config) fall back to "Working". */
       spinLabel?: string;

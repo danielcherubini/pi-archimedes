@@ -117,9 +117,9 @@ let si: TimerSpy;
 let cl: TimerSpy;
 let constructed: unknown[];
 
-/** Count of timers registered with delay 80 ms (the spinner cadence — the typing 80 ms native × the normal multiplier). */
+/** Count of timers registered with delay 32 ms (the spinner cadence at the default config — the default `pendulum` native 12 ms × the normal multiplier, clamped at the 32 ms tick floor). */
 function spinTimerCount(): number {
-  return si.mock.calls.filter((c) => c[1] === 80).length;
+  return si.mock.calls.filter((c) => c[1] === 32).length;
 }
 
 beforeEach(() => {
@@ -146,7 +146,7 @@ afterEach(() => {
 // ── 1. Default (on) ────────────────────────────────────────────────────
 
 describe("editorSpinBorder = true (default)", () => {
-  it("session_start hides the Working line; the editor drives an 80ms timer stored onSpinInterval; shutdown restores and reaps", () => {
+  it("session_start hides the Working line; the editor drives a 32ms timer (the default pendulum) stored onSpinInterval; shutdown restores and reaps", () => {
     vi.mocked(loadCoreConfig).mockReturnValue(DEFAULT_CORE_CONFIG);
 
     start(ctx);
@@ -154,11 +154,11 @@ describe("editorSpinBorder = true (default)", () => {
       [false],
     );
 
-    buildEditor(ui); // real ctor: setInterval(fn, 80) + onSpinInterval(token)
+    buildEditor(ui); // real ctor: setInterval(fn, 32) + onSpinInterval(token)
     expect(spinTimerCount()).toBe(1);
     const setCall = si.mock.calls.at(-1)!;
     expect(typeof setCall[0]).toBe("function");
-    expect(setCall[1]).toBe(80);
+    expect(setCall[1]).toBe(32);
 
     // onSpinInterval stored the handle: shutdown() clears it.
     shutdown(ctx);
@@ -185,6 +185,7 @@ describe("editorSpinBorder = true (default)", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
       editorSpinSpeed: "fast",
+      editorSpinStyle: "typing",
     });
 
     start(ctx);
@@ -197,6 +198,7 @@ describe("editorSpinBorder = true (default)", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
       editorSpinSpeed: "slow",
+      editorSpinStyle: "typing",
     });
 
     start(ctx);
@@ -249,11 +251,10 @@ describe("editorSpinBorder = true (default)", () => {
     vi.mocked(ctx.isIdle).mockReturnValue(false); // busy
     const editor = buildEditor(ui) as { render(w: number): string[] };
     const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
-    // Step-0 (clear beat): block at the corner — leading space at 0 + 4 spaces, full (51) trailing run.
-    expect(plain(editor.render(60)[1]!)).toContain(
-      " " + "    " + "─".repeat(51),
-    );
-    expect(plain(editor.render(60)[1]!)).not.toContain("Working");
+    const row = plain(editor.render(60)[1]!);
+    // Corner + leading space + the 4-cell window (frame-agnostic here — the default style is now pendulum and its seeded step-0 frame fills the window, not typing's clear beat; window frames are covered in editor/index.test.ts) + the full (51) trailing run.
+    expect(row).toMatch(/\s[^\s─]{4}─{51}/);
+    expect(row).not.toContain("Working");
   });
 });
 

@@ -295,6 +295,7 @@ describe("normalizeSpinnerStyle (library normalizeVariant fallback)", () => {
   });
 
   it("unknown / malformed strings normalize to typing", () => {
+    // The unknown-value fallback is typing (unchanged); the DEFAULT setting is pendulum (DEFAULT_CORE_CONFIG, config.ts) — the two are distinct.
     for (const s of ["nope", "", "Typing"]) {
       expect(normalizeSpinnerStyle(s)).toBe("typing");
     }

@@ -299,7 +299,7 @@ No meta-specific user settings. Per-plugin on/off switches live in each package'
 | `labelColor` | string | `255,215,0` | RGB color for the thinking label |
 | `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
 | `editorSpinBorder` | boolean | `true` | The border spinner runs on the editor's top border while working; hides pi's native "Working" line |
-| `editorSpinStyle` | string | `typing` | Which animation the editor border runs while working (ten gallery-derived styles — typing (default), pulse, marquee, wave-rows, columns, pendulum, cascade, diagonal-swipe, rain, sparkle; unknown values normalize to typing) |
+| `editorSpinStyle` | string | `pendulum` | Which animation the editor border runs while working (ten gallery-derived styles — pendulum (default), typing, pulse, marquee, wave-rows, columns, cascade, diagonal-swipe, rain, sparkle; unknown values normalize to typing) |
 | `editorSpinSpeed` | string | `normal` | Border spinner speed (slow / normal / fast — × 1.5 / × 1 / × 0.6 of the style's native tempo) |
 | `editorSpinLabel` | string | `Working` | Label typed after the spin window (empty hides it) |
 

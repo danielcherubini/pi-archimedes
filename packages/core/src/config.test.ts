@@ -32,7 +32,7 @@ describe("loadCoreConfig", () => {
       editorSpinBorder: true,
       editorSpinSpeed: "normal",
       editorSpinLabel: "Working",
-      editorSpinStyle: "typing",
+      editorSpinStyle: "pendulum",
     });
   });
 
@@ -72,7 +72,7 @@ describe("DEFAULT_CORE_CONFIG", () => {
       editorSpinBorder: true,
       editorSpinSpeed: "normal",
       editorSpinLabel: "Working",
-      editorSpinStyle: "typing",
+      editorSpinStyle: "pendulum",
     });
   });
 

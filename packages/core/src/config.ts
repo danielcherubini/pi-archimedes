@@ -47,7 +47,7 @@ export const DEFAULT_CORE_CONFIG: CoreConfig = {
   editorSpinBorder: true,
   editorSpinSpeed: "normal",
   editorSpinLabel: "Working",
-  editorSpinStyle: "typing",
+  editorSpinStyle: "pendulum",
 };
 
 /** Border-spinner speed setting → the multipliers the `editorSpinSpeed` setting applies to the style's native per-tick interval (SPIN_INTERVALS, `editor/spin.ts` — typing: 120 / 80 / 48 ms). */
