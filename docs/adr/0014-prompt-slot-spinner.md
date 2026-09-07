@@ -14,6 +14,7 @@ Consequences:
 - Core's `session_start` loads config before registering the editor factory (the `loadCoreConfig` call moved up), hides the "working" kind conditionally (`setWorkingVisible(!spinFlag)` — the unconditional form double-recovers a carried-over hidden state even when off), and passes the timer handle up via `onSpinInterval`; `session_shutdown` restores visibility (enabled only), reaps the timer, and resets the flag so a second shutdown is a no-op. The editor never imports the extension index (no circular import) — the callback keeps the gap one-way.
 - The editor's `dispose()` override is declared **without `override`** (verified: no pi-tui base class declares `dispose()` at 0.85.1) — do not "fix" it.
 - East-Asian-width terminals (any braille frame's `visibleWidth()` is 2) fall back to `|/-\` frames; the 2-column slot and the autocomplete indent (`PI_SYMBOL_COL = 2`) are preserved either way.
+- The spinner frame renders via a dedicated `spin` palette entry (`accent` → `borderMuted` fallback), so the animation can be recolored independently of the static `>` (the `prefix` palette entry, `borderMuted` → `border`).
 
 Manual verification checklist:
 - [ ] Start a turn — spinner animates in the `>` slot, the standalone "Working (⛟ …)" line is gone.
