@@ -34,6 +34,8 @@ export const SPIN_TYPE_HOLD = 6;
 export const SPIN_TYPE_CYCLE = SPIN_TYPE_STEPS + SPIN_TYPE_HOLD; // 38
 /** Window start (in cells) inside the `┌───┐` border row, after `┌`. */
 export const SPIN_TYPE_START = 6;
+/** Literal label rendered straight after the 4-cell window in every busy state (typing steps 1–32, hold, and the step-38 clear beat) — 1 leading space + the word; present from `inner >= 20`, omitted (not standalone) on narrower boxes, gone when idle. */
+export const SPIN_TYPE_LABEL = " Working";
 
 /** Growing 2×4 braille dot block, Unicode braille-chart dot order (U+2801 → U+28FF) — its 8 stages run through the 4-cell window in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿). */
 const STAGE_BRAILLE = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
@@ -234,29 +236,40 @@ export class HephaestusEditor extends CustomEditor {
       );
 
       // Top border row: while busy, a 4-cell window replaces a segment of
-      // the `─` border — 6 dashes in, shifted left on narrow boxes, plain
-      // when too narrow to fit. The window fills cell-by-cell left→right,
+      // the `─` border — 6 dashes in; the ` Working` label right after the
+      // window when the box is wide enough (inner >= 20; omitted, not
+      // standalone, in the 8 ≤ inner < 20 window-only tier), plain when too
+      // narrow to fit. The window fills cell-by-cell left→right,
       // each cell walking the 8 chart-order stages in 2-step line pairs
       // (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █), so the 2×4
-      // dot block grows across the window line by line, then holds — on
-      // the empty clear step the window cells are spaces (the border line
-      // breaks there).
+      // dot block grows across the window line by line, followed by a
+      // " Working" label (label shown when the box is wide enough; omitted,
+      // not standalone, on narrow boxes), then holds — on
+      // the empty clear step (step 38) the window cells are spaces and the
+      // label stays up (the border line breaks there); the label's 8
+      // columns replace trailing dashes, so the row width stays constant.
       const borderRun = (() => {
-        if (this.spinEnabled && !this.isIdle()) {
-          let start = SPIN_TYPE_START; // 6
-          if (inner < start + SPIN_TYPE_CELLS + 2) { // inner < 12 → shift
-            start = Math.max(2, inner - SPIN_TYPE_CELLS - 2); // shrink window left for narrow boxes
-            if (inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain
-              return p.frame("─".repeat(inner)); // too narrow → plain
-            }
-          }
-          return (
-            p.frame("─".repeat(start)) +
-            this.typeStrip() +
-            p.frame("─".repeat(inner - start - SPIN_TYPE_CELLS))
-          );
+        const busy = this.spinEnabled && !this.isIdle();
+        const labelShown =
+          busy &&
+          inner >=
+            SPIN_TYPE_START + SPIN_TYPE_CELLS + SPIN_TYPE_LABEL.length + 2;
+        if (!busy || inner < SPIN_TYPE_CELLS + 4) { // inner < 8 → plain (no window, no label)
+          return p.frame("─".repeat(inner));
         }
-        return p.frame("─".repeat(inner));
+        let start = SPIN_TYPE_START; // 6
+        if (!labelShown && inner < start + SPIN_TYPE_CELLS + 2) { // 8 ≤ inner < 12 → shift
+          start = Math.max(2, inner - SPIN_TYPE_CELLS - 2); // shrink window left for narrow boxes
+        }
+        const labelLen = labelShown ? SPIN_TYPE_LABEL.length : 0;
+        return (
+          p.frame("─".repeat(start)) +
+          this.typeStrip() +
+          (labelShown ? p.time(SPIN_TYPE_LABEL) : "") +
+          p.frame(
+            "─".repeat(Math.max(0, inner - start - SPIN_TYPE_CELLS - labelLen)),
+          )
+        );
       })();
       const topLine = p.frame("┌") + borderRun + p.frame("┐");
       const botLine =
