@@ -60,23 +60,14 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   return { CustomEditor };
 });
 
-import { HephaestusEditor, SPIN_TICK_MS } from "./index.js";
+import {
+  HephaestusEditor,
+  SPIN_TICK_MS,
+  SPIN_TYPE_CELLS,
+  SPIN_TYPE_CYCLE,
+} from "./index.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-const BRAILLE_FRAMES = [
-  "⠋",
-  "⠙",
-  "⠹",
-  "⠸",
-  "⠼",
-  "⠴",
-  "⠦",
-  "⠧",
-  "⠇",
-  "⠏",
-];
-const FALLBACK_FRAMES = ["|", "/", "-", "\\"];
 
 const stubTheme = {
   fg: (_k: string, t: string) => t,
@@ -128,6 +119,26 @@ const tick = (ed: HephaestusEditor): void => {
 // position-based prefix check sees pad + prefix + content.
 const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
 
+// An editor that has been `step` busy ticks and reports busy to render.
+function busyAt(step: number): HephaestusEditor {
+  const { editor } = makeEditor({
+    spin: true,
+    idleSeq: Array.from({ length: step }, () => false),
+  });
+  for (let i = 0; i < step; i++) tick(editor);
+  (editor as any).isIdle = () => false;
+  return editor;
+}
+
+// The 4-cell typing window on the first rendered line (the top edge).
+const topEdgeWindow = (lines: string[], width: number): string => {
+  const first = plain(lines[0]!);
+  const start = Math.floor((width - SPIN_TYPE_CELLS) / 2);
+  return first.slice(start, start + SPIN_TYPE_CELLS);
+};
+const litCount = (window: string): number =>
+  [...window].filter((c) => c !== "▁").length;
+
 // ── Setup / teardown ────────────────────────────────────────────────────────
 
 beforeAll(() => {
@@ -150,14 +161,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ── 1. Static prefix when idle (spin on, never busy) ──────────────────────
+// ── 1. Static prefix (always >), plain edge while idle ──────────────────
 
-describe("idle-static prefix", () => {
-  it("tickSpin is a no-op while idle: no render, frameIdx stays 0", () => {
+describe("static prefix, plain idle edge", () => {
+  it("tickSpin is a no-op while idle: no render, typeStep stays 0, blink stays on", () => {
     const { editor, tui } = makeEditor({ spin: true });
     tick(editor);
     expect(tui.requestRender).not.toHaveBeenCalled();
-    expect((editor as any).frameIdx).toBe(0);
+    expect((editor as any).typeStep).toBe(0);
+    expect((editor as any).blinkOn).toBe(true);
   });
 
   it("renders the static > prefix while idle", () => {
@@ -178,47 +190,104 @@ describe("idle-static prefix", () => {
     expect(prefixLine).toBeDefined();
     expect(plain(prefixLine!).trimStart().startsWith("> ")).toBe(true);
   });
+
+  it("prefix is the static > even while busy (chevron never animates)", () => {
+    const editor = busyAt(4);
+    const lines = editor.render(60);
+    const prefixLine = lines.find((l) => l.includes("input line"));
+    expect(prefixLine).toBeDefined();
+    expect(plain(prefixLine!).trimStart().startsWith("> ")).toBe(true);
+  });
+
+  it("idle renders a plain edge row (no lit chars anywhere)", () => {
+    const { editor } = makeEditor({ spin: true }); // never went busy
+    const lines = editor.render(60);
+    const first = plain(lines[0]!);
+    expect(first).toBe("▁".repeat(60));
+  });
+
+  it("spin=false leaves the edge plain while busy", () => {
+    const { editor } = makeEditor({
+      spin: false,
+      idleSeq: Array(4).fill(false),
+    });
+    for (let i = 0; i < 4; i++) tick(editor);
+    (editor as any).isIdle = () => false;
+    const first = plain(editor.render(60)[0]!);
+    expect(first).toBe("▁".repeat(60));
+  });
 });
 
-// ── 2. Busy advances, idle-after-busy repaints exactly once ─────────────────
+// ── 2. Busy typing state machine ────────────────────────────────────────
 
-describe("busy/idle tick state machine", () => {
-  it("advances frames while busy, resets + repaints once on idle, then no-ops", () => {
+describe("busy/idle typing state machine", () => {
+  it("advances typeStep while busy, resets + repaints once on idle, then no-ops", () => {
     // isIdle() returns false, false, true, true across the four ticks
     const { editor, tui } = makeEditor({ spin: true, idleSeq: [false, false, true, true] });
 
     tick(editor); // busy #1
-    expect((editor as any).frameIdx).toBe(0);
+    expect((editor as any).typeStep).toBe(1);
+    expect((editor as any).blinkOn).toBe(false);
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
 
     tick(editor); // busy #2
-    expect((editor as any).frameIdx).toBe(1);
+    expect((editor as any).typeStep).toBe(2);
+    expect((editor as any).blinkOn).toBe(true);
     expect(tui.requestRender).toHaveBeenCalledTimes(2);
 
     tick(editor); // idle after busy — reset + exactly one repaint
-    expect((editor as any).frameIdx).toBe(0);
+    expect((editor as any).typeStep).toBe(0);
+    expect((editor as any).blinkOn).toBe(true);
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
 
     tick(editor); // idle after idle — full no-op
-    expect((editor as any).frameIdx).toBe(0);
+    expect((editor as any).typeStep).toBe(0);
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
   });
 
-  it("busy streak wraps around the frame set", () => {
-    const ed = makeEditor({ spin: true, idleSeq: [false, false, false, false] });
-    const n = (ed.editor as any).spinFrames.length;
-    tick(ed.editor);
-    tick(ed.editor);
-    tick(ed.editor);
-    // Three busy ticks: 0, 1, 2
-    expect((ed.editor as any).frameIdx).toBe(2);
-    for (let i = 0; i < n - 2; i++) tick(ed.editor); // up to n-1
-    tick(ed.editor); // wraps to 0
-    expect((ed.editor as any).frameIdx).toBe(0);
+  it("busy streak wraps at SPIN_TYPE_CYCLE (10)", () => {
+    const editor = busyAt(SPIN_TYPE_CYCLE - 1); // 9 toggling: s=1..9
+    expect((editor as any).typeStep).toBe(SPIN_TYPE_CYCLE - 1);
+    tick(editor); // wraps to 0
+    (editor as any).isIdle = () => false;
+    expect((editor as any).typeStep).toBe(0);
   });
 });
 
-// ── 3. Timer lifecycle & gating ────────────────────────────────────────────
+// ── 3. Typing strip on the top edge ─────────────────────────────────────
+
+describe("typing strip on the top edge", () => {
+  it("s=1: one literal in the centered 4-cell window", () => {
+    const window = topEdgeWindow(busyAt(1).render(60), 60);
+    expect(window.length).toBe(SPIN_TYPE_CELLS);
+    expect(litCount(window)).toBe(1);
+  });
+
+  it("s=4 (fill complete): four lit, the rest of the row is ▁", () => {
+    const editor = busyAt(4);
+    const lines = editor.render(60);
+    expect(litCount(topEdgeWindow(lines, 60))).toBe(4);
+    expect(plain(lines[0]!).replace(/[⠰·]/g, "▁")).toBe("▁".repeat(60));
+  });
+
+  it("hold region (s=6, s=9): all 4 still lit, cursor overlap included", () => {
+    expect(litCount(topEdgeWindow(busyAt(6).render(60), 60))).toBe(4);
+    expect(litCount(topEdgeWindow(busyAt(9).render(60), 60))).toBe(4);
+  });
+
+  it("window is centered: everything outside it on the row is ▁", () => {
+    const first = plain(busyAt(4).render(60)[0]!);
+    const start = Math.floor((60 - SPIN_TYPE_CELLS) / 2);
+    expect(first.slice(0, start)).toBe("▁".repeat(start));
+    expect(first.slice(start + SPIN_TYPE_CELLS)).toBe("▁".repeat(60 - start - SPIN_TYPE_CELLS));
+  });
+
+  it("narrow width (below CELLS + 2): no window, edge stays plain", () => {
+    expect(plain(busyAt(4).render(5)[0]!)).toBe("▁".repeat(5));
+  });
+});
+
+// ── 4. Timer lifecycle & gating ────────────────────────────────────────────
 
 describe("timer lifecycle & gating", () => {
   it("spin=false: no interval is set up", () => {
@@ -234,9 +303,7 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(setSpy.mock.calls[0]![1]).toBe(SPIN_TICK_MS);
     expect(onSpinInterval).toHaveBeenCalledTimes(1);
-    const spy = onSpinInterval!; // makeEditor always provisions a spy
-    expect(spy).toHaveBeenCalledTimes(1);
-    const handle = spy.mock.calls[0]![0];
+    const handle = onSpinInterval!.mock.calls[0]![0];
     expect(handle).not.toBeUndefined();
     expect(handle).toBe((editor as any).spinTimer);
   });
@@ -266,44 +333,23 @@ describe("timer lifecycle & gating", () => {
   });
 });
 
-// ── 4. EAW width fallback ──────────────────────────────────────────────────
+// ── 5. EAW width fallback ──────────────────────────────────────────────────
 
 describe("EAW width fallback", () => {
-  it("all-braille-width-2 → uses |/-\\ set and wraps over 4 frames", () => {
-    widthProbe = (s: string) => (BRAILLE_FRAMES.includes(s) ? 2 : 1);
-    const { editor, tui } = makeEditor({ spin: true, idleSeq: [false, false] });
-
-    expect((editor as any).spinFrames).toEqual(FALLBACK_FRAMES);
-
-    tick(editor); // busy #1
-    tick(editor); // busy #2
-    expect((editor as any).frameIdx).toBe(1);
-    expect(tui.requestRender).toHaveBeenCalledTimes(2);
-
-    // The painted prefix must come from the fallback set
-    (editor as any).isIdle = () => false;
+  it("visibleWidth(\"⠰\") === 2 → lit char is \"·\", 4-cell window intact, no ⠰", () => {
+    widthProbe = (s: string) => (s === "⠰" ? 2 : 1);
+    const editor = busyAt(4);
+    expect((editor as any).spinLitChar).toBe("·");
     const lines = editor.render(60);
-    // Prefix is attached to the first content line (mock's "input line" row);
-    // wrapped lines start with an SGR — strip before the position check
-    const prefixLine = lines.find((l) => l.includes("input line"));
-    expect(prefixLine).toBeDefined();
-    // Position-based: prefix at start is exactly one fallback frame + space
+    expect(litCount(topEdgeWindow(lines, 60))).toBe(4);
     expect(
-      FALLBACK_FRAMES.some(
-        (f) => plain(prefixLine!).trimStart().startsWith(f + " "),
-      ),
+      [...topEdgeWindow(lines, 60)].every((c) => c === "·" || c === "▁"),
     ).toBe(true);
-    expect(BRAILLE_FRAMES.some((f) => prefixLine!.includes(f))).toBe(false);
+    expect(plain(lines[0]!).includes("⠰")).toBe(false);
   });
 
-  it("any single braille frame width 2 also triggers the fallback", () => {
-    const { editor } = makeEditor({ spin: true });
-    // default probe: width 1 for everything → braille set
-    expect((editor as any).spinFrames).toEqual(BRAILLE_FRAMES);
-
-    // Flip: only the first frame is wide — `every(...===1)` must fail
-    widthProbe = (s: string) => (s === "⠋" ? 2 : 1);
-    const { editor: ed2 } = makeEditor({ spin: true });
-    expect((ed2 as any).spinFrames).toEqual(FALLBACK_FRAMES);
+  it("default probe (width 1) → lit char is \"⠰\"", () => {
+    const editor = busyAt(4);
+    expect((editor as any).spinLitChar).toBe("⠰");
   });
 });
