@@ -205,7 +205,7 @@ describe("editorSpinBorder = true (default)", () => {
     expect(setCall[1]).toBe(120);
   });
 
-  it("editorSpinStyle = \"rain\" → the factory pass-through: the editor's interval period is 40 × 1 (normal) = 40 (rain's native tempo) and the border shows typing frames (unported — normalized until batch 4)", () => {
+  it("editorSpinStyle = \"rain\" → the factory pass-through: the editor's interval period is 40 × 1 (normal) = 40 (rain's native tempo) and the border shows rain's frames (ported — batch 4)", () => {
     vi.mocked(loadCoreConfig).mockReturnValue({
       ...DEFAULT_CORE_CONFIG,
       editorSpinStyle: "rain",
@@ -220,9 +220,9 @@ describe("editorSpinBorder = true (default)", () => {
     const editor = buildEditor(ui) as unknown as { tickSpin(): void; render(w: number): string[] };
     editor.tickSpin(); // advance the border spinner to its first busy frame
     const plain = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
-    // Step 1 typing frame (the unported style normalizes to typing frames until its entry lands): the 4-cell window shows ⠁, with the default ` Working ` label still up
-    expect(plain(editor.render(60)[1]!)).toContain("⠁");
-    expect(plain(editor.render(60)[1]!)).toContain(" Working ");
+    // The step-0 rain frame (3 seeded drops, live-verified — NOT the typing ⠁): the 4-cell window shows ⠈⠠⠠, with the default ` Working ` label still up
+    expect(plain(editor.render(60)[1]!)).toContain("⠈⠠⠠ Working");
+    expect(plain(editor.render(60)[1]!)).not.toContain("⠁   Working"); // not the typing fallback
   });
 
   it("editorSpinLabel = \"Thinking\" → the factory-built editor's busy border carries ` Thinking`, not ` Working`", () => {

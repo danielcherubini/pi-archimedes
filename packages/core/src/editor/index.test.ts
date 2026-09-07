@@ -494,6 +494,20 @@ describe("timer lifecycle & gating", () => {
     expect(setSpy.mock.calls[0]![1]).toBe(32);
   });
 
+  it("spinStyle \"rain\" + normal speed (40ms native, ported — batch 4): the interval period is the rain 40ms native tempo × the normal multiplier", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinStyle: "rain" });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(40);
+  });
+
+  it("spinStyle \"sparkle\" + fast (40ms native, ported — batch 4): the period is 40 × 0.6 = 24 → clamps at the 32ms tick floor (24 → 32)", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinSpeed: "fast", spinStyle: "sparkle" });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(32);
+  });
+
   it("dispose clears the interval and notifies onSpinInterval(undefined)", () => {
     const { editor, onSpinInterval } = makeEditor({ spin: true });
     const clearSpy = vi.spyOn(globalThis, "clearInterval");

@@ -31,6 +31,26 @@ const DOT_BITS = [
   [0x40, 0x80] as const,
 ];
 
+/** The source's `seededRandom` LCG helper, verbatim (`s = (s * 1664525 + 1013904223) & 0xffffffff`) — the gallery precompute-context seeds: 42 → importance, 19 → shuffled/target, 123 → colRandom. Only colRandom is needed by the 1×4 ports (rain). */
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+/** The source's `clamp` helper, verbatim. */
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** The 1×4 grid's colRandom — built once at module scope (the source's `contextCache` pattern) with seed 123 and the same draw order as the source's `getPrecomputeContext` for width 4 × height 4: 8 draws, pc 0..7. */
+const RAIN_COL_RANDOM: number[] = (() => {
+  const rand = seededRandom(123);
+  return Array.from({ length: 8 }, () => rand());
+})();
+
 /** One gallery-derived spin style: `steps` (tick cycle incl. hold — typing: 32 + 6 = 38), `hold` (the clamp tail after the fill walk), and `compute(step)`, which returns the 4 braille dot-masks (8-bit each) for the 4-cell window at `step` (0-based: 0 = the first fill tick after the clear beat; beyond `steps - hold` the frames clamp to the last one). */
 export interface SpinStyleConfig {
   steps: number;
@@ -38,7 +58,7 @@ export interface SpinStyleConfig {
   compute: (step: number) => number[];
 }
 
-/** The gallery-derived variants. Batch 1: `typing`; batch 2: `wave-rows`, `columns`, `pulse`, `marquee`; batch 3 (below): `pendulum`, `cascade`, `diagonal-swipe` — the remaining two (rain, sparkle) land in batch 4; an unregistered / unknown name normalizes to typing in the meantime (`normalizeSpinnerStyle`). */
+/** The gallery-derived variants. Batch 1: `typing`; batch 2: `wave-rows`, `columns`, `pulse`, `marquee`; batch 3 (below): `pendulum`, `cascade`, `diagonal-swipe`; batch 4 (below): `rain`, `sparkle` — the full ten-style set; an unregistered / unknown name normalizes to typing (`normalizeSpinnerStyle`). */
 export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
   typing: {
     steps: 38,
@@ -218,9 +238,154 @@ export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
       return cells;
     },
   },
+  // ── Batch 4: the final 2 gallery ports (rain, sparkle) — same 1×4 (8 dot-columns × 4 rows) adaptation; formulas and constants unchanged from the source (dot column = pc % 2). Each `compute` returns the 4 braille cell masks (8-bit each). ──
+  /** Seeded raindrops with gravity, mid-wobble, miss-chance skip and a guaranteed single-dot fallback — survives a 1×4 grid: one 4-row column per each of the 8 dot-columns (2 dot-columns per cell). */
+  rain: {
+    steps: 90,
+    hold: 0,
+    compute(step: number): number[] {
+      const t = step * 40;
+      const cells = [0, 0, 0, 0];
+      let activeDrops = 0;
+
+      for (let pc = 0; pc < 8; pc++) {
+        const rand = RAIN_COL_RANDOM[pc]!;
+        const period = 1200 + rand * 1000;
+        const cyclePos = t / period + rand * 0.91 + pc * 0.07;
+        const cycleIndex = Math.floor(cyclePos);
+        const phase = cyclePos - cycleIndex;
+
+        // seeds A/B/C — the source's fixed noise constants
+        const seedA = cycleIndex * 173 + pc * 37 + Math.floor(rand * 1009);
+        const noiseA = Math.sin(seedA * 12.9898) * 43758.5453;
+        const rollA = noiseA - Math.floor(noiseA);
+
+        const seedB = cycleIndex * 257 + pc * 61 + Math.floor(rand * 881);
+        const noiseB = Math.sin(seedB * 78.233) * 12345.6789;
+        const rollB = noiseB - Math.floor(noiseB);
+
+        const seedC = cycleIndex * 97 + pc * 149 + Math.floor(rand * 733);
+        const noiseC = Math.sin(seedC * 39.3467) * 31337.4242;
+        const rollC = noiseC - Math.floor(noiseC);
+
+        const missChance = 0.02 + rand * 0.08;
+        if (rollA < missChance) continue;
+
+        const spawnDelay = 0.0 + rollB * 0.2;
+        const fallDuration = 0.48 + rollC * 0.42;
+        const endPhase = spawnDelay + fallDuration;
+        if (phase < spawnDelay || phase > endPhase) continue;
+
+        const localPhase = (phase - spawnDelay) / fallDuration;
+        const gravityCurve = 1.6 + rollC * 1.2;
+        const accelerated = Math.pow(localPhase, gravityCurve);
+
+        const midWeight = Math.max(0, 1 - Math.abs(localPhase - 0.5) * 2);
+        const wobbleSeed = cycleIndex * 0.73 + pc * 1.31 + rand * 4.7;
+        const midWobble = Math.sin(wobbleSeed + localPhase * Math.PI * 6) * 0.1 * midWeight;
+
+        const y = Math.floor((accelerated + midWobble) * 5) - 1; // × (height + 1)
+        if (y < 0 || y >= 4) continue;
+
+        cells[Math.floor(pc / 2)]! |= DOT_BITS[y]![pc % 2]!;
+        activeDrops++;
+      }
+
+      if (activeDrops === 0) {
+        const fallbackPos = (t / 1600) % 1;
+        const fallbackPc = Math.floor(fallbackPos * 8) % 8;
+        const fallbackPhase = fallbackPos * 5; // × (height + 1)
+        const fallbackY = clamp(Math.floor(fallbackPhase), 0, 3);
+        cells[Math.floor(fallbackPc / 2)]! |= DOT_BITS[fallbackY]![fallbackPc % 2]!;
+      }
+
+      return cells;
+    },
+  },
+  /** Hash shimmer with edge compensation, 2×2 regional competition, a 4-frame lifecycle and a one-frame positional jitter — fully deterministic (verbatim hash: 374761393 / 668265263 / 1442695041, × 1274126177, / 4294967295 in 32-bit ops). */
+  sparkle: {
+    steps: 60,
+    hold: 0,
+    compute(step: number): number[] {
+      const cells = [0, 0, 0, 0];
+      const hash = (x: number, y: number, t: number): number => {
+        let n = x * 374761393 + y * 668265263 + t * 1442695041;
+        n = (n ^ (n >> 13)) * 1274126177;
+        return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+      };
+
+      const density = 0.095;
+      const lifetime = 4;
+      const phase = Math.floor(step / 2);
+      const regionSize = 2;
+      const drawableHeight = 4;
+      const pixelCols = 8;
+
+      for (let row = 0; row < drawableHeight; row++) {
+        for (let col = 0; col < pixelCols; col++) {
+          let v = hash(col, row, phase);
+          // edge compensation (col edge 0/7, row edge 0/3)
+          const edgeBias =
+            0.12 * ((col === 0 || col === pixelCols - 1 ? 1 : 0) + (row === 0 || row === drawableHeight - 1 ? 1 : 0));
+          v -= edgeBias;
+          if (v > density) continue;
+
+          // regional competition (2×2), winner = min v
+          const rx = Math.floor(col / regionSize);
+          const ry = Math.floor(row / regionSize);
+          let winner = true;
+          for (let oy = 0; oy < regionSize && winner; oy++) {
+            for (let ox = 0; ox < regionSize; ox++) {
+              const nx = rx * regionSize + ox;
+              const ny = ry * regionSize + oy;
+              if (nx === col && ny === row) continue;
+              if (nx >= pixelCols || ny >= drawableHeight) continue;
+              let nv = hash(nx, ny, phase);
+              const nEdgeBias =
+                0.12 * ((nx === 0 || nx === pixelCols - 1 ? 1 : 0) + (ny === 0 || ny === drawableHeight - 1 ? 1 : 0));
+              nv -= nEdgeBias;
+              if (nv < v) {
+                winner = false;
+                break;
+              }
+            }
+          }
+          if (!winner) continue;
+
+          // lifecycle (offset = floor(hash(col,row,999) × lifetime))
+          const offset = Math.floor(hash(col, row, 999) * lifetime);
+          const age = (step + offset) % lifetime;
+          if (age > 3) continue;
+
+          // shimmer (one-frame 8-direction jitter, once, clamped)
+          let r = row;
+          let c = col;
+          if (hash(col, row, 777) < 0.18 && age === 1) {
+            const dirs = [
+              [-1, -1],
+              [-1, 0],
+              [-1, 1],
+              [0, -1],
+              [0, 1],
+              [1, -1],
+              [1, 0],
+              [1, 1],
+            ] as const;
+            const d = dirs[Math.floor(hash(col, row, 555) * dirs.length)]!;
+            r = clamp(r + d[0], 0, drawableHeight - 1);
+            c = clamp(c + d[1], 0, pixelCols - 1);
+          }
+
+          cells[Math.floor(c / 2)]! |= DOT_BITS[r]![c % 2]!;
+        }
+      }
+
+      return cells;
+    },
+  },
 };
 
-/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (not-yet-ported gallery styles — batch 4: rain, sparkle — and unknown strings) falls back to `typing`. */
+/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (an unknown or unregistered style string) falls back to `typing`. */
 export function normalizeSpinnerStyle(s: string): SpinnerStyle {
   return SPIN_VARIANTS[s as SpinnerStyle] ? (s as SpinnerStyle) : "typing";
 }
@@ -243,14 +408,14 @@ export class BorderTypeSpinner {
 
   /** Precomputed frame table (computed once in the ctor): covers the `steps − hold` frames `frame()` can address (typing: 32) — the hold tail clamps to the last (fully grown) frame. Deterministic per instance. */
   private readonly frames: string[];
-  /** The resolved style config (`SPIN_VARIANTS[normalizeSpinnerStyle(style)]` — unknown names normalize to typing in the meantime batch 4 lands). */
+  /** The resolved style config (`SPIN_VARIANTS[normalizeSpinnerStyle(style)]` — an unknown name normalizes to typing). */
   private readonly cfg: SpinStyleConfig;
   private step = 0;
   private wasBusy = false;
 
   constructor(
     private readonly isIdle: () => boolean,
-    /** The style (config-side typed `SpinnerStyle`, raw setting strings tolerated) — normalized: a not-yet-ported style renders as typing in the meantime its entry lands in batch 4. */
+    /** The style (config-side typed `SpinnerStyle`, raw setting strings tolerated) — normalized: an unknown / unregistered name renders as typing. */
     style: SpinnerStyle | string = "typing",
     /** The stage-set grabbiness probe — same as today: `visibleWidth("⣿") === 1` → braille chars, otherwise the EAW width-1 path. */
     probe: (s: string) => number = visibleWidth,

@@ -37,6 +37,13 @@ const probe1 = (s: string): number => (s === "⣿" ? 1 : 1); // non-EAW: braille
 const probe2 = (s: string): number => (s === "⣿" ? 2 : 1); // EAW: shade set
 const allBusy = (n: number): boolean[] => Array.from({ length: n }, () => false);
 
+/** Dot count of an 8-bit mask (EAW tier input). */
+const popcount = (mask: number): number => {
+  let n = 0;
+  for (let b = 0; b < 8; b++) n += (mask >> b) & 1;
+  return n;
+};
+
 // ── 1. Frame table: 32 distinct beats, fill cell-by-cell line by line ───────
 // Cells fill cell-by-cell left→right, each cell walking the 8 chart-order
 // stages in 2-step line pairs (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿): line 1 1–8,
@@ -246,14 +253,19 @@ describe("SPIN_INTERVALS (native per-tick ms from the source library)", () => {
 });
 
 describe("normalizeSpinnerStyle (library normalizeVariant fallback)", () => {
-  it("each registered variant name (batch 1 + batch 2) normalizes to itself", () => {
-    for (const s of ["typing", "wave-rows", "columns", "pulse", "marquee"]) {
+  it("all ten registered style names (the full set) normalize to themselves", () => {
+    for (const s of ["typing", "wave-rows", "columns", "pulse", "marquee", "pendulum", "cascade", "diagonal-swipe", "rain", "sparkle"]) {
       expect(normalizeSpinnerStyle(s)).toBe(s);
     }
   });
 
-  it("the 3 remaining unregistered gallery styles (batches 4) and unknown strings normalize to typing", () => {
-    for (const s of ["rain", "sparkle", "nope", "", "Typing"]) {
+  it("rain / sparkle (batch 4) normalize to themselves", () => {
+    expect(normalizeSpinnerStyle("rain")).toBe("rain");
+    expect(normalizeSpinnerStyle("sparkle")).toBe("sparkle");
+  });
+
+  it("unknown / malformed strings normalize to typing", () => {
+    for (const s of ["nope", "", "Typing"]) {
       expect(normalizeSpinnerStyle(s)).toBe("typing");
     }
   });
@@ -359,7 +371,7 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
     expect(sp17.frame()).toBe("▒░░░");
   });
 
-  it("SPIN_VARIANTS completeness: 7 entries — typing (batch 1) + wave-rows, columns, pulse, marquee (batch 2) + pendulum, cascade, diagonal-swipe (batch 3), in display order", () => {
+  it("SPIN_VARIANTS completeness: 10 entries — typing (batch 1) + wave-rows, columns, pulse, marquee (batch 2) + pendulum, cascade, diagonal-swipe (batch 3) + rain, sparkle (batch 4), in display order", () => {
     expect(Object.keys(SPIN_VARIANTS)).toEqual([
       "typing",
       "wave-rows",
@@ -369,10 +381,12 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
       "pendulum",
       "cascade",
       "diagonal-swipe",
+      "rain",
+      "sparkle",
     ]);
   });
 
-  it("the 7 batch 2+3 entries are registered with steps = the source's totalFrames and hold 0 (frames wrap, no clamp tail — the idx clamp is N/A)", () => {
+  it("the 9 batch 2–4 entries are registered with steps = the source's totalFrames and hold 0 (frames wrap, no clamp tail — the idx clamp is N/A)", () => {
     const expected = [
       ["wave-rows", 20],
       ["columns", 48],
@@ -381,6 +395,8 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
       ["pendulum", 120],
       ["cascade", 60],
       ["diagonal-swipe", 60],
+      ["rain", 90],
+      ["sparkle", 60],
     ] as const;
     for (const [name, steps] of expected) {
       const cfg = SPIN_VARIANTS[name]!;
@@ -390,11 +406,11 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
     }
   });
 
-  it("a not-yet-registered style name constructs as typing frames (the normalize fallback — a batch 3–4 style): after 16 busy ticks it renders the same typing frames", () => {
+  it("an unregistered gallery name constructs as typing frames (the normalize fallback — e.g. the un-ported `sort`): after 16 busy ticks it renders the same typing frames", () => {
     const sp = busyAt(Array.from({ length: 16 }, () => false), (s: string) => (s === "⣿" ? 2 : 1), 16);
     const unported = new BorderTypeSpinner(
       () => false,
-      "sparkle",
+      "sort",
       (s: string) => (s === "⣿" ? 2 : 1),
     );
     for (let i = 0; i < 16; i++) unported.tick();
@@ -580,6 +596,76 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
           .map((m) => shadeForMask(m))
           .join(""),
       ).toBe("███▒");
+    });
+  });
+
+  // ── Batch 4: the final 2 gallery ports (rain, sparkle) — same 1×4 (8 dot-columns × 4 rows) adaptation; formulas and constants unchanged from the source (dot column = pc % 2) ──
+
+  describe("rain compute (source rain, totalFrames 90, interval 40; t = step×40; period 1200 + rand×1000 with cyclePos t/period + rand×0.91 + pc×0.07 per dot-column, miss-chance skip, rollB spawn delay, gravity-fall + mid-wobble; colRandom = seededRandom(123), 8 draws in order pc 0..7, precomputed once at module scope like the source's contextCache)", () => {
+    const rain = SPIN_VARIANTS.rain!;
+
+    it("registers with steps 90 (the source's totalFrames) and hold 0", () => {
+      expect(rain.steps).toBe(90);
+      expect(rain.hold).toBe(0);
+      expect(normalizeSpinnerStyle("rain")).toBe("rain");
+    });
+
+    it("step 0 (t = 0, no fallback: the rand×0.91 + pc×0.07 phase offsets put 3 dot-columns in their windows — live-computed): cells 0x00, 0x08, 0x20, 0x20; braille ⠈⠠⠠, EAW ░░░ with cell 0 blank", () => {
+      expect(rain.compute(0)).toEqual([0, 0x08, 0x20, 0x20]);
+      expect(brailleRender(rain.compute(0))).toBe(" ⠈⠠⠠");
+      expect(
+        rain
+          .compute(0)
+          .map((m) => shadeForMask(m))
+          .join(""),
+      ).toBe(" ░░░");
+    });
+
+    it("mid-step (step 45, t = 1800): plausible non-zero — 5 active drops, 5 dots of a 1..32 dot count, 3 non-zero cells — live-verified mask", () => {
+      const m = rain.compute(45);
+      expect(m).toEqual([0x82, 0x24, 0x04, 0x00]);
+      const totalDots = m.reduce((s, x) => s + popcount(x), 0);
+      expect(totalDots).toBe(5);
+      expect(totalDots).toBeGreaterThanOrEqual(1);
+      expect(totalDots).toBeLessThanOrEqual(32);
+      expect(m).toHaveLength(4);
+      expect(m.filter((x) => x > 0).length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("step 20 (t = 800, activeDrops 0 — no dot-column is in its window): the guarantee fallback draws a dot — pos 800/1600 = 0.5 → pc floor(0.5×8) = 4 (cell 2), y clamp(floor(0.5×5), 0, 3) = 2 → 0x04 (EAW ░)", () => {
+      expect(rain.compute(20)).toEqual([0, 0, 0x04, 0]);
+      expect(shadeForMask(0x04)).toBe("░");
+    });
+  });
+
+  describe("sparkle compute (source sparkle, totalFrames 60, interval 40; the verbatim hash — constants 374761393 / 668265263 / 1442695041, × 1274126177, / 4294967295 in 32-bit ops; density 0.095, lifetime 4, phase floor(step/2), 2×2 region competition with edge compensation 0.12 × (col-edges 0/7 + row-edges 0/3), 4-frame lifecycle, one-frame 8-direction jitter)", () => {
+    const spkl = SPIN_VARIANTS.sparkle!;
+
+    it("registers with steps 60 (the source's totalFrames) and hold 0; the age gate (skip age > 3) lets dots through — step 0 has 6 dots, within a 1..32 dot count", () => {
+      expect(spkl.steps).toBe(60);
+      expect(spkl.hold).toBe(0);
+      expect(normalizeSpinnerStyle("sparkle")).toBe("sparkle");
+      expect(spkl.compute(0).reduce((s, x) => s + popcount(x), 0)).toBe(6);
+    });
+
+    it("step 0 (phase 0): deterministic — the live-computed full 4-mask, 6 dots, all 4 cells lit", () => {
+      expect(spkl.compute(0)).toEqual([0x01, 0x21, 0x0c, 0x10]);
+      expect(brailleRender(spkl.compute(0))).toBe("⠁⠡⠌⠐");
+    });
+
+    it("phase advance (steps 0 → 3, phase 0 → 1): masks re-sample — cell 0 flips 0x01 → 0x81 in particular (all 4 cells re-sample); same-phase frames 2 vs 3 (phase 1) are bit-identical under the 4-frame lifecycle", () => {
+      expect(spkl.compute(3)).toEqual([0x81, 0x08, 0x81, 0x02]);
+      expect(spkl.compute(3)[0]!).not.toBe(spkl.compute(0)[0]!);
+      expect(spkl.compute(2)).toEqual(spkl.compute(3));
+    });
+
+    it("EAW: the step-0 masks are all low popcount (1, 2, 2, 1 dots — every tier ░) → ░░░░", () => {
+      expect(
+        spkl
+          .compute(0)
+          .map((m) => shadeForMask(m))
+          .join(""),
+      ).toBe("░░░░");
     });
   });
 });
