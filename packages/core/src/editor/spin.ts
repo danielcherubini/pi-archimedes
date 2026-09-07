@@ -38,7 +38,7 @@ export interface SpinStyleConfig {
   compute: (step: number) => number[];
 }
 
-/** The gallery-derived variants. Batch 1: `typing`; batch 2 (below): `wave-rows`, `columns`, `pulse`, `marquee` — the remaining five (pendulum, rain, cascade, diagonal-swipe, sparkle) land in batches 3–4; an unregistered / unknown name normalizes to typing in the meantime (`normalizeSpinnerStyle`). */
+/** The gallery-derived variants. Batch 1: `typing`; batch 2: `wave-rows`, `columns`, `pulse`, `marquee`; batch 3 (below): `pendulum`, `cascade`, `diagonal-swipe` — the remaining two (rain, sparkle) land in batch 4; an unregistered / unknown name normalizes to typing in the meantime (`normalizeSpinnerStyle`). */
 export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
   typing: {
     steps: 38,
@@ -148,9 +148,79 @@ export const SPIN_VARIANTS: Partial<Record<SpinnerStyle, SpinStyleConfig>> = {
       return cells;
     },
   },
+  // ── Batch 3: ported from the shadcn braille-loader gallery, 1×4 (8 dot-columns × 4 rows) adaptation — formulas and constants unchanged from the source (dot column = pc % 2). Each `compute` returns the 4 braille cell masks (8-bit each). ──
+  /** 8 vertical slings swinging in a phase-stiffened sine — a pendulum side. */
+  pendulum: {
+    steps: 120,
+    hold: 0,
+    compute(step: number): number[] {
+      const progress = step / 120;
+      // fast natural swing
+      const basePhase = progress * Math.PI * 8;
+      // dynamic spatial sine (CRITICAL)
+      const spread = Math.sin(progress * Math.PI) * 1.1;
+      const threshold = 0.7;
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        // sine exists INSIDE braille cell
+        const swing = Math.sin(basePhase + pc * spread);
+        const center = ((1 - swing) * (4 - 1)) / 2;
+        for (let row = 0; row < 4; row++) {
+          if (Math.abs(row - center) < threshold) {
+            cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+          }
+        }
+      }
+      return cells;
+    },
+  },
+  /** A diagonal light cascading left → right-down through the 4 cells. */
+  cascade: {
+    steps: 60,
+    hold: 0,
+    compute(step: number): number[] {
+      const progress = step / 60;
+      const leadingEdge = progress * 2;
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        const normalizedX = pc / 8;
+        for (let row = 0; row < 4; row++) {
+          const normalizedY = row / 4;
+          const delta = Math.abs(normalizedX + normalizedY - leadingEdge);
+          if (delta < 0.2) cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+        }
+      }
+      return cells;
+    },
+  },
+  /** A diagonal wipe fills, a diagonal wipe clears — their fill/clear phase, 30 steps each. */
+  "diagonal-swipe": {
+    steps: 60,
+    hold: 0,
+    compute(step: number): number[] {
+      const maxDiag = 8 - 1 + 3; // pixelCols − 1 + (height − 1)
+      const cycleFrame = step % 60;
+      const clearFrames = Math.max(2, Math.floor(60 / 2));
+      const fillFrames = Math.max(2, 60 - clearFrames);
+      const clearPhase = cycleFrame < clearFrames;
+      const localFrame = clearPhase ? cycleFrame : cycleFrame - clearFrames;
+      const localTotal = (clearPhase ? clearFrames : fillFrames) - 1;
+      const phaseProgress = localTotal > 0 ? localFrame / localTotal : 1;
+      const sweepFront = phaseProgress * (maxDiag + 1);
+      const cells = [0, 0, 0, 0];
+      for (let pc = 0; pc < 8; pc++) {
+        for (let row = 0; row < 4; row++) {
+          const diag = pc + row;
+          const show = clearPhase ? diag >= sweepFront : diag < sweepFront;
+          if (show) cells[Math.floor(pc / 2)]! |= DOT_BITS[row]![pc % 2]!;
+        }
+      }
+      return cells;
+    },
+  },
 };
 
-/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (not-yet-ported gallery styles — batches 3–4: pendulum, rain, cascade, diagonal-swipe, sparkle — and unknown strings) falls back to `typing`. */
+/** The normalizeVariant fallback: a registered variant name maps to itself, everything else (not-yet-ported gallery styles — batch 4: rain, sparkle — and unknown strings) falls back to `typing`. */
 export function normalizeSpinnerStyle(s: string): SpinnerStyle {
   return SPIN_VARIANTS[s as SpinnerStyle] ? (s as SpinnerStyle) : "typing";
 }
@@ -173,14 +243,14 @@ export class BorderTypeSpinner {
 
   /** Precomputed frame table (computed once in the ctor): covers the `steps − hold` frames `frame()` can address (typing: 32) — the hold tail clamps to the last (fully grown) frame. Deterministic per instance. */
   private readonly frames: string[];
-  /** The resolved style config (`SPIN_VARIANTS[normalizeSpinnerStyle(style)]` — unknown names normalize to typing in the meantime batches 2–4 land). */
+  /** The resolved style config (`SPIN_VARIANTS[normalizeSpinnerStyle(style)]` — unknown names normalize to typing in the meantime batch 4 lands). */
   private readonly cfg: SpinStyleConfig;
   private step = 0;
   private wasBusy = false;
 
   constructor(
     private readonly isIdle: () => boolean,
-    /** The style (config-side typed `SpinnerStyle`, raw setting strings tolerated) — normalized: a not-yet-ported style renders as typing in the meantime its entry lands in batches 2–4. */
+    /** The style (config-side typed `SpinnerStyle`, raw setting strings tolerated) — normalized: a not-yet-ported style renders as typing in the meantime its entry lands in batch 4. */
     style: SpinnerStyle | string = "typing",
     /** The stage-set grabbiness probe — same as today: `visibleWidth("⣿") === 1` → braille chars, otherwise the EAW width-1 path. */
     probe: (s: string) => number = visibleWidth,

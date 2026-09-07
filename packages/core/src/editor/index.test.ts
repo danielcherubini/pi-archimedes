@@ -82,7 +82,7 @@ interface ConstructOpts {
   spin?: boolean;
   /** The `editorSpinSpeed` setting; × multiplies the style's native per-tick tempo (× 1.5 / × 1 / × 0.6), 32 ms tick floor. */
   spinSpeed?: "slow" | "normal" | "fast";
-  /** The `editorSpinStyle` setting (raw setting string tolerated; a style not registered in `SPIN_VARIANTS` yet (batches 3–4) normalizes to typing frames). */
+  /** The `editorSpinStyle` setting (raw setting string tolerated; a style not registered in `SPIN_VARIANTS` yet (batch 4) normalizes to typing frames). */
   spinStyle?: string;
   /** Label typed after the window (empty hides it; unset → "Working"). */
   spinLabel?: string;
@@ -478,6 +478,13 @@ describe("timer lifecycle & gating", () => {
     makeEditor({ spin: true, spinStyle: "marquee" });
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(setSpy.mock.calls[0]![1]).toBe(55);
+  });
+
+  it("spinStyle \"pendulum\" + normal speed (12ms native): the period clamps at the 32ms tick floor (12 × 1 = 12 < 32 → 32)", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval");
+    makeEditor({ spin: true, spinStyle: "pendulum" });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]![1]).toBe(32);
   });
 
   it("spinSpeed \"fast\" with style \"diagonal-swipe\" (30ms native): the period clamps at the 32ms tick floor (30 × 0.6 = 18 → 32)", () => {
