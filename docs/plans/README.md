@@ -45,7 +45,7 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
-| — | [Prompt-slot spinner (prompt-prefix "Working" indicator)](../roadmap/prompt-slot-spinner.md) | 🔄 IN PROGRESS | 2026-09-07 |
+| — | [Prompt-slot spinner (prompt-prefix "Working" indicator)](../roadmap/prompt-slot-spinner.md) | 📋 IN REVIEW (PR #48) | 2026-09-07 |
 
 > **Note:** this plan lives in `docs/roadmap/` rather than `docs/plans/plan-NNN-*` due to skill-driven file naming at creation time (the next `docs/plans` number would have been `034`); it is tracked here instead. Mark **COMPLETED** when the implementing PR merges. Decision: [ADR 0014](../adr/0014-prompt-slot-spinner.md).
 
