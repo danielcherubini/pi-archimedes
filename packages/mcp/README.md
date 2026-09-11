@@ -108,7 +108,7 @@ Token details:
 
 - Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux Secret Service). Storage is **fail-closed**: if the keyring is unavailable, auth operations throw a clear error — there is never a plaintext fallback.
 - Token refresh is SDK-driven; a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — re-run `/mcp auth <server>` when its token expires.
-- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"`, or a full `McpOAuthConfig` object. `auth: "oauth"` (or a config object with at least one field below) is what enables OAuth with the default grant settings; a valid object can override them. **Omitting `auth` on a protected server means no authentication** — there is no implicit OAuth default:
+- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"`, or a full `McpOAuthConfig` object. `auth: "oauth"` (or a config object with at least one field below) is what enables OAuth with the default grant settings; a valid object can override them. **Omitting `auth` does not automatically enable OAuth** — there is no implicit OAuth default, but static authentication can still be supplied through `bearerTokenEnv` or `headers`:
 
 | `McpOAuthConfig` field | Meaning |
 |------------------------|---------|

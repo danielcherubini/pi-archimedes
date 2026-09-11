@@ -167,7 +167,7 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | Component | npm package | What it adds |
 |-----------|-------------|--------------|
 | **Core** | [`@pi-archimedes/core`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
-| **Subagent** | [`@pi-archimedes/subagent`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/subagent/README.md) | Live subagent dispatch, `/agents`, custom agent definitions |
+| **Subagent** | [`@pi-archimedes/subagent`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
 | **Todo** | [`@pi-archimedes/todo`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
 | **Ask** | [`@pi-archimedes/ask`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
 | **MCP** | [`@pi-archimedes/mcp`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/mcp/README.md) | `/mcp` management, setup wizard, OAuth, config imports |
