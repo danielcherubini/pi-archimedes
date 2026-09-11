@@ -56,13 +56,15 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
    /model
    ```
 
-6. **Optional — tune a keybinding** to `~/.pi/agent/keybindings.json` — Pi's [keybindings docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/keybindings.md) cover the format with examples. One worth doing on Linux: clear Pi's built-in `app.clipboard.pasteImage` so [image-paste](packages/image-paste/README.md#paste-shortcuts) can take `Ctrl+V` cleanly — otherwise both paste handlers fire and the built-in one throws warning banners. Create the file with:
+6. **Make image-paste own the paste keys** — Pi's built-in `app.clipboard.pasteImage` owns `Ctrl+V` (Linux/macOS) / `Alt+V` (Windows), and image-paste (on by default in the suite) binds the same keys — clear the built-in in `~/.pi/agent/keybindings.json` so image-paste takes them cleanly (otherwise both handlers fire on the shared key and the built-in throws warning banners; format in Pi's [keybindings docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/keybindings.md)). If the file doesn't exist yet, create it with:
 
    ```json
    {
      "app.clipboard.pasteImage": []
    }
    ```
+
+   If it already exists, just add/set `"app.clipboard.pasteImage": []` in there and run `/reload`.
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 

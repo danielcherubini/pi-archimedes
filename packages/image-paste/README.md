@@ -37,7 +37,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0.
 | Windows | `Alt+V`, `Ctrl+Alt+V` |
 
 > [!NOTE]
-> **On Linux, `Ctrl+V` conflicts with Pi's built-in `app.clipboard.pasteImage` binding.** If both fire, clear the built-in binding in `~/.pi/agent/keybindings.json` so the preview-enhanced handler takes the paste without warning banners:
+> **Pi's built-in `app.clipboard.pasteImage` owns the table's first shortcut on every platform** — `Ctrl+V` on Linux/macOS, `Alt+V` on Windows — so the two conflict everywhere. When both fire on the shared key, the built-in throws warning banners (seen on Linux). Clear the built-in binding in `~/.pi/agent/keybindings.json` so the preview-enhanced handler takes the paste:
 >
 > ```json
 > { "app.clipboard.pasteImage": [] }
