@@ -29,7 +29,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 ## What you get
 
 - **Splash screen** — an animated greeting when the session launches, in one of nine reveal styles (`diagonal`, `top-right`, `bottom-left`, `bottom-right`, `center-out`, `wave`, `horizontal`, `vertical`, `vertical-up`).
-- **Framed editor** — your input in a clean bordered frame, with a double-press quit guard (`Ctrl+C` twice) so a stray keystroke doesn't end the session.
+- **Framed editor** — your input in a clean bordered frame, with a double-press guard on the quit key (`Ctrl+C` by default) so a stray keystroke doesn't end the session.
 - **Working spinner on the border** — one of ten animating styles (`pendulum`, `typing`, `pulse`, `marquee`, `wave-rows`, `columns`, `cascade`, `diagonal-swipe`, `rain`, `sparkle`) traces the editor frame while the agent works, replacing Pi's native "Working" line.
 - **Thinking blocks** — chain-of-thought output gets a consistent label, colour, and layout; `codeUnindent` strips the common indentation so code in reasoning reads flush.
 - **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent costs flow to the footer through it, subagent todos to the task board, subagent questions to the ask UI.
