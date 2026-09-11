@@ -1,59 +1,60 @@
 # @pi-archimedes/notify
 
-Delayed desktop notifications with circuit breaker for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Step away without losing track.**
 
-Get notified when Pi finishes long tasks or needs an answer, without constant popup spam thanks to delayed firing and raw keypress circuit breaking. You can safely switch windows while long-running jobs execute, knowing a desktop alert will trigger only if you aren't already actively typing in the terminal.
-
-## What you get
-
-- **Delayed notification** — fires only after a configurable period of inactivity (default 30s), so you're not spammed when actively working
-- **Circuit breaker** — any keystroke immediately cancels a pending notification via raw terminal input listening
-- **Terminal-aware dispatch** — auto-detects your terminal and uses the optimal protocol (OSC 99, OSC 9, OSC 777, or PowerShell toasts)
-- **tmux passthrough** — all sequences wrapped via DCS for correct rendering inside tmux
-- **Per-trigger toggles** — independently enable/disable notifications for task completion and unanswered questions
-- **Pi-native triggers** — keyed on pi's `agent_settled` and `ui_prompt_start` lifecycle events, so task completion works and *any* blocking extension prompt (ask, sudo, mcp OAuth) can hold your attention
+Leave the terminal for a coffee. When the work has actually settled — or something needs your decision — notify tells you, once, after a short delay. Type anything and the pending alert is cancelled; there's no inactivity scrutiny, no focus tracking. Keystrokes are the only signal.
 
 ## Install
+
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/notify
 ```
 
-Or install full meta package:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-When the agent's run has settled (`agent_settled`) or an extension opens a blocking prompt (`ui_prompt_start` — ask, sudo, mcp OAuth), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
+
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
+
+## Triggers
+
+- **Settled runs** — on Pi's `agent_settled` event: the run has fully settled (no automatic retry, compaction, or queued continuation still to fire), not merely "a turn ended".
+- **Blocking prompts** — on `ui_prompt_start`: any extension prompt is waiting on you (a tabbed ask, a sudo password prompt, an MCP OAuth loader) — direct **or** subagent-relayed, since the event fires in the parent process.
+
+The alert fires after a fixed `delayMs` (30 s by default) from the trigger. It is a delay, not an idle timer: nothing measures how long you've been reading. Any input in the terminal cancels pending alerts immediately, a new agent run cancels them, and a prompt that closes without you typing (say, the OAuth loader finishing from the browser) cancels its own timer — so a long-gone question can't ring.
+
+## Terminal delivery
+
+| Environment | Protocol | Notes |
+|-------------|----------|-------|
+| Windows Terminal | PowerShell toast | title + body |
+| Kitty | OSC 99 | title + body |
+| iTerm2 | OSC 9 | body only |
+| tmux over any of the above | DCS passthrough wrap | alerts break through tmux |
+| other terminals | OSC 777 | generic fallback |
+
+Delivery depends on your terminal understanding one of these protocols; if it understands none, no alert will appear. Both triggers work standalone — the extension alone gets you the same behaviour.
 
 ## Settings
 
+`~/.pi/agent/settings.json`, under `archimedes.notify` (strict JSON):
+
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
-| `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
+| `notifyOnAgentEnd` | bool | `true` | Notify when a run has fully settled |
+| `notifyOnQuestion` | bool | `true` | Notify when a blocking prompt needs input |
+| `delayMs` | number | `30000` | Delay after the trigger before the alert fires |
 
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
+In the suite the settings also appear in `/archimedes` (where the panel has a control), and on/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify` namespace.
-
-## Terminal compatibility
-
-| Terminal | Protocol | Title + Body |
-|----------|----------|--------------|
-| Kitty | OSC 99 | ✅ |
-| iTerm2 | OSC 9 | Body only |
-| Windows Terminal | PowerShell toast | ✅ |
-| Ghostty | OSC 777 | ✅ |
-| WezTerm | OSC 777 | ✅ |
-| tmux (any above) | DCS passthrough | ✅ |
-
-## Integration
-
-When installed via `pi-archimedes` (the meta package), the notify package is automatically registered and its settings appear in the `/archimedes` settings panel. Standalone installs work independently — any blocking extension UI prompt will trigger the question notification.
-
-← Back to [pi-archimedes](../../README.md)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

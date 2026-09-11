@@ -5,9 +5,10 @@
   "keywords": [
     "pi-package"
   ],
-  "description": "Visual polish and useful context for the Pi coding agent TUI",
+  "description": "Parallel agents, shared task lists, MCP tools, and a polished terminal for the Pi coding agent.",
   "files": [
-    "src"
+    "src",
+    "README.md"
   ],
   "main": "./src/index.ts",
   "dependencies": {

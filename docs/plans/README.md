@@ -36,6 +36,7 @@
 | 30 | [archimedes-sudo — safe privileged execution](done/plan-030-archimedes-sudo.md) | ✅ COMPLETED (PR #40) | 2026-08-28 |
 | 33 | [Pi 0.84.4 sync](done/plan-033-pi-0844-sync.md) | ✅ COMPLETED (PR #42, `30e2457`) | 2026-08-28 |
 | 34 | [Prompt-slot spinner (border spinner, 10 styles)](../adr/0014-prompt-slot-spinner.md) | ✅ COMPLETED (PR #48) | 2026-09-07 |
+| 35 | [README copy — Pi, with the good stuff](plan-035-readme-copy.md) | ✅ COMPLETED (PR #49) | 2026-09-11 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -52,8 +53,8 @@
 |---|------|--------|---------|
 ## Quick Stats
 
-- Total Plans: 34
-- Completed: 34
+- Total Plans: 35
+- Completed: 35
 - In Progress: 0
 - Backlog: 0
 

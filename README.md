@@ -1,425 +1,249 @@
-<div align="center">
-  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash (art originally from pi-ui-hephaestus)">
+# Archimedes
+### Pi, with the good stuff.
 
-# pi-archimedes
+An extra pair of eyes on your code. Agents working in parallel. A terminal that keeps you in the loop—and looks good doing it.
 
-*A small, cohesive set of extensions for the Pi coding agent — built to be lived in*
+**Archimedes brings subagents, shared task lists, MCP tools, and a polished interface to [Pi](https://github.com/earendil-works/pi). Install them together, use what you like, and make the setup yours.**
 
 [![npm version](https://img.shields.io/npm/v/pi-archimedes?style=flat-square)](https://www.npmjs.com/package/pi-archimedes)
-[![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue?style=flat-square)](https://www.typescriptlang.org)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen?style=flat-square)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-</div>
+[Setup](#setup) • [Commands](#commands) • [Settings](#settings) • [Components](#components) • [Development](#development)
 
-## Why pi-archimedes?
+---
 
-Pi's extension ecosystem is powerful, but extensions don't talk to each other. Install one and it has no idea another exists.
+## Setup
 
-pi-archimedes is a set of extensions that actually cooperate. Subagent costs flow into the footer. Subagent todos appear alongside yours. When a subagent needs to ask you a question, the prompt surfaces in your TUI and the answer routes back. The diff renderer matches your theme. The splash screen sets the tone.
+### You already use Pi
 
-Everything shares a single point of view: minimal, but designed. Install once, stop thinking about it.
-
-Want only one piece? Each package works standalone. Want only the footer? `pi install npm:@pi-archimedes/footer`. Only the diff renderer? `pi install npm:@pi-archimedes/diff`. Mix and match.
-
-→ [Open an issue](https://github.com/danielcherubini/pi-archimedes/issues) · [Start a discussion](https://github.com/danielcherubini/pi-archimedes/discussions)
-
-## Features
-
-**When installed via the meta package, the ten components share state and cooperate.** For example, `@pi-archimedes/subagent` emits cost events through `@pi-archimedes/core/bus`; the footer picks them up via `CostAccumulator` and merges subagent tokens and cost into the main status bar. The agent manager reuses Core's chrome and color palette. Install pieces individually and these integrations disappear.
-
-### 🎬 Core ([`@pi-archimedes/core`](packages/core/README.md))
-
-The visual chrome you see on every Pi session.
-
-- Animated splash screen with configurable styles
-- Framed editor with double-press quit guard
-- Muted thinking blocks
-- Border spinner on the editor's top border while the agent is working (ten styles, configurable — hides pi's "Working" line)
-
-### 📊 Footer ([`@pi-archimedes/footer`](packages/footer/README.md))
-
-A status bar that surfaces what matters without getting in the way.
-
-- Directory, git branch (with clean/dirty indicator), worktree, model, thinking level
-- Token stats (↑input ↓output + cost)
-- Color-coded context window bar
-
-### 🔍 Diff ([`@pi-archimedes/diff`](packages/diff/README.md))
-
-Syntax-highlighted diffs that read at a glance.
-
-- Shiki-powered split and unified views
-- Word-level emphasis on changed characters
-- Auto-derived theme colors
-- Graceful fallback to plain text
-
-![diff edit](docs/images/diff-edit.png)
-
-### 🖼️ Image-paste ([`@pi-archimedes/image-paste`](packages/image-paste/README.md))
-
-Paste screenshots straight into the chat.
-
-- Paste images from clipboard (Ctrl+V on Linux, Alt+V on Windows) with inline preview
-
-> **⚠️ Shortcut conflict:** On Linux, `ctrl+v` is also Pi's built-in shortcut for `app.clipboard.pasteImage`. To resolve the conflict, clear the built-in binding in `~/.pi/agent/keybindings.json`:
-> ```json
-> { "app.clipboard.pasteImage": [] }
-> ```
-> This lets archimedes' handler (which adds inline previews) take over without the warning.
-
-### 🤖 Subagent ([`@pi-archimedes/subagent`](packages/subagent/README.md))
-
-Dispatch work to other agents and watch them work in real time.
-
-- Sub-agent dispatch with live TUI streaming
-- Parallel execution mode
-- Per-subagent tool counts and token usage
-- Unified cost summary
-- Color-coded tool calls — grey while running, green/red on completion
-- Readable argument previews (no raw JSON)
-
-![subagents main view](docs/images/subagents-main-view.png)
-
-#### `/agents` command
-
-Full CRUD TUI for `.pi/agents/*.md` files — searchable list, model picker, tool picker, dirty-tracking, cross-scope collision warnings.
-
-*Available when installed via `pi-archimedes` (the meta package), not as a standalone `@pi-archimedes/subagent` install.*
-
-### 📋 Todo ([`@pi-archimedes/todo`](packages/todo/README.md))
-
-Track work without leaving the session — including what your subagents are doing.
-
-- `manage_todo_list` tool with read/write operations
-- Auto-clear when all todos are completed
-- Multi-column widget — main agent + per-subagent todos side by side
-- `/todos` and `/todos clear` commands
-
-![todos and subagent](docs/images/todos-and-subagent.png)
-
-### 💬 Ask ([`@pi-archimedes/ask`](packages/ask/README.md))
-
-Ask structured questions and let the agent act on the answer — from the main agent **or** from inside a subagent.
-
-Most question tools only work when the main agent calls them. Ask works everywhere: call it directly and you get the full interactive prompt; spawn a subagent that needs a decision, and its `ask` call surfaces in your TUI — the subagent blocks until you answer, then carries on with your choice. No temp files, no pipes — just a bidirectional IPC channel that feels instant.
-
-**From the main agent:**
-- Tabbed multi-question flow with submit review
-- Single-question picker with instant submit
-- Inline note editing per option
-- Markdown context descriptions
-- Multi-select support
-- Automatic "Other (type your own)" handling
-
-**From a subagent:**
-- The same rich UI appears in the parent TUI, even mid-stream
-- The subagent blocks on the call and receives your answer over IPC
-- Works alongside live subagent streaming and cost tracking
-
-![ask from a subagent](docs/images/ask-subagent.png)
-
-### 🔔 Notify ([`@pi-archimedes/notify`](packages/notify/README.md))
-
-Desktop notifications when you've stepped away — with a circuit breaker that cancels if you interact.
-
-- Delayed notification on settled tasks or when any extension prompt (ask, sudo, mcp OAuth) needs your attention
-- Terminal-aware dispatch: Ghostty, WezTerm, iTerm2, Kitty, Windows Terminal
-- tmux passthrough for all OSC sequences
-- Configurable delay and per-trigger toggles
-
-### 🏷️ Session-name ([`@pi-archimedes/session-name`](packages/session-name/README.md))
-
-Automatic session titles generated by AI after the first exchange in each session.
-
-- Generates concise 3-8 word titles from the first user/assistant exchange
-- Smart model resolution with provider/id, bare id, and thinking-suffix tolerance
-- Respects manual names set via `--name` or `/name`
-- Skips ephemeral sessions and handles errors silently
-
-### 🔌 MCP ([`@pi-archimedes/mcp`](packages/mcp/README.md))
-
-Full-featured MCP client adapter (feature parity with pi-mcp-adapter): any MCP server — stdio or HTTP — with a `mcp` proxy tool, per-server direct tools, a `/mcp` command family, two TUI panels, OAuth, and an offline metadata cache.
-
-- Gateway `mcp` proxy tool — search, describe, and call tools across all configured servers, plus `status`, per-server tool listing, and eager `connect`
-- Per-server direct tools registered as `{server}_{tool}` for token-efficient calls (a per-server `directTools` array narrows the registered set to named tools)
-- `/mcp` command family — status, tools, prompts, reconnect, enable/disable, logout, auth, and the management + setup panels (below). The former standalone `/mcp-auth` / `/mcp-logout` commands are retired — their logic lives in `/mcp auth` / `/mcp logout` (and the panel)
-- OAuth 2.1 + PKCE for protected servers — browser auth flow, OS credential-store persistence, SDK-driven token refresh
-- Lifecycle management per server (`keep-alive` / `lazy` / `lazy-keep-alive` / `eager`) with configurable idle timeout
-- Metadata cache (`~/.pi/agent/mcp-cache.json`, 7-day validity) — search/describe work offline, and tools connect lazily per call; also persists each server's last connection outcome, so `needs-auth`/error surfaces across sessions
-- Compact two-line tool rendering — `mcp <target>` header (cyan + orange, matching pi's Dracula theme) plus a key-arg summary (`→ table: model_files`) whose key word is grey while running, green on success, red on failure, with a `(ctrl+o)` hint; full args and result text stay hidden until expanded (ctrl+o)
-- Layered `mcp.json` server definitions (six layers, project `.pi` override wins) with safe single-field write-back — see Config files & write-back below
-
-#### `/mcp` command
-
-`/mcp` is the ONLY command family for MCP. Bare `/mcp` (no args) opens the management panel in the TUI and shows the text status list without one; an explicit `/mcp status` is always the text list. Unknown subcommands show usage.
-
-| Subcommand | Behavior |
-|------------|----------|
-| `/mcp [status]` | One line per server: connected (with tool count), needs auth, error, disabled, or not connected — persisted outcomes carry an age suffix (e.g. `2m ago`) |
-| `/mcp tools [server]` | Cached tools for one server (or all of them) — name + description, no connections opened |
-| `/mcp prompts [server]` | Cached prompts for one server (or all of them) — name + description, no connections opened |
-| `/mcp reconnect [server]` | Closes and reconnects one (or all) server(s); reports the settled status per server |
-| `/mcp enable <server>` | Clears the server's `disabled` flag (written to the Pi override file) — then run `/reload` |
-| `/mcp disable <server>` | Sets `disabled` and tears down the live connection — then run `/reload` |
-| `/mcp logout <server>` | Deletes the server's stored credentials from the OS credential store |
-| `/mcp auth <server>` | Interactive OAuth flow: progress loader, browser + URL fallback, esc cancels |
-| `/mcp panel` | Opens the management panel (TUI overlay) |
-| `/mcp setup` | Opens the setup panel (TUI overlay) |
-
-#### Management panel (`/mcp panel`)
-
-Browse and act on your servers in one overlay: a status glyph per server (● connected, ⚠ needs auth, ✗ error, ⊘ disabled, ○ cached), expandable tool lists, and inline actions. Field changes write to the Pi override file and take effect on the next `/reload`. With zero servers configured, `/mcp panel` (and bare `/mcp`) notifies you and redirects to the setup panel instead.
-
-| Key | Action |
-|-----|--------|
-| `[↑]` / `[↓]` | Move between server rows and (expanded) tool rows |
-| `[enter]` | Expand / collapse a server's tools — on a **needs-auth** server, runs the in-panel OAuth flow instead |
-| `[a]` | Run the in-panel OAuth flow for the server under the cursor |
-| `[space]` | Toggle direct tools: server row = all of its tools as a group, tool row = that one tool |
-| `[e]` | Enable / disable the server (same write-back as `/mcp enable` / `disable`) |
-| `[l]` | Log out (delete the stored credentials) |
-| `[r]` | Reconnect the server under the cursor |
-| `[/]` | Search filter over server names and tool names/descriptions (printable chars append, backspace edits) |
-| `[ctrl+s]` | Save direct-tool changes for the changed servers to the Pi override file |
-| `[esc]` | Close (unsaved toggles are discarded, no confirm) — while an in-panel OAuth flow is running, `[esc]` cancels it cleanly (a cancellation notice, not an error) and `[ctrl+c]` cancels and closes |
-
-#### Setup panel (`/mcp setup`)
-
-Onboarding for a new project. Every successful write targets the project-shared `.mcp.json` and prompts you to run `/reload`:
-
-- **Scaffold minimal `.mcp.json`** — writes `{ "mcpServers": {} }` only when the file is absent (never clobbers an existing one)
-- **Add a known server** — a small curated preset list (context7, chrome-devtools, deepwiki, fetch); existing entries are never overwritten (add-if-absent)
-- **Import from another tool** — discovers MCP configs owned by other hosts (JSON only): Cursor (`~/.cursor/mcp.json`, `.cursor/mcp.json`), Claude Code (`~/.claude/mcp.json`, `~/.claude.json`), Claude Desktop (`~/.claude/claude_desktop_config.json`), and VSCode (`.vscode/mcp.json`). Check one or more sources (or all) and review a **preview** of exactly which server names will be added — names already in `.mcp.json` are kept untouched — before writing
-
-#### OAuth
-
-OAuth-protected MCP servers (Atlassian, Notion, GitHub, …) are supported via OAuth 2.1 + PKCE, on top of the static bearer tokens already available for HTTP servers. Three paths reach the same single auth entry point:
-
-- `/mcp auth <server>` — interactive browser flow with a progress loader (esc cancels); opens the authorization URL in the browser and prints it as a fallback. On success the client reconnects so the freshly stored token is used immediately
-- In-panel — `[a]`, or `[enter]` on a needs-auth server, in `/mcp panel`; `[esc]` cancels cleanly
-- `autoAuth: true` (setting) — a tool call hitting a `needs-auth` server triggers the flow inline and retries the call once (default: the call returns guidance to run `/mcp auth <server>` instead)
-
-Details:
-
-- `/mcp logout <server>` (or `[l]` in the panel) deletes the stored credentials
-- Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux libsecret) with a fail-closed policy — no plaintext fallback when the keyring is unavailable
-- Token refresh is SDK-driven. The one exception (ADR 0001): a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — when its token expires, re-run `/mcp auth <server>`
-- The `auth` field on an http/sse server definition accepts three shapes:
-  - `{ "token": "…" }` — static bearer token
-  - `"oauth"` — OAuth 2.1 with defaults
-  - an object — `McpOAuthConfig` with `grantType` (`"authorization_code"` default, or `"client_credentials"`), `clientId`, `clientSecret`, `scope`, `redirectUri`, `clientName`; `authorizationServerUrl` is recognized but unused (reserved) — the client discovers the authorization server from the MCP server URL
-
-#### Config files & write-back
-
-Server definitions load from six layers, lowest → highest precedence (per-server field-level merge; a later layer wins):
-
-| # | File | Scope |
-|---|------|-------|
-| 1 | `~/.config/mcp/mcp.json` | Global (standard MCP location) |
-| 2 | `~/.agents/mcp.json` | Cross-agent (home) |
-| 3 | `~/.agents/mcp/mcp.json` | Cross-agent (home) |
-| 4 | `~/.pi/agent/mcp.json` | Pi agent dir (overridable via `PI_CODING_AGENT_DIR`) |
-| 5 | `<project>/.mcp.json` | Project-shared (committable) |
-| 6 | `<project>/.pi/mcp.json` | Pi override — highest precedence |
-
-Files accept `//` comments and trailing commas. When a higher-precedence layer points a server at a different `url`, the `auth` / `headers` / `bearerTokenEnv` inherited from lower layers are dropped — credentials are never sent to an endpoint the user didn't explicitly configure for them.
-
-The adapter writes to exactly two targets, one field at a time:
-
-- **Field changes** — `disabled` (via `/mcp enable` / `disable` and `[e]` in the panel) and `directTools` (via `[ctrl+s]`) go to `<project>/.pi/mcp.json` **only**; existing fields, other servers, and any other top-level keys are preserved verbatim, and credentials are never copied
-- **Server definitions** — new servers from `/mcp setup` (scaffold, known presets, imports) go to the project-shared `<project>/.mcp.json`; the write is add-if-absent, so an existing entry is never overwritten
-
-Changes to either file take effect on the next `/reload`.
-
-### 🔐 Sudo ([`@pi-archimedes/sudo`](packages/sudo/README.md))
-
-Safe privileged execution: a dedicated `sudo_exec` tool with a masked password prompt, plus a guard that keeps the ordinary `bash` tool from driving interactive `sudo`.
-
-- `sudo_exec` tool — runs a privileged command via `sudo -S` with a masked interactive password prompt and a command confirmation; the password travels only over stdin — never argv, env, logs, or files — and the tool's output is scrubbed with the password masked
-- Single in-memory credential cache with TTL (default 15 min, `ttlMs`) — never written to disk or the OS keyring; cleared on `session_shutdown`, on `/sudo forget`, on auth failure, and at TTL expiry
-- Bash guard — active `tool_call` veto (ADR 0010): interactive `sudo` through the built-in `bash` tool is always **blocked**, funneling privileged execution through `sudo_exec`; non-interactive forms (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) pass through untouched
-- `/sudo` command — reports whether a credential is cached; `/sudo forget` clears it from memory
-- Headless sessions (subagent children) are blocked on `sudo_exec` with a clear error rather than prompted — the mask prompt only ever appears in a human's TUI
-
-> **Caveat:** the bash guard blocks interactive sudo *everywhere* — including one-off human-directed agent runs. Use `sudo_exec` for anything privileged.
->
-> **Caveat:** the timeout/abort kill covers the command's process group; a command that detaches itself into its own session (`setsid`/daemonizing) is beyond that kill by design (same reach as `tmux kill-pane`) — give it a managed lifecycle flag (e.g. `--foreground`) instead.
->
-> **Caveat:** on sudoers that retain no reusable credential ticket, an unrecognizable failure can't be told apart from auth failure — it follows a two-consecutive-failure rule: warning on the first, cache cleared on the second, so a wrong password is detected on the second failure, not the first.
-
-### 🧩 Plugin manager (`pi-archimedes`)
-
-*Available when installed via `pi-archimedes` (the meta package), not via individual standalone installs.*
-
-Every non-core package is an **optional plugin** — the ten components above all default on, but each can be switched off independently. The plugin list lives in a single manifest (`meta/src/plugins.ts`), which gates registration, the `/archimedes` settings items, and shutdown. Each plugin's on/off switch is the `enabled` key inside **its own** `archimedes.<pkg>` namespace in `~/.pi/agent/settings.json` (absent = on); only the meta package reads or writes it.
-
-#### `/plugins` command
-
-Run `/plugins` to open the plugin manager. Each installed plugin appears as a row with its description and current state (On/Off). Navigate with arrow keys, press ←/→ on a row to flip its state — the change persists immediately to that package's own namespace (`archimedes.<pkg>.enabled`) — and press ESC to close. A disabled plugin stops being registered on the next `/reload`: its tools, commands, and `/archimedes` settings rows disappear with it.
-
-## Quick Start
+One command:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-That's it. Reload Pi and you're set.
+Then run `/reload` in your session (or start a new one) to pick it up.
 
-### Or install selectively
+### New to Pi
 
-- `pi install npm:@pi-archimedes/core`
-- `pi install npm:@pi-archimedes/footer`
-- `pi install npm:@pi-archimedes/diff`
-- `pi install npm:@pi-archimedes/image-paste`
-- `pi install npm:@pi-archimedes/subagent`
-- `pi install npm:@pi-archimedes/todo`
-- `pi install npm:@pi-archimedes/ask`
-- `pi install npm:@pi-archimedes/notify`
-- `pi install npm:@pi-archimedes/session-name`
-- `pi install npm:@pi-archimedes/mcp`
-- `pi install npm:@pi-archimedes/sudo`
+1. **Node.js ≥ 22.19.0** — the requirement [Pi](https://github.com/earendil-works/pi) itself declares.
+2. **Install Pi** (shell):
+
+   ```bash
+   npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+   ```
+
+3. **Install Archimedes** (shell):
+
+   ```bash
+   pi install npm:pi-archimedes
+   ```
+
+4. **Launch** the terminal in the project you want to work on (shell):
+
+   ```bash
+   cd /path/to/your/project
+   pi
+   ```
+
+5. **Authenticate and pick a model** (inside the Pi session):
+
+   ```text
+   /login
+   /model
+   ```
+
+`/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
+
+<p align="center">
+  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
+</p>
+
+---
+
+## Give your agent some backup.
+
+Have one subagent explore the codebase while another reviews your changes. [Subagents](packages/subagent/README.md) run with your choice of models and tools, stream their progress live into your terminal, and their tasks show up side by side on the [shared todo board](packages/todo/README.md).
+
+Their token usage and costs feed into the same status bar. More work happening at once, without losing sight of it.
+
+See the [subagent guide](packages/subagent/README.md) for dispatching, agent definitions, and the `/agents` editor.
+
+<p align="center">
+  <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
+</p>
+
+<p align="center">
+  <img src="docs/images/todos-and-subagent.png" width="750" alt="Todos and subagent side-by-side">
+</p>
+
+---
+
+## Keep the decisions. Delegate the work.
+
+When a subagent needs your input, it can ask directly in your session — [ask](packages/ask/README.md) presents the question right in your terminal. Pick an option, add a note, or write your own answer. It gets your decision and carries on.
+
+You don't have to copy messages between terminals to stay involved.
+
+<p align="center">
+  <img src="docs/images/ask-subagent.png" width="750" alt="Interactive ask prompt from a subagent">
+</p>
+
+---
+
+## Bring the tools you already use.
+
+[Connect MCP servers](packages/mcp/README.md), browse their tools, and handle authentication inside Pi. Import server definitions from Cursor, Claude Code, Claude Desktop, or VS Code rather than rebuilding your setup.
+
+Start with `/mcp setup`. Manage it with `/mcp`.
+
+---
+
+## See what changed. Not just that something changed.
+
+[Syntax-highlighted diffs](packages/diff/README.md), side by side when there's room and unified when there isn't. Word-level highlights draw your eye to the changes inside each line.
+
+The details are easier to catch when they're easier to read.
+
+<p align="center">
+  <img src="docs/images/diff-edit.png" width="750" alt="Shiki syntax-highlighted split diff">
+</p>
+
+---
+
+## A terminal worth spending your day in.
+
+[Paste screenshots](packages/image-paste/README.md) with inline previews. Keep your [branch, model, context usage, and costs](packages/footer/README.md) in view. Give sessions [useful names automatically](packages/session-name/README.md) so they're easier to find later.
+
+A [framed editor](packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
+
+**Practical notes:** the paste markers appear as you paste; image previews appear when you submit the message. Image rendering and desktop alerts both depend on your terminal's support — the [image-paste](packages/image-paste/README.md) and [notify](packages/notify/README.md) docs cover what each needs. Naming is a separate (potentially billed) model call, not included in the footer's totals.
+
+---
+
+## A little more care with root access.
+
+For tasks that need sudo, [sudo](packages/sudo/README.md) shows you the exact command and its reason before you enter your password in a masked prompt—not the chat. Credentials are cached in memory with an expiry, and `/sudo forget` clears them.
+
+## Step away without losing track.
+
+[Notify](packages/notify/README.md) alerts you when the agent finishes or a prompt needs your attention. Alerts wait before firing, and typing cancels anything pending.
+
+You can leave the terminal to do its thing.
+
+---
+
+## The whole suite. Or just your favourite parts.
+
+One install brings everything together. Switch optional extensions on or off with `/plugins`, then `/reload` to apply. Use `/archimedes` to adjust the available settings.
+
+Only want the diffs, footer, or MCP tools? Each component is available separately — see [Components](#components).
+
+---
+
+## Commands
+
+| Command | Scope | Notes |
+|---------|-------|-------|
+| `/plugins` | Suite | Toggle the ten optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
+| `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
+| `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
+| `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
+| `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
+| `/sudo`, `/sudo forget` | Sudo component | Inspect cached credential state; `forget` clears it. |
+| `/reload` | Pi | Applies plugin changes and settings read at startup. |
+
+---
 
 ## Settings
 
-Run `/archimedes` to open the interactive settings panel. Navigate with arrow keys, press Enter to toggle or edit, Save to persist, ESC to cancel.
+Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (chrome, spinner, thinking), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
 
-Each package reads from its own namespace in `~/.pi/agent/settings.json` — for example, `@pi-archimedes/footer` reads from `archimedes.footer`.
+---
 
-### `pi-archimedes` (meta)
+## Components
 
-No meta-specific user settings. Per-plugin on/off switches live in each package's own namespace (`archimedes.<pkg>.enabled`, default on) and are managed via the `/plugins` command.
+| Component | npm package | What it adds |
+|-----------|-------------|--------------|
+| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
+| **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
+| **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
+| **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
+| **MCP** | [`@pi-archimedes/mcp`](packages/mcp/README.md) | `/mcp` management, setup wizard, OAuth, config imports |
+| **Sudo** | [`@pi-archimedes/sudo`](packages/sudo/README.md) | `sudo_exec` with masked password prompt and interactive-sudo guard |
+| **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
+| **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
+| **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Clipboard image paste with inline previews |
+| **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Delayed desktop notifications with input cancellation |
+| **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automatic session titles |
 
-### [`@pi-archimedes/core`](packages/core/README.md)
+The full suite is the supported connected setup — the integrations above (subagent costs in the footer, subagent columns on the todo board, subagent questions in the terminal) light up when the relevant components are loaded together.
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `mutedTheme` | bool | `false` | Use subdued colors for thinking blocks |
-| `codeUnindent` | bool | `true` | Remove common indentation from code blocks inside thinking sections |
-| `labelText` | string | `Thinking...` | Custom prefix shown before thinking blocks |
-| `labelColor` | string | `255,215,0` | RGB color for the thinking label |
-| `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
-| `editorSpinBorder` | boolean | `true` | The border spinner runs on the editor's top border while working; hides pi's native "Working" line |
-| `editorSpinStyle` | string | `pendulum` | Which animation the editor border runs while working (ten gallery-derived styles — pendulum (default), typing, pulse, marquee, wave-rows, columns, cascade, diagonal-swipe, rain, sparkle; unknown values normalize to typing) |
-| `editorSpinSpeed` | string | `normal` | Border spinner speed (slow / normal / fast — × 1.5 / × 1 / × 0.6 of the style's native tempo) |
-| `editorSpinLabel` | string | `Working` | Label typed after the spin window (empty hides it) |
+To install just the components you want:
 
-### [`@pi-archimedes/footer`](packages/footer/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `splitThreshold` | number | `150` | Minimum terminal columns where a single-line footer is allowed (below, at least two lines; above, wraps instead of clipping when it overflows) |
-
-### [`@pi-archimedes/diff`](packages/diff/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `diffTheme` | string | `github-dark` | Shiki syntax-highlighting theme |
-| `diffSplitMinWidth` | number | `150` | Minimum terminal columns to show split diff view (≥ 100) |
-| `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
-
-### [`@pi-archimedes/image-paste`](packages/image-paste/README.md)
-
-Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
-
-### [`@pi-archimedes/subagent`](packages/subagent/README.md)
-
-No settings yet. Tool/cost events flow through `@pi-archimedes/core/bus` for the footer to consume.
-
-### [`@pi-archimedes/ask`](packages/ask/README.md)
-
-No settings yet.
-
-### [`@pi-archimedes/notify`](packages/notify/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
-| `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
-
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
-
-### [`@pi-archimedes/session-name`](packages/session-name/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `model` | string | _(current model)_ | Override model for title generation |
-
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
-
-### [`@pi-archimedes/mcp`](packages/mcp/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `directTools` | bool | `true` | Register per-server direct tools (`{server}_{tool}`) in the tool list |
-| `toolPrefix` | string | `"server"` | Tool name prefix strategy (`"server"` \| `"none"` \| `"short"` \| `"mcp"`) |
-| `idleTimeout` | number | `10` | Idle timeout in minutes before open connections close (`0` disables) |
-| `warnOnLargeDirectTools` | bool | `true` | Reserved — parsed but not yet effective (see note below) |
-| `autoAuth` | bool | `false` | Trigger the interactive OAuth flow inline — and retry the call once — when a tool call hits a `needs-auth` server (default: return guidance to run `/mcp auth`) |
-
-Per-server settings in the `mcp.json` server definitions override these defaults: `lifecycle` (`"keep-alive"` \| `"lazy"` \| `"lazy-keep-alive"` \| `"eager"`, default `"lazy"`), `idleTimeout`, `directTools` (boolean, or a `string[]` of tool names to expose), `includeTools`, `excludeTools`, `toolPrefix`, `exposeResources`, `debug` (stdio servers: route stderr to the terminal), `requestTimeoutMs`, `protocolVersion`, and `disabled`. A per-server `disabled: true` keeps the server out of the live set — no managed client, no direct tools, omitted from the `mcp` proxy tool's status list — while `/mcp status` and the panel still show it as disabled; re-enable with `/mcp enable <server>` plus `/reload`. http/sse servers additionally take `auth` — a static bearer (`{"token": "…"}`), the string `"oauth"`, or an `McpOAuthConfig` object (see the OAuth section above) — plus `headers` and `bearerTokenEnv`.
-
-> **Note on reserved settings:** `warnOnLargeDirectTools` (global) and the per-server `exposeResources`, `requestTimeoutMs`, and `protocolVersion` are part of the planned port — they are parsed (and, where applicable, folded into the metadata cache's config hash) but **not yet effective**: setting them has no runtime behaviour.
-
-A metadata cache at `~/.pi/agent/mcp-cache.json` (valid for 7 days) stores each server's tools/resources/prompts so the gateway can search and describe offline, connecting servers lazily per tool call. It also persists each server's last connection outcome, so `/mcp status` and the panel can surface a `needs-auth`/error from a previous session (with an age suffix once it grows stale).
-
-### [`@pi-archimedes/sudo`](packages/sudo/README.md)
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `ttlMs` | number | `900000` | Password cache TTL in milliseconds (default 15 minutes) |
-| `defaultTimeoutMs` | number | `120000` | `sudo_exec` default command timeout in milliseconds (default 120 seconds) |
-
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on). Config is JSON-only in the `archimedes.sudo` namespace of `~/.pi/agent/settings.json` — there is no settings-panel UI in v1.
-
-## Architecture
-
-### Monorepo layout
-
-```
-pi-archimedes/
-├── packages/
-│   ├── core/         # @pi-archimedes/core — editor, message, startup, thinking
-│   ├── ask/          # @pi-archimedes/ask — structured question tool
-│   ├── footer/       # @pi-archimedes/footer — status bar
-│   ├── diff/         # @pi-archimedes/diff — Shiki-powered diff rendering
-│   ├── image-paste/  # @pi-archimedes/image-paste — clipboard images
-│   ├── subagent/     # @pi-archimedes/subagent — sub-agent dispatch
-│   ├── todo/         # @pi-archimedes/todo — todo list with auto-clear
-│   ├── notify/       # @pi-archimedes/notify — delayed desktop notifications
-│   ├── session-name/ # @pi-archimedes/session-name — auto session naming
-│   ├── mcp/          # @pi-archimedes/mcp — MCP client adapter with pi-native TUI
-│   └── sudo/         # @pi-archimedes/sudo — sudo_exec + interactive-sudo bash guard
-└── meta/             # pi-archimedes — meta-package bundling all eleven
+```bash
+pi install npm:@pi-archimedes/core
+pi install npm:@pi-archimedes/subagent
+pi install npm:@pi-archimedes/todo
+pi install npm:@pi-archimedes/ask
+pi install npm:@pi-archimedes/mcp
+pi install npm:@pi-archimedes/sudo
+pi install npm:@pi-archimedes/diff
+pi install npm:@pi-archimedes/footer
+pi install npm:@pi-archimedes/image-paste
+pi install npm:@pi-archimedes/notify
+pi install npm:@pi-archimedes/session-name
 ```
 
-Each package is a focused TypeScript ESM module with its own `src/index.ts` entry point.
-
-See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and contribution workflow.
-
-### Requirements
-
-- Pi TUI with extension support
-- Node.js >= 24
-- pnpm >= 10 (for development — `npm install` is not supported; `packageManager` field pins pnpm via Corepack)
+---
 
 ## Development
 
-This is a pnpm workspace. To work on the source:
+pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sources at runtime, so verification is a type-check per package, not a build.
+
+```
+.
+├── packages/
+│   ├── core/          # event bus, chrome, text/color utils, editor, thinking
+│   ├── footer/        # status bar
+│   ├── diff/          # Shiki-powered diff rendering
+│   ├── subagent/      # subagent dispatch (live streaming, cost tracking)
+│   ├── todo/          # todo list tool + widget
+│   ├── ask/           # structured question tool
+│   ├── mcp/           # MCP client adapter, /mcp commands
+│   ├── sudo/          # sudo_exec tool + guards
+│   ├── image-paste/   # clipboard image paste
+│   ├── notify/        # delayed desktop notifications
+│   └── session-name/  # auto session naming
+└── meta/              # the pi-archimedes orchestrator (depends on all eleven)
+```
 
 ```bash
-git clone https://github.com/danielcherubini/pi-archimedes
+git clone https://github.com/danielcherubini/pi-archimedes.git
 cd pi-archimedes
-pnpm install
-pnpm -r exec -- tsc --noEmit   # type-check all packages
+pnpm install            # requires pnpm ≥ 10
+
+# Verification: type-check each package, independently —
+# tsc --noEmit in every component directory and in meta (wait for each)
+(cd packages/core && npx tsc --noEmit)
+
+# Then the full test suite (1300+ tests):
+pnpm test
 ```
 
-Symlink into your Pi extensions to test:
+### Local testing with Pi
+
+The monorepo root is itself the Pi package — but create the extensions directory first:
 
 ```bash
-ln -s $(pwd) ~/.pi/agent/extensions/pi-archimedes
+mkdir -p ~/.pi/agent/extensions
+ln -s "$(pwd)" ~/.pi/agent/extensions/pi-archimedes
 ```
 
-Root `package.json` declares `"extensions": ["meta/src/index.ts"]` — Pi loads it from the symlink.
+Pi's extension loader picks up `meta/src/index.ts` through the root `package.json`.
 
-See [AGENTS.md](AGENTS.md) for import conventions, config namespaces, and the release workflow.
+> [!WARNING]
+> Don't run the local symlink and an npm copy of the suite at the same time (`pi install npm:pi-archimedes`) — you'd double-register the components. Remove one before loading the other: `pi remove npm:pi-archimedes`, or delete the symlink.
+
+For conventions, architecture decisions, and the release workflow, see [AGENTS.md](AGENTS.md).
