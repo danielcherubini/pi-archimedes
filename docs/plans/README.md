@@ -46,15 +46,17 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
+| 35 | [README copy — Pi, with the good stuff](plan-035-readme-copy.md) | IN PROGRESS (PR #49; implementation pending) | 2026-09-11 |
+
 ## Backlog
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 ## Quick Stats
 
-- Total Plans: 34
+- Total Plans: 35
 - Completed: 34
-- In Progress: 0
+- In Progress: 1
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
