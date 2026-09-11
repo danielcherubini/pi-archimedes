@@ -1,338 +1,244 @@
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
+# Archimedes
+### Pi, with the good stuff.
 
-# pi-archimedes
+An extra pair of eyes on your code. Agents working in parallel. A terminal that keeps you in the loop—and looks good doing it.
 
-**The cohesive extension suite for the Pi coding agent — engineered to turn your terminal into an autonomous AI development cockpit.**
+**Archimedes brings subagents, shared task lists, MCP tools, and a polished interface to [Pi](https://github.com/earendil-works/pi). Install them together, use what you like, and make the setup yours.**
 
 [![npm version](https://img.shields.io/npm/v/pi-archimedes?style=flat-square)](https://www.npmjs.com/package/pi-archimedes)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen?style=flat-square)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue?style=flat-square)](https://www.typescriptlang.org)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen?style=flat-square)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[Quick Start](#quick-start) • [Why Archimedes?](#why-archimedes) • [Interactive Commands](#interactive-commands) • [Feature Deep Dive](#feature-deep-dive) • [Configuration](#configuration) • [Modular Packages](#modular-packages)
-
-</div>
+[Setup](#setup) • [Commands](#commands) • [Settings](#settings) • [Components](#components) • [Development](#development)
 
 ---
 
-## Why Archimedes?
+## Setup
 
-[Pi](https://github.com/earendil-works/pi) is a fast and lightweight terminal coding agent. But out of the box, extensions don't talk to each other:
-- If you dispatch a subagent, you can't see what it's doing or how many tokens it's burning.
-- When an agent needs a decision, it either guesses or dumps confusing raw text into the chat.
-- There's no built-in way to track multi-step plans across agents without losing context.
-- Terminal diffs are plain text without syntax highlighting.
-- Running `sudo` can hang your session or leak passwords into prompt history.
-- Managing MCP servers means hand-editing JSON files and restarting.
+### You already use Pi
 
-**Archimedes connects all of these pieces together into one seamless terminal experience.**
-
-Instead of installing a bunch of separate plugins that don't know the others exist, Archimedes makes them cooperate:
-- **Subagents stream live in your terminal**, and their token usage and dollar costs roll straight into your footer status bar in real time.
-- **A shared multi-column todo list** shows what your main agent and every subagent are doing side by side, and automatically dismisses itself when the work is done.
-- **Interactive questions (`ask`)**: when an agent needs clarification, it opens a clean interactive prompt right in your terminal, waits for your answer, and keeps going. Even background subagents can ask you questions without breaking execution.
-- **Full MCP management (`/mcp`)**: browse tools, toggle servers on or off, and run OAuth logins from a clean terminal UI instead of hand-editing config files.
-- **Safe sudo execution**: prompts for passwords securely with masked input, caches credentials in memory, and stops agents from hanging on raw `sudo` commands.
-- **Syntax-highlighted diffs**: split side-by-side or unified diffs powered by Shiki, with word-level highlights so you can see exactly what changed before applying edits.
-- **Polished daily details**: paste screenshots straight from your clipboard with `Ctrl+V`, watch an animated spinner on the editor border while the agent works, get a desktop notification when long tasks finish, and let AI name your sessions automatically.
-
-Everything can be toggled with `/plugins` and customized with `/archimedes`.
-
----
-
-## Quick Start
-
-### 1. Install Pi (if you haven't already)
-
-Archimedes requires [Pi](https://github.com/earendil-works/pi) and Node.js >= 22.
-
-```bash
-npm install -g @earendil-works/pi-coding-agent
-```
-
-### 2. Install Archimedes
-
-Install the full, integrated Archimedes suite with a single command:
+One command:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-### 3. Launch
+Then run `/reload` in your session (or start a new one) to pick it up.
+
+### New to Pi
+
+1. **Node.js ≥ 22.19.0** — the requirement [Pi](https://github.com/earendil-works/pi) itself declares.
+2. **Install Pi** (shell):
+
+   ```bash
+   npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+   ```
+
+3. **Install Archimedes** (shell):
+
+   ```bash
+   pi install npm:pi-archimedes
+   ```
+
+4. **Launch** the terminal in the project you want to work on (shell):
+
+   ```bash
+   cd /path/to/your/project
+   pi
+   ```
+
+5. **Authenticate and pick a model** (inside the Pi session):
+
+   ```text
+   /login   # choose a supported provider — subscription or API key
+   /model   # select a model from your provider
+   ```
+
+Model access comes through Pi's own providers — see Pi's [provider docs](https://pi.dev/docs/providers) for every supported provider and log in with `/login`. Archimedes doesn't ship a model of its own, and it works with whatever model your Pi account can reach. For the broader first run, Pi's [quickstart](https://pi.dev/docs/quickstart) is worth a read.
+
+<p align="center">
+  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
+</p>
+
+---
+
+## Give your agent some backup.
+
+Have one subagent explore the codebase while another reviews your changes. [Subagents](packages/subagent/README.md) run with your choice of models and tools, stream their progress live into your terminal, and their tasks show up side by side on the [shared todo board](packages/todo/README.md).
+
+Their token usage and costs feed into the same status bar. More work happening at once, without losing sight of it.
+
+See the [subagent guide](packages/subagent/README.md) for dispatching, agent definitions, and the `/agents` editor.
+
+<p align="center">
+  <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
+</p>
+
+<p align="center">
+  <img src="docs/images/todos-and-subagent.png" width="750" alt="Todos and subagent side-by-side">
+</p>
+
+---
+
+## Keep the decisions. Delegate the work.
+
+When a subagent needs your input, it can ask directly in your session — [ask](packages/ask/README.md) presents the question right in your terminal. Pick an option, add a note, or write your own answer. It gets your decision and carries on.
+
+You don't have to copy messages between terminals to stay involved.
+
+<p align="center">
+  <img src="docs/images/ask-subagent.png" width="750" alt="Interactive ask prompt from a subagent">
+</p>
+
+---
+
+## Bring the tools you already use.
+
+[Connect MCP servers](packages/mcp/README.md), browse their tools, and handle authentication inside Pi. Import server definitions from Cursor, Claude Code, Claude Desktop, or VS Code rather than rebuilding your setup.
+
+Start with `/mcp setup`. Manage it with `/mcp`.
+
+---
+
+## See what changed. Not just that something changed.
+
+[Syntax-highlighted diffs](packages/diff/README.md), side by side when there's room and unified when there isn't. Word-level highlights draw your eye to the changes inside each line.
+
+The details are easier to catch when they're easier to read.
+
+<p align="center">
+  <img src="docs/images/diff-edit.png" width="750" alt="Shiki syntax-highlighted split diff">
+</p>
+
+---
+
+## A terminal worth spending your day in.
+
+[Core](packages/core/README.md) frames the editor, animates the border while the agent works, and tidies the thinking blocks — with configurable colours. The [footer](packages/footer/README.md) keeps your branch, model, context usage, and costs in view. [Paste screenshots](packages/image-paste/README.md) straight from the clipboard with inline previews.
+
+[Session naming](packages/session-name/README.md) gives sessions useful names automatically so they're easier to find later. A small extra model call generates the title, so it's a separate (potentially billed) cost that isn't reflected in the footer's totals.
+
+A few practical notes: image previews appear when you submit the message (the markers appear as you paste), and both image rendering and desktop alerts depend on your terminal's support — the [notify](packages/notify/README.md) and [image-paste](packages/image-paste/README.md) docs cover what each needs.
+
+---
+
+## A little more care with root access.
+
+For tasks that need sudo, [sudo](packages/sudo/README.md) shows you the exact command and its reason before you enter your password in a masked prompt—not the chat. Credentials are cached in memory with an expiry, and `/sudo forget` clears them.
+
+## Step away without losing track.
+
+[Notify](packages/notify/README.md) alerts you when the agent finishes or a prompt needs your attention. Alerts wait before firing, and typing cancels anything pending.
+
+You can leave the terminal to do its thing.
+
+---
+
+## The whole suite. Or just your favourite parts.
+
+One install brings everything together. Switch optional extensions on or off with `/plugins`, then `/reload` to apply. Use `/archimedes` to adjust the available settings.
+
+Only want the diffs, footer, or MCP tools? Each component is available separately — see [Components](#components).
+
+---
+
+## Commands
+
+| Command | Scope | Notes |
+|---------|-------|-------|
+| `/plugins` | Suite | Toggle the ten optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
+| `/archimedes` | Suite | Interactive settings panel — arrow keys change values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
+| `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
+| `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
+| `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
+| `/sudo`, `/sudo forget` | Sudo component | Inspect cached credential state; `forget` clears it. |
+| `/reload` | Pi | Applies plugin changes and settings read at startup. |
+
+---
+
+## Settings
+
+Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (chrome, spinner, thinking), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
+
+---
+
+## Components
+
+| Component | npm package | What it adds |
+|-----------|-------------|--------------|
+| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
+| **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Live subagent dispatch, `/agents`, custom agent definitions |
+| **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
+| **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
+| **MCP** | [`@pi-archimedes/mcp`](packages/mcp/README.md) | `/mcp` management, setup wizard, OAuth, config imports |
+| **Sudo** | [`@pi-archimedes/sudo`](packages/sudo/README.md) | `sudo_exec` with masked password prompt and interactive-sudo guard |
+| **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
+| **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
+| **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Clipboard image paste with inline previews |
+| **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Delayed desktop notifications with input cancellation |
+| **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automatic session titles |
+
+The full suite is the supported connected setup — the integrations above (subagent costs in the footer, subagent columns on the todo board, subagent questions in the terminal) light up when the relevant components are loaded together.
+
+To install just the components you want:
 
 ```bash
-pi
+pi install npm:@pi-archimedes/core
+pi install npm:@pi-archimedes/subagent
+pi install npm:@pi-archimedes/todo
+pi install npm:@pi-archimedes/ask
+pi install npm:@pi-archimedes/mcp
+pi install npm:@pi-archimedes/sudo
+pi install npm:@pi-archimedes/diff
+pi install npm:@pi-archimedes/footer
+pi install npm:@pi-archimedes/image-paste
+pi install npm:@pi-archimedes/notify
+pi install npm:@pi-archimedes/session-name
 ```
-
-You are immediately greeted with the Archimedes splash screen, animated working indicators, live footer status bar, and complete cockpit tooling.
-
-> [!TIP]
-> **Want only specific components?** Archimedes is completely modular. Every package can be installed standalone without the rest of the suite. See [Modular Packages](#modular-packages) below.
-
----
-
-## Interactive Commands
-
-Archimedes adds a set of dedicated TUI commands to manage your agent environment without leaving your session:
-
-| Command | Description |
-|---------|-------------|
-| `/archimedes` | Open the interactive graphical settings panel to configure themes, spinners, and thresholds. |
-| `/plugins` | Live plugin manager — toggle any of the 11 components on or off on the fly. |
-| `/mcp` | Open the Model Context Protocol management panel to browse servers, tools, and run OAuth. |
-| `/mcp setup` | Onboarding wizard to scaffold `.mcp.json` or import configs from Cursor, Claude Code, and VS Code. |
-| `/agents` | Visual CRUD manager for custom subagent personas in `.pi/agents/*.md` with model and tool pickers. |
-| `/todos` | Toggle the live multi-column todo tracking widget (`/todos clear` resets). |
-| `/sudo` | Inspect cached privileged credentials state (`/sudo forget` clears memory). |
-
----
-
-## Feature Deep Dive
-
-### 🤖 Subagents & Live Streaming ([`@pi-archimedes/subagent`](packages/subagent/README.md))
-
-Offload tasks to specialized subagents with real-time visibility. Run single tasks or parallel agents (e.g., a researcher and a reviewer working simultaneously).
-
-- **Live TUI streaming**: Watch subagent reasoning and tool calls execute in real time. Tool states are color-coded (grey while running, green on success, red on failure) with human-readable argument previews.
-- **Unified cost accounting**: Per-subagent token usage (input, output, cache read/write) and exact dollar costs flow through the core bus directly into the footer.
-- **Visual agent manager (`/agents`)**: Create and edit `.pi/agents/*.md` files with a searchable list, model selector, tool toggle picker, and cross-scope collision warnings.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
-</div>
-
----
-
-### 📋 Coordinated Multi-Column Todo Board ([`@pi-archimedes/todo`](packages/todo/README.md))
-
-Keep long workflows on track with structured task tracking visible to both you and the LLM.
-
-- **`manage_todo_list` tool**: Read and write operations for task planning and execution tracking.
-- **Multi-column display**: Main agent tasks appear on the left; each active subagent gets its own column on the right.
-- **Auto-clearing**: When all tasks complete, the board displays a brief all-done celebration for 2 seconds and automatically dismisses itself.
-- **Session persistence**: Survives `/reload` and session branch reconstruction.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Todos and subagent side-by-side">
-</div>
-
----
-
-### 💬 Interactive Questions (`ask`) ([`@pi-archimedes/ask`](packages/ask/README.md))
-
-Stop agents from guessing when instructions are ambiguous. When an agent or a background subagent needs clarification, `ask` presents a clean interactive prompt.
-
-- **Subagent-to-parent TUI IPC**: Most question tools fail when called from background workers. Archimedes routes subagent `ask` calls through bidirectional IPC directly into the user's terminal. The subagent pauses, you answer in the TUI, and the subagent resumes with your choice.
-- **Tabbed multi-question flows**: Review and answer multiple questions at once with keyboard navigation.
-- **Inline notes & custom responses**: Attach notes to individual options or type custom answers via automatic "Other" handling.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="750" alt="Interactive ask prompt from a subagent">
-</div>
-
----
-
-### 🔌 Enterprise-Grade MCP Client ([`@pi-archimedes/mcp`](packages/mcp/README.md))
-
-Integrate any Model Context Protocol server (stdio or HTTP/SSE) with full feature parity with dedicated MCP adapters.
-
-- **Gateway proxy + direct tools**: Call tools via the universal `mcp` gateway or register high-frequency tools directly as `{server}_{tool}` for maximum token efficiency.
-- **Management panel (`/mcp panel`)**: Live status indicators (`●` connected, `⚠` needs auth, `✗` error, `⊘` disabled, `○` cached), tool list inspection, and server toggles.
-- **Setup wizard (`/mcp setup`)**: Scaffold `.mcp.json` or auto-import existing MCP servers from Cursor (`~/.cursor/mcp.json`), Claude Code (`~/.claude.json`), Claude Desktop, and VS Code.
-- **OAuth 2.1 + PKCE**: Browser-based authentication flow with secure OS credential store persistence (macOS Keychain, Linux Secret Service, Windows Credential Manager).
-- **Metadata cache**: Offline tool search and lazy connections via `~/.pi/agent/mcp-cache.json`.
-
----
-
-### 🔐 Safe Privileged Execution (`sudo`) ([`@pi-archimedes/sudo`](packages/sudo/README.md))
-
-Run administrative tasks safely without exposing credentials or causing terminal deadlocks.
-
-- **`sudo_exec` tool**: Executes privileged commands via `sudo -S` with explicit command confirmation and human reason display.
-- **Masked password prompt**: Passwords are entered via a secure TUI mask and piped strictly over stdin — never exposed in argv, environment variables, logs, or LLM context.
-- **Active bash guard**: Automatically detects and blocks interactive `sudo` inside the standard `bash` tool, preventing agent freeze and credential leakage.
-- **In-memory cache**: Secure credential cache with a 15-minute TTL, cleared on session end, authentication failure, or `/sudo forget`. Subagents are strictly prevented from prompting for root access.
-
----
-
-### 🔍 Shiki-Powered Syntax-Highlighted Diffs ([`@pi-archimedes/diff`](packages/diff/README.md))
-
-Inspect code changes with clarity before applying them.
-
-- **Split and unified views**: Side-by-side split view or unified view, automatically adapting based on terminal width.
-- **Shiki syntax engine**: Rich highlighting matching your active Pi theme.
-- **Word-level diff emphasis**: Changed characters within modified lines are emphasized for surgical review.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="750" alt="Shiki syntax-highlighted split diff">
-</div>
-
----
-
-### 📊 Adaptive Footer & Cost Tracker ([`@pi-archimedes/footer`](packages/footer/README.md))
-
-A status bar that delivers vital session context without wasting vertical screen space.
-
-- **At-a-glance context**: Current working directory, git branch, linked worktree indicator (`🌲`), active model, and thinking level.
-- **Token & cost accumulator**: Live input/output tokens, cache read/write statistics, and combined session dollar costs (including all subagent usage).
-- **Dynamic context bar**: Color-coded progress bar (green → yellow → red) showing remaining context window capacity.
-- **Adaptive layout**: Automatically wraps from one to two or three lines on narrower viewports without clipping text.
-
----
-
-### 🎬 Visual Chrome & Working Indicators ([`@pi-archimedes/core`](packages/core/README.md))
-
-- **Framed editor**: Clean borders around the input area with double-press quit guard.
-- **Border spinner**: 10 animated spinner styles running along the editor border while the agent is executing (pendulum, typing, pulse, marquee, wave, rain, sparkle), replacing Pi's native "Working" line.
-- **Muted thinking blocks**: Clean styling for chain-of-thought blocks with configurable labels and colors.
-- **Animated splash screen**: 9 configurable opening reveal animations.
-
----
-
-### 🖼️ Clipboard Image Paste ([`@pi-archimedes/image-paste`](packages/image-paste/README.md))
-
-Paste screenshots and UI mockups straight into your terminal prompt with instant inline previews:
-- Press `Ctrl+V` (Linux/macOS) or `Alt+V` (Windows) to attach clipboard images directly.
-- Built-in size guards prevent accidental multi-megabyte blowouts.
-
-> [!NOTE]
-> On Linux, clear Pi's default paste binding in `~/.pi/agent/keybindings.json` (`{ "app.clipboard.pasteImage": [] }`) so Archimedes' preview-enabled handler takes over seamlessly.
-
----
-
-### 🔔 Delayed Desktop Notifications ([`@pi-archimedes/notify`](packages/notify/README.md))
-
-Step away during long builds or model generations with peace of mind.
-- **Delayed trigger**: Alerts trigger only after 30 seconds of inactivity — never spamming you while actively typing.
-- **Keystroke circuit breaker**: Touching any key immediately cancels pending alerts.
-- **Terminal protocol support**: Native OSC 9, OSC 777, OSC 99, and PowerShell toasts with full tmux passthrough.
-
----
-
-### 🏷️ AI Session Auto-Naming ([`@pi-archimedes/session-name`](packages/session-name/README.md))
-
-Never lose track of a past session. After your first exchange, a lightweight background model call generates a concise, descriptive 3–8 word session title so you can resume sessions easily with `pi -r`. Respects manual titles set via `/name`.
-
----
-
-## Configuration
-
-### Interactive Settings Panel
-
-Run `/archimedes` at any time to open the full graphical settings dashboard. Adjust themes, spinner speeds, notification delays, and thresholds with live keyboard controls.
-
-### Plugin Manager
-
-Run `/plugins` to toggle any component on or off. Disabled plugins are cleanly unloaded on the next `/reload`.
-
-### Configuration Reference
-
-Settings are persisted in `~/.pi/agent/settings.json`:
-
-```jsonc
-{
-  // Core visual chrome
-  "archimedes.core": {
-    "editorSpinBorder": true,       // Border animation while agent is working
-    "editorSpinStyle": "pendulum",  // pendulum | typing | pulse | marquee | wave-rows | rain | sparkle
-    "editorSpinSpeed": "normal",    // slow | normal | fast
-    "editorSpinLabel": "Working",   // Label beside spinner
-    "animationStyle": "vertical-up",// Splash animation
-    "mutedTheme": false             // Subdued thinking blocks
-  },
-
-  // Footer status bar
-  "archimedes.footer": {
-    "splitThreshold": 150           // Column width threshold for single-line vs multi-line layout
-  },
-
-  // Shiki diff renderer
-  "archimedes.diff": {
-    "diffTheme": "github-dark",     // Shiki color theme
-    "diffSplitMinWidth": 150        // Minimum terminal columns for side-by-side view
-  },
-
-  // Desktop notifications
-  "archimedes.notify": {
-    "notifyOnAgentEnd": true,
-    "notifyOnQuestion": true,
-    "delayMs": 30000                // Inactivity delay before alerting
-  },
-
-  // MCP Adapter
-  "archimedes.mcp": {
-    "directTools": true,            // Expose {server}_{tool} direct tool definitions
-    "idleTimeout": 10,              // Minutes before idling MCP connections close
-    "autoAuth": false               // Inline OAuth prompt on needs-auth servers
-  },
-
-  // Sudo privilege execution
-  "archimedes.sudo": {
-    "ttlMs": 900000,                // Password cache lifetime (15 minutes)
-    "defaultTimeoutMs": 120000      // Execution timeout per command
-  }
-}
-```
-
----
-
-## Modular Packages
-
-Prefer to cherry-pick? Every component in Archimedes is published as an independent, standalone package:
-
-| Package | npm | Description |
-|---------|-----|-------------|
-| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Event bus, animated splash screen, framed editor, working spinner |
-| **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Status bar, token counters, real-dollar costs, context window bar |
-| **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Subagent dispatch, live streaming, parallel execution, `/agents` TUI |
-| **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo widget with auto-clearing and subagent tracking |
-| **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Tabbed questions, inline notes, subagent-to-parent TUI IPC |
-| **MCP** | [`@pi-archimedes/mcp`](packages/mcp/README.md) | Full MCP client, `/mcp` management panel, setup wizard, OAuth 2.1 |
-| **Sudo** | [`@pi-archimedes/sudo`](packages/sudo/README.md) | Safe `sudo_exec`, masked password prompt, bash interactive guard |
-| **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Shiki-highlighted side-by-side and unified terminal diffs |
-| **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Direct clipboard screenshot paste (`Ctrl+V`) with inline previews |
-| **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Inactivity-delayed desktop alerts with keystroke circuit breaker |
-| **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automated AI session title generator after first conversation turn |
-
-To install an individual component:
-
-```bash
-pi install npm:@pi-archimedes/<package-name>
-```
-
-> [!IMPORTANT]
-> When installed via the full `pi-archimedes` meta package, all components connect to the shared core bus — enabling subagent costs in the footer, subagent columns in the todo board, subagent question prompts in the TUI, and coordinated theme styling.
 
 ---
 
 ## Development
 
-pi-archimedes is structured as a pnpm monorepo.
+pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sources at runtime, so verification is `npx tsc --noEmit` per package, not a build.
+
+```
+.
+├── packages/
+│   ├── core/          # event bus, chrome, text/color utils, editor, thinking
+│   ├── footer/        # status bar
+│   ├── diff/          # Shiki-powered diff rendering
+│   ├── subagent/      # subagent dispatch, /agents editor
+│   ├── todo/          # todo list tool + widget
+│   ├── ask/           # structured question tool
+│   ├── mcp/           # MCP client adapter, /mcp commands
+│   ├── sudo/          # sudo_exec tool + guards
+│   ├── image-paste/   # clipboard image paste
+│   ├── notify/        # delayed desktop notifications
+│   └── session-name/  # auto session naming
+└── meta/              # the pi-archimedes orchestrator (depends on all eleven)
+```
 
 ```bash
-# Clone the repository
 git clone https://github.com/danielcherubini/pi-archimedes.git
 cd pi-archimedes
-
-# Install dependencies (requires pnpm >= 10)
-pnpm install
-
-# Type-check all packages
-pnpm -r exec -- tsc --noEmit
-
-# Run unit tests
-pnpm test
+pnpm install            # requires pnpm ≥ 10
+pnpm test              # unit tests
+npx tsc --noEmit       # type-check (run per package directory)
 ```
 
-### Local Testing with Pi
+### Local testing with Pi
 
-To test your local build inside Pi, symlink the repository directly into Pi's extensions directory:
+The monorepo root is itself the Pi package — but create the extensions directory first:
 
 ```bash
-ln -s $(pwd) ~/.pi/agent/extensions/pi-archimedes
+mkdir -p ~/.pi/agent/extensions
+ln -s "$(pwd)" ~/.pi/agent/extensions/pi-archimedes
 ```
 
-Pi's extension loader automatically picks up `meta/src/index.ts` from the root `package.json`.
+Pi's extension loader picks up `meta/src/index.ts` through the root `package.json`.
 
-For contribution conventions, architecture decisions, and release workflows, see [AGENTS.md](AGENTS.md).
+> [!WARNING]
+> Don't run the local symlink and an npm copy of the suite at the same time (`pi install npm:pi-archimedes`) — you'd double-register the components. Remove one before loading the other: `pi remove npm:pi-archimedes`, or delete the symlink.
+
+For conventions, architecture decisions, and the release workflow, see [AGENTS.md](AGENTS.md).

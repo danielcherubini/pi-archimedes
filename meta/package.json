@@ -5,7 +5,7 @@
   "keywords": [
     "pi-package"
   ],
-  "description": "The ultimate extension suite for the Pi coding agent — subagents, shared todos, interactive ask IPC, MCP adapter, safe sudo, Shiki diffs, and unified TUI",
+  "description": "Parallel agents, shared task lists, MCP tools, and a polished terminal for the Pi coding agent.",
   "files": [
     "src",
     "README.md"
