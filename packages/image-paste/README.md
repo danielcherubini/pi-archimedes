@@ -1,31 +1,45 @@
 # @pi-archimedes/image-paste
 
-Paste images from your clipboard directly into the Pi chat with inline previews.
+**Direct clipboard image pasting with inline terminal previews for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Paste images directly from clipboard into Pi chats without manually saving files to disk first. Sharing visual context like UI mockups or error screenshots becomes instant, while inline previews keep your prompt clean and predictable.
+Paste screenshots and UI mockups directly into your prompt from your system clipboard without manually saving temporary image files to disk. Instant inline terminal previews ensure your prompts stay clean, accurate, and visually contextualized before submission.
 
-## What you get
+## Quick Start
 
-- **Clipboard image paste** — grab a screenshot and paste it straight into the prompt
-- **Inline previews** — images render in the TUI so you can see what you attached
-- **Marker-based attachment** — placeholder markers (`[Image #1]`) are matched and attached on submit
-- **Size guard** — rejects images over 20MB with a clear warning
+### 1. Install Pi (if needed)
 
-## Install
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/image-paste
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
+---
+
+## What You Get
+
+- **Clipboard Image Paste** — Capture a screenshot with your OS tool and hit paste straight into Pi.
+- **Inline Previews** — Renders an inline terminal preview of attached images directly in the TUI.
+- **Marker-Based Attachment** — Clean placeholder markers (`[Image #1]`) indicate attachments without cluttering your prompt text.
+- **Size Protection** — Rejects files over 20MB with a clear warning before wasting context tokens or hanging uploads.
+
+---
+
 ## Usage
 
-With Pi focused, press the paste shortcut and any image in your clipboard is attached:
+With your Pi session focused, press your platform paste shortcut:
 
 | Platform | Shortcut |
 |----------|----------|
@@ -33,30 +47,16 @@ With Pi focused, press the paste shortcut and any image in your clipboard is att
 | macOS | `Ctrl+V` or `Alt+V` |
 | Windows | `Alt+V` |
 
-A `[Image #N]` placeholder is inserted into your draft. When you submit, any images referenced by markers are automatically attached to the message. If you remove the markers before submitting, the images are discarded.
+> [!NOTE]
+> **Linux Shortcut Tip:** On Linux, `Ctrl+V` is also Pi's built-in binding for `app.clipboard.pasteImage`. To enable Archimedes' preview-enhanced handler without warning banners, clear the built-in binding in `~/.pi/agent/keybindings.json`:
+> ```json
+> { "app.clipboard.pasteImage": [] }
+> ```
 
-## Settings
+---
 
-Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
+## Part of the Archimedes Suite
 
-## Troubleshooting
+`@pi-archimedes/image-paste` is included in the [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) suite, fully configured to work alongside the framed editor, todo tracker, and status bar.
 
-### `ctrl+v` shortcut conflict on Linux
-
-Pi has a built-in `ctrl+v` handler (`app.clipboard.pasteImage`) that conflicts with this extension. You'll see a warning like:
-
-```
-Extension shortcut conflict: 'ctrl+v' is built-in shortcut for app.clipboard.pasteImage
-```
-
-**Fix:** Clear the built-in binding in `~/.pi/agent/keybindings.json`:
-
-```json
-{
-  "app.clipboard.pasteImage": []
-}
-```
-
-This lets archimedes' handler take over (it does the same thing plus inline previews) without the warning.
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

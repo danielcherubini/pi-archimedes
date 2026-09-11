@@ -1,37 +1,51 @@
 # @pi-archimedes/ask
 
-Structured question tool with tabbed multi-question flow and inline note editing.
+**Structured interactive question tool with tabbed navigation, inline notes, and subagent IPC bridging for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-When language models need clarification, asking unstructured questions in text leads to guessing and back-and-forth ambiguity. This tool provides structured choice prompts, tabbed navigation for multi-part questions, and inline note editing so users can deliver clear, complete guidance in a single step.
+When coding agents need architectural guidance or clarification, plain text questions create ambiguity and endless back-and-forth loops. `@pi-archimedes/ask` gives agents a structured prompt tool featuring tabbed multi-part forms, single-click pickers, inline note annotations, and markdown context cards. Uniquely, it bridges subagent questions directly into the parent terminal over bidirectional IPC without breaking execution.
 
-## What you get
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
+</div>
 
-- **Tabbed multi-question flow** — submit review for multiple questions at once
-- **Single-question picker** — instant submit for quick decisions
-- **Inline note editing** — add custom notes and context per option
-- **Markdown context descriptions** — rich context descriptions rendered above options
-- **Automatic "Other" handling** — built-in custom response option with auto-focus
-- **Subagent support** — subagents can call `ask` and questions appear in the parent agent's TUI via bidirectional IPC
+## Quick Start
 
-## Screenshots
+### 1. Install Pi (if needed)
 
-![ask from a subagent](../../docs/images/ask-subagent.png)
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
 
-## Install
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/ask
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+---
 
-Single question example:
+## What You Get
+
+- **Bidirectional Subagent IPC** — When a dispatched subagent calls `ask`, the interactive prompt renders directly in your live parent terminal. The subagent safely pauses, you submit your answers, and it resumes immediately with your exact choices.
+- **Tabbed Multi-Question Flows** — Move across multiple interrelated questions using arrow keys and submit a batch review in one atomic step.
+- **Single-Question Quick Picker** — Instant one-click selection for fast binary or multiple-choice questions.
+- **Inline Note Annotations** — Press a key on any option to type custom context, constraints, or caveats that pass back alongside the answer.
+- **Built-in "Other" Input** — Automatic custom response field allows users to type freeform text whenever options don't cover the situation.
+- **Rich Markdown Context** — Renders formatted code blocks, headers, and descriptions above question options.
+
+---
+
+## Tool Usage
+
+### Single Quick Question
 
 ```jsonc
 {
@@ -47,38 +61,40 @@ Single question example:
 }
 ```
 
-Multi-question with notes example:
+### Multi-Question with Markdown & Multiple Selection
 
 ```jsonc
 {
   "questions": [
     {
       "id": "priority",
-      "question": "What's the implementation priority?",
-      "description": "Choose the order for tackling these tasks.",
+      "question": "What is the implementation priority?",
+      "description": "Choose the initial focus area for this milestone.",
+      "recommended": 0,
       "options": [
-        { "label": "Core features first" },
-        { "label": "Tests first" },
-        { "label": "Design first" }
-      ],
-      "recommended": 0
+        { "label": "Core architecture first" },
+        { "label": "Unit tests first" },
+        { "label": "CLI interface first" }
+      ]
     },
     {
-      "id": "approach",
-      "question": "Any additional constraints?",
+      "id": "constraints",
+      "question": "Select applicable constraints:",
+      "multi": true,
       "options": [
         { "label": "No breaking changes" },
-        { "label": "Performance critical" },
-        { "label": "None" }
-      ],
-      "multi": true
+        { "label": "Zero external dependencies" },
+        { "label": "Strict backward compatibility" }
+      ]
     }
   ]
 }
 ```
 
-## Integration
+---
 
-Depends on [`@pi-archimedes/core`](../core) for the shared event bus used to relay subagent questions. Subagents call `ask` and questions are safely dispatched to the parent agent's TUI over bidirectional IPC with no temporary files.
+## Part of the Archimedes Suite
 
-← Back to [pi-archimedes](../../README.md)
+When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/ask` automatically pairs with `@pi-archimedes/subagent` to provide transparent human-in-the-loop governance for background agent swarms.
+
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

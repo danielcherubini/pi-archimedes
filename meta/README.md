@@ -8,9 +8,9 @@
 [![npm version](https://img.shields.io/npm/v/pi-archimedes?style=flat-square)](https://www.npmjs.com/package/pi-archimedes)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen?style=flat-square)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-%3E%3D5.0-blue?style=flat-square)](https://www.typescriptlang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://github.com/danielcherubini/pi-archimedes/blob/main/LICENSE)
 
-[Quick Start](#quick-start) • [Why Archimedes?](#why-archimedes) • [Interactive Commands](#interactive-commands) • [Feature Deep Dive](#feature-deep-dive) • [Configuration](#configuration) • [Modular Packages](#modular-packages)
+[Quick Start](#quick-start) • [Why Archimedes?](#why-archimedes) • [Interactive Commands](#interactive-commands) • [Feature Deep Dive](#feature-deep-dive) • [Configuration](#configuration) • [Modular Packages](#modular-packages) • [GitHub](https://github.com/danielcherubini/pi-archimedes)
 
 </div>
 
@@ -88,7 +88,7 @@ Archimedes adds a set of dedicated TUI commands to manage your agent environment
 
 ## Feature Deep Dive
 
-### 🤖 Subagent Swarms & Live Streaming ([`@pi-archimedes/subagent`](packages/subagent/README.md))
+### 🤖 Subagent Swarms & Live Streaming ([`@pi-archimedes/subagent`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/subagent#readme))
 
 Offload tasks to specialized subagents with real-time visibility. Run single subagents or parallel swarms (e.g., a researcher and a reviewer working simultaneously).
 
@@ -102,7 +102,7 @@ Offload tasks to specialized subagents with real-time visibility. Run single sub
 
 ---
 
-### 📋 Coordinated Multi-Column Todo Board ([`@pi-archimedes/todo`](packages/todo/README.md))
+### 📋 Coordinated Multi-Column Todo Board ([`@pi-archimedes/todo`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/todo#readme))
 
 Keep long workflows on track with structured task tracking visible to both you and the LLM.
 
@@ -117,7 +117,7 @@ Keep long workflows on track with structured task tracking visible to both you a
 
 ---
 
-### 💬 Bidirectional Human-in-the-Loop (`ask`) ([`@pi-archimedes/ask`](packages/ask/README.md))
+### 💬 Bidirectional Human-in-the-Loop (`ask`) ([`@pi-archimedes/ask`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/ask#readme))
 
 Eliminate ambiguous back-and-forth guessing. When an agent or a background subagent needs human guidance, `ask` presents an interactive, structured question flow.
 
@@ -131,7 +131,7 @@ Eliminate ambiguous back-and-forth guessing. When an agent or a background subag
 
 ---
 
-### 🔌 Enterprise-Grade MCP Client ([`@pi-archimedes/mcp`](packages/mcp/README.md))
+### 🔌 Enterprise-Grade MCP Client ([`@pi-archimedes/mcp`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/mcp#readme))
 
 Integrate any Model Context Protocol server (stdio or HTTP/SSE) with full feature parity with dedicated MCP adapters.
 
@@ -143,7 +143,7 @@ Integrate any Model Context Protocol server (stdio or HTTP/SSE) with full featur
 
 ---
 
-### 🔐 Safe Privileged Execution (`sudo`) ([`@pi-archimedes/sudo`](packages/sudo/README.md))
+### 🔐 Safe Privileged Execution (`sudo`) ([`@pi-archimedes/sudo`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/sudo#readme))
 
 Run administrative tasks safely without exposing credentials or causing terminal deadlocks.
 
@@ -154,7 +154,7 @@ Run administrative tasks safely without exposing credentials or causing terminal
 
 ---
 
-### 🔍 Shiki-Powered Syntax-Highlighted Diffs ([`@pi-archimedes/diff`](packages/diff/README.md))
+### 🔍 Shiki-Powered Syntax-Highlighted Diffs ([`@pi-archimedes/diff`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/diff#readme))
 
 Inspect code changes with clarity before applying them.
 
@@ -168,7 +168,7 @@ Inspect code changes with clarity before applying them.
 
 ---
 
-### 📊 Adaptive Footer & Cost Tracker ([`@pi-archimedes/footer`](packages/footer/README.md))
+### 📊 Adaptive Footer & Cost Tracker ([`@pi-archimedes/footer`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/footer#readme))
 
 A status bar that delivers vital session context without wasting vertical screen space.
 
@@ -179,7 +179,7 @@ A status bar that delivers vital session context without wasting vertical screen
 
 ---
 
-### 🎬 Visual Chrome & Working Indicators ([`@pi-archimedes/core`](packages/core/README.md))
+### 🎬 Visual Chrome & Working Indicators ([`@pi-archimedes/core`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/core#readme))
 
 - **Framed editor**: Clean borders around the input area with double-press quit guard.
 - **Border spinner**: 10 animated spinner styles running along the editor border while the agent is executing (pendulum, typing, pulse, marquee, wave, rain, sparkle), replacing Pi's native "Working" line.
@@ -188,7 +188,7 @@ A status bar that delivers vital session context without wasting vertical screen
 
 ---
 
-### 🖼️ Clipboard Image Paste ([`@pi-archimedes/image-paste`](packages/image-paste/README.md))
+### 🖼️ Clipboard Image Paste ([`@pi-archimedes/image-paste`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/image-paste#readme))
 
 Paste screenshots and UI mockups straight into your terminal prompt with instant inline previews:
 - Press `Ctrl+V` (Linux/macOS) or `Alt+V` (Windows) to attach clipboard images directly.
@@ -199,7 +199,7 @@ Paste screenshots and UI mockups straight into your terminal prompt with instant
 
 ---
 
-### 🔔 Delayed Desktop Notifications ([`@pi-archimedes/notify`](packages/notify/README.md))
+### 🔔 Delayed Desktop Notifications ([`@pi-archimedes/notify`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/notify#readme))
 
 Step away during long builds or model generations with peace of mind.
 - **Delayed trigger**: Alerts trigger only after 30 seconds of inactivity — never spamming you while actively typing.
@@ -208,7 +208,7 @@ Step away during long builds or model generations with peace of mind.
 
 ---
 
-### 🏷️ AI Session Auto-Naming ([`@pi-archimedes/session-name`](packages/session-name/README.md))
+### 🏷️ AI Session Auto-Naming ([`@pi-archimedes/session-name`](https://github.com/danielcherubini/pi-archimedes/tree/main/packages/session-name#readme))
 
 Never lose track of a past session. After your first exchange, a lightweight background model call generates a concise, descriptive 3–8 word session title so you can resume sessions easily with `pi -r`. Respects manual titles set via `/name`.
 
@@ -281,17 +281,17 @@ Prefer to cherry-pick? Every component in Archimedes is published as an independ
 
 | Package | npm | Description |
 |---------|-----|-------------|
-| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Event bus, animated splash screen, framed editor, working spinner |
-| **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Status bar, token counters, real-dollar costs, context window bar |
-| **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Subagent dispatch, live streaming, parallel swarms, `/agents` TUI |
-| **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo widget with auto-clearing and subagent tracking |
-| **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Tabbed questions, inline notes, subagent-to-parent TUI IPC |
-| **MCP** | [`@pi-archimedes/mcp`](packages/mcp/README.md) | Full MCP client, `/mcp` management panel, setup wizard, OAuth 2.1 |
-| **Sudo** | [`@pi-archimedes/sudo`](packages/sudo/README.md) | Safe `sudo_exec`, masked password prompt, bash interactive guard |
-| **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Shiki-highlighted side-by-side and unified terminal diffs |
-| **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Direct clipboard screenshot paste (`Ctrl+V`) with inline previews |
-| **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Inactivity-delayed desktop alerts with keystroke circuit breaker |
-| **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automated AI session title generator after first conversation turn |
+| **Core** | [`@pi-archimedes/core`](https://www.npmjs.com/package/@pi-archimedes/core) | Event bus, animated splash screen, framed editor, working spinner |
+| **Footer** | [`@pi-archimedes/footer`](https://www.npmjs.com/package/@pi-archimedes/footer) | Status bar, token counters, real-dollar costs, context window bar |
+| **Subagent** | [`@pi-archimedes/subagent`](https://www.npmjs.com/package/@pi-archimedes/subagent) | Subagent dispatch, live streaming, parallel swarms, `/agents` TUI |
+| **Todo** | [`@pi-archimedes/todo`](https://www.npmjs.com/package/@pi-archimedes/todo) | Multi-column todo widget with auto-clearing and subagent tracking |
+| **Ask** | [`@pi-archimedes/ask`](https://www.npmjs.com/package/@pi-archimedes/ask) | Tabbed questions, inline notes, subagent-to-parent TUI IPC |
+| **MCP** | [`@pi-archimedes/mcp`](https://www.npmjs.com/package/@pi-archimedes/mcp) | Full MCP client, `/mcp` management panel, setup wizard, OAuth 2.1 |
+| **Sudo** | [`@pi-archimedes/sudo`](https://www.npmjs.com/package/@pi-archimedes/sudo) | Safe `sudo_exec`, masked password prompt, bash interactive guard |
+| **Diff** | [`@pi-archimedes/diff`](https://www.npmjs.com/package/@pi-archimedes/diff) | Shiki-highlighted side-by-side and unified terminal diffs |
+| **Image Paste** | [`@pi-archimedes/image-paste`](https://www.npmjs.com/package/@pi-archimedes/image-paste) | Direct clipboard screenshot paste (`Ctrl+V`) with inline previews |
+| **Notify** | [`@pi-archimedes/notify`](https://www.npmjs.com/package/@pi-archimedes/notify) | Inactivity-delayed desktop alerts with keystroke circuit breaker |
+| **Session Name** | [`@pi-archimedes/session-name`](https://www.npmjs.com/package/@pi-archimedes/session-name) | Automated AI session title generator after first conversation turn |
 
 To install an individual component:
 
@@ -304,33 +304,8 @@ pi install npm:@pi-archimedes/<package-name>
 
 ---
 
-## Development
+## Repository & Development
 
-pi-archimedes is structured as a pnpm monorepo.
+pi-archimedes is developed openly on GitHub: [github.com/danielcherubini/pi-archimedes](https://github.com/danielcherubini/pi-archimedes).
 
-```bash
-# Clone the repository
-git clone https://github.com/danielcherubini/pi-archimedes.git
-cd pi-archimedes
-
-# Install dependencies (requires pnpm >= 10)
-pnpm install
-
-# Type-check all packages
-pnpm -r exec -- tsc --noEmit
-
-# Run unit tests
-pnpm test
-```
-
-### Local Testing with Pi
-
-To test your local build inside Pi, symlink the repository directly into Pi's extensions directory:
-
-```bash
-ln -s $(pwd) ~/.pi/agent/extensions/pi-archimedes
-```
-
-Pi's extension loader automatically picks up `meta/src/index.ts` from the root `package.json`.
-
-For contribution conventions, architecture decisions, and release workflows, see [AGENTS.md](AGENTS.md).
+For development setup, local extension symlinking, and guidelines, see the repository README and [AGENTS.md](https://github.com/danielcherubini/pi-archimedes/blob/main/AGENTS.md).

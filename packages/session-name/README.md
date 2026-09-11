@@ -1,46 +1,55 @@
 # @pi-archimedes/session-name
 
-Auto session naming for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Automated AI session titling after first conversation turn for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Automatically generates concise, descriptive session titles using AI after each conversation — so your sessions are easy to find and resume later. Skips sessions already named via `--name` or `/name`, and silently handles errors.
+Finding and resuming past coding sessions shouldn't involve reading arbitrary timestamps or raw hashes. `@pi-archimedes/session-name` uses a lightweight background AI call after your first exchange to generate a concise, descriptive title, making resuming with `pi -r` fast and painless.
 
-## What you get
+## Quick Start
 
-- **Automatic naming** — fires on `agent_end` to generate a title from the first user/assistant exchange
-- **Smart model resolution** — supports canonical `provider/id`, bare `id`, and thinking-suffix tolerance
-- **Respects manual names** — skips sessions already named via `--name` or `/name`
-- **Ephemeral-aware** — only names sessions with a session file (skips temporary sessions)
-- **Race-safe** — re-checks session name before setting to avoid overwriting manual changes
-- **Silent failures** — any error (auth, network, etc.) is caught and ignored
+### 1. Install Pi (if needed)
 
-## Install
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/session-name
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+---
 
-After a conversation ends (`agent_end`), the extension extracts the first user message and assistant response, sends them to the AI with a title-generation prompt, and sets the session name via `pi.setSessionName()`. The title is limited to 80 characters and stripped of surrounding quotes.
+## What You Get
+
+- **Automatic Title Generation** — Triggers after the first user/assistant exchange to name the session based on actual intent.
+- **Respects Manual Naming** — Leaves existing custom session names alone if passed via `--name` or set via `/name`.
+- **Ephemeral Session Aware** — Only names persisted sessions, skipping temporary or discardable agent sessions.
+- **Smart Model Resolution** — Supports canonical `provider/id`, bare IDs, and thinking-suffix model formats.
+- **Silent & Non-Blocking** — Executes in the background; failures (e.g. rate limits or offline mode) are gracefully ignored without interrupting work.
+
+---
 
 ## Settings
 
+Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.sessionName` namespace (or configured interactively via `/archimedes`):
+
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `model` | string | _(current model)_ | Override model for title generation (e.g., `openai/gpt-4o-mini`) |
+| `model` | string | `(current model)` | Model override for title generation (e.g., `openai/gpt-4o-mini`) |
 
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
+---
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.sessionName` namespace.
+## Part of the Archimedes Suite
 
-## Integration
+`@pi-archimedes/session-name` is included in [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), where it ensures every session in your history has clear, readable context.
 
-When installed via `pi-archimedes` (the meta package), the session-name package is automatically registered. Standalone installs work independently — it listens for `agent_end` events and uses the Pi extension API to set session names.
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

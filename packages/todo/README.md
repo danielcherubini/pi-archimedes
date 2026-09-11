@@ -1,51 +1,64 @@
 # @pi-archimedes/todo
 
-Todo list management with auto-clear and live subagent visibility for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Real-time multi-column task board with auto-clear and subagent synchronization for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Track complex multi-step tasks structured in a todo list with automatic clearing on completion and live side-by-side visibility into subagent tasks. Having an active progress display keeps long tasks on track and gives both you and the model clear visibility into completed steps and next actions.
+Keep complex multi-step refactors and feature builds organized. `@pi-archimedes/todo` provides a structured task widget rendered directly in the terminal, giving both you and the LLM clear visibility into current tasks, pending items, and completed steps. When subagents run, their tasks appear side by side in dedicated columns.
 
-## What you get
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Main agent and subagent todos side by side">
+</div>
 
-- **`manage_todo_list` tool** — structured todo tracking with `read` and `write` operations
-- **Auto-clear** — when all todos are completed, the list clears itself after a brief 2-second delay
-- **Multi-column widget** — main agent todos on the left, each subagent's todos in their own column to the right
-- **Live subagent visibility** — subagent todos stream through the core bus so you can see what they're working on
-- **`/todos` command** — toggle the widget or clear todos (`/todos clear`)
-- **Session persistence** — todos survive `/reload` via session branch reconstruction
+## Quick Start
 
-## Screenshots
+### 1. Install Pi (if needed)
 
-### Multiple todos with progress tracking
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
 
-Widget showing three todos with completion status — completed items dimmed with strikethrough, the item currently being worked on highlighted:
+### 2. Install
 
-![todos multiple todos](../../docs/images/todos-multiple-todos.png)
-
-### Main agent + subagent side by side
-
-Main agent todos (left) alongside a subagent's todos (right), separated by a divider. Subagent column auto-removes when the subagent finishes:
-
-![todos and subagent](../../docs/images/todos-and-subagent.png)
-
-## Install
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/todo
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+---
 
-### As a tool
+## What You Get
 
-The `manage_todo_list` tool accepts two operations:
+- **`manage_todo_list` Tool** — First-class tool allowing agents to plan, update, and read structured task lists with `pending`, `in_progress`, and `completed` states.
+- **Side-by-Side Multi-Column Display** — Main agent todos appear in the primary column; spawned subagents dynamically get their own named column to the right.
+- **Automatic Cleanup** — When all tasks reach `completed`, the widget displays a brief confirmation and auto-clears after 2 seconds to free up screen real estate.
+- **Interactive Commands** — Toggle visibility with `/todos` or manually reset with `/todos clear`.
+- **Session Persistence** — Todos survive `/reload` commands via session state reconstruction.
 
-**Read current todos:**
+---
+
+## Screenshots
+
+### Progress Tracking
+
+Visual status indicators with strikethrough for finished items and highlights for current work:
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-multiple-todos.png" width="600" alt="Multiple todos tracking progress">
+</div>
+
+---
+
+## Tool Usage
+
+The `manage_todo_list` tool accepts `read` and `write` operations:
+
+### Read Current Tasks
 
 ```jsonc
 {
@@ -53,38 +66,23 @@ The `manage_todo_list` tool accepts two operations:
 }
 ```
 
-**Write (replace) the todo list:**
+### Write / Update Tasks
 
 ```jsonc
 {
   "operation": "write",
   "todoList": [
-    { "content": "Parse config files", "description": "Read and validate all config files", "status": "in_progress" },
-    { "content": "Build state manager", "description": "Implement TodoStateManager class", "status": "pending" },
-    { "content": "Wire up widget", "description": "Connect widget to bus events", "status": "pending" }
+    { "content": "Parse config files", "description": "Read and validate settings", "status": "completed" },
+    { "content": "Build state manager", "description": "Implement reactive store", "status": "in_progress" },
+    { "content": "Connect UI widget", "description": "Bind to core bus events", "status": "pending" }
   ]
 }
 ```
 
-### As a command
+---
 
-- `/todos` — toggle the todo widget visibility
-- `/todos clear` — clear all todos immediately
+## Part of the Archimedes Suite
 
-## Todo statuses
+When installed as part of [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/todo` listens to `@pi-archimedes/subagent` events over the core bus to dynamically spawn and dismiss subagent columns as workers start and finish.
 
-| Status | Icon | Description |
-|--------|------|-------------|
-| `pending` | ○ | Not yet begun |
-| `in_progress` | ◉ | Currently being worked on |
-| `completed` | ✓ | Fully finished |
-
-## Auto-clear
-
-When all todos in the list are marked as `completed`, the widget shows the all-done state for 2 seconds, then auto-clears. No need to manually run `/todos clear`.
-
-## Integration
-
-When installed via `pi-archimedes` (the meta package), subagent todo events flow through `@pi-archimedes/core/bus` and appear as separate columns in the widget. Each subagent gets its own column labeled with its agent name. The column auto-removes when the subagent finishes.
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

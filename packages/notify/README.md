@@ -1,59 +1,57 @@
 # @pi-archimedes/notify
 
-Delayed desktop notifications with circuit breaker for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Delayed desktop notifications with keystroke circuit breaker for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Get notified when Pi finishes long tasks or needs an answer, without constant popup spam thanks to delayed firing and raw keypress circuit breaking. You can safely switch windows while long-running jobs execute, knowing a desktop alert will trigger only if you aren't already actively typing in the terminal.
+Long-running agent workflows invite you to switch to your browser or other workspaces. `@pi-archimedes/notify` alerts you when Pi finishes a task or requires your input — without constant popup spam. Notifications only fire after an inactivity threshold, and touching any key immediately disarms pending alerts.
 
-## What you get
+## Quick Start
 
-- **Delayed notification** — fires only after a configurable period of inactivity (default 30s), so you're not spammed when actively working
-- **Circuit breaker** — any keystroke immediately cancels a pending notification via raw terminal input listening
-- **Terminal-aware dispatch** — auto-detects your terminal and uses the optimal protocol (OSC 99, OSC 9, OSC 777, or PowerShell toasts)
-- **tmux passthrough** — all sequences wrapped via DCS for correct rendering inside tmux
-- **Per-trigger toggles** — independently enable/disable notifications for task completion and unanswered questions
-- **Pi-native triggers** — keyed on pi's `agent_settled` and `ui_prompt_start` lifecycle events, so task completion works and *any* blocking extension prompt (ask, sudo, mcp OAuth) can hold your attention
+### 1. Install Pi (if needed)
 
-## Install
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/notify
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+---
 
-When the agent's run has settled (`agent_settled`) or an extension opens a blocking prompt (`ui_prompt_start` — ask, sudo, mcp OAuth), a timer starts. If you don't interact for the configured delay, a desktop notification fires. Any keystroke — even just pressing a key without submitting — cancels the timer immediately.
+## What You Get
+
+- **Delayed Inactivity Dispatch** — Alerts only trigger after you've been inactive for a configurable delay (default 30 seconds), preventing spam while you're actively reading terminal output.
+- **Keystroke Circuit Breaker** — Any keypress in the terminal immediately aborts pending notification timers via raw terminal input listening.
+- **Terminal-Aware Protocols** — Automatically chooses the cleanest protocol for your environment (OSC 99, OSC 9, OSC 777, or native PowerShell toasts).
+- **tmux Passthrough** — All escape sequences are wrapped via DCS sequences to ensure alerts break through tmux sessions reliably.
+- **Lifecycle Integration** — Triggers on Pi's `agent_settled` event and whenever any blocking UI prompt opens (such as `ask`, `sudo`, or MCP OAuth).
+
+---
 
 ## Settings
 
+Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify` namespace (or configured interactively via `/archimedes`):
+
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `notifyOnAgentEnd` | bool | `true` | Notify when agent finishes a task |
-| `notifyOnQuestion` | bool | `true` | Notify when a question needs your answer |
-| `delayMs` | number | `30000` | Milliseconds to wait before sending notification (default 30 seconds) |
+| `notifyOnAgentEnd` | bool | `true` | Notify when the agent completes execution |
+| `notifyOnQuestion` | bool | `true` | Notify when an extension prompt needs your input |
+| `delayMs` | number | `30000` | Inactivity delay in milliseconds before alerting |
 
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
+---
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.notify` namespace.
+## Part of the Archimedes Suite
 
-## Terminal compatibility
+When installed as part of [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/notify` integrates across all extensions, alerting you whenever `@pi-archimedes/ask`, `@pi-archimedes/sudo`, or `@pi-archimedes/mcp` need your attention.
 
-| Terminal | Protocol | Title + Body |
-|----------|----------|--------------|
-| Kitty | OSC 99 | ✅ |
-| iTerm2 | OSC 9 | Body only |
-| Windows Terminal | PowerShell toast | ✅ |
-| Ghostty | OSC 777 | ✅ |
-| WezTerm | OSC 777 | ✅ |
-| tmux (any above) | DCS passthrough | ✅ |
-
-## Integration
-
-When installed via `pi-archimedes` (the meta package), the notify package is automatically registered and its settings appear in the `/archimedes` settings panel. Standalone installs work independently — any blocking extension UI prompt will trigger the question notification.
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

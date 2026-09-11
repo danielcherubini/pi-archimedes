@@ -1,49 +1,61 @@
 # @pi-archimedes/diff
 
-Shiki-powered diff rendering for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Shiki-powered syntax-highlighted side-by-side and unified diffs for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Syntax-highlighted, word-level diffs make reviewing code changes effortless. By rendering clear side-by-side or unified diffs directly in your terminal with themes matched to your environment, code modifications can be inspected at a glance before committing.
+Reviewing code modifications in raw text diffs leads to missed regressions and eye strain. `@pi-archimedes/diff` brings full syntax highlighting powered by [Shiki](https://shiki.style) directly into your terminal, with adaptive split side-by-side views, word-level change emphasis, and colors that match your active terminal theme.
 
-## What you get
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">
+</div>
 
-- **Split and unified views** — side-by-side split diff or traditional unified view, auto-selected based on terminal width
-- **Shiki syntax highlighting** — full syntax highlighting powered by [Shiki](https://shiki.style), with auto-derived theme colors
-- **Word-level emphasis** — changed characters within lines are highlighted at word level for precise change tracking
-- **Graceful fallback** — falls back to plain text diff when Shiki is unavailable or the language is unrecognized
-- **Configurable thresholds** — control minimum terminal width for split view and minimum code width per side
+## Quick Start
 
-## Screenshots
+### 1. Install Pi (if needed)
 
-### Split diff view
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
 
-Side-by-side diff with syntax highlighting, word-level emphasis on changed characters, and line numbers:
+### 2. Install
 
-![diff edit](../../docs/images/diff-edit.png)
-
-## Install
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/diff
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
+---
+
+## What You Get
+
+- **Split & Unified Views** — Side-by-side split diff or traditional unified view, automatically selected based on terminal column width.
+- **Shiki Syntax Highlighting** — Full language-aware syntax highlighting powered by Shiki with theme-derived palettes.
+- **Word-Level Emphasis** — Sub-line character diffs highlight exactly which tokens or words were altered.
+- **Graceful Fallback** — Transparently falls back to plain text diffs when Shiki is unavailable or for unrecognized binary/text formats.
+- **Configurable Thresholds** — Fine-tune minimum terminal width and code column budgets for split rendering.
+
+---
+
 ## Settings
+
+Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.diff` namespace (or configured interactively via `/archimedes`):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `diffTheme` | string | `github-dark` | Shiki syntax-highlighting theme |
-| `diffSplitMinWidth` | number | `150` | Minimum terminal columns to show split diff view (≥ 100) |
+| `diffSplitMinWidth` | number | `150` | Minimum terminal columns required to show split view (≥ 100) |
 | `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.diff` namespace.
+---
 
-## Integration
+## Part of the Archimedes Suite
 
-When installed via `pi-archimedes` (the meta package), the diff tools are registered with callbacks to the current theme and config, ensuring colors match your active Pi theme. Standalone installs use default dark theme colors.
+When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), the diff renderer integrates with Pi's active theme, ensuring syntax colors blend seamlessly into your editor and chrome.
 
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

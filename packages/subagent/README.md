@@ -1,103 +1,103 @@
 # @pi-archimedes/subagent
 
-Subagent dispatch with live TUI streaming and cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Subagent dispatch with live TUI streaming, parallel swarms, and unified cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Dispatch specialized subagents to offload complex tasks with live TUI streaming, parallel execution, cost tracking, and per-agent model overrides. By fanning out work to dedicated subagents, complex workflows can be executed concurrently while maintaining full visibility into progress and token usage.
+Don't let complex reasoning or multi-file refactors block your main agent. `@pi-archimedes/subagent` enables you to dispatch specialized subagents to offload research, code reviews, and implementation tasks with live TUI streaming, parallel execution, independent model overrides, and real-time cost accounting.
 
-## What you get
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
+</div>
 
-- **Single & parallel execution** — dispatch one task or fan out multiple tasks across different agents simultaneously
-- **Live TUI streaming** — watch subagent progress in real-time with color-coded tool calls (grey while running, green/red on completion), readable argument previews, token counts, and cost updates
-- **Agent discovery** — auto-discovers agents from `.pi/agents/*.md` files at project, user, and global scope
-- **Per-agent model override** — each subagent can use its own model, falling back to the parent's selection
-- **Cost tracking** — detailed token usage (input, output, cache read/write) and cost per subagent, emitted through the core bus for the footer to consume
-- **Trace correlation** — results expose the ephemeral child's logical Pi session UUID as optional `childSessionId` when Pi emits a valid session event
-- **`/agents` command** — full CRUD TUI for managing agent definitions with model picker, tool picker, and cross-scope collision warnings (available via the meta package)
+## Quick Start
 
-## Screenshots
+### 1. Install Pi (if needed)
 
-### Main view — parallel execution
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
 
-Live progress panel showing two parallel subagents with token stats, cost, and recent output:
+### 2. Install
 
-![subagents main view](../../docs/images/subagents-main-view.png)
-
-### Agent details view
-
-Browse and inspect agent configurations — name, model, tools, system prompt, and more:
-
-![subagents agent view](../../docs/images/subagents-agent-view.png)
-
-### Model selection
-
-Pick from all available models registered in Pi's model registry:
-
-![subagents model selection](../../docs/images/subagents-model-selection.png)
-
-### Tool selection
-
-Toggle which tools are available to an agent from Pi's full toolset:
-
-![subagents tool selection](../../docs/images/subagents-tool-selection.png)
-
-## Install
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/subagent
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
+---
+
+## What You Get
+
+- **Single & Parallel Execution** — Dispatch one targeted subtask or fan out multiple tasks across distinct agents simultaneously.
+- **Live TUI Streaming** — Watch subagents think and execute tools in real time with color-coded status chips (grey while running, green on success, red on failure) and readable argument previews.
+- **Visual `/agents` Manager** — Interactive full-screen TUI to create, configure, and inspect custom subagent personas with model and tool pickers.
+- **Per-Agent Model Selection** — Assign different models per subagent (e.g. fast cheap models for research, high-reasoning models for code review).
+- **Comprehensive Cost Accounting** — Real-time tracking of input tokens, output tokens, cache read/write, and dollar cost per subagent, flowing into the footer.
+- **Multi-Scope Agent Discovery** — Reads agent definitions from project (`<repo>/.pi/agents/`), user (`~/.pi/agent/agents/`), and cross-agent (`~/.agents/agents/`) scopes with collision detection.
+
+---
+
+## Screenshots
+
+### Agent Details & Persona View
+
+Inspect agent prompts, assigned models, and tool configurations:
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-agent-view.png" width="650" alt="Subagents agent details view">
+</div>
+
+### Model & Tool Pickers
+
+Assign specific models and toggle allowed tools directly from the TUI:
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-model-selection.png" width="48%" alt="Model selection">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-tool-selection.png" width="48%" alt="Tool selection">
+</div>
+
+---
+
 ## Usage
 
-### As a tool
+### The `subagent` Tool
 
-The `subagent` tool accepts either a single `task` or an array of `tasks` for parallel execution:
+Single task dispatch:
 
 ```jsonc
 {
-  "agent": "reviewer",     // optional, defaults to "general"
-  "task": "review the PR", // single task
-  "model": "openrouter/anthropic/claude-4", // optional override
-  "cwd": "/path/to/dir"    // optional working directory
+  "agent": "reviewer",                     // optional persona name (defaults to "general")
+  "task": "review the PR diff",            // task description
+  "model": "openrouter/anthropic/claude-4",// optional model override
+  "cwd": "/path/to/project"                // optional working directory
 }
 ```
 
-Parallel mode:
+Parallel swarm dispatch:
 
 ```jsonc
 {
   "tasks": [
-    { "agent": "researcher", "task": "find all usages of foo" },
-    { "agent": "reviewer", "task": "review the implementation plan" }
+    { "agent": "researcher", "task": "find all usages of the deprecated API" },
+    { "agent": "reviewer", "task": "review the proposed migration plan" }
   ]
 }
 ```
 
-### As a command
+### The `/agents` Command
 
-Run `/agents` to open the interactive Agents Manager for creating, editing, and deleting agent definitions.
+Run `/agents` to launch the interactive persona manager. Browse existing agents, create new ones, configure system prompts, and toggle available tools.
 
-## Agent files
+---
 
-Agents are defined as `.md` files with YAML frontmatter, placed in one of:
+## Part of the Archimedes Suite
 
-- **Project scope:** `<repo root>/.pi/agents/` — available only in this project
-- **User scope:** `~/.pi/agent/agents/` — available across all projects
-- **Global scope:** `<repo root>/.agents/agents/` or `~/.agents/agents/` — shared or installed subagents
+When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), subagent tokens and expenses automatically accumulate in the `@pi-archimedes/footer` status bar, subagent tasks display in side-by-side columns on the `@pi-archimedes/todo` board, and subagents can ask you interactive questions via `@pi-archimedes/ask` IPC.
 
-Frontmatter supports: `name`, `description`, `model`, `tools`, and `thinking`. The markdown body becomes the agent's system prompt. Unknown frontmatter fields are preserved on edit but not interpreted.
-
-Per-agent `model` and `thinking` assignments made in the `/agents` TUI are stored in `~/.pi/agent/agents.local.json` (machine-local, not committed) and take precedence over frontmatter values; on save, the TUI also strips these fields from the `.md` frontmatter. Frontmatter `model:` and `thinking:` still work as a fallback for hand-written agent files.
-
-## Integration
-
-When installed via `pi-archimedes` (the meta package), subagent cost events flow through `@pi-archimedes/core/bus` and are consumed by `@pi-archimedes/footer`'s `CostAccumulator`. This merges subagent tokens and cost into the main status bar for a unified view.
-
-The `/agents` command is also only registered by the meta package (not by standalone `@pi-archimedes/subagent`).
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

@@ -5,9 +5,10 @@
   "keywords": [
     "pi-package"
   ],
-  "description": "Visual polish and useful context for the Pi coding agent TUI",
+  "description": "The ultimate extension suite for the Pi coding agent — subagents, shared todos, interactive ask IPC, MCP adapter, safe sudo, Shiki diffs, and unified TUI",
   "files": [
-    "src"
+    "src",
+    "README.md"
   ],
   "main": "./src/index.ts",
   "dependencies": {

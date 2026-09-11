@@ -1,66 +1,82 @@
 # @pi-archimedes/sudo
 
-Safe privileged execution for the [Pi coding agent](https://github.com/earendil-works/pi): a dedicated `sudo_exec` tool with a masked password prompt, plus a guard that keeps the ordinary `bash` tool from driving interactive `sudo`.
+**Safe privileged execution and interactive-sudo guard for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-## What you get
+When coding agents attempt to install system packages or execute administrative tasks using ordinary shell execution, interactive `sudo` prompts cause terminal deadlocks and risk exposing root credentials in LLM context. `@pi-archimedes/sudo` provides a dedicated `sudo_exec` tool with masked password entry, in-memory credential caching, and an active bash guard that prevents the agent from running unprotected interactive sudo commands.
 
-- **`sudo_exec` tool** — runs a privileged command via `sudo -S`, showing the exact command and reason for confirmation before any credential is requested; on timeout/abort the kill applies to the command's entire process group, so privileged (root) descendants are killed too, not just the direct sudo process — except a command that intentionally detaches itself into its own session (`setsid`/daemonizing), which leaves the group by definition and is beyond any user-space kill (the same reach as `tmux kill-pane`): give such commands a managed lifecycle flag (e.g. `--foreground`) instead
-- **Masked password prompt** — the password is entered only through a masked UI, cached in memory for the session, and passed to sudo via stdin only — never in argv, env, logs, or files
-- **Defensive scrubbing** — command output lines containing the password are redacted before they appear in tool results
-- **Credential lifecycle** — single in-memory cache with TTL (default 15 min, `ttlMs`); cleared on auth failure, `session_start`/`session_shutdown`, and `/sudo forget`
-- **Headless sessions blocked** — subagent/headless sessions get a clear error from `sudo_exec` instead of a prompt; the masked prompt only ever appears in a human's TUI
-- **Bash guard** — active `tool_call` veto (ADR 0010): interactive `sudo` through the built-in `bash` tool is blocked, funneling privileged execution through `sudo_exec`
-- **`/sudo` + `/sudo forget`** — report the credential-cache state or clear it from memory
+## Quick Start
 
-## Install
+### 1. Install Pi (if needed)
+
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/sudo
 ```
 
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
+
+```bash
+pi install npm:pi-archimedes
+```
+
+---
+
+## What You Get
+
+- **`sudo_exec` Tool** — Executes privileged commands via `sudo -S`, displaying the exact command and human-readable reason for confirmation before any credential prompt is shown.
+- **Masked Password Prompt** — Passwords are typed into a secure masked UI and transmitted strictly over stdin — never visible in argv, environment variables, command logs, or LLM context.
+- **Active Bash Guard** — Intercepts and blocks interactive `sudo` invocations inside the standard `bash` tool, steering the agent toward safe, managed privilege escalation.
+- **Process Group Kill on Timeout** — If a privileged command hangs or times out, the abort signal propagates to the entire process group, ensuring root descendants are terminated cleanly.
+- **In-Memory Credential Cache** — Secure cache with a 15-minute TTL. Cleared on session termination, authentication failure, or manual `/sudo forget`.
+- **Headless Protection** — Background subagents are strictly blocked from requesting root elevation, preventing prompt deadlocks.
+
+---
+
 ## Usage
 
-### The `sudo_exec` tool
+### The `sudo_exec` Tool
 
 ```jsonc
 {
-  "command": "apt install ripgrep", // exact argv string — no leading 'sudo'; no shell syntax (pipes, &&, redirects, env assignments)
-  "reason": "ripgrep is needed for the search tooling", // required — shown to the user before execution
-  "timeoutMs": 120000 // optional override of config.defaultTimeoutMs
+  "command": "apt install ripgrep",                    // exact argv string (no leading 'sudo', no raw shell syntax)
+  "reason": "ripgrep is required for indexing tooling", // human-readable explanation displayed in confirmation prompt
+  "timeoutMs": 120000                                   // optional execution timeout (defaults to 120s)
 }
 ```
 
-The tool uses pi's built-in `renderCall`/`renderResult`; command output is surfaced as plain text, scrubbed with the password masked.
+### The Bash Guard
 
-### The bash guard
+The guard automatically inspects commands submitted to Pi's built-in `bash` tool:
+- **Blocked:** `sudo` in command position without a non-interactive flag (including commands run via `env`, `nohup`, `timeout`, `xargs`, or nested shells like `bash -c`).
+- **Allowed:** Non-interactive sudo commands (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) pass through without interception.
 
-A pure, exhaustively-tested scanner vetoes `tool_call` events on the built-in `bash` tool:
+### Commands
 
-- **Blocked:** `sudo` in command position without a no-prompt flag — including through runner wrappers (`env`, `nohup`, `timeout`, `xargs`, …), nested shells (`bash -c`, `su -c`), `eval`, compound keywords, and heredoc bodies
-- **Allowed:** non-interactive sudo (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) — these cannot prompt and pass through untouched
+- `/sudo` — Check whether a valid credential is currently held in memory.
+- `/sudo forget` — Immediately flush cached credentials from memory.
 
-The guard is a heuristic with accepted residual bypasses documented in the [ADR 0010 design notes](../../docs/adr/0010-archimedes-sudo-security.md) (e.g. cross-token variable indirection, and sudo inside `$(...)`/backtick interpolation whose text the word-position model cannot see). Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract.
-
-## Commands
-
-- `/sudo` — report whether a credential is cached
-- `/sudo forget` — clear the credential from memory
+---
 
 ## Settings
+
+Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.sudo` namespace:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `ttlMs` | number | `900000` | Password cache TTL in milliseconds (default 15 minutes) |
-| `defaultTimeoutMs` | number | `120000` | `sudo_exec` default command timeout in milliseconds (default 120 seconds) |
+| `defaultTimeoutMs` | number | `120000` | Default execution timeout in milliseconds (default 120 seconds) |
 
-On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on). Config is JSON-only in the `archimedes.sudo` namespace of `~/.pi/agent/settings.json` — there is no settings-panel UI in v1.
+---
 
-### Credential limitation on sudoers that retain no reusable ticket
+## Part of the Archimedes Suite
 
-On sudoers policies that retain no reusable credential ticket (e.g. `timestamp_timeout=0` plus strict `Defaults`), an authenticated **command** failure is indistinguishable from an authentication failure to any non-interactive check — so the tool uses a two-consecutive-failure rule: the first failure keeps the cached password (with a visible warning), the second clears it. A wrong password on such a sudo is therefore detected on the second failure rather than the first — the bounded cost of a policy that exposes no ticket to verify against.
+When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/sudo` operates across both main agent sessions and subagents, ensuring privileged operations are safely managed throughout the swarm.
 
-## Integration
-
-When installed via `pi-archimedes` (the meta package), the sudo package is registered and gated by the suite's plugin manifest (ADR 0012); the bash guard and `sudo_exec` are loaded in both the main session and subagent children — the guard still vetoes there, while `sudo_exec` itself refuses to run headless. Standalone installs work independently.
-
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

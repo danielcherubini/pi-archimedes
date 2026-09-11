@@ -1,51 +1,64 @@
 # @pi-archimedes/core
 
-The visual foundation and shared infrastructure for pi-archimedes.
+**Visual foundation, working spinners, framed editor, and reactive event bus for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
-Core is what you see first — the animated splash screen, the framed editor, and styled thinking blocks. It is also the invisible glue: an event bus that lets packages talk to each other, shared text and color utilities, and a settings system. Install it standalone for polished chrome, or let the meta package include it automatically.
+Core provides the visual polish you see on every session and the invisible infrastructure powering the entire Archimedes ecosystem. It transforms Pi's default prompt into a framed terminal editor with animated border spinners while the agent works, styles chain-of-thought blocks, and provides the shared reactive bus that lets extensions communicate.
 
-## What you get
+## Quick Start
 
-- **Animated splash screen** — configurable reveal animations (9 styles) that set the tone when Pi starts
-- **Framed editor** — custom editor component with double-press quit guard
-- **Styled thinking blocks** — configurable label text, color, and muted theme option; optional code block unindenting
-- **Event bus** — shared pub/sub channel that lets packages communicate (subagent costs → footer, subagent questions → ask, etc.)
-- **Shared utilities** — text truncation/width calculation, color helpers, config loading, settings I/O, and startup profiling
+### 1. Install Pi (if needed)
 
-## Install
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/core
 ```
 
-Or install full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+---
 
-Core works automatically when Pi starts. It sets the session header, editor frame, and thinking block renderer automatically. There are no manual commands or tools to call.
+## What You Get
 
-For configuration:
-- When using the meta package, run `/archimedes` to access the settings panel.
-- For standalone installs, edit `archimedes.core` in `~/.pi/agent/settings.json`.
+- **Framed Editor** — Clean bordered input box with double-press quit guard (`Ctrl+C` twice to exit).
+- **Editor Border Spinner** — 10 gallery-derived animations (pendulum, typing, pulse, marquee, wave-rows, columns, cascade, diagonal-swipe, rain, sparkle) that trace the editor border while the agent works, replacing Pi's native "Working" line.
+- **Animated Splash Screen** — 9 configurable reveal animations that greet you on session launch.
+- **Styled Thinking Blocks** — Clean formatting for chain-of-thought reasoning with custom labels, colors, and muted theme support.
+- **Reactive Event Bus (`@pi-archimedes/core/bus`)** — High-performance pub/sub event bus that enables cross-extension cooperation (e.g. subagent costs routing to the footer, subagent questions routing to the ask UI).
+- **Shared Utilities** — Text truncation, width calculation, color formatting, settings I/O, and startup profiling.
+
+---
 
 ## Settings
 
-Core reads configuration from the `archimedes.core` namespace in `~/.pi/agent/settings.json`.
+Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.core` namespace (or configured interactively via `/archimedes` when using the full suite):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `mutedTheme` | bool | `false` | Use subdued colors for thinking blocks |
-| `codeUnindent` | bool | `true` | Remove common indentation from code blocks inside thinking sections |
-| `labelText` | string | `Thinking...` | Custom prefix shown before thinking blocks |
-| `labelColor` | string | `255,215,0` | RGB color for the thinking label |
-| `animationStyle` | string | `vertical-up` | Splash animation style (9 options) |
+| `editorSpinBorder` | bool | `true` | Show animated border spinner on the editor while the agent works |
+| `editorSpinStyle` | string | `pendulum` | Spinner animation style (`pendulum`, `typing`, `pulse`, `marquee`, `wave-rows`, `columns`, `cascade`, `diagonal-swipe`, `rain`, `sparkle`) |
+| `editorSpinSpeed` | string | `normal` | Border spinner speed (`slow`, `normal`, `fast`) |
+| `editorSpinLabel` | string | `Working` | Text label displayed alongside the border spinner |
+| `animationStyle` | string | `vertical-up` | Splash screen reveal style (9 animation variants) |
+| `mutedTheme` | bool | `false` | Subdue thinking block colors |
+| `codeUnindent` | bool | `true` | Strip common indentation from code blocks in thinking sections |
+| `labelText` | string | `Thinking...` | Prefix displayed before thinking blocks |
+| `labelColor` | string | `255,215,0` | RGB color string for the thinking label |
 
-## Integration
+---
 
-Core is auto-included by the `pi-archimedes` meta package. All other archimedes packages depend on `@pi-archimedes/core` for the event bus, chrome elements, and utilities. Standalone installation provides the visual chrome and bus without the other archimedes features.
+## Part of the Archimedes Suite
 
-← Back to [pi-archimedes](../../README.md)
+`@pi-archimedes/core` is included automatically in the [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) meta package, where it serves as the backbone for the status footer, subagent swarms, question IPC, and todo tracking.
+
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

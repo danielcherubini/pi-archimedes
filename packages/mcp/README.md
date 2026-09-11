@@ -15,21 +15,31 @@ Connect any MCP server (stdio or HTTP/SSE), call its tools through a single `mcp
 - **Compact two-line tool rendering** — `mcp <target>` header (cyan + orange) plus a key-arg summary; full args and output hidden until expanded with `ctrl+o`
 - **Layered config** — six config files, lowest → highest precedence; safe single-field write-back that never touches credentials or unrelated servers
 
-## Install
+## Quick Start
+
+### 1. Install Pi (if needed)
+
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+### 2. Install
+
+Install standalone:
 
 ```bash
 pi install npm:@pi-archimedes/mcp
 ```
 
-Or install the full meta package:
+Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Quick start
+### 3. Configure Your First Server
 
-1. Create or edit a config file — the project-shared one is usually the right place:
+Create or edit a config file — the project-shared one is usually the right place:
 
    ```bash
    # in your project root
@@ -167,4 +177,4 @@ Per-server overrides (in the `mcp.json` server definition):
 
 When installed via `pi-archimedes` (the meta package), the MCP adapter is automatically registered. Tool rendering uses Core's chrome and color palette. Standalone installation works independently — the full feature set is available without the meta package.
 
-← Back to [pi-archimedes](../../README.md)
+← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
