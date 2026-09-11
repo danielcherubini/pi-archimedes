@@ -1,6 +1,6 @@
 # Plan 035: Pi, with the good stuff
 
-**Status:** IN PROGRESS — copy direction approved; implementation pending
+**Status:** COMPLETED (PR #49)
 **PR:** [#49](https://github.com/danielcherubini/pi-archimedes/pull/49)
 **Branch:** `feature/improve-readmes` → `main`
 **Goal:** Make Archimedes appealing to a new user through confident, personable, concrete copy, with immediate setup instructions and trustworthy reference documentation.
