@@ -166,17 +166,17 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 
 | Component | npm package | What it adds |
 |-----------|-------------|--------------|
-| **Core** | [`@pi-archimedes/core`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
-| **Subagent** | [`@pi-archimedes/subagent`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
-| **Todo** | [`@pi-archimedes/todo`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
-| **Ask** | [`@pi-archimedes/ask`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
-| **MCP** | [`@pi-archimedes/mcp`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/mcp/README.md) | `/mcp` management, setup wizard, OAuth, config imports |
-| **Sudo** | [`@pi-archimedes/sudo`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/sudo/README.md) | `sudo_exec` with masked password prompt and interactive-sudo guard |
-| **Diff** | [`@pi-archimedes/diff`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
-| **Footer** | [`@pi-archimedes/footer`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
-| **Image Paste** | [`@pi-archimedes/image-paste`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md) | Clipboard image paste with inline previews |
-| **Notify** | [`@pi-archimedes/notify`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/notify/README.md) | Delayed desktop notifications with input cancellation |
-| **Session Name** | [`@pi-archimedes/session-name`](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/session-name/README.md) | Automatic session titles |
+| **Core** | [`@pi-archimedes/core`](https://www.npmjs.com/package/@pi-archimedes/core) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
+| **Subagent** | [`@pi-archimedes/subagent`](https://www.npmjs.com/package/@pi-archimedes/subagent) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
+| **Todo** | [`@pi-archimedes/todo`](https://www.npmjs.com/package/@pi-archimedes/todo) | Multi-column todo board with subagent columns and auto-clear |
+| **Ask** | [`@pi-archimedes/ask`](https://www.npmjs.com/package/@pi-archimedes/ask) | Structured questions — including subagent questions relayed into your terminal |
+| **MCP** | [`@pi-archimedes/mcp`](https://www.npmjs.com/package/@pi-archimedes/mcp) | `/mcp` management, setup wizard, OAuth, config imports |
+| **Sudo** | [`@pi-archimedes/sudo`](https://www.npmjs.com/package/@pi-archimedes/sudo) | `sudo_exec` with masked password prompt and interactive-sudo guard |
+| **Diff** | [`@pi-archimedes/diff`](https://www.npmjs.com/package/@pi-archimedes/diff) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
+| **Footer** | [`@pi-archimedes/footer`](https://www.npmjs.com/package/@pi-archimedes/footer) | Branch, model, context usage, and token/cost status bar |
+| **Image Paste** | [`@pi-archimedes/image-paste`](https://www.npmjs.com/package/@pi-archimedes/image-paste) | Clipboard image paste with inline previews |
+| **Notify** | [`@pi-archimedes/notify`](https://www.npmjs.com/package/@pi-archimedes/notify) | Delayed desktop notifications with input cancellation |
+| **Session Name** | [`@pi-archimedes/session-name`](https://www.npmjs.com/package/@pi-archimedes/session-name) | Automatic session titles |
 
 The full suite is the supported connected setup — the integrations above (subagent costs in the footer, subagent columns on the todo board, subagent questions in the terminal) light up when the relevant components are loaded together.
 
