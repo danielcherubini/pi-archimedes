@@ -18,7 +18,7 @@ Or the full suite instead:
 pi install npm:pi-archimedes
 ```
 
-New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0 — `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`; Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) covers authentication and [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported providers. Then `pi install npm:pi-archimedes`, `cd` into your project, run `pi`, and `/login` + `/model` — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks up both new extensions and new server configs.
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0 — `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`; Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) covers authentication and [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported providers. After installing Pi, choose one installation command above, then `cd` into your project and run `pi`, and in the session use `/login` + `/model` — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks up both new extensions and new server configs.
 
 ## What you get
 
@@ -94,7 +94,7 @@ Onboarding for a new project. All writes target the project-shared `.mcp.json`.
 
 - **Scaffold** — writes `{ "mcpServers": {} }` only when the file is absent
 - **Add a known server** — curated preset list (context7, chrome-devtools, deepwiki, fetch); existing entries are never overwritten
-- **Import from another tool** — discovers MCP configs from Cursor, Claude Code, Claude Desktop, and VSCode; shows a preview of which server names will be added before writing; names already in `.mcp.json` are kept untouched
+- **Import from another tool** — discovers MCP configs from Cursor, Claude Code, Claude Desktop, and VS Code. The six candidate files, in scan order, are `~/.cursor/mcp.json` and `<project>/.cursor/mcp.json` (`mcpServers` key), `~/.claude/mcp.json` and `~/.claude.json` (`mcpServers`), `~/.claude/claude_desktop_config.json` (`mcpServers`), and `<project>/.vscode/mcp.json` (its key is `servers`, not `mcpServers`); shows a preview of which server names will be added before writing; names already in `.mcp.json` are kept untouched
 
 ## OAuth
 
@@ -108,7 +108,7 @@ Token details:
 
 - Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux Secret Service). Storage is **fail-closed**: if the keyring is unavailable, auth operations throw a clear error — there is never a plaintext fallback.
 - Token refresh is SDK-driven; a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — re-run `/mcp auth <server>` when its token expires.
-- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"` (the default), or a full `McpOAuthConfig` object:
+- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"`, or a full `McpOAuthConfig` object. `auth: "oauth"` (or a config object with at least one field below) is what enables OAuth with the default grant settings; a valid object can override them. **Omitting `auth` on a protected server means no authentication** — there is no implicit OAuth default:
 
 | `McpOAuthConfig` field | Meaning |
 |------------------------|---------|
@@ -129,11 +129,11 @@ Six layers load in order, lowest → highest precedence (per-server field-level 
 | 1 | `~/.config/mcp/mcp.json` | Global (standard MCP location) |
 | 2 | `~/.agents/mcp.json` | Cross-agent (home) |
 | 3 | `~/.agents/mcp/mcp.json` | Cross-agent (home, alternate) |
-| 4 | `~/.pi/agent/mcp.json` | Pi agent directory |
+| 4 | `<agentDir>/mcp.json` (agent directory is `$PI_CODING_AGENT_DIR`, defaulting to `~/.pi/agent`) | Pi agent directory |
 | 5 | `<project>/.mcp.json` | Project-shared (committable) |
 | 6 | `<project>/.pi/mcp.json` | Pi override — highest precedence |
 
-The `mcp.json` files accept `//` comments and trailing commas (**JSONC**). That does not apply to Archimedes settings — `~/.pi/agent/settings.json` is **strict JSON**, parsed without comment support. When a higher-precedence layer changes a server's `url`, inherited `auth`/`headers`/`bearerTokenEnv` from lower layers are dropped — credentials are never sent to an endpoint you didn't explicitly configure them for.
+The `mcp.json` files (including layer 4's `<agentDir>/mcp.json`) accept `//` comments and trailing commas (**JSONC**). That does not apply to Archimedes settings — `~/.pi/agent/settings.json` is **strict JSON**, parsed without comment support. When a higher-precedence layer changes a server's `url`, inherited `auth`/`headers`/`bearerTokenEnv` from lower layers are dropped — credentials are never sent to an endpoint you didn't explicitly configure them for.
 
 Write-back targets:
 

@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
 
 ## What you get
 

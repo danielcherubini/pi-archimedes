@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the dispatch tool up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the dispatch tool up in a running session.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
@@ -32,9 +32,9 @@ Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on a
 
 ## Dispatching
 
-### Config-less — the default
+### Config-less — omit `agent`
 
-The `agent` field is optional. Omit it and the task runs with the **parent's model and all tools**:
+The `agent` field is optional — omitting it is not a built-in default agent, and **no agents are shipped** with the package. Without an agent file, the model falls back to the per-call `model` override and then the parent's active model, and tools follow Pi's normal selection at spawn — except the `subagent` tool itself is always excluded, so a worker can't spawn workers:
 
 ```jsonc
 {
@@ -44,39 +44,17 @@ The `agent` field is optional. Omit it and the task runs with the **parent's mod
 }
 ```
 
-### Named agents
-
-With an `agent` name, the dispatch runs under a defined agent file (format below). Unknown names are refused and list the available agents, so a typo fails cheap:
-
-```jsonc
-{
-  "agent": "reviewer",
-  "task": "review the PR diff"
-}
-```
-
-### Parallel work
-
-Independent tasks go in a `tasks` array — distinct agents, distinct models, one call:
-
-```jsonc
-{
-  "tasks": [
-    { "agent": "researcher", "task": "find all usages of the deprecated API" },
-    { "agent": "reviewer",   "task": "review the proposed migration plan" }
-  ]
-}
-```
-
 **The dispatch waits.** A call — single or parallel — blocks until every task completes and returns the combined results, each optionally carrying the child's `childSessionId`. There is an `async` field in the schema; the implementation ignores it, so don't plan on fire-and-forget: batch the work into `tasks` and let the call block on all of it.
 
-### Model resolution
+### Model and thinking resolution
 
-Per dispatch, in order: **the agent config's `model`, then the per-call `model`, then the parent's model.** The same rule holds for thinking level, except there is no per-call thinking field — agent config or parent.
+Per dispatch, the model resolves in order: **the agent config's `model`, then the per-call `model`, then the parent's active model** (the first entry doesn't apply to config-less dispatch).
+
+The thinking level is **not** inherited from the parent session's active thinking. It comes from the agent file's explicit `thinking` when present; otherwise Pi works out its own (the selected model, its configuration, or the model's default).
 
 ## Agent files
 
-Custom agents are `.md` files with YAML frontmatter:
+Named agents are `.md` files with YAML frontmatter — a complete definition:
 
 ```markdown
 ---
@@ -94,7 +72,30 @@ and name the lines you checked.
 - **Scopes, in precedence order:** project (`<repo>/.pi/agents/`), user (`~/.pi/agent/agents/`), and global — the repository's `.agents/agents/` or, falling back, `~/.agents/agents/`.
 - Unknown frontmatter fields are preserved on edit, not interpreted.
 - Model and thinking picked in the `/agents` TUI are saved to `~/.pi/agent/agents.local.json` (machine-local, not committed), take precedence over the frontmatter, and are stripped from the `.md` on save. Hand-written `model:`/`thinking:` in frontmatter remain the fallback.
-- At runtime, the subagent tool is excluded from a child's tool set, so a worker can't spawn workers.
+
+### Named agents
+
+With an `agent` name, the dispatch runs under that defined agent file — no agents are bundled, so the name must exist in one of these files. Unknown names are refused and list the available agents, so a typo fails cheap:
+
+```jsonc
+{
+  "agent": "reviewer",
+  "task": "review the PR diff"
+}
+```
+
+### Parallel work
+
+Independent tasks go in a `tasks` array — mix defined agents and config-less tasks, distinct models, one call:
+
+```jsonc
+{
+  "tasks": [
+    { "agent": "reviewer", "task": "review the proposed migration plan" },
+    { "task": "find all usages of the deprecated API" }   // config-less — the model/tools fall back as above
+  ]
+}
+```
 
 ## The `/agents` command
 

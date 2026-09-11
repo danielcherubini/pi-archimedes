@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` works two ways here: it picks the extension up, **and** it restores the todo list, which survives `/reload` through session state reconstruction.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` works two ways here: it picks the extension up, **and** it restores the todo list, which survives `/reload` through session state reconstruction.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Main agent and subagent todos side by side">
@@ -68,6 +68,6 @@ When every task reaches `completed`, the widget shows a brief confirmation, then
 
 ## Part of the suite
 
-With subagents running alongside in the [full suite](https://github.com/danielcherubini/pi-archimedes), each child gets its own named column to the right of yours — spawned when the worker starts and dismissed when it finishes, driven by core-bus events. On/off is managed by the suite: toggle via `/plugins` (`archimedes.todo.enabled`, default on).
+With subagents running alongside in the [full suite](https://github.com/danielcherubini/pi-archimedes), each child gets its own named column to the right of yours — it appears on the child's first non-empty todo update over core's bus (not when the worker starts), and is dismissed when the list is cleared or the child exits. On/off is managed by the suite: toggle via `/plugins` (`archimedes.todo.enabled`, default on).
 
 ← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

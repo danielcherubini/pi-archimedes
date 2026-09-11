@@ -50,11 +50,11 @@ Then run `/reload` in your session (or start a new one) to pick it up.
 5. **Authenticate and pick a model** (inside the Pi session):
 
    ```text
-   /login   # choose a supported provider — subscription or API key
-   /model   # select a model from your provider
+   /login
+   /model
    ```
 
-Model access comes through Pi's own providers — see Pi's [provider docs](https://pi.dev/docs/providers) for every supported provider and log in with `/login`. Archimedes doesn't ship a model of its own, and it works with whatever model your Pi account can reach. For the broader first run, Pi's [quickstart](https://pi.dev/docs/quickstart) is worth a read.
+`/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
@@ -114,11 +114,11 @@ The details are easier to catch when they're easier to read.
 
 ## A terminal worth spending your day in.
 
-[Core](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md) frames the editor, animates the border while the agent works, and tidies the thinking blocks — with configurable colours. The [footer](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/footer/README.md) keeps your branch, model, context usage, and costs in view. [Paste screenshots](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md) straight from the clipboard with inline previews.
+[Paste screenshots](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md) with inline previews. Keep your [branch, model, context usage, and costs](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/footer/README.md) in view. Give sessions [useful names automatically](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/session-name/README.md) so they're easier to find later.
 
-[Session naming](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/session-name/README.md) gives sessions useful names automatically so they're easier to find later. A small extra model call generates the title, so it's a separate (potentially billed) cost that isn't reflected in the footer's totals.
+A [framed editor](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
 
-A few practical notes: image previews appear when you submit the message (the markers appear as you paste), and both image rendering and desktop alerts depend on your terminal's support — the [notify](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/notify/README.md) and [image-paste](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md) docs cover what each needs.
+**Practical notes:** the paste markers appear as you paste; image previews appear when you submit the message. Image rendering and desktop alerts both depend on your terminal's support — the [image-paste](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md) and [notify](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/notify/README.md) docs cover what each needs. Naming is a separate (potentially billed) model call, not included in the footer's totals.
 
 ---
 

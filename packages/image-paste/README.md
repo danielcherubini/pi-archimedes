@@ -18,7 +18,7 @@ Or the full suite instead:
 pi install npm:pi-archimedes
 ```
 
-New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0. If you need Pi, [its quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) starts with `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`; then `pi install npm:pi-archimedes`, `cd` into your project, run `pi`, and use `/login` and `/model` inside the session. The [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers it end to end. `/reload` picks the extension up in a running session.
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0. If you need Pi, [its quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) starts with `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`. After installing Pi, choose one installation command above, then `cd` into your project, run `pi`, and use `/login` and `/model` inside the session. The [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers it end to end. `/reload` picks the extension up in a running session.
 
 ## How it works
 
@@ -46,8 +46,8 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0.
 ## Per-platform requirements
 
 - **Linux** — a graphical session (`DISPLAY` or `WAYLAND_DISPLAY`) and one of `wl-clipboard` (tried first on Wayland sessions), `xclip` (tried first on X11), or the `@mariozechner/clipboard` native module. Termux is not supported.
-- **macOS** — native clipboard access out of the box, with the `@mariozechner/clipboard` module as fallback.
-- **Windows** — native clipboard first, with a PowerShell fallback.
+- **macOS** — the only image reader on macOS is the `@mariozechner/clipboard` native module (no other CLI fallback); it ships inside the `pi-coding-agent` installation but must be importable from the extension's location, so if your Pi install's layout puts it out of resolution reach, a read reports the reader as unavailable — make the module resolvable beside the extension and `/reload`.
+- **Windows** — the `@mariozechner/clipboard` native module first, with a PowerShell fallback.
 
 ## Part of the suite
 

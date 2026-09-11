@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the first run. A running session picks the diff renderer up with `/reload`.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the first run. A running session picks the diff renderer up with `/reload`.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">

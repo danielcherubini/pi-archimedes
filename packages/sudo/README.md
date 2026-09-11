@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
 
 ## What you get
 
@@ -32,7 +32,7 @@ Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on a
 - **Masked password prompt** — the password is typed into a masked UI and passed to sudo via stdin only. It is never in argv, environment variables, command logs, or the LLM context.
 - **Defensive output scrubbing** — command output lines that contain the password are redacted before they reach the tool result. That is a literal-substring scrub: it catches common cases, and it is **not** universal leak protection.
 - **Credential cache** — a single in-memory cache with a TTL (15 minutes by default, `ttlMs`); cleared on authentication failure, at `session_start`/`session_shutdown`, and by `/sudo forget`.
-- **Timeout kills the group** — the abort signal propagates to the command's entire process group, so root children, not just the direct sudo process, are terminated. Deliberately detached descendants (`setsid`, daemonising) leave the process group and survive any user-space kill — such commands should be given a managed lifecycle flag (e.g. `--foreground`) instead.
+- **Timeout/abort cleanup** — on timeout or abort, the tool attempts to kill the command's entire process group, falling back to the direct sudo process, so root children, not just the direct sudo process, are the target of the cleanup. Deliberately detached descendants (`setsid`, daemonising) leave the process group and are outside its scope — use a flag to keep the child a process in the group (e.g. `--foreground`).
 - **Headless sessions refused** — `sudo_exec` requires an interactive (TUI) session; subagent and headless sessions get a clear error instead of a prompt. The masked prompt only ever appears in front of a human.
 - **Active bash guard** — a `tool_call` veto on the built-in `bash` tool (per [ADR 0010](https://github.com/danielcherubini/pi-archimedes/blob/main/docs/adr/0010-archimedes-sudo-security.md)) blocks interactive `sudo`, funneling privileged execution toward `sudo_exec`.
 
@@ -53,7 +53,7 @@ Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on a
 The scanned `bash` commands:
 
 - **Blocked:** `sudo` in command position without a no-prompt flag — including through runner wrappers (`env`, `nohup`, `timeout`, `xargs`, …), nested shells (`bash -c`, `su -c`), `eval`, compound keywords, and heredoc bodies.
-- **Allowed:** non-interactive sudo (`sudo -n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`) — these cannot prompt and pass through untouched.
+- **Allowed:** sudo occurrences that carry a no-prompt flag (`-n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`, or merged short flags composed solely of those) — the scanner's allow-list exception, mirroring the typical non-interactive usage.
 
 The guard is a **heuristic with accepted residual bypasses** documented in the [ADR 0010 design notes](https://github.com/danielcherubini/pi-archimedes/blob/main/docs/adr/0010-archimedes-sudo-security.md) — for example cross-token variable indirection, and `sudo` inside `$(...)`/backtick interpolation the word-position model cannot see. Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract of the scanner, **not** a guarantee that no prompt can occur.
 
@@ -71,9 +71,12 @@ The guard is a **heuristic with accepted residual bypasses** documented in the [
 | `ttlMs` | number | `900000` | Password cache TTL in milliseconds (default 15 minutes) |
 | `defaultTimeoutMs` | number | `120000` | `sudo_exec` default command timeout in milliseconds (default 120 seconds) |
 
-### Credential limitation on sudoers that retain no reusable ticket
+### Credential handling when sudo retains no verifiable ticket
 
-On sudoers policies that retain no reusable credential ticket (e.g. `timestamp_timeout=0` with strict `Defaults`), an authenticated but failed command is indistinguishable from an authentication failure to any non-interactive check. The tool applies a two-consecutive-failure rule: the first failure keeps the cached password (with a visible warning), the second clears it. A wrong password on such a sudo is therefore detected on the second failure, not the first — the bounded cost of a policy that exposes no ticket to verify against.
+On sudoers policies that retain no reusable credential ticket (e.g. `timestamp_timeout=0` with strict `Defaults`), an authenticated but failed command is indistinguishable from an authentication failure unless the ticket can be verified with `sudo -n -v`.
+
+- A **recognized wrong password** (sudo's `incorrect password` output alongside its prompt) clears the credential **immediately**, on that failure.
+- The **two-strike rule** applies to **ambiguous** failures where the ticket probe cannot verify the credential: the first strike keeps the cached password (with a visible one-more-attempt warning), the second consecutive strike clears it and re-prompts. Success resets the streak, and transport failures don't count as strikes.
 
 ## Part of the suite
 

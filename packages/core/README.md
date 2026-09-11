@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you into a supported provider and `/model` picks a model; the full walkthrough, including API-key setup, is in the repo's [setup section](https://github.com/danielcherubini/pi-archimedes#setup) and Pi's own [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md). A session that's already running picks up the extension with `/reload`.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you into a supported provider and `/model` picks a model; the full walkthrough, including API-key setup, is in the repo's [setup section](https://github.com/danielcherubini/pi-archimedes#setup) and Pi's own [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md). A session that's already running picks up the extension with `/reload`.
 
 ## What you get
 
@@ -32,7 +32,7 @@ Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on a
 - **Framed editor** — your input in a clean bordered frame, with a double-press quit guard (`Ctrl+C` twice) so a stray keystroke doesn't end the session.
 - **Working spinner on the border** — one of ten animating styles (`pendulum`, `typing`, `pulse`, `marquee`, `wave-rows`, `columns`, `cascade`, `diagonal-swipe`, `rain`, `sparkle`) traces the editor frame while the agent works, replacing Pi's native "Working" line.
 - **Thinking blocks** — chain-of-thought output gets a consistent label, colour, and layout; `codeUnindent` strips the common indentation so code in reasoning reads flush.
-- **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent costs flow to the footer through it; subagent questions flow to the ask UI through it.
+- **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent costs flow to the footer through it, subagent todos to the task board, subagent questions to the ask UI.
 - **Shared utilities** — text truncation and width measurement, colour formatting, settings I/O, and startup profiling.
 
 ## Settings
@@ -55,6 +55,6 @@ In the suite, `/archimedes` offers panel controls for the settings that have the
 
 ## Part of the suite
 
-In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the bus that feeds subagent costs and todos to the footer and questions to the ask UI, the chrome and colour utilities the diff renderer and TUIs use.
+In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the bus that feeds subagent costs to the footer, subagent todos to the task board, and subagent questions to the ask UI, plus the chrome and colour utilities the TUIs use. The diff renderer is standalone and does not depend on core's chrome — it only shares the suite when it loads.
 
 ← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
