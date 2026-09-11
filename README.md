@@ -223,9 +223,13 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 git clone https://github.com/danielcherubini/pi-archimedes.git
 cd pi-archimedes
 pnpm install            # requires pnpm ≥ 10
-pnpm test              # unit tests
+
+# Verification: type-check each package, independently —
+# tsc --noEmit in every component directory and in meta (wait for each)
 (cd packages/core && npx tsc --noEmit)
-# repeat the type-check independently in every component directory and in meta
+
+# Then the full test suite (1300+ tests):
+pnpm test
 ```
 
 ### Local testing with Pi
