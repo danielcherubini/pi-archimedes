@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/image-paste",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "type": "module",
   "keywords": [
     "pi-package"
