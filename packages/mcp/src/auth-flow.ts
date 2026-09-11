@@ -33,7 +33,7 @@
 
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 
-import { getAuthEntry } from "./auth-storage.js";
+import { getAuthEntry, saveAuthEntry } from "./auth-storage.js";
 import { ensureCallbackServer, reserveAuthState, waitForCallback } from "./callback-server.js";
 import { McpOAuthProvider, type OAuthCallbacks } from "./oauth-provider.js";
 import { OAUTH_CONFIG_FIELDS, type McpOAuthConfig } from "./types.js";
@@ -265,6 +265,17 @@ export async function authenticate(
         `${describeError(error)}`,
     );
     return { status: "needs-interaction" };
+  }
+
+  // If there is stored clientInfo but no tokens, the previous DCR
+  // registration was never completed (or tokens were cleared). Wipe the
+  // clientInfo so the SDK runs a fresh DCR with the current boundPort —
+  // otherwise it reuses the old redirectUri (a different port) and
+  // Atlassian/other servers redirect back to a listener that isn't running.
+  const existing = getAuthEntry(serverName);
+  if (existing?.clientInfo && !existing.tokens) {
+    const { clientInfo: _drop, ...withoutClient } = existing;
+    saveAuthEntry(serverName, withoutClient, serverUrl);
   }
 
   const provider = new McpOAuthProvider(
