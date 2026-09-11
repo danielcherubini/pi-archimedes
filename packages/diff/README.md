@@ -1,61 +1,58 @@
 # @pi-archimedes/diff
 
-**Shiki-powered syntax-highlighted side-by-side and unified diffs for the [Pi coding agent](https://github.com/earendil-works/pi).**
+**See what changed. Not just that something changed.**
 
-Reviewing code modifications in raw text diffs leads to missed regressions and eye strain. `@pi-archimedes/diff` brings full syntax highlighting powered by [Shiki](https://shiki.style) directly into your terminal, with adaptive split side-by-side views, word-level change emphasis, and colors that match your active terminal theme.
+Raw text diffs make it easy to miss the one line that matters. Diff puts [Shiki](https://shiki.style)-syntax-highlighted changes in front of you — side by side when there's room, unified when there isn't — with word-level emphasis on the parts that actually moved inside each line.
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">
-</div>
+## Install
 
-## Quick Start
-
-### 1. Install Pi (if needed)
-
-```bash
-npm install -g @earendil-works/pi-coding-agent
-```
-
-### 2. Install
-
-Install standalone:
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/diff
 ```
 
-Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
----
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-## What You Get
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
 
-- **Split & Unified Views** — Side-by-side split diff or traditional unified view, automatically selected based on terminal column width.
-- **Shiki Syntax Highlighting** — Full language-aware syntax highlighting powered by Shiki with theme-derived palettes.
-- **Word-Level Emphasis** — Sub-line character diffs highlight exactly which tokens or words were altered.
-- **Graceful Fallback** — Transparently falls back to plain text diffs when Shiki is unavailable or for unrecognized binary/text formats.
-- **Configurable Thresholds** — Fine-tune minimum terminal width and code column budgets for split rendering.
+Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the first run. A running session picks the diff renderer up with `/reload`.
 
----
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">
+</div>
 
-## Settings
+## What you get
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.diff` namespace (or configured interactively via `/archimedes`):
+- **Split view, and unified when it isn't** — side-by-side diffs when the terminal is wide enough; a traditional unified view when it isn't. The choice is made automatically from the column width.
+- **Syntax highlighting** — language-aware colouring of the diff body, from a Shiki theme.
+- **Word-level emphasis** — sub-line highlighting that shows exactly which tokens changed inside an otherwise similar line.
+- **Graceful fallback** — when Shiki is unavailable or the format isn't recognised, the change is shown as a plain text diff.
+
+## What it does (and doesn't) do
+
+The renderer displays `edit` and `write` tool changes in the tool UI, including call previews. It is **not an approval gate** — it helps you read changes as they happen; it doesn't hold changes back.
+
+## Appearance
+
+Standalone, the renderer runs on fixed defaults — the `github-dark` theme, a 150-column minimum for split view, and 60 code columns per side — and it does **not** read settings, because standalone has no config reader. In the [suite](https://github.com/danielcherubini/pi-archimedes), its `archimedes.diff` namespace supplies the same three values (`diffTheme`, `diffSplitMinWidth`, `diffSplitMinCodeWidth`) through the suite's config reader:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `diffTheme` | string | `github-dark` | Shiki syntax-highlighting theme |
-| `diffSplitMinWidth` | number | `150` | Minimum terminal columns required to show split view (≥ 100) |
+| `diffSplitMinWidth` | number | `150` | Minimum terminal columns for split view (≥ 100) |
 | `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
 
----
+The palette is derived from the chosen Shiki theme; it does **not** automatically pick up Pi's active theme colours. If you want a different look, pick a closer theme rather than expecting a live match.
 
-## Part of the Archimedes Suite
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.diff.enabled`, default on).
 
-When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), the diff renderer integrates with Pi's active theme, ensuring syntax colors blend seamlessly into your editor and chrome.
-
-← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

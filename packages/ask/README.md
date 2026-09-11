@@ -1,51 +1,43 @@
 # @pi-archimedes/ask
 
-**Structured interactive question tool with tabbed navigation, inline notes, and subagent IPC bridging for the [Pi coding agent](https://github.com/earendil-works/pi).**
+**Keep the decisions. Delegate the work.**
 
-When coding agents need architectural guidance or clarification, plain text questions create ambiguity and endless back-and-forth loops. `@pi-archimedes/ask` gives agents a structured prompt tool featuring tabbed multi-part forms, single-click pickers, inline note annotations, and markdown context cards. Uniquely, it bridges subagent questions directly into the parent terminal over bidirectional IPC without breaking execution.
+When an agent needs you, ask turns the need into a structured prompt right in the terminal — options, inline notes, a freeform fallback — so the answer carries your exact intent back. From subagents, too: their questions surface in the parent TUI, the agent waits, and the work carries on with your choice. No copy-pasting messages between panes to stay involved.
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
-</div>
+## Install
 
-## Quick Start
-
-### 1. Install Pi (if needed)
-
-```bash
-npm install -g @earendil-works/pi-coding-agent
-```
-
-### 2. Install
-
-Install standalone:
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/ask
 ```
 
-Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
----
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-## What You Get
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
 
-- **Bidirectional Subagent IPC** — When a dispatched subagent calls `ask`, the interactive prompt renders directly in your live parent terminal. The subagent safely pauses, you submit your answers, and it resumes immediately with your exact choices.
-- **Tabbed Multi-Question Flows** — Move across multiple interrelated questions using arrow keys and submit a batch review in one atomic step.
-- **Single-Question Quick Picker** — Instant one-click selection for fast binary or multiple-choice questions.
-- **Inline Note Annotations** — Press a key on any option to type custom context, constraints, or caveats that pass back alongside the answer.
-- **Built-in "Other" Input** — Automatic custom response field allows users to type freeform text whenever options don't cover the situation.
-- **Rich Markdown Context** — Renders formatted code blocks, headers, and descriptions above question options.
+Then `pi install npm:pi-archimedes`, `cd` into the project you want to work on and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
 
----
+## What you get
 
-## Tool Usage
+- **Tabbed multi-question flows** — arrow keys move between related questions; a final batch review submits the whole set in one step.
+- **Single-question picker** — for fast multiple-choice questions, keyboard-driven: up/down to move, `Enter` to submit, `Esc` to cancel. Nothing requires a mouse.
+- **Inline note per option** — `Tab` opens a note editor on the hovered option; `Enter` submits it. Notes travel back with the answer, so context and constraints ride along.
+- **Multiple selection** — `multi: true` collects several answers from one question.
+- **Built-in "Other (type your own)"** — whenever the options don't cover it, a freeform response field is always available.
+- **Markdown context** — the agent can attach formatted descriptions, headers, and code blocks above the options, so the question presents context you can actually read.
 
-### Single Quick Question
+## Tool usage
+
+### Single quick question
 
 ```jsonc
 {
@@ -61,7 +53,7 @@ pi install npm:pi-archimedes
 }
 ```
 
-### Multi-Question with Markdown & Multiple Selection
+### Multi-question flow with markdown context and multiple selection
 
 ```jsonc
 {
@@ -91,10 +83,16 @@ pi install npm:pi-archimedes
 }
 ```
 
----
+An option the agent marks `recommended` is flagged in the UI; `description` renders as markdown above the options.
 
-## Part of the Archimedes Suite
+## Subagent relay
 
-When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/ask` automatically pairs with `@pi-archimedes/subagent` to let background subagents ask you questions directly in your terminal without breaking execution.
+When a subagent dispatched by `@pi-archimedes/subagent` calls `ask`, the same prompt relayed over the bidirectional IPC channel appears in your live terminal, even mid-stream — the subagent blocks while you answer and resumes carrying your exact choices. It works alongside the live streaming and cost tracking, no temp files or pipes. This relay only applies to Archimedes-dispatched subagents; a question from a directly-called agent simply renders in-line.
 
-← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
+</div>
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.ask.enabled`, default on).
+
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

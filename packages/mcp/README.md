@@ -1,49 +1,42 @@
 # @pi-archimedes/mcp
 
-Full-featured MCP client adapter with a pi-native TUI — feature parity with pi-mcp-adapter.
+**Bring the tools you already use.**
 
-Connect any MCP server (stdio or HTTP/SSE), call its tools through a single `mcp` proxy tool or per-server direct tools, manage servers and OAuth flows interactively, and browse cached tool metadata offline — all without leaving the terminal.
+Your MCP servers — stdio or HTTP/SSE — can talk to Pi without leaving the terminal. One `mcp` tool reaches every server (or per-server direct tools for token-efficient calls), `/mcp` is a single command namespace for management and auth, and the setup wizard imports server definitions from Cursor, Claude Code, Claude Desktop, and VS Code. Start with `/mcp setup`; manage with `/mcp`.
 
-## What you get
+## Install
 
-- **`mcp` gateway tool** — search, describe, and call tools across all configured servers; also handles `status`, per-server tool listing, and eager `connect` without opening every server upfront
-- **Per-server direct tools** — each server's tools registered as `{server}_{tool}` for token-efficient calls; a per-server `directTools` array narrows the set to named tools only
-- **`/mcp` command family** — status, tools, prompts, reconnect, enable/disable, logout, auth, management panel, and setup panel — everything in one command namespace
-- **OAuth 2.1 + PKCE** — browser auth flow for protected servers (Atlassian, Notion, GitHub, …), OS credential-store persistence, SDK-driven token refresh
-- **Lifecycle management** — `keep-alive`, `lazy`, `lazy-keep-alive`, or `eager` per server, with configurable idle timeout
-- **Metadata cache** — `~/.pi/agent/mcp-cache.json` (7-day validity) lets search/describe work offline and persists each server's last connection outcome so `needs-auth`/errors survive restarts
-- **Compact two-line tool rendering** — `mcp <target>` header (cyan + orange) plus a key-arg summary; full args and output hidden until expanded with `ctrl+o`
-- **Layered config** — six config files, lowest → highest precedence; safe single-field write-back that never touches credentials or unrelated servers
-
-## Quick Start
-
-### 1. Install Pi (if needed)
-
-```bash
-npm install -g @earendil-works/pi-coding-agent
-```
-
-### 2. Install
-
-Install standalone:
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/mcp
 ```
 
-Or install the complete [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) development cockpit:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-### 3. Configure Your First Server
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0 — `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`; Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) covers authentication and [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported providers. Then `pi install npm:pi-archimedes`, `cd` into your project, run `pi`, and `/login` + `/model` — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks up both new extensions and new server configs.
 
-Create or edit a config file — the project-shared one is usually the right place:
+## What you get
 
-   ```bash
-   # in your project root
-   cat > .mcp.json <<'EOF'
+- **`mcp` gateway tool** — search, describe, and call tools across all configured servers; also `status`, per-server tool listing, and eager `connect`, without opening every server upfront.
+- **Per-server direct tools** — each server's tools registered as `{server}_{tool}` for direct, token-efficient calls; a per-server `directTools` array narrows the set to named tools.
+- **`/mcp` command family** — status, tools, prompts, reconnect, enable/disable, logout, auth, management panel, setup panel — one namespace.
+- **OAuth 2.1 + PKCE** — interactive browser auth for protected servers, with OS credential-store persistence and SDK-driven refresh.
+- **Lifecycle management** — `keep-alive`, `lazy` (default), `lazy-keep-alive`, or `eager` per server, with an idle timeout.
+- **Metadata cache** — `~/.pi/agent/mcp-cache.json` (7-day validity) lets search/describe work offline and persists each server's last connection outcome, so `needs-auth`/errors survive restarts.
+- **Compact two-line tool rendering** — an `mcp <target>` header with a key-argument summary; full args and output expand with `ctrl+o`.
+- **Layered config** — six config files, lowest → highest precedence, with a safe single-field write-back that never touches credentials or unrelated servers.
+
+## Quick start
+
+1. **`/mcp setup`** — the recommended path. It scaffolds `.mcp.json`, adds curated presets (context7, chrome-devtools, deepwiki, fetch), and imports server definitions from Cursor, Claude Code, Claude Desktop, and VS Code — with a preview of which names will be added before anything is written.
+2. Or edit a config file by hand. The project-shared `<project>/.mcp.json` is usually the right place. **Merge deliberately — do not `cat > .mcp.json`**, which silently destroys settings for other servers:
+
+   ```json
    {
      "mcpServers": {
        "context7": {
@@ -52,14 +45,10 @@ Create or edit a config file — the project-shared one is usually the right pla
        }
      }
    }
-   EOF
    ```
 
-   Or use `/mcp setup` to scaffold it interactively (see below).
-
-2. `/reload` to pick up the new config.
-
-3. The `mcp` tool and direct tools (`context7_*`) are now available. Check with `/mcp status`.
+3. `/reload` to pick up the new config.
+4. The `mcp` tool and direct tools (`context7_*`) are now available; check with `/mcp status`.
 
 ## `/mcp` command reference
 
@@ -117,9 +106,19 @@ Three paths reach the same auth entry point:
 
 Token details:
 
-- Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux libsecret) — no plaintext fallback
-- Token refresh is SDK-driven; a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — re-run `/mcp auth <server>` when its token expires
-- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"` (defaults), or a full `McpOAuthConfig` object
+- Tokens persist in the OS credential store (macOS Keychain / Windows Credential Manager / Linux Secret Service). Storage is **fail-closed**: if the keyring is unavailable, auth operations throw a clear error — there is never a plaintext fallback.
+- Token refresh is SDK-driven; a pre-registered public client (`clientId` without `clientSecret`) is never auto-refreshed — re-run `/mcp auth <server>` when its token expires.
+- The `auth` field on http/sse servers accepts `{ "token": "…" }` (static bearer), `"oauth"` (the default), or a full `McpOAuthConfig` object:
+
+| `McpOAuthConfig` field | Meaning |
+|------------------------|---------|
+| `grantType` | `"authorization_code"` (default) or `"client_credentials"` |
+| `clientId` | client identifier |
+| `clientSecret` | string, literal only — no `!command` resolution |
+| `scope` | space-separated scopes |
+| `redirectUri` | pre-registered clients only |
+| `clientName` | human name, shown in consent screens |
+| `authorizationServerUrl` | reserved — parsed but not yet used |
 
 ## Config files & write-back
 
@@ -134,7 +133,7 @@ Six layers load in order, lowest → highest precedence (per-server field-level 
 | 5 | `<project>/.mcp.json` | Project-shared (committable) |
 | 6 | `<project>/.pi/mcp.json` | Pi override — highest precedence |
 
-Files accept `//` comments and trailing commas. When a higher-precedence layer changes a server's `url`, inherited `auth`/`headers`/`bearerTokenEnv` from lower layers are dropped — credentials are never sent to an endpoint you didn't explicitly configure them for.
+The `mcp.json` files accept `//` comments and trailing commas (**JSONC**). That does not apply to Archimedes settings — `~/.pi/agent/settings.json` is **strict JSON**, parsed without comment support. When a higher-precedence layer changes a server's `url`, inherited `auth`/`headers`/`bearerTokenEnv` from lower layers are dropped — credentials are never sent to an endpoint you didn't explicitly configure them for.
 
 Write-back targets:
 
@@ -145,7 +144,7 @@ Changes take effect on the next `/reload`.
 
 ## Settings
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.mcp` namespace.
+`~/.pi/agent/settings.json`, under `archimedes.mcp` (strict JSON):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
@@ -175,6 +174,6 @@ Per-server overrides (in the `mcp.json` server definition):
 
 ## Integration
 
-When installed via `pi-archimedes` (the meta package), the MCP adapter is automatically registered. Tool rendering uses Core's chrome and color palette. Standalone installation works independently — the full feature set is available without the meta package.
+In the [suite](https://github.com/danielcherubini/pi-archimedes), the MCP adapter is registered with the rest — tool rendering uses core's chrome and colour palette, and a blocking OAuth loader triggers the notify extension's prompts. Standalone, the full feature set works independently. On/off in the suite is managed by `/plugins` (`archimedes.mcp.enabled`, default on).
 
-← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
