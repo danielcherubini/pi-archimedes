@@ -47,15 +47,16 @@
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
+| 36 | [First-run keybinding offer](plan-036-first-run-keybinding-offer.md) | IN PROGRESS (unassigned) | 2026-09-11 |
 ## Backlog
 
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 ## Quick Stats
 
-- Total Plans: 35
+- Total Plans: 36
 - Completed: 35
-- In Progress: 0
+- In Progress: 1
 - Backlog: 0
 
 > **MCP port (plans 025–027):** A three-phase port of `pi-mcp-adapter` into `@pi-archimedes/mcp`. Phase 1 = core reliability (cache, lifecycle, connection hardening); Phase 2 = OAuth (`/mcp-auth`, keyring, callback server); Phase 3 = `/mcp` command + panels. Design decisions in ADRs 0001–0003. Execute in order (026 needs 025; 027 needs both).
