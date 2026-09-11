@@ -1,11 +1,20 @@
 /**
- * Shared OAuth run (plan-026): the single place that wraps
- * `ServerClient.authenticate` — the SINGLE auth entry point — behind the
- * `BorderedLoader` progress UI (tui.md Pattern 2), the loader's
- * `onAbort` → `AbortController` cancellation, the "Opening browser…"
- * notification for the authorization URL, and the post-auth
- * close+reconnect that re-reads the freshly stored token from the keyring
- * into the Bearer header.
+ * Shared OAuth run: the single place that wraps `ServerClient.authenticate`
+ * — the SINGLE auth entry point — behind a visible status indicator and
+ * the post-auth close+reconnect that re-reads the freshly stored token from
+ * the keyring into the Bearer header.
+ *
+ * Design (fixes the BorderedLoader bug):
+ * - The authorization URL is surfaced via `ctx.ui.notify` BEFORE `open()` is
+ *   called, so the user always sees it (the old BorderedLoader approach
+ *   silently swallowed the notify because the loader re-painted over it).
+ * - Progress is shown via `ctx.ui.setStatus` (non-blocking) instead of a
+ *   custom UI that owns the screen.
+ * - An `onAuthorizationInput` fallback is wired up so remote/headless users
+ *   (where the browser redirect can't reach the local callback server) can
+ *   paste the full callback URL and complete the flow.
+ * - Cancellation is driven by an AbortController tied to the session signal
+ *   (headless) or a separate controller the caller can abort (UI path).
  *
  * Call sites: the `/mcp auth` command (`commands-auth.ts`) and the inline
  * auto-auth's UI branch (`auto-auth.ts`). Each maps the structured
@@ -13,19 +22,17 @@
  * between the two user-visible surfaces.
  */
 import {
-  BorderedLoader,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import open from "open";
 import { recordClientOutcome } from "./metadata-cache.js";
+import type { AuthenticateOptions } from "./auth-flow.js";
 import type { ServerClient, ServerStatus } from "./server-client.js";
 
 /**
  * Outcome of an auth attempt.
  *
- * - `cancelled` — the loader was esc-closed OR the flow rejected with
- *   exactly "OAuth cancelled" (an external abort). Both call sites treat
- *   these identically.
+ * - `cancelled` — the flow was aborted (signal or "OAuth cancelled" error).
  * - `flow-error` — the flow failed for a real reason; `error` carries the
  *   underlying message.
  * - `reconnect-failed` — auth succeeded but close/connect threw; `error`
@@ -52,8 +59,8 @@ export async function openAuthUrl(url: string): Promise<void> {
   try {
     await open(url);
   } catch {
-    // No browser available — swallow; the caller's notification (if any)
-    // still shows the URL so the user can visit it manually.
+    // No browser available — swallow; the caller's notification already
+    // shows the URL so the user can visit it manually.
   }
 }
 
@@ -81,66 +88,70 @@ export async function reconnectAfterAuth(client: ServerClient): Promise<AuthRunO
 }
 
 /**
- * Run `ServerClient.authenticate` behind a `BorderedLoader` (esc aborts
- * the flow; the authorization URL is opened in the browser and announced
- * via an info notification) and, on success, perform the post-auth
- * close+reconnect.
+ * Run `ServerClient.authenticate` with a visible status indicator and an
+ * `onAuthorizationInput` fallback for remote/headless environments.
  *
- * `ctx` must have a UI — headless callers (print/RPC) run the flow plainly
- * and reuse `openAuthUrl`/`reconnectAfterAuth` (see `autoAuthenticate`).
+ * - The authorization URL is shown via `ctx.ui.notify` BEFORE `open()` fires,
+ *   so it is always visible regardless of whether the browser opens.
+ * - `ctx.ui.setStatus` tracks progress without owning the screen.
+ * - `ctx.ui.confirm` + `ctx.ui.input` provide a manual-paste path for users
+ *   whose browser redirect cannot reach the local callback server.
+ * - On success the client is closed + reconnected so the fresh token is read
+ *   from the keyring immediately.
+ *
+ * `ctx` must have a UI — headless callers (print/RPC) use `openAuthUrl` and
+ * `reconnectAfterAuth` directly (see `autoAuthenticate` in `auto-auth.ts`).
  */
 export async function runAuthWithLoader(
   ctx: ExtensionContext,
   client: ServerClient,
   options: {
-    /** Loader label, e.g. `Authenticating <server>… (esc to cancel)`. */
+    /** Status label, e.g. `Authenticating <server>…`. */
     loaderLabel: string;
   },
 ): Promise<AuthRunOutcome> {
-  const controller = new AbortController();
-  type LoaderOutcome =
-    | { kind: "done" }
-    | { kind: "error"; error: string }
-    | null; // null = esc-closed loader
-  const outcome = await ctx.ui.custom<LoaderOutcome>((tui, theme, _keybindings, done) => {
-    const loader = new BorderedLoader(tui, theme, options.loaderLabel);
-    let settled = false;
-    const settle = (value: LoaderOutcome) => {
-      if (!settled) {
-        settled = true;
-        done(value);
-      }
-    };
-    loader.onAbort = () => {
-      controller.abort();
-      settle(null);
-    };
-    void client
-      .authenticate({
-        signal: controller.signal,
-        onAuthorizationUrl: async (url: URL) => {
-          await openAuthUrl(url.toString());
-          ctx.ui.notify(
-            `Opening browser… if it didn't open, visit: ${url.toString()}`,
-            "info",
-          );
-        },
-      })
-      .then(
-        () => settle({ kind: "done" }),
-        // An esc-abort already settled `null`; this rejects with
-        // "OAuth cancelled" and is swallowed by the settle guard.
-        (e: unknown) => settle({ kind: "error", error: toMessage(e) }),
-      );
-    return loader;
-  });
-  if (outcome === null) return { kind: "cancelled" };
-  if (outcome.kind === "error") {
-    // A flow aborted from OUTSIDE the loader (agent abort) rejects with
-    // "OAuth cancelled" — that is a cancellation, not a failure.
-    if (outcome.error === "OAuth cancelled") return { kind: "cancelled" };
-    return { kind: "flow-error", error: outcome.error };
-  }
+  const statusKey = `mcp-auth-${client.name}`;
+  ctx.ui.setStatus(statusKey, options.loaderLabel);
 
-  return reconnectAfterAuth(client);
+  try {
+    const opts: AuthenticateOptions = {
+      onAuthorizationUrl: async (url: URL) => {
+        const urlStr = url.toString();
+        // Notify FIRST so the URL is visible before open() fires — the old
+        // BorderedLoader approach re-painted over this notification silently.
+        ctx.ui.notify(
+          `Opening browser for ${client.name}… if it didn't open, visit:\n${urlStr}`,
+          "info",
+        );
+        await openAuthUrl(urlStr);
+      },
+      onAuthorizationInput: async (url: URL, signal: AbortSignal) => {
+        // Fallback for remote/headless: ask the user to paste the callback URL.
+        const urlStr = url.toString();
+        const confirmed = await ctx.ui.confirm(
+          `Authenticate ${client.name}`,
+          `Open this URL in your browser:\n${urlStr}\n\nAfter approving, select Yes to paste the callback URL.`,
+          { signal },
+        );
+        if (!confirmed || signal.aborted) return undefined;
+        return ctx.ui.input(
+          `Complete ${client.name} OAuth`,
+          "Paste the full callback URL from your browser address bar",
+          { signal },
+        );
+      },
+    };
+
+    try {
+      await client.authenticate(opts);
+    } catch (e) {
+      const msg = toMessage(e);
+      if (msg === "OAuth cancelled") return { kind: "cancelled" };
+      return { kind: "flow-error", error: msg };
+    }
+
+    return reconnectAfterAuth(client);
+  } finally {
+    ctx.ui.setStatus(statusKey, undefined);
+  }
 }

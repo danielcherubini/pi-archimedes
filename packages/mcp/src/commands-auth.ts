@@ -3,16 +3,14 @@
  *
  * The standalone `/mcp-auth` and `/mcp-logout` commands are retired; the
  * `/mcp auth <server>` and `/mcp logout <server>` subcommands (dispatched in
- * `commands.ts`) call these two functions instead. The UX is unchanged from
- * plan-026.
+ * `commands.ts`) call these two functions instead.
  *
  * `runMcpAuthCommand` runs the OAuth flow through the server client's
- * SINGLE auth entry point (`ServerClient.authenticate`) while a
- * `BorderedLoader` (tui.md Pattern 2) shows progress. Esc fires the
- * loader's `onAbort`, which forwards to the flow's `AbortController`; the
- * cancelled flow rethrows "OAuth cancelled", so cancel and failure stay
- * distinguishable in the notification. On success the client is closed and
- * reconnected, which re-reads the freshly stored token.
+ * SINGLE auth entry point (`ServerClient.authenticate`) via
+ * `runAuthWithLoader`, which shows the authorization URL via notify (always
+ * visible), opens the browser, and provides a confirm+input fallback for
+ * remote/headless users. On success the client is closed and reconnected,
+ * which re-reads the freshly stored token.
  *
  * `mcpLogoutServer` deletes the keyring entry and closes the managed client
  * (if any) so the next connect re-evaluates auth.
@@ -41,9 +39,9 @@ export interface McpAuthCommandDeps {
 
 /**
  * The former `/mcp-auth <server>` handler body, extracted so the `/mcp auth`
- * subcommand reuses the full command-layer UX (BorderedLoader +
- * notifications) unchanged. (The management panel authenticates in-panel
- * instead — ADR 0005 — reusing only the shared plumbing in `auth-run.ts`.)
+ * subcommand reuses the full command-layer UX unchanged. (The management
+ * panel authenticates in-panel instead — ADR 0005 — reusing only the shared
+ * plumbing in `auth-run.ts`.)
  * `serverName` must be non-empty — the dispatcher enforces that.
  */
 export async function runMcpAuthCommand(

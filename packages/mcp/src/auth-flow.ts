@@ -57,6 +57,15 @@ export type AuthStatus =
 export interface AuthenticateOptions {
   /** Called once when the SDK builds the authorization URL (e.g. to open a browser). */
   onAuthorizationUrl?: (url: URL) => void | Promise<void>;
+  /**
+   * Called after the authorization URL is opened, giving the caller a chance
+   * to prompt the user to paste the full callback URL (for remote/headless
+   * environments where the browser cannot reach the local callback server).
+   * Should resolve with the pasted text, or undefined/empty to cancel.
+   * When provided, it races with the local callback server; whichever wins
+   * first completes the flow.
+   */
+  onAuthorizationInput?: (url: URL, signal: AbortSignal) => Promise<string | undefined>;
   /** Cancels the callback wait; the flow rethrows the abort error. */
   signal?: AbortSignal;
 }
@@ -130,6 +139,52 @@ function callbackBindFromRedirectUri(
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Parse an authorization code from a pasted raw code or full callback URL.
+ * Returns `{ code, iss? }` on success, throws a descriptive error otherwise.
+ */
+function parseCallbackInput(input: string, expectedState?: string): { code: string; iss?: string } {
+  const trimmed = input.trim();
+  if (!trimmed) throw new Error("Authorization code or redirect URL is required");
+
+  // Try to parse as a URL (full callback redirect)
+  let params: URLSearchParams | undefined;
+  try {
+    params = new URL(trimmed).searchParams;
+  } catch {
+    // Not a URL — try treating it as a query string
+    if (trimmed.includes("code=")) {
+      try {
+        params = new URLSearchParams(trimmed.includes("?") ? trimmed.slice(trimmed.indexOf("?") + 1) : trimmed);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  if (params) {
+    const error = params.get("error");
+    if (error) {
+      const description = params.get("error_description");
+      throw new Error(description ? `${error}: ${description}` : error);
+    }
+    const state = params.get("state");
+    if (expectedState && state && state !== expectedState) {
+      throw new Error("OAuth state mismatch — potential CSRF attack");
+    }
+    const code = params.get("code");
+    if (code) {
+      const iss = params.get("iss") ?? undefined;
+      return { code, ...(iss !== undefined ? { iss } : {}) };
+    }
+  }
+
+  // Treat as a raw authorization code
+  if (/^[A-Za-z0-9._~+/=:-]+$/.test(trimmed)) return { code: trimmed };
+
+  throw new Error("Could not find an authorization code in the provided input");
 }
 
 /**
@@ -226,16 +281,44 @@ export async function authenticate(
     // redirectToAuthorization → onAuthorizationUrl (opens the browser).
     await auth(provider, { serverUrl });
 
-    const resPromise = waitForCallback(state, options.signal);
+    const callbackPromise = waitForCallback(state, options.signal);
     // Eager no-op rejection sink: `waitForCallback` can reject before we
     // reach the await (already-aborted signal), and an unhandled rejection
     // during that window would crash the process. The awaited promise below
     // still observes the same rejection.
-    resPromise.catch(() => undefined);
-    const { code } = await resPromise;
+    callbackPromise.catch(() => undefined);
+
+    let result: { code: string; iss?: string };
+    if (options.onAuthorizationInput) {
+      // Race the local callback server against manual user input (for remote
+      // or headless environments where the browser redirect can't reach us).
+      const inputController = new AbortController();
+      const authorizationUrl = new URL(
+        `http://localhost:${boundPort}/callback?state=${encodeURIComponent(state)}`,
+      );
+      try {
+        const winner = await Promise.race([
+          callbackPromise.then((r) => ({ source: "callback" as const, result: r })),
+          options
+            .onAuthorizationInput(authorizationUrl, inputController.signal)
+            .then((pasted) => ({ source: "manual" as const, pasted })),
+        ]);
+        if (winner.source === "callback") {
+          result = winner.result;
+        } else {
+          // Manual input won — parse the pasted text
+          if (!winner.pasted?.trim()) throw new Error("OAuth authentication cancelled");
+          result = parseCallbackInput(winner.pasted, state);
+        }
+      } finally {
+        inputController.abort();
+      }
+    } else {
+      result = await callbackPromise;
+    }
 
     // SDK: exchange the code for tokens (persists via provider.saveTokens).
-    await auth(provider, { serverUrl, authorizationCode: code });
+    await auth(provider, { serverUrl, authorizationCode: result.code });
     return { status: "authenticated" };
   } catch (error) {
     if (options.signal?.aborted) throw error;

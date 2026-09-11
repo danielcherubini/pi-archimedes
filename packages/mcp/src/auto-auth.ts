@@ -9,10 +9,10 @@
  *   telling the user to run `/mcp auth <server>`.
  * - autoAuth enabled: `ServerClient.authenticate` (the SINGLE auth entry
  *   point — never `auth-flow.authenticate` directly) is called inline and the
- *   caller retries the tool call once. A `BorderedLoader` (tui.md Pattern 2,
- *   same pattern as `/mcp auth`) shows progress when the execute context has
- *   UI; esc aborts the flow. Headless contexts run the flow plainly and the
- *   authorization URL is opened directly.
+ *   caller retries the tool call once. `runAuthWithLoader` shows progress,
+ *   notifies the URL, and provides a manual-paste fallback when the execute
+ *   context has UI; headless contexts run the flow plainly and open the URL
+ *   directly.
  *
  * The loader/cancel/reconnect machinery is shared with `/mcp auth` in
  * `auth-run.ts`; this module maps the structured outcome onto the tool's
@@ -94,10 +94,10 @@ function toAutoAuthOutcome(outcome: AuthRunOutcome, serverName: string): AutoAut
 /**
  * Run `ServerClient.authenticate` inline.
  *
- * With a UI context the flow is wrapped in a `BorderedLoader` (same pattern
- * as `/mcp auth`): esc aborts the flow and the cancellation is reported as
- * "OAuth cancelled". Without one (print/RPC mode) the flow runs plainly,
- * tied to the agent's abort signal when streaming.
+ * With a UI context the flow runs through `runAuthWithLoader` (same path as
+ * `/mcp auth`): status shown via setStatus, URL surfaced via notify, manual
+ * paste fallback via confirm+input. Without UI (print/RPC mode) the flow
+ * runs plainly, tied to the agent's abort signal when streaming.
  *
  * On success the client is closed and reconnected so the freshly stored
  * token is re-read into the Bearer header (mirrors `/mcp auth`). Cancellation,

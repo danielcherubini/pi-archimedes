@@ -524,7 +524,10 @@ describe("mcp proxy — command wiring", () => {
           return pending;
         },
       );
-      const ctx = { hasUI: true, ui: { notify, custom } } as never;
+      const setStatus = vi.fn();
+      const confirm = vi.fn().mockResolvedValue(false);
+      const input = vi.fn().mockResolvedValue(undefined);
+      const ctx = { hasUI: true, ui: { notify, custom, setStatus, confirm, input } } as never;
       const handler = commands["mcp"]!.handler as (
         args: string,
         ctx: unknown,

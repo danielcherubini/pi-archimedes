@@ -117,6 +117,9 @@ function makeCtx(cwd: string, hasUI: boolean = true): { ctx: ExtensionCommandCon
   const ui = {
     notify: (message: string, type?: "info" | "warning" | "error") =>
       state.notify(message, type),
+    setStatus: vi.fn(),
+    confirm: vi.fn().mockResolvedValue(false),
+    input: vi.fn().mockResolvedValue(undefined),
     custom: (
       factory: (
         tui: unknown,
@@ -662,17 +665,12 @@ describe("/mcp auth", () => {
     const env = setupEnv({ srv: httpOauthDef });
     // The auth entry point is scripted (the real flow needs a live browser/
     // callback server — exercised separately in the auth-flow tests); the
-    // loader, reconnect, and notification machinery under test is real.
+    // status, reconnect, and notification machinery under test is real.
     const client = env.manager.getClient("srv")!;
     vi.spyOn(client, "authenticate").mockResolvedValue(undefined);
     await env.run("auth srv");
-    // The BorderedLoader stub surfaced its label
-    expect(env.state.lastLoader?.message).toContain("Authenticating srv");
-    expect(env.state.lastLoader?.message).toContain("esc to cancel");
     // Success path: client reconnected, tool count reported
     expect(env.notify).toHaveBeenCalledWith("✓ srv authenticated — 1 tools available", "info");
-    // ADR 0004: the post-auth reconnect is a settle point the panel task wires;
-    // the text command itself does not record outcomes in this task.
   });
 });
 

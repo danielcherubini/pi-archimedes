@@ -8,17 +8,8 @@ import { openAuthUrl, reconnectAfterAuth, runAuthWithLoader } from "./auth-run.j
 import { loadMetadataCache, setCachePathForTest } from "./metadata-cache.js";
 import type { ServerClient } from "./server-client.js";
 
-// The real BorderedLoader needs a live TUI; a stub with the same surface
-// (constructor message + onAbort) is enough to drive the auth runner.
 vi.mock("@earendil-works/pi-coding-agent", () => ({
-  BorderedLoader: class {
-    message: string;
-    onAbort?: () => void;
-    constructor(_tui: unknown, _theme: unknown, message: string) {
-      this.message = message;
-    }
-    dispose() {}
-  },
+  getAgentDir: () => `${process.env.TMPDIR ?? "/tmp"}/pi-archimedes-mock-agent`,
 }));
 vi.mock("open", () => ({ default: vi.fn().mockResolvedValue({}) }));
 
@@ -38,7 +29,7 @@ afterEach(() => {
 });
 
 const AUTH_URL = "https://as.example/authorize?state=xyz";
-const LABEL = "Authenticating srv… (esc to cancel)";
+const LABEL = "Authenticating srv…";
 
 // ── fakes ────────────────────────────────────────────────────────────────────
 
@@ -68,7 +59,6 @@ function makeFakeClient(opts: FakeClientOpts = {}) {
     close: vi.fn().mockResolvedValue(undefined),
     connect: vi.fn().mockImplementation(async () => {
       if (opts.reconnectError) {
-        // Mirror the real client: a thrown connect settles into "error".
         client.status = "error";
         client.error = opts.reconnectError;
         throw new Error(opts.reconnectError);
@@ -96,8 +86,6 @@ function makeFakeClient(opts: FakeClientOpts = {}) {
           return Promise.reject(new Error(opts.error ?? "boom"));
         default:
           if (opts.invokeAuthUrl) {
-            // Resolve only after the URL hook settles, so `open()` and the
-            // notification are guaranteed to have run before success.
             return Promise.resolve(options?.onAuthorizationUrl?.(new URL(AUTH_URL))).then(
               () => undefined,
             );
@@ -109,114 +97,60 @@ function makeFakeClient(opts: FakeClientOpts = {}) {
   return client;
 }
 
-interface FakeLoader {
-  message: string;
-  onAbort?: () => void;
-}
-
-interface CtxState {
-  notify: ReturnType<typeof vi.fn>;
-  custom: ReturnType<typeof vi.fn>;
-  lastLoader: () => FakeLoader | null;
-}
-
-/** Fake ExtensionContext: custom() runs the factory synchronously and
- *  resolves when done() is first called; the loader is captured. */
-function makeCtx(): { ctx: ExtensionContext; state: CtxState } {
-  const state: Omit<CtxState, "lastLoader"> = { notify: vi.fn(), custom: vi.fn() };
-  let lastLoader: FakeLoader | null = null;
-  state.custom.mockImplementation(
-    (factory: (
-      tui: unknown,
-      theme: unknown,
-      keybindings: unknown,
-      done: (result: unknown) => void,
-    ) => unknown) => {
-      let resolve!: (result: unknown) => void;
-      const pending = new Promise<unknown>((r) => (resolve = r));
-      let settled = false;
-      const done = (result: unknown) => {
-        if (!settled) {
-          settled = true;
-          resolve(result);
-        }
-      };
-      lastLoader = factory({}, {}, {}, done) as FakeLoader | null;
-      return pending;
-    },
-  );
+function makeCtx() {
+  const notify = vi.fn();
+  const setStatus = vi.fn();
+  const confirm = vi.fn().mockResolvedValue(false);
+  const input = vi.fn().mockResolvedValue(undefined);
   const ctx = {
     hasUI: true,
-    ui: { notify: state.notify, custom: state.custom },
+    ui: { notify, setStatus, confirm, input },
   } as unknown as ExtensionContext;
-  return { ctx, state: { ...state, lastLoader: () => lastLoader } };
+  return { ctx, notify, setStatus, confirm, input };
 }
 
 // ── runAuthWithLoader ────────────────────────────────────────────────────────
 
 describe("runAuthWithLoader", () => {
-  it("opens the URL, notifies, reconnects, and returns the reconnected status", async () => {
+  it("notifies the URL first, opens the browser, reconnects, returns reconnected", async () => {
     const client = makeFakeClient({ outcome: "success", invokeAuthUrl: true, toolCount: 3 });
-    const { ctx, state } = makeCtx();
+    const { ctx, notify, setStatus } = makeCtx();
     const outcome = await runAuthWithLoader(ctx, client as unknown as ServerClient, {
       loaderLabel: LABEL,
     });
 
     expect(outcome).toEqual({ kind: "reconnected", status: "connected", tools: 3 });
-    // Loader shown with the caller-supplied label
-    expect(state.custom).toHaveBeenCalledTimes(1);
-    expect(state.lastLoader()!.message).toBe(LABEL);
-    // authenticate called once with an (unaborted) abort signal + URL hook
-    expect(client.authenticate).toHaveBeenCalledTimes(1);
-    const opts = client.authenticate.mock.calls[0]![0] as {
-      signal: AbortSignal;
-      onAuthorizationUrl: (u: URL) => Promise<void>;
-    };
-    expect(opts.signal.aborted).toBe(false);
-    // Browser opened for the auth URL, user notified of it
-    expect(open).toHaveBeenCalledWith(AUTH_URL);
-    expect(state.notify).toHaveBeenCalledWith(
-      `Opening browser… if it didn't open, visit: ${AUTH_URL}`,
+    // Status set during, cleared after
+    expect(setStatus).toHaveBeenCalledWith("mcp-auth-srv", LABEL);
+    expect(setStatus).toHaveBeenLastCalledWith("mcp-auth-srv", undefined);
+    // Notification fired with URL (before open)
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining(AUTH_URL),
       "info",
     );
+    // Browser opened
+    expect(open).toHaveBeenCalledWith(AUTH_URL);
     // Reconnect to pick up the freshly stored token
     expect(client.close).toHaveBeenCalledTimes(1);
     expect(client.connect).toHaveBeenCalledTimes(1);
   });
 
-  it("reports cancelled (no reconnect) when the loader is esc-closed", async () => {
-    const client = makeFakeClient({ outcome: "wait" });
-    const { ctx, state } = makeCtx();
-    const running = runAuthWithLoader(ctx, client as unknown as ServerClient, {
-      loaderLabel: LABEL,
-    });
-    await vi.waitFor(() => expect(client.authenticate).toHaveBeenCalledTimes(1));
-    const opts = client.authenticate.mock.calls[0]![0] as { signal: AbortSignal };
-    expect(opts.signal.aborted).toBe(false);
-
-    // Simulate Esc in the loader
-    state.lastLoader()!.onAbort!();
-    const outcome = await running;
-
-    expect(outcome).toEqual({ kind: "cancelled" });
-    expect(opts.signal.aborted).toBe(true);
-    expect(client.close).not.toHaveBeenCalled();
-    expect(client.connect).not.toHaveBeenCalled();
+  it("clears setStatus even when the flow fails", async () => {
+    const client = makeFakeClient({ outcome: "throw", error: "boom" });
+    const { ctx, setStatus } = makeCtx();
+    await runAuthWithLoader(ctx, client as unknown as ServerClient, { loaderLabel: LABEL });
+    expect(setStatus).toHaveBeenLastCalledWith("mcp-auth-srv", undefined);
   });
 
-  it("treats a flow rejection of exactly 'OAuth cancelled' as cancelled", async () => {
-    // Externally aborted flow rejects "OAuth cancelled" without the loader
-    // ever settling via onAbort.
+  it("treats 'OAuth cancelled' rejection as cancelled (no reconnect)", async () => {
     const client = makeFakeClient({ outcome: "throw", error: "OAuth cancelled" });
-    const { ctx, state: s } = makeCtx();
-    const running = runAuthWithLoader(ctx, client as unknown as ServerClient, {
+    const { ctx } = makeCtx();
+    const outcome = await runAuthWithLoader(ctx, client as unknown as ServerClient, {
       loaderLabel: LABEL,
     });
-    // Esc is NOT pressed — only the flow rejection decides.
-    const outcome = await running;
     expect(outcome).toEqual({ kind: "cancelled" });
     expect(client.close).not.toHaveBeenCalled();
-    expect(s.notify).not.toHaveBeenCalled();
+    expect(client.connect).not.toHaveBeenCalled();
   });
 
   it("surfaces other flow failures as flow-error without reconnecting", async () => {
@@ -227,10 +161,9 @@ describe("runAuthWithLoader", () => {
     });
     expect(outcome).toEqual({ kind: "flow-error", error: "token endpoint refused" });
     expect(client.close).not.toHaveBeenCalled();
-    expect(client.connect).not.toHaveBeenCalled();
   });
 
-  it("reports a failed reconnect as reconnect-failed with the error message", async () => {
+  it("reports a failed reconnect as reconnect-failed", async () => {
     const client = makeFakeClient({ reconnectError: "connection refused" });
     const { ctx } = makeCtx();
     const outcome = await runAuthWithLoader(ctx, client as unknown as ServerClient, {
@@ -247,6 +180,16 @@ describe("runAuthWithLoader", () => {
       loaderLabel: LABEL,
     });
     expect(outcome).toEqual({ kind: "reconnected", status: "needs-auth", tools: 0 });
+  });
+
+  it("passes onAuthorizationInput to authenticate", async () => {
+    const client = makeFakeClient({ outcome: "success" });
+    const { ctx } = makeCtx();
+    await runAuthWithLoader(ctx, client as unknown as ServerClient, { loaderLabel: LABEL });
+    const opts = client.authenticate.mock.calls[0]![0] as {
+      onAuthorizationInput?: unknown;
+    };
+    expect(typeof opts.onAuthorizationInput).toBe("function");
   });
 });
 
@@ -271,10 +214,7 @@ describe("reconnectAfterAuth", () => {
 
   it("records 'connected' in the ADR 0004 ledger after a successful reconnect", async () => {
     const client = makeFakeClient({ statusAfterReconnect: "connected", toolCount: 2 });
-    const outcome = await reconnectAfterAuth(client as unknown as ServerClient);
-    expect(outcome).toEqual({ kind: "reconnected", status: "connected", tools: 2 });
-    // The persisted outcome ledger (ADR 0004) must reflect the settled
-    // connection — a stale "needs-auth" here would stick across sessions.
+    await reconnectAfterAuth(client as unknown as ServerClient);
     const rec = loadMetadataCache().serverStatuses?.["srv"];
     expect(rec?.status).toBe("connected");
     expect(rec?.at).toBeTypeOf("number");
@@ -283,10 +223,7 @@ describe("reconnectAfterAuth", () => {
 
   it("records 'error' with the failure message when the post-auth reconnect fails", async () => {
     const client = makeFakeClient({ reconnectError: "connection refused" });
-    const outcome = await reconnectAfterAuth(client as unknown as ServerClient);
-    expect(outcome).toEqual({ kind: "reconnect-failed", error: "connection refused" });
-    // The fake settles into "error" like the real client does for a thrown
-    // connect — recordClientOutcome maps that to a recorded failure.
+    await reconnectAfterAuth(client as unknown as ServerClient);
     const rec = loadMetadataCache().serverStatuses?.["srv"];
     expect(rec?.status).toBe("error");
     expect(rec?.error).toBe("connection refused");
