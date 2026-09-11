@@ -1,90 +1,73 @@
 # @pi-archimedes/todo
 
-Todo list management with auto-clear and live subagent visibility for the [Pi coding agent](https://github.com/earendil-works/pi).
+**Keep the plan in view.**
 
-Track complex multi-step tasks structured in a todo list with automatic clearing on completion and live side-by-side visibility into subagent tasks. Having an active progress display keeps long tasks on track and gives both you and the model clear visibility into completed steps and next actions.
-
-## What you get
-
-- **`manage_todo_list` tool** — structured todo tracking with `read` and `write` operations
-- **Auto-clear** — when all todos are completed, the list clears itself after a brief 2-second delay
-- **Multi-column widget** — main agent todos on the left, each subagent's todos in their own column to the right
-- **Live subagent visibility** — subagent todos stream through the core bus so you can see what they're working on
-- **`/todos` command** — toggle the widget or clear todos (`/todos clear`)
-- **Session persistence** — todos survive `/reload` via session branch reconstruction
-
-## Screenshots
-
-### Multiple todos with progress tracking
-
-Widget showing three todos with completion status — completed items dimmed with strikethrough, the item currently being worked on highlighted:
-
-![todos multiple todos](../../docs/images/todos-multiple-todos.png)
-
-### Main agent + subagent side by side
-
-Main agent todos (left) alongside a subagent's todos (right), separated by a divider. Subagent column auto-removes when the subagent finishes:
-
-![todos and subagent](../../docs/images/todos-and-subagent.png)
+A live task board in the terminal: your agent's plan in the main column, and a named column for each subagent running alongside — so what's asked, what's in flight, and what's finished never leaves the screen. When everything is done, the board clears itself.
 
 ## Install
+
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/todo
 ```
 
-Or install full meta package:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-### As a tool
-
-The `manage_todo_list` tool accepts two operations:
-
-**Read current todos:**
-
-```jsonc
-{
-  "operation": "read"
-}
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-**Write (replace) the todo list:**
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` works two ways here: it picks the extension up, **and** it restores the todo list, which survives `/reload` through session state reconstruction.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Main agent and subagent todos side by side">
+</div>
+
+## The `manage_todo_list` tool
+
+Two operations, `write` and `read`:
+
+```jsonc
+{ "operation": "read" }
+```
 
 ```jsonc
 {
   "operation": "write",
   "todoList": [
-    { "content": "Parse config files", "description": "Read and validate all config files", "status": "in_progress" },
-    { "content": "Build state manager", "description": "Implement TodoStateManager class", "status": "pending" },
-    { "content": "Wire up widget", "description": "Connect widget to bus events", "status": "pending" }
+    { "content": "Parse config files", "description": "Read and validate settings", "status": "completed" },
+    { "content": "Build state manager", "description": "Implement reactive store", "status": "in_progress" },
+    { "content": "Connect UI widget", "description": "Bind to core bus events", "status": "pending" }
   ]
 }
 ```
 
-### As a command
+**Writes replace the whole list.** There is no partial update: every `write` must carry the complete list — existing items included — or they are replaced and gone.
 
-- `/todos` — toggle the todo widget visibility
-- `/todos clear` — clear all todos immediately
+States are `pending`, `in_progress`, and `completed`. Finished items render struck through; the current one stays highlighted.
 
-## Todo statuses
+<p align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-multiple-todos.png" width="600" alt="Multiple todos tracking progress">
+</p>
 
-| Status | Icon | Description |
-|--------|------|-------------|
-| `pending` | ○ | Not yet begun |
-| `in_progress` | ◉ | Currently being worked on |
-| `completed` | ✓ | Fully finished |
+## Commands
+
+- `/todos` — refreshes the todo widget and reports its status (e.g. `3/7 todos completed.`). It is **not** a visibility toggle; the board shows while there is content.
+- `/todos clear` — clears the list.
 
 ## Auto-clear
 
-When all todos in the list are marked as `completed`, the widget shows the all-done state for 2 seconds, then auto-clears. No need to manually run `/todos clear`.
+When every task reaches `completed`, the widget shows a brief confirmation, then clears itself after 2 seconds to give the screen back.
 
-## Integration
+## Part of the suite
 
-When installed via `pi-archimedes` (the meta package), subagent todo events flow through `@pi-archimedes/core/bus` and appear as separate columns in the widget. Each subagent gets its own column labeled with its agent name. The column auto-removes when the subagent finishes.
+With subagents running alongside in the [full suite](https://github.com/danielcherubini/pi-archimedes), each child gets its own named column to the right of yours — it appears on the child's first non-empty todo update over core's bus (empty updates are ignored; it does not appear when the worker merely starts), and it is removed when the child exits. The 2-second auto-clear is local to whatever list completed — a child clearing its own list does not dismiss the column in your session. On/off is managed by the suite: toggle via `/plugins` (`archimedes.todo.enabled`, default on).
 
-← Back to [pi-archimedes](../../README.md)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

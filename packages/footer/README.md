@@ -1,45 +1,49 @@
 # @pi-archimedes/footer
 
-A status bar that shows what matters — at a glance, without getting in the way.
+**Session details without scrolling.**
 
-Your terminal is already full of information. The footer gives you exactly what you need to know about your session — where you are, what model you're using, how many tokens you've burned, and how close you are to the context limit — laid out at the bottom of the terminal, adapting to its width without ever clipping. When subagents run, their costs merge seamlessly into the same view.
-
-## What you get
-
-- **Session context at a glance** — directory, git branch (with clean/dirty indicators), active model, thinking level; the branch icon switches from `⎇` to `🌲` when cwd is inside a linked worktree — no extra chip, no duplication
-- **Token stats** — input ↑, output ↓, cache read/write, and real-dollar cost, all in one compact display
-- **Context window bar** — color-coded progress bar (green → yellow → red) showing how much of your context window is used
-- **Adaptive layout** — everything on one line when it fits; otherwise it wraps to additional lines (two or three) instead of clipping. Width at which it switches is configurable
-- **Unified subagent costs** — when subagents run, their token usage and cost merge into the main footer automatically
+A long session drags context out of reach fast. The footer keeps the essentials pinned to the bottom of the terminal — where you are, which model you're running, how deep you are into the context window, and what you've spent — laying them out without clipping on any viewport width. When subagents run, their tokens and costs land in the same view, so the number you're watching is the whole run.
 
 ## Install
+
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/footer
 ```
 
-Or install full meta package:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-Footer renders automatically at the bottom of the Pi TUI. No commands to run.
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
 
-On wide terminals, the footer displays as one compact line with all session context, token usage, cost, and a context window progress bar that fills the remaining space. When that no longer fits on one line, the footer wraps — usage moves to a second line, and sections themselves overflow to a third line if the terminal is truly narrow — so nothing ever gets clipped. Below the configured split threshold, it always uses at least the two-line layout (system info above, stats below).
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the whole first run. A running session picks the footer up with `/reload`.
+
+## What you get
+
+- **Session line** — working directory, active git branch with clean/dirty indicator, worktree badge, active model, and thinking level.
+- **Token ledger** — input (↑) and output (↓) tokens, cache read/write, and the live accumulated dollar cost of the session.
+- **Context bar** — colour-coded (green → yellow → red). It shows **consumption**: how much of the context window is used, not how much headroom is left.
+- **Adaptive layout** — one compact line on wide viewports; it wraps to the lines it needs as the terminal narrows instead of truncating essential data.
+- **Subagent aggregation** — in the suite, subagent token and cost events flow over core's bus into the same accumulator, so worker spend and main-session spend read as one total.
+
+Two honest caveats: the ledger reflects usage and pricing **as reported to the session** — it's a live read of what Pi has accounted, not a guaranteed provider invoice, and not a tally of every background model call. And the context bar tracks consumption, not remaining headroom.
 
 ## Settings
 
+`~/.pi/agent/settings.json`, under `archimedes.footer` (strict JSON):
+
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `splitThreshold` | number | `150` | Minimum terminal width (columns) where a single-line footer is still allowed. Below it, the footer always uses at least the two-line layout; above it, it stays on one line as long as the content fits and wraps otherwise — never clipping. |
+| `splitThreshold` | number | `150` | Minimum terminal columns for the single-line layout. Below it, the footer uses the structured multi-line layout; above it, it stays single-line and wraps only if content overflows. |
 
-Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.footer` namespace.
+In the suite the setting also appears in `/archimedes` (when the panel has a control for it); `/reload` applies it. On/off is managed by the suite: toggle via `/plugins` (`archimedes.footer.enabled`, default on).
 
-## Integration
-
-When installed via the meta package, footer consumes cost events from subagents through the core bus, giving a unified token/cost view across the main agent and any running subagents. Standalone install shows only the main agent's stats.
-
-← Back to [pi-archimedes](../../README.md)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

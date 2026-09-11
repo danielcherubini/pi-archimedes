@@ -1,62 +1,56 @@
 # @pi-archimedes/image-paste
 
-Paste images from your clipboard directly into the Pi chat with inline previews.
+**Show the screenshot rather than describing it.**
 
-Paste images directly from clipboard into Pi chats without manually saving files to disk first. Sharing visual context like UI mockups or error screenshots becomes instant, while inline previews keep your prompt clean and predictable.
-
-## What you get
-
-- **Clipboard image paste** — grab a screenshot and paste it straight into the prompt
-- **Inline previews** — images render in the TUI so you can see what you attached
-- **Marker-based attachment** — placeholder markers (`[Image #1]`) are matched and attached on submit
-- **Size guard** — rejects images over 20MB with a clear warning
+"the button above the header and below the nav" is work nobody wants to do. Image-paste puts the image from your clipboard into the prompt as you type: markers land in the text on paste, the matching queued images attach on submit, and a terminal preview shows you what the agent will see.
 
 ## Install
+
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/image-paste
 ```
 
-Or install full meta package:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0. If you need Pi, [its quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) starts with `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`. After installing Pi, choose one installation command above, then `cd` into your project, run `pi`, and use `/login` and `/model` inside the session. The [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers it end to end. `/reload` picks the extension up in a running session.
 
-With Pi focused, press the paste shortcut and any image in your clipboard is attached:
+## How it works
 
-| Platform | Shortcut |
-|----------|----------|
-| Linux | `Ctrl+V` |
-| macOS | `Ctrl+V` or `Alt+V` |
-| Windows | `Alt+V` |
+- **Markers on paste** — pasting inserts a visible `[Image #1]` placeholder at the cursor; each paste gets the next number.
+- **Attachment on submit** — when you send the message, your text is scanned for markers and the matching queued images are attached to it. Delete a marker and its image is not attached — the text is the source of truth.
+- **Inline preview** — a preview of the attached images is sent and rendered in the TUI. Previews appear where your terminal renders inline images; on a terminal that can't show them, the image is still attached — only the preview falls back.
+- **Size guard** — 20 MiB **per image**, rejected with a clear message before it wastes context or hangs the submit.
+- **Model side** — the session's model must support images for the attachment to be usable.
 
-A `[Image #N]` placeholder is inserted into your draft. When you submit, any images referenced by markers are automatically attached to the message. If you remove the markers before submitting, the images are discarded.
+## Paste shortcuts
 
-## Settings
+| Platform | Shortcuts |
+|----------|-----------|
+| Linux (X11/Wayland) | `Ctrl+V`, `Alt+V`, `Ctrl+Alt+V` |
+| macOS | `Ctrl+V`, `Alt+V`, `Ctrl+Alt+V` |
+| Windows | `Alt+V`, `Ctrl+Alt+V` |
 
-Uses Pi's core `terminal.showImages` setting to control inline previews. No package-specific settings.
+> [!NOTE]
+> **Pi's built-in `app.clipboard.pasteImage` owns the table's first shortcut on every platform** — `Ctrl+V` on Linux/macOS, `Alt+V` on Windows — so the two conflict everywhere. When both fire on the shared key, the built-in throws warning banners (seen on Linux). Clear the built-in binding in `~/.pi/agent/keybindings.json` so the preview-enhanced handler takes the paste:
+>
+> ```json
+> { "app.clipboard.pasteImage": [] }
+> ```
 
-## Troubleshooting
+## Per-platform requirements
 
-### `ctrl+v` shortcut conflict on Linux
+- **Linux** — a graphical session (`DISPLAY` or `WAYLAND_DISPLAY`) and one of `wl-clipboard` (tried first on Wayland sessions), `xclip` (tried first on X11), or the `@mariozechner/clipboard` native module. Termux is not supported.
+- **macOS** — the only image reader on macOS is the `@mariozechner/clipboard` native module (no other CLI fallback); it ships inside the `pi-coding-agent` installation but must be importable from the extension's location, so if your Pi install's layout puts it out of resolution reach, a read reports the reader as unavailable — make the module resolvable beside the extension and `/reload`.
+- **Windows** — the `@mariozechner/clipboard` native module first, with a PowerShell fallback.
 
-Pi has a built-in `ctrl+v` handler (`app.clipboard.pasteImage`) that conflicts with this extension. You'll see a warning like:
+## Part of the suite
 
-```
-Extension shortcut conflict: 'ctrl+v' is built-in shortcut for app.clipboard.pasteImage
-```
+In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), image-paste works alongside the framed editor, the status bar, and the todo board; on/off is managed by the suite (`/plugins`, `archimedes.imagePaste.enabled`, default on).
 
-**Fix:** Clear the built-in binding in `~/.pi/agent/keybindings.json`:
-
-```json
-{
-  "app.clipboard.pasteImage": []
-}
-```
-
-This lets archimedes' handler take over (it does the same thing plus inline previews) without the warning.
-
-← Back to [pi-archimedes](../../README.md)
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

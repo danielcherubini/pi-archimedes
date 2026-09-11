@@ -1,37 +1,43 @@
 # @pi-archimedes/ask
 
-Structured question tool with tabbed multi-question flow and inline note editing.
+**Keep the decisions. Delegate the work.**
 
-When language models need clarification, asking unstructured questions in text leads to guessing and back-and-forth ambiguity. This tool provides structured choice prompts, tabbed navigation for multi-part questions, and inline note editing so users can deliver clear, complete guidance in a single step.
-
-## What you get
-
-- **Tabbed multi-question flow** — submit review for multiple questions at once
-- **Single-question picker** — instant submit for quick decisions
-- **Inline note editing** — add custom notes and context per option
-- **Markdown context descriptions** — rich context descriptions rendered above options
-- **Automatic "Other" handling** — built-in custom response option with auto-focus
-- **Subagent support** — subagents can call `ask` and questions appear in the parent agent's TUI via bidirectional IPC
-
-## Screenshots
-
-![ask from a subagent](../../docs/images/ask-subagent.png)
+When an agent needs you, ask turns the need into a structured prompt right in the terminal — options, inline notes, a freeform fallback — so the answer carries your exact intent back. From subagents, too: their questions surface in the parent TUI, the agent waits, and the work carries on with your choice. No copy-pasting messages between panes to stay involved.
 
 ## Install
+
+Standalone:
 
 ```bash
 pi install npm:@pi-archimedes/ask
 ```
 
-Or install full meta package:
+Or the full suite instead:
 
 ```bash
 pi install npm:pi-archimedes
 ```
 
-## Usage
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 
-Single question example:
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
+
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
+
+## What you get
+
+- **Tabbed multi-question flows** — arrow keys move between related questions; a final batch review submits the whole set in one step.
+- **Single-question picker** — for fast multiple-choice questions, keyboard-driven: up/down to move, `Enter` to submit, `Esc` to cancel. Nothing requires a mouse.
+- **Inline note per option** — `Tab` opens a note editor on the hovered option; `Enter` submits it. Notes travel back with the answer, so context and constraints ride along.
+- **Multiple selection** — `multi: true` collects several answers from one question.
+- **Built-in "Other (type your own)"** — whenever the options don't cover it, a freeform response field is always available.
+- **Markdown context** — the agent can attach formatted descriptions, headers, and code blocks above the options, so the question presents context you can actually read.
+
+## Tool usage
+
+### Single quick question
 
 ```jsonc
 {
@@ -47,38 +53,46 @@ Single question example:
 }
 ```
 
-Multi-question with notes example:
+### Multi-question flow with markdown context and multiple selection
 
 ```jsonc
 {
   "questions": [
     {
       "id": "priority",
-      "question": "What's the implementation priority?",
-      "description": "Choose the order for tackling these tasks.",
+      "question": "What is the implementation priority?",
+      "description": "Choose the initial focus area for this milestone.",
+      "recommended": 0,
       "options": [
-        { "label": "Core features first" },
-        { "label": "Tests first" },
-        { "label": "Design first" }
-      ],
-      "recommended": 0
+        { "label": "Core architecture first" },
+        { "label": "Unit tests first" },
+        { "label": "CLI interface first" }
+      ]
     },
     {
-      "id": "approach",
-      "question": "Any additional constraints?",
+      "id": "constraints",
+      "question": "Select applicable constraints:",
+      "multi": true,
       "options": [
         { "label": "No breaking changes" },
-        { "label": "Performance critical" },
-        { "label": "None" }
-      ],
-      "multi": true
+        { "label": "Zero external dependencies" },
+        { "label": "Strict backward compatibility" }
+      ]
     }
   ]
 }
 ```
 
-## Integration
+An option the agent marks `recommended` is flagged in the UI; `description` renders as markdown above the options.
 
-Depends on [`@pi-archimedes/core`](../core) for the shared event bus used to relay subagent questions. Subagents call `ask` and questions are safely dispatched to the parent agent's TUI over bidirectional IPC with no temporary files.
+## Subagent relay
 
-← Back to [pi-archimedes](../../README.md)
+When a subagent dispatched by `@pi-archimedes/subagent` calls `ask`, the same prompt relayed over the bidirectional IPC channel appears in your live terminal, even mid-stream — the subagent blocks while you answer and resumes carrying your exact choices. It works alongside the live streaming and cost tracking, no temp files or pipes. This relay only applies to Archimedes-dispatched subagents; a question from a directly-called agent simply renders in-line.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
+</div>
+
+On/off is managed by the suite: toggle via `/plugins` (`archimedes.ask.enabled`, default on).
+
+← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
