@@ -200,4 +200,4 @@ pi install npm:@pi-archimedes/session-name
 
 ## Development
 
-`pi-archimedes` is the meta package of a pnpm monorepo — clone it, run `pnpm install`, and test the full suite from source. For the component layout, no-build-step workflow, and local testing with Pi (including a warning about not loading the local copy and an npm copy at the same time), see the [root README's development instructions](https://github.com/danielcherubini/pi-archimedes#development) and [AGENTS.md](https://github.com/danielcherubini/pi-archimedes/blob/main/AGENTS.md).
+`pi-archimedes` is the meta package of a pnpm monorepo — clone it, run `pnpm install`, and test the full suite from source. For the component layout, no-build-step workflow, and local testing with Pi (including a warning about not loading the local copy and an npm copy at the same time), see the [root README's development instructions](https://github.com/danielcherubini/pi-archimedes/blob/main/README.md#development) and [AGENTS.md](https://github.com/danielcherubini/pi-archimedes/blob/main/AGENTS.md).
