@@ -1,12 +1,18 @@
 {
   "name": "@pi-archimedes/session-name",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "type": "module",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "description": "Auto-generate session names after the first exchange",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "main": "./src/index.ts",
-  "exports": {".": "./src/index.ts"},
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "@pi-archimedes/core": "workspace:*"
   },
@@ -22,6 +28,8 @@
     "typescript": "^6.0.0"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
