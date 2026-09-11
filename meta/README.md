@@ -147,7 +147,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 | Command | Scope | Notes |
 |---------|-------|-------|
 | `/plugins` | Suite | Toggle the ten optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
-| `/archimedes` | Suite | Interactive settings panel — arrow keys change values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
+| `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
 | `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
 | `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/todo/README.md).) |
 | `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
