@@ -23,7 +23,9 @@ One command:
 pi install npm:pi-archimedes
 ```
 
-Then run `/reload` in your session (or start a new one) to pick it up.
+Your `~/.pi/agent/` stays as it is — Archimedes only adds its namespaces under `settings.json`. Pi's own `auth.json`, `keybindings.json`, agents, and sessions are untouched (and `/mcp setup` only writes the project's `.mcp.json`, when you run it).
+
+Then run `/reload` in your session (or start a new one) to pick it up — that reloads the extensions *and* your keybindings, so any shortcuts you've customized in `~/.pi/agent/keybindings.json` keep working.
 
 ### New to Pi
 
@@ -53,6 +55,8 @@ Then run `/reload` in your session (or start a new one) to pick it up.
    /login
    /model
    ```
+
+6. **Optional — tune a keybinding** to `~/.pi/agent/keybindings.json` — Pi's [keybindings docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/keybindings.md) cover the format with examples. One worth doing on Linux early: clear Pi's built-in `app.clipboard.pasteImage` so [image-paste](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md#paste-shortcuts) can take `Ctrl+V` by itself (that README has the two-line snippet).
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 
