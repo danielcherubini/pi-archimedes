@@ -59,6 +59,6 @@ Settings are stored in `~/.pi/agent/settings.json` under the `archimedes.core` n
 
 ## Part of the Archimedes Suite
 
-`@pi-archimedes/core` is included automatically in the [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) meta package, where it serves as the backbone for the status footer, subagent swarms, question IPC, and todo tracking.
+`@pi-archimedes/core` is included automatically in the [pi-archimedes](https://github.com/danielcherubini/pi-archimedes) meta package, where it serves as the backbone for the status footer, subagents, question IPC, and todo tracking.
 
 ← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

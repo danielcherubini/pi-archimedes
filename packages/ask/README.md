@@ -95,6 +95,6 @@ pi install npm:pi-archimedes
 
 ## Part of the Archimedes Suite
 
-When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/ask` automatically pairs with `@pi-archimedes/subagent` to provide transparent human-in-the-loop governance for background agent swarms.
+When installed via [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), `@pi-archimedes/ask` automatically pairs with `@pi-archimedes/subagent` to let background subagents ask you questions directly in your terminal without breaking execution.
 
 ← Back to [pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

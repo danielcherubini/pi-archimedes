@@ -1,6 +1,6 @@
 # @pi-archimedes/subagent
 
-**Subagent dispatch with live TUI streaming, parallel swarms, and unified cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).**
+**Subagent dispatch with live TUI streaming, parallel execution, and unified cost tracking for the [Pi coding agent](https://github.com/earendil-works/pi).**
 
 Don't let complex reasoning or multi-file refactors block your main agent. `@pi-archimedes/subagent` enables you to dispatch specialized subagents to offload research, code reviews, and implementation tasks with live TUI streaming, parallel execution, independent model overrides, and real-time cost accounting.
 
