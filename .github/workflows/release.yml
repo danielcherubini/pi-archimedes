@@ -17,11 +17,15 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # No `registry-url` here: it makes actions/setup-node export a placeholder
+      # NODE_AUTH_TOKEN and write _authToken into NPM_CONFIG_USERCONFIG's .npmrc,
+      # which makes npm/pnpm prefer token auth over the OIDC trusted-publisher
+      # flow and publish fails with a 404 (actions/setup-node#1551, npm/cli#8730).
+      # Node 24 ships npm 11.x, which trusted publishing requires (npm >= 11.5.1).
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '24'
           cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
 
@@ -29,7 +33,9 @@ jobs:
         run: pnpm -r exec -- tsc --noEmit
 
       - name: Publish to npm
+        # Belt and braces: make sure no residual token can shadow the OIDC flow.
         run: |
+          unset NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG 2>/dev/null || true
           # Publish component packages first, then meta (dependency order)
           pnpm --filter "@pi-archimedes/core" publish --access public --no-git-checks --provenance
           pnpm --filter "@pi-archimedes/sudo" publish --access public --no-git-checks --provenance
