@@ -59,7 +59,7 @@ Another agent tool's MCP configuration (Cursor, Claude Code, Claude Desktop, VSC
 _Avoid_: Foreign config, external config, imported config
 
 **Config write-back**:
-Writing a changed field (`disabled`, `directTools`) back to the project-local `.pi/mcp.json` override — always that file, only the changed field, never copying credentials (see ADR 0002).
+Writing a changed field (`disabled`, `directTools`) back to the project-local `.pi/mcp.json` override — always that file, only the changed field, never copying credentials (see Decision 0016).
 _Avoid_: Config save, config persist, config update
 
 ## Core editor terminology

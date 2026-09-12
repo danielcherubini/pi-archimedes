@@ -76,11 +76,12 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 - `fix:` for bug fixes
 - Always commit per logical unit — don't batch unrelated changes
 
-### Plans
-- Plans live in `docs/plans/plan-NNN-<feature>.md` (sequential number, e.g. `plan-029-todo-schema-alignment.md`)
-- Use the `create-plan` skill to generate plans, then dispatch the `reviewer` subagent to review them
-- **Always commit the plan file to git** — it is an untracked file by default and will be lost if not added
-- Update `docs/plans/README.md` to track plan status (IN PROGRESS → COMPLETED)
+### Documentation Structure
+Docs follow the skill-suite layout (`specify`/`finish` conventions):
+- **Plans** live in `docs/roadmap/<feature>.md` (kebab-case, named for the outcome) with front-matter `status` (`considering` / `committed`) + `done-when`. Only *unfinished* plans live on disk — the doc is **deleted when the feature ships** (history lives in git; no plan index, no `done/` graveyard). Supersede: note it in the old doc's body, then delete it.
+- **Persistent knowledge** goes to `docs/features/<feature>.md` (present-tense, front-matter `status: live` + `last-verified`) or `docs/decisions/NNNN-slug.md` — never left in a plan.
+- `docs/research/` holds research reports (front-matter, kebab-cased `docs/research/<topic>.md`); `docs/reviews/` holds code-review write-ups.
+- Use the `specify` skill to generate plans (spec input from the `discuss` conversation), then dispatch the `reviewer` subagent to review the plan against the codebase. **Commit the plan file to git** — it is untracked by default and would be lost.
 
 ### Event Handlers
 - Register `session_shutdown` handlers at the top level of `register()`, NOT inside `session_start`

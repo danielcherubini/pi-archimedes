@@ -1,8 +1,9 @@
-# Plan 036: First-run keybinding offer
+---
+status: committed
+done-when: On the first pi session where `~/.pi/agent/keybindings.json` does not exist, a one-time offer to create it from the docs snippet appears; declining never asks again, and accepting creates the file with the snippet content
+---
 
-**Status:** IN PROGRESS — unassigned
-**PR:** (pending)
-**Created:** 2026-09-11
+# First-run keybinding offer Plan
 
 ## Goal
 
