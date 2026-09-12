@@ -37,6 +37,7 @@
 | 33 | [Pi 0.84.4 sync](done/plan-033-pi-0844-sync.md) | ✅ COMPLETED (PR #42, `30e2457`) | 2026-08-28 |
 | 34 | [Prompt-slot spinner (border spinner, 10 styles)](../adr/0014-prompt-slot-spinner.md) | ✅ COMPLETED (PR #48) | 2026-09-07 |
 | 35 | [README copy — Pi, with the good stuff](plan-035-readme-copy.md) | ✅ COMPLETED (PR #49) | 2026-09-11 |
+| 37 | [Random spinner quips](done/plan-037-spinner-quips.md) | ✅ COMPLETED (PR #50, squash `96386d5`) | 2026-09-12 |
 
 > **Notes:**
 > - Diff wide-character width overflow fix (PR #14, 2026-07-03) — no plan file.
@@ -48,7 +49,6 @@
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 | 36 | [First-run keybinding offer](plan-036-first-run-keybinding-offer.md) | IN PROGRESS (unassigned) | 2026-09-11 |
-| 37 | [Random spinner quips](plan-037-spinner-quips.md) | IN PROGRESS (PR #50, `5258a8c`) | 2026-09-12 |
 ## Backlog
 
 | # | Plan | Status | Created |

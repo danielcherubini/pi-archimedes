@@ -1,7 +1,7 @@
 # Plan 037: Random spinner quips
 
-**Status:** IN PROGRESS — unassigned
-**PR:** (pending)
+**Status:** ✅ COMPLETED (PR #50, squash `96386d5`)
+**PR:** #50 (merged 2026-09-12)
 **Created:** 2026-09-12
 
 ## Goal
