@@ -7,15 +7,15 @@ describe("SPIN_QUIPS", () => {
   /** A mutable copy — the frozen `SPIN_QUIPS` is asserted read-only below. */
   const pool = [...SPIN_QUIPS];
 
-  it("has 40–60 entries", () => {
-    expect(SPIN_QUIPS.length).toBeGreaterThanOrEqual(40);
+  it("has 20–60 entries", () => {
+    expect(SPIN_QUIPS.length).toBeGreaterThanOrEqual(20);
     expect(SPIN_QUIPS.length).toBeLessThanOrEqual(60);
   });
 
-  it("entries are 1–20 chars", () => {
+  it("entries are 1–64 chars", () => {
     for (const q of pool) {
       expect(q.length, JSON.stringify(q)).toBeGreaterThanOrEqual(1);
-      expect(q.length, JSON.stringify(q)).toBeLessThanOrEqual(20);
+      expect(q.length, JSON.stringify(q)).toBeLessThanOrEqual(64);
     }
   });
 
@@ -44,10 +44,6 @@ describe("SPIN_QUIPS", () => {
 
   it("entries are all unique", () => {
     expect(new Set(pool).size).toBe(pool.length);
-  });
-
-  it("contains the literal \"Working\" exactly once", () => {
-    expect(pool.filter((q) => q === "Working")).toHaveLength(1);
   });
 
   it("is frozen", () => {

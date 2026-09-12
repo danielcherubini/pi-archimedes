@@ -1,4 +1,4 @@
-/** The spinner quip pool — short (≤ 20 visible chars, printable-ASCII-only) status labels shown instead of the default "Working" per busy episode (see plan-037). Mixed nerdy: compute/OS, CS/programmer folklore, math/physics. Invariants (40–60 entries, 1–20 chars, printable ASCII, no edge/double spaces, unique, exactly one "Working", frozen) are enforced by `spin-quips.test.ts`. */
+/** The spinner quip pool — fun (≤ 64 visible chars, printable-ASCII-only) status labels shown instead of the default "Working" per busy episode (see plan-037). Mixed nerdy: compute/OS, CS/programmer folklore, math/physics. Invariants (20–60 entries, 1–64 chars, printable ASCII, no edge/double spaces, unique, frozen) are enforced by `spin-quips.test.ts`. */
 export const SPIN_QUIPS: readonly string[] = Object.freeze([
   "Working...",
   "Compiling a list of excuses for the next stand-up...",

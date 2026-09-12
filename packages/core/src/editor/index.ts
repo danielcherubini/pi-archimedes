@@ -81,7 +81,7 @@ export class HephaestusEditor extends CustomEditor {
       spinSpeed?: CoreConfig["editorSpinSpeed"];
       /** The `editorSpinStyle` setting — the default style, from the config default (pendulum); raw setting strings are tolerated, but unknown names still normalize to typing frames (the normalizer's fallback, kept distinct from the default). */
       spinStyle?: SpinnerStyle | string;
-      /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random short quip picked once per busy episode; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */
+      /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random quip picked once per busy episode; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */
       spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
