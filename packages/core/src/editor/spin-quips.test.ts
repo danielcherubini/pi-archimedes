@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { SPIN_QUIPS, pickQuip } from "./spin-quips.js";
+import { SPIN_QUIPS, pickQuip, QUIP_ROTATION_MIN_SECS, QUIP_ROTATION_MAX_SECS } from "./spin-quips.js";
 
 // ── SPIN_QUIPS pool invariants ───────────────────────────────────────────────
 
@@ -48,6 +48,18 @@ describe("SPIN_QUIPS", () => {
 
   it("is frozen", () => {
     expect(Object.isFrozen(SPIN_QUIPS)).toBe(true);
+  });
+});
+
+// ── Quip rotation constants ──────────────────────────────────────────────────
+
+describe("QUIP_ROTATION_* constants", () => {
+  it("are the inclusive 15 s / 45 s bounds, min < max, integers", () => {
+    expect(QUIP_ROTATION_MIN_SECS).toBe(15);
+    expect(QUIP_ROTATION_MAX_SECS).toBe(45);
+    expect(QUIP_ROTATION_MIN_SECS).toBeLessThan(QUIP_ROTATION_MAX_SECS);
+    expect(Number.isInteger(QUIP_ROTATION_MIN_SECS)).toBe(true);
+    expect(Number.isInteger(QUIP_ROTATION_MAX_SECS)).toBe(true);
   });
 });
 

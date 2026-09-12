@@ -23,7 +23,7 @@ import {
 } from "../chrome.js";
 import { isParentBorder, formatKey } from "../text.js";
 import { SPIN_INTERVALS, BorderTypeSpinner } from "./spin.js";
-import { pickQuip } from "./spin-quips.js";
+import { pickQuip, QUIP_ROTATION_MAX_SECS, QUIP_ROTATION_MIN_SECS } from "./spin-quips.js";
 import { SPIN_SPEED_MULT, type CoreConfig, type SpinnerStyle } from "../config.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
@@ -53,6 +53,14 @@ export class HephaestusEditor extends CustomEditor {
   private wasBusy = false;
   /** The border-row spin spinner (mechanism in `BorderTypeSpinner`): the `spinStyle` (raw setting strings normalize — unknown names fall back to typing frames) — created only when `spin` is on, so the off path stays fully inert. The tick period is the style's native tempo × the `spinSpeed` multiplier, 32 ms floor. */
   private readonly borderSpinner: BorderTypeSpinner | undefined;
+  /** The quip rotation tick period in ms — set to the style tempo when `spin` is on; the 32 ms default is inert (`rotationThresholdTicks()` is only reached on busy ticks, which imply spin is on). */
+  private readonly spinTickMs: number = 32;
+  /** In-episode quip rotation — the counter accumulates busy ticks; at the per-episode random threshold it re-picks the quip. Frozen while idle (no re-rotation across gaps); a new episode re-picks + resets. */
+  private spinQuipTicks = 0;
+  /** The current rotation window's threshold in ticks — a per-episode draw (see `rotationThresholdTicks()`); the `0` default is never read before the idle→busy branch assigns it (the counter only increments after that branch has run). */
+  private spinQuipEveryTicks = 0;
+  /** The injected random source for the in-episode quip rotation window (inclusive 15–45 s); tests override via `as any`, the same seam as `isIdle` — the constructor gains no signature change. */
+  private quipRand: () => number = Math.random;
   private readonly onSpinInterval:
     | ((interval: ReturnType<typeof setInterval> | undefined) => void)
     | undefined;
@@ -81,7 +89,7 @@ export class HephaestusEditor extends CustomEditor {
       spinSpeed?: CoreConfig["editorSpinSpeed"];
       /** The `editorSpinStyle` setting — the default style, from the config default (pendulum); raw setting strings are tolerated, but unknown names still normalize to typing frames (the normalizer's fallback, kept distinct from the default). */
       spinStyle?: SpinnerStyle | string;
-      /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random quip picked once per busy episode; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */
+      /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random quip picked once per busy episode, re-picked on a subtle random 15–45 s timer while a long episode continues; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */
       spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -111,11 +119,11 @@ export class HephaestusEditor extends CustomEditor {
     if (spin) {
       // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback).
       const nativeMs = SPIN_INTERVALS[spinStyle as SpinnerStyle];
-      const spinTickMs = Math.max(
+      this.spinTickMs = Math.max(
         32,
         (nativeMs ?? SPIN_INTERVALS["typing"]) * (SPIN_SPEED_MULT[spinSpeed] ?? 1),
       );
-      this.spinTimer = setInterval(() => this.tickSpin(), spinTickMs);
+      this.spinTimer = setInterval(() => this.tickSpin(), this.spinTickMs);
       this.onSpinInterval?.(this.spinTimer);
     }
   }
@@ -131,16 +139,35 @@ export class HephaestusEditor extends CustomEditor {
 
   // ── Prompt spin ───────────────────────────────────────
 
-  /** Advances the spin; in quip mode the per-episode selection lands BEFORE the border-spinner repaint. */
+  /** Advances the spin; in quip mode the selection (per-episode pick, and the in-episode re-pick at the computed window's threshold) lands BEFORE the border-spinner repaint. While idle, the rotation counter is frozen (the label remains; no re-rotation across the gap). */
   private tickSpin(): void {
     if (this.labelMode === "quip") {
       const busy = this.spinEnabled && !this.isIdle();
-      if (busy && !this.wasBusy) this.spinQuip = pickQuip(this.spinQuip);
+      if (busy && !this.wasBusy) {
+        // Episode start: fresh quip + reset the rotation window.
+        this.spinQuip = pickQuip(this.spinQuip, this.quipRand);
+        this.spinQuipTicks = 0;
+        this.spinQuipEveryTicks = this.rotationThresholdTicks();
+      } else if (busy) {
+        this.spinQuipTicks += 1;
+        if (this.spinQuipTicks >= this.spinQuipEveryTicks) {
+          // In-episode re-rotation: re-pick (excludes the current), reset the counter, draw the next window.
+          this.spinQuip = pickQuip(this.spinQuip, this.quipRand);
+          this.spinQuipTicks = 0;
+          this.spinQuipEveryTicks = this.rotationThresholdTicks();
+        }
+      }
       this.wasBusy = busy;
     }
     if (this.borderSpinner && this.borderSpinner.tick()) {
       this.tui.requestRender();
     }
+  }
+
+  /** The random 15–45 s window (inclusive, from the injected `quipRand`) in whole ticks — `ceil`'d so the window is never shorter than requested (at most one tick over the max). */
+  private rotationThresholdTicks(): number {
+    const seconds = QUIP_ROTATION_MIN_SECS + Math.floor(this.quipRand() * (QUIP_ROTATION_MAX_SECS - QUIP_ROTATION_MIN_SECS + 1));
+    return Math.ceil((seconds * 1000) / this.spinTickMs);
   }
 
   /** The 4-cell window that replaces a segment of the border (mechanism in `BorderTypeSpinner`): cells fill cell-by-cell left→right, the current step's stage chars rendered in the spin (accent) palette (⠁⠉ / ⠋⠛ / ⠟⠿ / ⡿⣿; EAW: the width-1 shading ░ → █) — the 2×4 dot block grows across the window — the not-yet-reached cells are plain spaces (the border line breaks) — plain " " (U+0020). The empty clear step (step 0) is all spaces; hold steps clamp to the last (fully grown) frame. The window sits one leading space after `┌` at start 0 (right at the corner), and the label follows it typed as `" " + spinLabel + " "` — its own leading and trailing spaces, with the trailing one providing the margin to the trailing dashes. */

@@ -31,6 +31,10 @@ export const SPIN_QUIPS: readonly string[] = Object.freeze([
 ]);
 
 /** Uniformly pick a quip; `exclude` (the previous episode's quip) is never returned — if the first draw lands on it, exactly one re-roll restricted to entries ≠ `exclude` (no loops). `rand` is injectable for deterministic tests. */
+/** In-episode quip rotation bounds — the quip is re-picked on a random window drawn inclusive between these seconds (from the editor's injected random source), only while a busy episode continues; a new episode always re-picks and resets the window. */
+export const QUIP_ROTATION_MIN_SECS = 15;
+export const QUIP_ROTATION_MAX_SECS = 45;
+
 export function pickQuip(exclude?: string, rand: () => number = Math.random): string {
   const pick = (customPool: readonly string[]): string =>
     customPool[Math.floor(rand() * customPool.length)]!;
