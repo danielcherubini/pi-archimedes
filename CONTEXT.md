@@ -62,6 +62,16 @@ _Avoid_: Foreign config, external config, imported config
 Writing a changed field (`disabled`, `directTools`) back to the project-local `.pi/mcp.json` override — always that file, only the changed field, never copying credentials (see ADR 0002).
 _Avoid_: Config save, config persist, config update
 
+## Core editor terminology
+
+**Busy episode**:
+The span from the agent becoming busy (idle → working) back to idle; the unit that drives spinner-quip selection in the editor border.
+_Avoid_: Work session, agent turn, working span
+
+**Spin quip**:
+A short (≤ 20 visible chars, ASCII-only) random label shown in the editor's border spinner window; picked per busy episode whenever `editorSpinLabel` is left at its default (a custom label wins; empty hides).
+_Avoid_: Rotating label, joke text, spinner text
+
 ## Notify terminology
 
 **Settled wait**:
