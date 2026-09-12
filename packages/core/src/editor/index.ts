@@ -23,6 +23,7 @@ import {
 } from "../chrome.js";
 import { isParentBorder, formatKey } from "../text.js";
 import { SPIN_INTERVALS, BorderTypeSpinner } from "./spin.js";
+import { pickQuip } from "./spin-quips.js";
 import { SPIN_SPEED_MULT, type CoreConfig, type SpinnerStyle } from "../config.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
@@ -44,6 +45,12 @@ export class HephaestusEditor extends CustomEditor {
   private readonly spinEnabled: boolean;
   /** Label typed after the 4-cell window while busy (the `editorSpinLabel` setting): an empty string hides it. */
   private readonly spinLabel: string;
+  /** Immutable label mode, derived in the ctor from the RAW `spinLabel`: `""` (a string) → `"hidden"` (no quip; legacy precedence); non-string (corrupt config — `safeSpinLabel` fell back to `"Working"`) → `"quip"`; `safeSpinLabel === "Working"` (default or hand-typed, indistinguishable) → `"quip"`; any other non-empty string → `"verbatim"` (the config label wins). */
+  private readonly labelMode: "hidden" | "quip" | "verbatim";
+  /** The current busy episode's quip: `undefined` until the first idle→busy tick (the default `"Working"` then shows for at most one tick — approved), survives idle ticks, and is re-picked on the next busy transition with the previous quip excluded. */
+  private spinQuip: string | undefined;
+  /** Quip-mode busy-episode tracker — deliberately starts `false`, never reads `isIdle()` at construction, so an already-busy agent gets a quip on its first tick (transition detection needs `false` beforehand). */
+  private wasBusy = false;
   /** The border-row spin spinner (mechanism in `BorderTypeSpinner`): the `spinStyle` (raw setting strings normalize — unknown names fall back to typing frames) — created only when `spin` is on, so the off path stays fully inert. The tick period is the style's native tempo × the `spinSpeed` multiplier, 32 ms floor. */
   private readonly borderSpinner: BorderTypeSpinner | undefined;
   private readonly onSpinInterval:
@@ -74,7 +81,7 @@ export class HephaestusEditor extends CustomEditor {
       spinSpeed?: CoreConfig["editorSpinSpeed"];
       /** The `editorSpinStyle` setting — the default style, from the config default (pendulum); raw setting strings are tolerated, but unknown names still normalize to typing frames (the normalizer's fallback, kept distinct from the default). */
       spinStyle?: SpinnerStyle | string;
-      /** Label typed after the window while busy (the `editorSpinLabel` setting); an empty string hides it. Non-string values (corrupt config) fall back to "Working". */
+      /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random short quip picked once per busy episode; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */
       spinLabel?: string;
       /** Lets an out-of-editor scope (core index.ts session hooks) clear the timer. */
       onSpinInterval?: (
@@ -93,6 +100,13 @@ export class HephaestusEditor extends CustomEditor {
     const safeSpinLabel =
       typeof spinLabel === "string" ? spinLabel : "Working";
     this.spinLabel = safeSpinLabel;
+    // Immutable label mode from the RAW option (the `typeof` check reads the raw value, so it also distinguishes a corrupt non-string from a hand-typed "Working").
+    this.labelMode =
+      typeof spinLabel === "string" && spinLabel === ""
+        ? "hidden"
+        : safeSpinLabel === "Working"
+          ? "quip"
+          : "verbatim";
     this.borderSpinner = spin ? new BorderTypeSpinner(this.isIdle, spinStyle) : undefined;
     if (spin) {
       // The style's native per-tick tempo × the `editorSpinSpeed` multiplier, 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32); unknown raw strings fall back to the typing native (the normalize fallback).
@@ -117,7 +131,13 @@ export class HephaestusEditor extends CustomEditor {
 
   // ── Prompt spin ───────────────────────────────────────
 
+  /** Advances the spin; in quip mode the per-episode selection lands BEFORE the border-spinner repaint. */
   private tickSpin(): void {
+    if (this.labelMode === "quip") {
+      const busy = this.spinEnabled && !this.isIdle();
+      if (busy && !this.wasBusy) this.spinQuip = pickQuip(this.spinQuip);
+      this.wasBusy = busy;
+    }
     if (this.borderSpinner && this.borderSpinner.tick()) {
       this.tui.requestRender();
     }
@@ -250,7 +270,8 @@ export class HephaestusEditor extends CustomEditor {
       // otherwise).
       const borderRun = (() => {
         const busy = this.spinEnabled && !this.isIdle();
-        const label = this.spinLabel;
+        // Quip mode: the current episode's quip replaces the default label (`spinQuip` is `undefined` before the first busy tick, so at most one tick shows the default `"Working"` — approved); `hidden` / `verbatim` render the config label as-is.
+        const label = this.labelMode === "quip" ? (this.spinQuip ?? this.spinLabel) : this.spinLabel;
         // Visible width (not `.length`): a 4-char CJK label is 8 cells wide — `label.length` would short the row.
         const labelW = visibleWidth(label);
         const labelShown =

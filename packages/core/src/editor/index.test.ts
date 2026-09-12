@@ -62,15 +62,30 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   return { CustomEditor, getAgentDir: () => "/nonexistent-pi-agent-dir" };
 });
 
+// Deterministic quip picker: `exclude === "Quip A" → "Quip B"` (the 2nd
+// episode never back-to-back repeats), anything else → "Quip A". The
+// baseline is the `vi.fn` constructor argument (NOT `.mockImplementation(...)`):
+// `afterEach`'s `vi.restoreAllMocks()` runs `mockReset()`, which clears the
+// implementation; dispatch then falls back to `state.getOriginal()`, which is
+// the constructor baseline for a `vi.fn(baselineFn)` (the `.mockImplementation`
+// form's original is the noop — `pickQuip → undefined` — and would silently
+// drop every default-label test after the first `afterEach`).
+vi.mock("./spin-quips.js", () => {
+  const baseline = (exclude?: string): string =>
+    exclude === "Quip A" ? "Quip B" : "Quip A";
+  return { pickQuip: vi.fn(baseline) };
+});
+
 import {
   HephaestusEditor,
   SPIN_TYPE_START,
   SPIN_TYPE_CELLS,
 } from "./index.js";
 import { SPIN_VARIANTS } from "./spin.js";
+import { pickQuip } from "./spin-quips.js";
 
-/** The default label (no `spinLabel` in the ctor options), including the leading AND trailing spaces the renderer contributes (`" " + label + " "`). */
-const LABEL = " Working ";
+/** The label the default-path tests assert on: ` Loading ` — 7 chars (9 with the leading AND trailing spaces the renderer contributes via `" " + label + " "`), the same visible width as the default "Working" (`labelFit` 16, `LABEL.length` 9). The default-path tests pass this explicitly so they stay verbatim-mode (with no `spinLabel` they would be quip-mode, where the row carries the mocked quip after the first busy tick). */
+const LABEL = " Loading ";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,7 +177,7 @@ const rowFirmsToDashes = (run: string, len: number): void => {
 
 // Compensated width for a 60-wide box (inner = 56): the block sits at start 0
 // right at the corner (leading space at column 0, the 4-cell window at 1–4,
-// ` Working ` with its leading AND trailing space at 5–13): the row minus the
+// ` Loading ` with its leading AND trailing space at 5–13): the row minus the
 // block's 14 columns is all hard `─` — those columns replaced trailing dashes,
 // so the row width stays constant.
 const compensatedAt60 = (run: string): void => {
@@ -255,7 +270,7 @@ describe("static prefix, plain idle edge", () => {
 describe("busy/idle repaint at the render level", () => {
   it("busy→idle: the plain border repaints exactly once, then idle ticks are no-ops", () => {
     // isIdle() returns false, false, true, true across the four ticks
-    const { editor, tui } = makeEditor({ spin: true, idleSeq: [false, false, true, true] });
+    const { editor, tui } = makeEditor({ spin: true, spinLabel: "Loading", idleSeq: [false, false, true, true] });
 
     tick(editor); // busy #1
     expect(tui.requestRender).toHaveBeenCalledTimes(1);
@@ -270,12 +285,12 @@ describe("busy/idle repaint at the render level", () => {
     expect(tui.requestRender).toHaveBeenCalledTimes(3);
   });
 
-  it("busy streak wraps at the 38-step cycle: clear beat is 4 spaces + ` Working ` (label stays up), then the block grows again", () => {
+  it("busy streak wraps at the 38-step cycle: clear beat is 4 spaces + ` Loading ` (label stays up), then the block grows again", () => {
     // 40 busy values: 37 to reach step 37, then the wrap tick (→ 0, clear beat)
     // and the regrowth tick (→ step 1); the render decision uses the
     // overridden isIdle below, the tick machine uses the constructor sequence.
     // The intent is the typing cycle (38 steps, braille frames) — explicit, since the default style is now pendulum.
-    const { editor } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: Array.from({ length: 40 }, () => false) });
+    const { editor } = makeEditor({ spin: true, spinStyle: "typing", spinLabel: "Loading", idleSeq: Array.from({ length: 40 }, () => false) });
     for (let i = 0; i < 37; i++) tick(editor); // s=1..37
     (editor as any).isIdle = () => false;
     tick(editor); // wraps to 0 — the clear beat
@@ -285,7 +300,7 @@ describe("busy/idle repaint at the render level", () => {
         SPIN_TYPE_START,
         SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
       ),
-    ).toBe( // `     Working` — the leading space + 4 clear spaces + the label
+    ).toBe( // `     Loading` — the leading space + 4 clear spaces + the label
       " " + "    " + LABEL,
     );
     tick(editor); // back to step 1 — cell 1 enters at ⠁
@@ -295,7 +310,7 @@ describe("busy/idle repaint at the render level", () => {
         SPIN_TYPE_START,
         SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
       ),
-    ).toBe(" ⠁   " + LABEL); // `⠁    Working`
+    ).toBe(" ⠁   " + LABEL); // `⠁    Loading`
     
   });
 });
@@ -307,41 +322,45 @@ describe("busy/idle repaint at the render level", () => {
 
 describe("typing strip on the top border row", () => {
   // 60-wide box (inner = 56): the full beat = leading space at 0 + 4-cell
-  // window + ` Working ` label (leading AND trailing space) when labelFit
-  // (16 for the default label) is met.
+  // window + ` Loading ` label (leading AND trailing space) when labelFit
+  // (16 for the 7-char label) is met.
   const beat = (ed: HephaestusEditor): string =>
     borderRun(ed.render(60), 60).slice(
       SPIN_TYPE_START,
       SPIN_TYPE_START + 1 + SPIN_TYPE_CELLS + LABEL.length,
     );
 
-  it("step 1: leading space at 0, then only cell 1 is `⠁` (dot block starts to grow), ` Working ` label follows", () => {
-    expect(beat(busyAt(1, { spinStyle: "typing" }))).toBe(" ⠁   " + LABEL);
-    rowFirmsToDashes(borderRun(busyAt(1, { spinStyle: "typing" }).render(60), 60), 56);
-    compensatedAt60(borderRun(busyAt(1, { spinStyle: "typing" }).render(60), 60));
+  it("step 1: leading space at 0, then only cell 1 is `⠁` (dot block starts to grow), ` Loading ` label follows", () => {
+    expect(beat(busyAt(1, { spinStyle: "typing", spinLabel: "Loading" }))).toBe(" ⠁   " + LABEL);
+    rowFirmsToDashes(borderRun(busyAt(1, { spinStyle: "typing", spinLabel: "Loading" }).render(60), 60), 56);
+    compensatedAt60(borderRun(busyAt(1, { spinStyle: "typing", spinLabel: "Loading" }).render(60), 60));
   });
 
   it("step 8 (line 1 complete): leading space at 0, all 4 cells are `⠉`, label follows", () => {
-    const ed = busyAt(8, { spinStyle: "typing" });
+    const ed = busyAt(8, { spinStyle: "typing", spinLabel: "Loading" });
     expect(beat(ed)).toBe(" ⠉⠉⠉⠉" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("step 32 (fully grown): leading space at 0, all 4 cells are `⣿`, label follows", () => {
-    const ed = busyAt(32, { spinStyle: "typing" });
+    const ed = busyAt(32, { spinStyle: "typing", spinLabel: "Loading" });
     expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + LABEL);
     rowFirmsToDashes(borderRun(ed.render(60), 60), 56);
     compensatedAt60(borderRun(ed.render(60), 60));
   });
 
   it("hold region (step 37): leading space at 0, full block holds — `⣿`×4 on, label still up (the hold clamp 33–38 is covered in spin.test.ts)", () => {
-    expect(beat(busyAt(37, { spinStyle: "typing" }))).toBe(" ⣿⣿⣿⣿" + LABEL);
+    const ed = busyAt(37, { spinStyle: "typing", spinLabel: "Loading" });
+    expect(beat(ed)).toBe(" ⣿⣿⣿⣿" + LABEL);
   });
 
   it("narrow width (14, inner 10): block at the corner (leading space at 0), window at 1, no label, row dash-compensated", () => {
-    // inner = 10 → 7 ≤ 10 < 16: window-only tier at start 0; trailing = 10 − 1 − 4 = 5
-    const run = borderRun(busyAt(4, { spinStyle: "typing" }).render(14), 14);
+    // inner = 10 → 7 ≤ 10 < 16: window-only tier at start 0; trailing = 10 − 1 − 4 = 5.
+    // Explicit verbatim label — the default (quip) mode would hand the seq-driven
+    // isIdle() a second per-tick consumer (the quip block, before the border
+    // spinner's own read) and reset the tick machine one tick early.
+    const run = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "Loading" }).render(14), 14);
     expect(run.slice(0, 1)).toBe(" ");
     expect(run.slice(1, 5)).toBe("⠉⠉  ");
     expect(run.slice(5)).toBe("─".repeat(5));
@@ -349,17 +368,17 @@ describe("typing strip on the top border row", () => {
     rowFirmsToDashes(run, 10);
   });
 
-  it("label-fit tiers: window-only at inner 15 (19, 10 trailing dashes); label on at inner 16 (20 = L + 9) — verbatim beat ` ⠛⠛⠛⠛ Working ` with 2 trailing dashes", () => {
-    const run15 = borderRun(busyAt(16, { spinStyle: "typing" }).render(19), 19);
+  it("label-fit tiers: window-only at inner 15 (19, 10 trailing dashes); label on at inner 16 (20 = L + 9) — verbatim beat ` ⠛⠛⠛⠛ Loading ` with 2 trailing dashes", () => {
+    const run15 = borderRun(busyAt(16, { spinStyle: "typing", spinLabel: "Loading" }).render(19), 19);
     expect(run15).not.toContain("Working"); // inner 15 < 16 → window-only tier
     expect(run15.slice(0, 1)).toBe(" ");
     expect(run15.slice(1, 5)).toBe("⠛⠛⠛⠛");
     expect(run15.slice(5)).toBe("─".repeat(10)); // trailing = 15 − 1 − 4 = 10
     rowFirmsToDashes(run15, 15);
-    const run = borderRun(busyAt(16, { spinStyle: "typing" }).render(20), 20); // inner = 16 = 0 + 1 + 4 + (1 + 7 + 1) + 2 (labelFit for L = 7)
+    const run = borderRun(busyAt(16, { spinStyle: "typing", spinLabel: "Loading" }).render(20), 20); // inner = 16 = 0 + 1 + 4 + (1 + 7 + 1) + 2 (labelFit for L = 7)
     expect(run.slice(0, 1)).toBe(" ");
     expect(run.slice(1, 5)).toBe("⠛⠛⠛⠛");
-    expect(run.slice(5, 14)).toBe(LABEL); // ` Working ` — leading AND trailing space
+    expect(run.slice(5, 14)).toBe(LABEL); // ` Loading ` — leading AND trailing space
     expect(run.slice(14)).toBe("─".repeat(2)); // trailing = 16 − 0 − 1 − 4 − (1 + 7 + 1) = 2
     rowFirmsToDashes(run, 16);
   });
@@ -457,10 +476,97 @@ describe("typing strip on the top border row", () => {
     rowFirmsToDashes(run, 56);
   });
 
-  it("non-string label (corrupt config): the ctor falls back to \"Working\" (never throws in visibleWidth)", () => {
+  it("non-string label (corrupt config): the ctor falls back to \"Working\" → quip mode — no crash, and the first episode's quip (mock ` Quip A `) is what renders", () => {
     const ed = busyAt(4, { spinStyle: "typing", spinLabel: null as unknown as string });
     const run = borderRun(ed.render(60), 60);
-    expect(run).toContain(LABEL);
+    expect(run).toContain(" Quip A ");
+    expect(run).not.toContain("Working");
+  });
+});
+
+// ── 3b. Spin quips (default / corrupt label → per-episode quip) ─────────────
+// The quip block runs in `tickSpin` BEFORE the border-spinner tick (the
+// selection lands before the first repaint). The default "Working" (and a
+// non-string corrupt config, which falls back to it) → quip mode: one quip
+// per busy episode, `exclude` = the previous episode's. An explicit
+// non-empty, non-"Working" label → verbatim; `""` → hidden; `spin: false`
+// → the timer never exists, so the quip block is unreachable (inert).
+
+describe("spin quips (per-episode selection)", () => {
+  it("default label (no spinLabel): the first busy pick shows (mock ` Quip A `) in a 60-col busy row — the literal ` Working ` label is NOT in the row", () => {
+    const run = borderRun(busyAt(1, { spinStyle: "typing" }).render(60), 60);
+    expect(run).toContain(" Quip A ");
+    expect(run).not.toContain(" Working ");
+  });
+
+  it("busy → idle → busy: the quip survives the idle (no re-pick on idle ticks); the 2nd episode re-picks with it excluded (mock ` Quip B `)", () => {
+    // the seq feeds isIdle() in [quip block, border spinner] order per tick:
+    // t1 busy (false, false), t2 idle (true, true), t3 busy (false, false).
+    const { editor } = makeEditor({
+      spin: true,
+      spinStyle: "typing",
+      idleSeq: [false, false, true, true, false, false],
+    });
+    tick(editor); // busy episode 1 → picks `Quip A`
+    tick(editor); // idle — the quip survives (no re-pick)
+    expect((editor as any).spinQuip).toBe("Quip A");
+    tick(editor); // busy episode 2 → re-picks with exclude `Quip A` → `Quip B`
+    expect((editor as any).spinQuip).toBe("Quip B");
+    (editor as any).isIdle = () => false;
+    const run = borderRun(editor.render(60), 60);
+    expect(run).toContain(" Quip B ");
+    expect(run).not.toContain(" Quip A ");
+  });
+
+  it("empty label (empty string): no label text in any tier — hidden mode, the quip block never runs (window-only even wide)", () => {
+    const wide = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "" }).render(60), 60);
+    expect(wide).not.toContain("Quip");
+    expect(wide).not.toContain("Working");
+    expect(wide.slice(0, 1)).toBe(" ");
+    expect(wide.slice(1, 5)).toBe("⠉⠉  ");
+    expect(wide.slice(5)).toBe("─".repeat(51)); // trailing = 56 − 1 − 4 = 51 (no label cost)
+    rowFirmsToDashes(wide, 56);
+    const narrow = borderRun(busyAt(4, { spinStyle: "typing", spinLabel: "" }).render(14), 14);
+    expect(narrow).not.toContain("Quip");
+    expect(narrow.slice(0, 1)).toBe(" ");
+    expect(narrow.slice(5)).toBe("─".repeat(5)); // window-only tier (inner 10)
+    rowFirmsToDashes(narrow, 10);
+  });
+
+  it("spin=false: fully inert — even when ticked, `spinEnabled` is false so the quip block never picks; the border row stays plain (no window, no label)", () => {
+    const { editor } = makeEditor({ spin: false, idleSeq: Array(4).fill(false) });
+    for (let i = 0; i < 4; i++) tick(editor);
+    (editor as any).isIdle = () => false;
+    const run = borderRun(editor.render(60), 60);
+    expect(run).toBe("─".repeat(56));
+    expect(run).not.toContain("Quip");
+  });
+
+  it("20-char quip (mock one-time override): hidden at width 32 (inner 28 < 29 = 20 + 9), shown at 33 (inner 29 = 1 + 4 + (1 + 20 + 1) + 2) with the floor-held trailing", () => {
+    // Single busy episode: ONE tick, and the seq hands BOTH per-tick isIdle()
+    // readers (the quip block, then the border spinner) a false — the
+    // one-time override is consumed exactly once by the quip block, and the
+    // stored quip is what both renders see.
+    vi.mocked(pickQuip).mockImplementationOnce(() => "TwentyCharsQuipQuiz!");
+    const { editor } = makeEditor({
+      spin: true,
+      spinStyle: "typing",
+      idleSeq: [false, false],
+    });
+    tick(editor);
+    (editor as any).isIdle = () => false;
+    const hidden = borderRun(editor.render(32), 32); // inner 28 < 29 → window-only tier
+    expect(hidden).not.toContain("TwentyCharsQuipQuiz!");
+    expect(hidden.slice(0, 1)).toBe(" ");
+    expect(hidden.slice(1, 5)).toBe("⠁   ");
+    expect(hidden.slice(5)).toBe("─".repeat(23)); // trailing = 28 − 1 − 4
+    rowFirmsToDashes(hidden, 28);
+    const shown = borderRun(editor.render(33), 33); // inner 29 = 0 + 1 + 4 + (1 + 20 + 1) + 2
+    expect(shown.slice(0, 1)).toBe(" ");
+    expect(shown.slice(1, 5)).toBe("⠁   ");
+    expect(shown.slice(5, 27)).toBe(" TwentyCharsQuipQuiz! "); // own leading AND trailing space
+    expect(shown.slice(27)).toBe("─".repeat(2)); // trailing = 29 − 1 − 4 − (1 + 20 + 1)
+    rowFirmsToDashes(shown, 29);
   });
 });
 
@@ -494,7 +600,10 @@ describe("timer lifecycle & gating", () => {
 
   it("spinStyle \"wave-rows\" (ported — batch 2): a never-ticked busy box shows the wave-rows step-0 window (⢦⣠⠞⠙), NOT the typing fallback (⠁)", () => {
     // hold-0 port styles run the full source loop: step 0 is the real first frame (no blank beat).
-    const { editor } = makeEditor({ spin: true, spinStyle: "wave-rows" });
+    // Explicit verbatim label — this box is never ticked, so its row carries the
+    // label as-is (a quip-mode box would flash the default "Working" for one
+    // un-ticked render before the first pick).
+    const { editor } = makeEditor({ spin: true, spinStyle: "wave-rows", spinLabel: "Loading" });
     (editor as any).isIdle = () => false;
     const wave0 = SPIN_VARIANTS["wave-rows"]!.compute(0);
     const cellStr = wave0
@@ -582,12 +691,12 @@ describe("timer lifecycle & gating", () => {
 // ── 5. EAW fallback (⣿ reports width 2 → stage set flips to shading) ──────
 
 describe("EAW terminal fallback", () => {
-  it("⣿ reports width 2: the window uses the shade set (░→█) in the same cell-wise order, no braille in the row, the ` Working ` label stays (ASCII-safe)", () => {
+  it("⣿ reports width 2: the window uses the shade set (░→█) in the same cell-wise order, no braille in the row, the ` Loading ` label stays (ASCII-safe)", () => {
     const braille = ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"];
     widthProbe.probe = (s: string) => (s === "⣿" ? 2 : s.length);
     try {
       const expectWindow = (s: number, window: string) => {
-        const run = borderRun(busyAt(s, { spinStyle: "typing" }).render(60), 60);
+        const run = borderRun(busyAt(s, { spinStyle: "typing", spinLabel: "Loading" }).render(60), 60);
         expect(run.slice(SPIN_TYPE_START, SPIN_TYPE_START + 1)).toBe(" ");
         expect(
           run.slice(
