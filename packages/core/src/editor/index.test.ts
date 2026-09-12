@@ -73,7 +73,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
 vi.mock("./spin-quips.js", () => {
   const baseline = (exclude?: string): string =>
     exclude === "Quip A" ? "Quip B" : "Quip A";
-  return { pickQuip: vi.fn(baseline) };
+  return { pickQuip: vi.fn(baseline), QUIP_ROTATION_MIN_SECS: 15, QUIP_ROTATION_MAX_SECS: 45 };
 });
 
 import {
@@ -567,6 +567,98 @@ describe("spin quips (per-episode selection)", () => {
     expect(shown.slice(5, 27)).toBe(" TwentyCharsQuipQuiz! "); // own leading AND trailing space
     expect(shown.slice(27)).toBe("─".repeat(2)); // trailing = 29 − 1 − 4 − (1 + 20 + 1)
     rowFirmsToDashes(shown, 29);
+  });
+});
+
+// ── 3c. Quip timer rotation (in-episode re-rotation, random 15–45s) ──
+// The in-episode rotation rides the existing spin tick (no new interval):
+// a counter accumulates while busy; at the per-episode random threshold
+// (inclusive 15–45s from the injected `quipRand`, `ceil` ticks, never
+// shorter than requested) the quip is re-picked (`exclude` = current, the
+// same one-re-roll contract). A new episode always re-picks + resets.
+// Idle freezes the counter (no rotation across gaps; the label persists).
+// Forced periods go through `as any` field overrides (no setting reaches
+// them: `SPIN_INTERVALS` max 80 ms × 1.5 (slow) = 120 ms); they must be
+// applied before the first busy tick (the window is drawn lazily there).
+
+describe("spin quips (in-episode timer rotation)", () => {
+  it("window threshold: 300 ms (divides 15000/30000/45000) → exact 15 / 30 / 45 s for the forced rand 0 / 0.5 / 1, within the ceil-form bounds", () => {
+    const draws: Array<[number, number]> = [[0, 50], [0.5, 100], [0.999, 150]];
+    for (const [r, ticksExact] of draws) {
+      const { editor } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: [false] });
+      (editor as any).spinTickMs = 300;
+      (editor as any).quipRand = () => r;
+      tick(editor); // episode start → window drawn
+      const ticks = (editor as any).spinQuipEveryTicks as number;
+      expect(ticks, `rand ${r}`).toBe(ticksExact);
+    }
+  });
+
+  it("window threshold: 2000 ms + rand 1 → ceil(22.5) = 23 ticks = 46 s — the ceil-form bounds hold (never shorter than the request; at most one tick past the max)", () => {
+    const { editor } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: [false] });
+    (editor as any).spinTickMs = 2000;
+    (editor as any).quipRand = () => 1;
+    tick(editor);
+    const ticks = (editor as any).spinQuipEveryTicks as number;
+    expect(ticks).toBe(23);
+    const seconds = (ticks * 2000) / 1000;
+    expect(seconds).toBeGreaterThanOrEqual(15);
+    expect(seconds).toBeLessThan(45 + 2000 / 1000);
+  });
+
+  it("one long busy episode (T = 50, N = 60 ticks @ 300 ms, T < N < 2T): exactly one re-pick (at tick 50, `exclude` = the previous), counter reset, next window re-drawn, border shows the rotation's quip", () => {
+    const { editor } = makeEditor({
+      spin: true,
+      spinStyle: "typing",
+      // The seq feeds isIdle() in [quip block, border spinner] order — two readers per tick.
+      idleSeq: Array(120).fill(false),
+    });
+    (editor as any).spinTickMs = 300;
+    (editor as any).quipRand = () => 0;
+    for (let i = 0; i < 60; i++) tick(editor);
+    expect(pickQuip).toHaveBeenCalledTimes(2); // episode pick + the one rotation
+    expect(pickQuip).toHaveBeenNthCalledWith(2, "Quip A", expect.any(Function));
+    expect((editor as any).spinQuip).toBe("Quip B");
+    expect((editor as any).spinQuipTicks).toBe(9); // 60 − 50, reset after the re-pick
+    expect((editor as any).spinQuipEveryTicks).toBe(50); // re-drawn (rand 0)
+    (editor as any).isIdle = () => false; // render reads isIdle() itself (the seq is exhausted)
+    const run = borderRun(editor.render(60), 60);
+    expect(run).toContain(" Quip B ");
+  });
+
+  it("while idle: the counter is frozen (no cumulative rotation across the gap, 44 + 30 idle < never reached), the pick count doesn't move, and the label survives; the next episode re-picks + resets", () => {
+    const { editor } = makeEditor({
+      spin: true,
+      spinStyle: "typing",
+      // Two readers per tick: 45 busy ticks = 90 falses, 30 idle ticks = 60 trues, 2 busy ticks = 4 falses.
+      idleSeq: [...Array(90).fill(false), ...Array(60).fill(true), false, false, false, false],
+    });
+    (editor as any).spinTickMs = 300;
+    (editor as any).quipRand = () => 0;
+    for (let i = 0; i < 45; i++) tick(editor); // busy → ticks 44 (< T = 50)
+    expect((editor as any).spinQuipTicks).toBe(44);
+    for (let i = 0; i < 30; i++) tick(editor); // idle → frozen
+    expect((editor as any).spinQuipTicks).toBe(44);
+    expect(pickQuip).toHaveBeenCalledTimes(1);
+    expect((editor as any).spinQuip).toBe("Quip A");
+    for (let i = 0; i < 2; i++) tick(editor); // busy again → new episode: pick #2 + reset
+    expect(pickQuip).toHaveBeenCalledTimes(2);
+    expect(pickQuip).toHaveBeenNthCalledWith(2, "Quip A", expect.any(Function));
+    expect((editor as any).spinQuip).toBe("Quip B");
+    expect((editor as any).spinQuipTicks).toBe(1);
+  });
+
+  it("real (unmocked) rand: 10 consecutive episode windows all within [15 s, 45 s + 1 tick period)", () => {
+    for (let i = 0; i < 10; i++) {
+      const { editor } = makeEditor({ spin: true, spinStyle: "typing", idleSeq: [false, true] });
+      tick(editor); // episode start — the default `Math.random` quipRand draws the window
+      const ticks = (editor as any).spinQuipEveryTicks as number;
+      const ms = (editor as any).spinTickMs as number;
+      const seconds = (ticks * ms) / 1000;
+      expect(seconds, `window ${i + 1}`).toBeGreaterThanOrEqual(15);
+      expect(seconds, `window ${i + 1}`).toBeLessThan(45 + ms / 1000);
+      tick(editor); // idle — end of episode
+    }
   });
 });
 
