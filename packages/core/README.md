@@ -30,7 +30,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 
 - **Splash screen** — an animated greeting when the session launches, in one of nine reveal styles (`diagonal`, `top-right`, `bottom-left`, `bottom-right`, `center-out`, `wave`, `horizontal`, `vertical`, `vertical-up`).
 - **Framed editor** — your input in a clean bordered frame, with a double-press guard on the quit key (`Ctrl+C` by default) so a stray keystroke doesn't end the session.
-- **Working spinner on the border** — one of ten animating styles (`pendulum`, `typing`, `pulse`, `marquee`, `wave-rows`, `columns`, `cascade`, `diagonal-swipe`, `rain`, `sparkle`) traces the editor frame while the agent works, replacing Pi's native "Working" line. When `editorSpinLabel` is at its default, the label switches to a random quip once per busy episode; set a custom value to pin a label (an empty value still hides it).
+- **Working spinner on the border** — one of ten animating styles (`pendulum`, `typing`, `pulse`, `marquee`, `wave-rows`, `columns`, `cascade`, `diagonal-swipe`, `rain`, `sparkle`) traces the editor frame while the agent works, replacing Pi's native "Working" line. When `editorSpinLabel` is at its default, the label switches to a random quip per busy episode — re-picked on a subtle random 15–45 s timer while long episodes continue; set a custom value to pin a label (an empty value still hides it).
 - **Thinking blocks** — chain-of-thought output gets a consistent label, colour, and layout; `codeUnindent` strips the common indentation so code in reasoning reads flush.
 - **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent costs flow to the footer through it, subagent todos to the task board, subagent questions to the ask UI.
 - **Shared utilities** — text truncation and width measurement, colour formatting, settings I/O, and startup profiling.
@@ -44,7 +44,7 @@ Settings live in `~/.pi/agent/settings.json` under `archimedes.core`. The file i
 | `editorSpinBorder` | bool | `true` | Show the animated border spinner while the agent works |
 | `editorSpinStyle` | string | `pendulum` | One of the ten spinner styles |
 | `editorSpinSpeed` | string | `normal` | `slow`, `normal`, or `fast` |
-| `editorSpinLabel` | string | `Working` | Label shown alongside the border spinner; the default is replaced by a random quip per busy episode — set a custom value to pin it (empty still hides it) |
+| `editorSpinLabel` | string | `Working` | Label shown alongside the border spinner; the default is replaced by a random quip per busy episode (re-picked on a subtle random 15–45 s timer while long episodes continue) — set a custom value to pin it (empty still hides it) |
 | `animationStyle` | string | `vertical-up` | Splash-screen reveal style (the nine styles above) |
 | `labelText` | string | `Thinking...` | Prefix before thinking blocks |
 | `labelColor` | string | `255,215,0` | RGB string for the thinking label |

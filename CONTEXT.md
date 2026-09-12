@@ -69,7 +69,7 @@ The span from the agent becoming busy (idle → working) back to idle; the unit 
 _Avoid_: Work session, agent turn, working span
 
 **Spin quip**:
-A fun (≤ 64 visible chars, ASCII-only) random label shown in the editor's border spinner window; picked per busy episode whenever `editorSpinLabel` is left at its default (a custom label wins; empty hides).
+A fun (≤ 64 visible chars, ASCII-only) random label shown in the editor's border spinner window; picked per busy episode and re-picked on a subtle random 15–45 s timer while a long episode continues (a new episode always re-picks and resets the window; idle freezes it, so the label survives gaps); it applies whenever `editorSpinLabel` is left at its default (a custom label wins; empty hides).
 _Avoid_: Rotating label, joke text, spinner text
 
 ## Notify terminology
