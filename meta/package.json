@@ -1,6 +1,10 @@
 {
   "name": "pi-archimedes",
   "version": "2.7.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielcherubini/pi-archimedes.git"
+  },
   "type": "module",
   "keywords": [
     "pi-package"
