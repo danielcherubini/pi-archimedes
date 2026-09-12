@@ -48,7 +48,7 @@
 | # | Plan | Status | Created |
 |---|------|--------|---------|
 | 36 | [First-run keybinding offer](plan-036-first-run-keybinding-offer.md) | IN PROGRESS (unassigned) | 2026-09-11 |
-| 37 | [Random spinner quips](plan-037-spinner-quips.md) | IN PROGRESS (unassigned) | 2026-09-12 |
+| 37 | [Random spinner quips](plan-037-spinner-quips.md) | IN PROGRESS (PR #50, `5258a8c`) | 2026-09-12 |
 ## Backlog
 
 | # | Plan | Status | Created |
