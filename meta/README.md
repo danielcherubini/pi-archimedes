@@ -64,7 +64,7 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
    }
    ```
 
-   If it already exists, just add/set `"app.clipboard.pasteImage": []` in there and run `/reload`.
+   If it already exists, just add/set `"app.clipboard.pasteImage": []` in there and run `/reload`. Or skip the step entirely if the file doesn't exist yet: on the first TUI session the suite offers to create it automatically with the snippet above — accepting creates it (then run `/reload`); declining or cancelling (Esc) never asks again.
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 
@@ -170,7 +170,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 ## Settings
 
-Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md) (chrome, spinner, thinking), [footer](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/footer/README.md), [diff](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/diff/README.md), [notify](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/notify/README.md), [mcp](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/mcp/README.md), and [sudo](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
+Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/core/README.md) (chrome, spinner, thinking), [footer](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/footer/README.md), [diff](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/diff/README.md), [notify](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/notify/README.md), [mcp](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/mcp/README.md), [image-paste](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/image-paste/README.md), and [sudo](https://github.com/danielcherubini/pi-archimedes/blob/main/packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
 
 ---
 

@@ -42,12 +42,25 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0.
 > ```json
 > { "app.clipboard.pasteImage": [] }
 > ```
+>
+> **First-run offer (once ever, all platforms)** — on the first TUI session with image-paste enabled, if `~/.pi/agent/keybindings.json` doesn't exist yet, the suite offers to create it with exactly the snippet above: accepting creates the file (you're told to `/reload`), declining or cancelling (Esc) never asks again — re-open by deleting `archimedes.imagePaste.keybindingsPromptDone` from `~/.pi/agent/settings.json`.
 
 ## Per-platform requirements
 
 - **Linux** — a graphical session (`DISPLAY` or `WAYLAND_DISPLAY`) and one of `wl-clipboard` (tried first on Wayland sessions), `xclip` (tried first on X11), or the `@mariozechner/clipboard` native module. Termux is not supported.
 - **macOS** — the only image reader on macOS is the `@mariozechner/clipboard` native module (no other CLI fallback); it ships inside the `pi-coding-agent` installation but must be importable from the extension's location, so if your Pi install's layout puts it out of resolution reach, a read reports the reader as unavailable — make the module resolvable beside the extension and `/reload`.
 - **Windows** — the `@mariozechner/clipboard` native module first, with a PowerShell fallback.
+
+## Settings
+
+`~/.pi/agent/settings.json`, under `archimedes.imagePaste` (strict JSON):
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `enabled` | bool | `true` | On/off for the extension, via `/plugins` (suite-managed) |
+| `keybindingsPromptDone` | bool | `false` | Set true once the first-run keybindings.json offer has been answered (accept or decline); delete to re-open the offer |
+
+In the suite on/off is managed by the suite: toggle via `/plugins` (`archimedes.imagePaste.enabled`, default on).
 
 ## Part of the suite
 
