@@ -60,9 +60,20 @@ function markPromptDone(ctx: ExtensionContext): void {
  * one-shot flag; declining or cancelling (Esc/timeout — `confirm` resolves
  * `false` either way) sets the flag without touching the file. A failed file
  * write leaves the flag unset, so the offer self-heals next session.
+ *
+ * **Concurrent-session edge:** if the user runs `/new` or `/reload` while the
+ * confirm dialog is still open, `ctx.ui.confirm` resolves `false` (the TUI
+ * tears down). This counts as a decline — the flag is set and the offer will
+ * not appear again. To reset it, delete `archimedes.imagePaste.keybindingsPromptDone`
+ * from `~/.pi/agent/settings.json`.
  */
 export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
-  // Gate 1: extension on
+  // Gate 1: extension on.
+  // NOTE: reading archimedes.imagePaste.enabled in-package is a sanctioned
+  // exception to the AGENTS.md "Plugin on/off" rule and ADR 0012 — this
+  // function runs from the meta session_start handler before plugin
+  // registration, so there is no registration gate to catch it here.
+  // See docs/decisions/0012-plugin-gate-in-package-namespace.md § Exception.
   if (!isConfigEnabled(NAMESPACE)) {
     return;
   }

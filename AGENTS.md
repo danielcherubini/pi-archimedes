@@ -57,7 +57,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 ### Config
 - Each package reads its own namespace in `~/.pi/agent/settings.json`
 - Core: `archimedes.core`, Footer: `archimedes.footer`, Diff: `archimedes.diff`, Session-name: `archimedes.sessionName`
-- Plugin on/off: a non-core package's namespace may carry a suite-managed `enabled` boolean (default on when absent). **Only meta reads/writes it**, via `/plugins` (`isPluginEnabled` / `setPluginEnabled` in `meta/src/plugins.ts`, ADR 0012). Package code must never read it as a runtime guard, and it never appears in a package's own settings items
+- Plugin on/off: a non-core package's namespace may carry a suite-managed `enabled` boolean (default on when absent). **Only meta reads/writes it**, via `/plugins` (`isPluginEnabled` / `setPluginEnabled` in `meta/src/plugins.ts`, ADR 0012). Package code must never read it as a runtime guard, and it never appears in a package's own settings items — except the first-run keybinding offer (image-paste gate 1, plan-approved 2026-09-11, see ADR 0012 Exception), which runs from the meta `session_start` handler before plugin registration and must read the flag directly to honour a plugin-off toggle
 - No migration from old `hephaestus` keys
 
 ### No Build Step
