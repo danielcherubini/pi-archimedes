@@ -140,6 +140,10 @@ importers:
         version: 6.0.3
 
   packages/image-paste:
+    dependencies:
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.85.1

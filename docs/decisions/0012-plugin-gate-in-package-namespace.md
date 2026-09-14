@@ -12,3 +12,9 @@ Consequences:
 - **Plan-030 (sudo) constraint flips.** ADR 0011 said sudo must NOT ship its own `enabled` flag. Under this shape it MUST, like every other package: `archimedes.sudo.enabled`, gated by the same meta mechanism, no sudo-internal runtime guard. Plan-030's "sudo has NO enabled config" cross-note is voided by this ADR.
 - New packages ship a manifest entry whose `namespace` is their settings key; the `enabled` key appears in their namespace only when a user toggles them off (or keeps an explicit on) — nothing else.
 - The legacy map will no longer exist in settings.json after first run of a build that includes this change.
+
+## Exception — first-run keybinding offer (image-paste, plan-approved 2026-09-11)
+
+`packages/image-paste/src/keybinding-offer.ts` intentionally reads `archimedes.imagePaste.enabled` in-package (gate 1 of `offerKeybindingFix`). This is a sanctioned deviation from the rule above, approved with the first-run keybinding offer plan (`docs/roadmap/first-run-keybinding-offer.md`, direction approved 2026-09-11, after this ADR was written).
+
+The reason the general rule cannot apply here: `offerKeybindingFix` is invoked from the meta `session_start` handler **before** plugin registration runs, so there is no registration gate to catch it. Reading `archimedes.imagePaste.enabled` directly is the only way to honour a user's plugin-off toggle for this specific call path. The gate is read-only (it never writes the key) and is the sole in-package consumer, preserving the single-writer guarantee that this ADR protects.
