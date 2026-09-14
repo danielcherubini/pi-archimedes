@@ -43,7 +43,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 // re-exported from the package root.
 type Mode = "tui" | "rpc" | "json" | "print";
 
-const { offerKeybindingFix } = await import("./keybinding-offer.js");
+const { offerKeybindingFix, CREATED_NOTIFY } = await import("./keybinding-offer.js");
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const NAMESPACE = "archimedes.imagePaste";
 const SNIPPET = '{ "app.clipboard.pasteImage": [] }';
 /** What a concurrent process writes into keybindings.json at rename time. */
 const CONCURRENT_CONTENT = '{ "app.clipboard.pasteImage": ["ctrl+v"] }';
-const CREATED_MSG = "Created ~/.pi/agent/keybindings.json — /reload applies it";
+
 
 const settingsPath = (): string => join(tempDir, "settings.json");
 const keybindingsPath = (): string => join(tempDir, "keybindings.json");
@@ -219,7 +219,7 @@ describe("offerKeybindingFix — gate matrix", () => {
       if (shouldAsk && outcome === "yes") {
         expect(
           callArgs(notify).some(
-            (c) => c[0] === CREATED_MSG && c[1] === "info",
+            (c) => c[0] === CREATED_NOTIFY && c[1] === "info",
           ),
         ).toBe(true);
       } else {
@@ -318,7 +318,7 @@ describe("flag write throws → notify, no crash (file write already succeeded)"
 
     const args = callArgs(notify);
     expect(
-      args.some((c) => c[0] === CREATED_MSG && c[1] === "info"),
+      args.some((c) => c[0] === CREATED_NOTIFY && c[1] === "info"),
     ).toBe(true); // the file WAS created
     expect(args.some((c) => c[1] === "warning" && String(c[0]).length > 0)).toBe(true); // flag save error: non-empty warning message
   });
@@ -361,7 +361,7 @@ describe("concurrent creation is never clobbered", () => {
     expect(readFlag()).toBe(true);
     // We did not create the file, so we do not claim to
     expect(
-      callArgs(notify).some((c) => c[0] === CREATED_MSG),
+      callArgs(notify).some((c) => c[0] === CREATED_NOTIFY),
     ).toBe(false);
   });
 });

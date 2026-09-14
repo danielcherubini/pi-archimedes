@@ -149,8 +149,9 @@ function freshFactory(): {
   // The LAST session_start handler is the lazy-load one (existing tests rely on this).
   const startRc = (startRcs[startRcs.length - 1] ?? expect.fail("no session_start handler")) as (...args: unknown[]) => unknown;
   const shutdownRc = (shutdownRcs[shutdownRcs.length - 1] ?? expect.fail("no session_shutdown handler")) as (...args: unknown[]) => unknown;
-  // The keybinding-offer handler is the one registered BEFORE the lazy-load
-  // handler (i.e. at index 0 for session_start), fire it in isolation.
+  // The keybinding-offer handler is at index 0 in this fully-mocked harness —
+  // all earlier package registrations are stubbed to no-op vi.fn(); if a
+  // package is un-mocked here, update the index.
   const offerRc = (startRcs[0] ?? expect.fail("no offer session_start handler")) as (...args: unknown[]) => unknown;
 
   return {

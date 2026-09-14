@@ -18,7 +18,7 @@ const CONFIRM_MESSAGE =
 /** Exactly the snippet from packages/image-paste/README.md → "Paste shortcuts". */
 const SNIPPET_JSON = '{ "app.clipboard.pasteImage": [] }';
 
-const CREATED_NOTIFY = "Created ~/.pi/agent/keybindings.json — /reload applies it";
+export const CREATED_NOTIFY = "Created ~/.pi/agent/keybindings.json — /reload applies it";
 
 interface PromptConfig {
   keybindingsPromptDone: boolean;
