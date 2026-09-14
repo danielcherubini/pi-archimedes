@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { isConfigEnabled, loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
+import { isConfigEnabled, loadConfig, updateConfig } from "@pi-archimedes/core/settings-io";
 
 const NAMESPACE = "archimedes.imagePaste";
 
@@ -31,17 +31,19 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Persist `keybindingsPromptDone: true` via load-modify-save: `saveConfig`
- * REPLACES the namespace object (settings-io.ts), so the merge is mandatory or
- * other keys under archimedes.imagePaste would be erased. Never throws: a
- * failed save notifies and leaves the flag unset (gate 4 blocks the re-offer
- * once the file exists anyway).
+ * Persist `keybindingsPromptDone: true` via updateConfig: optimistic re-read
+ * check + bounded retry, so a concurrent write to settings.json (e.g. another
+ * session's /plugins toggle) is detected and re-read — the flag save cannot
+ * clobber a newer `enabled` value. Never throws: a failed save notifies and
+ * leaves the flag unset (gate 4 blocks the re-offer once the file exists anyway).
  */
 function markPromptDone(ctx: ExtensionContext): void {
   try {
-    const cfg = loadConfig<PromptConfig>(NAMESPACE, { ...PROMPT_DEFAULTS });
-    cfg.keybindingsPromptDone = true;
-    saveConfig(NAMESPACE, cfg);
+    updateConfig<PromptConfig>(
+      NAMESPACE,
+      PROMPT_DEFAULTS,
+      (cfg) => ({ ...cfg, keybindingsPromptDone: true }),
+    );
   } catch (error) {
     ctx.ui.notify(
       `Could not persist keybinding prompt flag: ${messageOf(error)}`,
