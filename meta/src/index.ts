@@ -86,12 +86,12 @@ export default function (pi: ExtensionAPI): void {
   // → confirm) are self-contained, so ordering with that handler is not a
   // correctness issue.
   //
-  // Deliberately NOT gated with isPluginEnabled("image-paste"): the
-  // module's own gate 1 (isConfigEnabled("archimedes.imagePaste")) is the
-  // single gate — meta's gate reads a different namespace key (ADR 0012),
-  // and double-gating would drift. This handler runs unconditionally on
-  // every session_start; when not applicable the module's gates make it a
-  // no-op.
+  // Deliberately NOT gated with isPluginEnabled("image-paste"): that call
+  // resolves to isConfigEnabled("archimedes.imagePaste") (ADR 0012), which
+  // is exactly the same key the module's own gate 1 already checks — adding
+  // a wrapper here would be a redundant duplicate of the identical check.
+  // This handler runs unconditionally on every session_start; the module's
+  // five gates make it a no-op when not applicable.
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     // Fire-and-forget: the offer is async (it may block on a user
     // confirm) and must never block or take down session startup — any
