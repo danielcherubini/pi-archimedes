@@ -89,12 +89,14 @@ function cleanupArtifacts(): void {
 function makeCtx(mode: Mode) {
   const confirm = vi.fn();
   const notify = vi.fn();
+  const reload = vi.fn(async () => {});
   const ctx = {
     mode,
     hasUI: true,
     ui: { confirm, notify },
+    reload,
   } as unknown as ExtensionContext;
-  return { ctx, confirm, notify };
+  return { ctx, confirm, notify, reload };
 }
 
 function callArgs(m: ReturnType<typeof vi.fn>): unknown[][] {
@@ -321,6 +323,109 @@ describe("flag write throws → notify, no crash (file write already succeeded)"
       args.some((c) => c[0] === CREATED_NOTIFY && c[1] === "info"),
     ).toBe(true); // the file WAS created
     expect(args.some((c) => c[1] === "warning" && String(c[0]).length > 0)).toBe(true); // flag save error: non-empty warning message
+  });
+});
+
+// ── auto-reload on accept ────────────────────────────────────────────────────
+
+describe("auto-reload on accept", () => {
+  it("yes path: ctx.reload() called exactly once after flag is persisted and CREATED_NOTIFY emitted", async () => {
+    // Track invocation order so we can assert flag is persisted before reload.
+    const order: string[] = [];
+    const { ctx, confirm, notify, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(true);
+    // Wrap the reload spy to record when it's called relative to flag write.
+    reload.mockImplementation(async () => {
+      // At this point the flag must already be persisted to disk.
+      order.push(readFlag() ? "flag-then-reload" : "reload-before-flag");
+    });
+    notify.mockImplementation((...args: unknown[]) => {
+      if ((args[0] as string) === CREATED_NOTIFY) order.push("notify");
+    });
+
+    await offerKeybindingFix(ctx);
+
+    // reload called exactly once
+    expect(reload).toHaveBeenCalledTimes(1);
+    // flag was already set when reload ran
+    expect(order).toContain("flag-then-reload");
+    expect(order).not.toContain("reload-before-flag");
+    // CREATED_NOTIFY emitted before reload
+    const notifyIdx = order.indexOf("notify");
+    const reloadIdx = order.indexOf("flag-then-reload");
+    expect(notifyIdx).toBeGreaterThanOrEqual(0);
+    expect(reloadIdx).toBeGreaterThan(notifyIdx);
+    // File written
+    expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
+    // CREATED_NOTIFY contains "reloading now"
+    expect(CREATED_NOTIFY).toContain("reloading now");
+  });
+
+  it("no path: ctx.reload() NOT called", async () => {
+    const { ctx, confirm, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(false);
+    await offerKeybindingFix(ctx);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("cancel (resolves false) path: ctx.reload() NOT called", async () => {
+    const { ctx, confirm, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(false); // Esc/timeout: same as no
+    await offerKeybindingFix(ctx);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("file-write-fails path: ctx.reload() NOT called", async () => {
+    // Block the file write by making the tmp path a directory
+    fs.mkdirSync(tmpPath(), { recursive: true });
+    const { ctx, confirm, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(true);
+    await offerKeybindingFix(ctx);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("reload rejects: offer still resolves, flag persisted, file present, CREATED_NOTIFY emitted", async () => {
+    const { ctx, confirm, notify, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(true);
+    reload.mockRejectedValue(new Error("Reload failed"));
+
+    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+
+    // File must have been written
+    expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
+    // Flag must have been set (reload runs after flag)
+    expect(readFlag()).toBe(true);
+    // CREATED_NOTIFY must have been emitted (fires before reload)
+    expect(
+      (notify.mock.calls as unknown[][]).some(
+        (c) => c[0] === CREATED_NOTIFY && c[1] === "info",
+      ),
+    ).toBe(true);
+    // reload was still attempted once
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TOCTOU path: ctx.reload() NOT called", () => {
+  it("file created between gate 4 and pre-rename re-check: reload NOT called", async () => {
+    let kbHits = 0;
+    existsSyncSpy.mockImplementation((p: unknown) => {
+      const s = String(p);
+      if (s === keybindingsPath()) {
+        kbHits += 1;
+        if (kbHits >= 2) {
+          if (!fs.existsSync(s)) fs.writeFileSync(s, CONCURRENT_CONTENT, "utf-8");
+          return true;
+        }
+      }
+      return fs.existsSync(s);
+    });
+
+    const { ctx, confirm, reload } = makeCtx("tui");
+    confirm.mockResolvedValue(true);
+    await offerKeybindingFix(ctx);
+
+    expect(reload).not.toHaveBeenCalled();
   });
 });
 
