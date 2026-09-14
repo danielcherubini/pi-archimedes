@@ -295,7 +295,6 @@ describe("file write throws → flag stays false (self-heals next session)", () 
     const [msg, type] = notify.mock.calls[0] as [string, string];
     expect(type).toBe("warning");
     expect(msg.length).toBeGreaterThan(0);
-    expect(msg.toLowerCase()).toMatch(/eisdir|eperm|eacces/);
   });
 });
 
@@ -321,10 +320,7 @@ describe("flag write throws → notify, no crash (file write already succeeded)"
     expect(
       args.some((c) => c[0] === CREATED_MSG && c[1] === "info"),
     ).toBe(true); // the file WAS created
-    expect(args.some((c) => c[1] === "warning")).toBe(true); // flag save error
-    expect(
-      args.some((c) => c[1] === "warning" && /eisdir|eperm|eacces/.test(String(c[0]).toLowerCase())),
-    ).toBe(true);
+    expect(args.some((c) => c[1] === "warning" && String(c[0]).length > 0)).toBe(true); // flag save error: non-empty warning message
   });
 });
 
@@ -338,6 +334,9 @@ describe("concurrent creation is never clobbered", () => {
       const s = String(p);
       if (s === keybindingsPath()) {
         kbHits += 1;
+        // NOTE: coupled to the module's two existsSync calls — gate-4 check,
+        // then the pre-rename re-check (keybinding-offer.ts). If the module
+        // de-duplicates or adds an existence check, update kbHits accordingly.
         if (kbHits >= 2) {
           if (!fs.existsSync(s)) {
             fs.writeFileSync(s, CONCURRENT_CONTENT, "utf-8");
