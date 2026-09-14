@@ -17,7 +17,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 }));
 
 // Import after mocks are set up
-const { loadConfig, saveConfig, removeConfig, isConfigEnabled, setConfigEnabled } = await import("./settings-io.js");
+const { loadConfig, saveConfig, removeConfig, isConfigEnabled, setConfigEnabled, updateConfig } = await import("./settings-io.js");
 
 describe("removeConfig", () => {
   beforeEach(() => {
@@ -240,5 +240,116 @@ describe("saveConfig", () => {
     expect(data["test.ns"]).toEqual({ foo: "bar" });
     // No .tmp file should remain after successful rename
     expect(fs.existsSync(settingsPath + ".tmp")).toBe(false);
+  });
+});
+
+describe("updateConfig", () => {
+  const settingsPath = () => join(tempDir, "settings.json");
+
+  beforeEach(() => {
+    const p = settingsPath();
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  });
+
+  afterEach(() => {
+    const p = settingsPath();
+    const tmpP = p + ".tmp";
+    try { fs.unlinkSync(p); } catch { /* ignore */ }
+    try { fs.unlinkSync(tmpP); } catch { /* ignore */ }
+  });
+
+  it("applies mutation onto defaults when settings.json does not exist", () => {
+    const result = updateConfig(
+      "test.ns",
+      { done: false, count: 0 },
+      (cfg) => ({ ...cfg, done: true }),
+    );
+    expect(result).toEqual({ done: true, count: 0 });
+    const data = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+    expect(data["test.ns"]).toEqual({ done: true, count: 0 });
+  });
+
+  it("preserves sibling namespaces AND other keys of the target namespace", () => {
+    fs.writeFileSync(
+      settingsPath(),
+      JSON.stringify({
+        "test.ns": { done: false, extra: 99 },
+        "other.ns": { sibling: "value" },
+      }),
+      "utf-8",
+    );
+    const result = updateConfig(
+      "test.ns",
+      { done: false, extra: 0 },
+      (cfg) => ({ ...cfg, done: true }),
+    );
+    expect(result).toEqual({ done: true, extra: 99 });
+    const data = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+    expect(data["test.ns"]).toEqual({ done: true, extra: 99 });
+    expect(data["other.ns"]).toEqual({ sibling: "value" });
+  });
+
+  it("concurrent-change detection: detects a mid-mutation external write and retries; final file contains both the external key and the mutated value", () => {
+    fs.writeFileSync(
+      settingsPath(),
+      JSON.stringify({ "test.ns": { done: false } }),
+      "utf-8",
+    );
+
+    let mutateCallCount = 0;
+    const result = updateConfig(
+      "test.ns",
+      { done: false },
+      (cfg) => {
+        mutateCallCount += 1;
+        // On the first call, simulate a concurrent process writing an external key
+        // between the `before` read and the `after` read. This change must be
+        // detected by the optimistic re-read check, triggering a retry.
+        if (mutateCallCount === 1) {
+          const raw = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+          raw["concurrent.ns"] = { injected: true };
+          fs.writeFileSync(settingsPath(), JSON.stringify(raw), "utf-8");
+        }
+        return { ...cfg, done: true };
+      },
+    );
+
+    expect(mutateCallCount).toBeGreaterThan(1);
+    expect(result).toEqual({ done: true });
+    const data = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+    // Retry recomputed from fresh state — both the external key AND the mutated value survive
+    expect(data["test.ns"]).toEqual({ done: true });
+    expect(data["concurrent.ns"]).toEqual({ injected: true });
+  });
+
+  it("persistent concurrent writer: after maxAttempts the update still completes (last-writer-wins, no crash)", () => {
+    fs.writeFileSync(
+      settingsPath(),
+      JSON.stringify({ "test.ns": { done: false } }),
+      "utf-8",
+    );
+
+    let mutateCallCount = 0;
+    // mutate always writes the external key — simulates a persistent concurrent writer
+    const result = updateConfig(
+      "test.ns",
+      { done: false },
+      (cfg) => {
+        mutateCallCount += 1;
+        // Always write a concurrent change to force re-read on every attempt
+        const raw = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+        raw["concurrent.ns"] = { injected: mutateCallCount };
+        fs.writeFileSync(settingsPath(), JSON.stringify(raw), "utf-8");
+        return { ...cfg, done: true };
+      },
+      3, // maxAttempts
+    );
+
+    // Must complete (not loop forever or throw)
+    expect(mutateCallCount).toBe(3); // saturated at maxAttempts
+    expect(result).toEqual({ done: true }); // flag value persisted
+    const data = JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
+    expect(data["test.ns"]).toEqual({ done: true }); // flag survived
+    expect(data["concurrent.ns"]).toBeDefined(); // siblings survived
   });
 });
