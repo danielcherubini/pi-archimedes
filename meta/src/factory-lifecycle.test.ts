@@ -60,6 +60,7 @@ vi.mock("@pi-archimedes/todo", () => ({ registerTodo: vi.fn() }));
 vi.mock("@pi-archimedes/ask", () => ({ registerAsk: vi.fn() }));
 vi.mock("@pi-archimedes/notify", () => ({ registerNotify: vi.fn() }));
 vi.mock("@pi-archimedes/session-name", () => ({ registerSessionName: vi.fn() }));
+vi.mock("@pi-archimedes/sudo", () => ({ registerSudo: vi.fn() }));
 
 // Dynamic imports done in the session_start handler — mock EXACTLY the
 // properties index.ts uses via destructured `ipMod.*` / `diffMod` / `saMod` /
@@ -95,6 +96,9 @@ const { default: metaFactory } = await import("./index.js");
 const { registerImagePaste, shutdownImagePaste, initImagePasteSession } =
   await import("@pi-archimedes/image-paste");
 
+const { offerKeybindingFix } =
+  await import("@pi-archimedes/image-paste/keybinding-offer");
+
 // ── Stub pi: record pi.on() registrations and command/tool registrations ───
 
 interface PiHarness {
@@ -128,6 +132,12 @@ function freshFactory(): {
   harness: PiHarness;
   startSession: (ctx: unknown) => Promise<unknown>;
   shutdownSession: () => unknown;
+  /** Fire EVERY registered session_start handler in registration order. */
+  fireAllStartHandlers: (ctx: unknown) => Promise<void>;
+  /** Fire ONLY the keybinding-offer session_start handler (the one registered
+   *  before the lazy-load handler). Useful for isolating offer behaviour
+   *  without triggering the heavy dynamic-import path. */
+  fireOfferHandler: (ctx: unknown) => void;
 } {
   const harness = makePi();
   metaFactory(harness.pi);
@@ -136,13 +146,25 @@ function freshFactory(): {
   const shutdownRcs = harness.handlers["session_shutdown"] ?? [];
   expect(startRcs.length).toBeGreaterThan(0);
   expect(shutdownRcs.length).toBeGreaterThan(0);
+  // The LAST session_start handler is the lazy-load one (existing tests rely on this).
   const startRc = (startRcs[startRcs.length - 1] ?? expect.fail("no session_start handler")) as (...args: unknown[]) => unknown;
   const shutdownRc = (shutdownRcs[shutdownRcs.length - 1] ?? expect.fail("no session_shutdown handler")) as (...args: unknown[]) => unknown;
+  // The keybinding-offer handler is the one registered BEFORE the lazy-load
+  // handler (i.e. at index 0 for session_start), fire it in isolation.
+  const offerRc = (startRcs[0] ?? expect.fail("no offer session_start handler")) as (...args: unknown[]) => unknown;
 
   return {
     harness,
     startSession: (ctx: unknown) => startRc(undefined, ctx) as Promise<unknown>,
     shutdownSession: () => shutdownRc(undefined, {}),
+    fireAllStartHandlers: async (ctx: unknown) => {
+      for (const handler of startRcs) {
+        await (handler(undefined, ctx) as Promise<unknown>);
+      }
+    },
+    fireOfferHandler: (ctx: unknown) => {
+      offerRc(undefined, ctx);
+    },
   };
 }
 
@@ -195,5 +217,43 @@ describe("image-paste factory lifecycle (registration is config-gated, teardown 
     // Session B shutdown must not re-run the (stale) session-A ref.
     shutdownSession();
     expect(vi.mocked(shutdownImagePaste)).toHaveBeenCalledTimes(1); // exactly once total
+  });
+});
+
+describe("keybinding-offer wiring (session_start → offerKeybindingFix, fire-and-forget)", () => {
+  it("calls offerKeybindingFix exactly once with the session ctx", () => {
+    const ctx = { ui: { theme: "dark" } };
+    // Return a resolved promise so the handler's .catch() has nothing to report.
+    vi.mocked(offerKeybindingFix).mockResolvedValueOnce(undefined);
+    const { fireOfferHandler } = freshFactory();
+
+    // The offer handler is synchronous from the caller's perspective (fire-and-forget).
+    fireOfferHandler(ctx);
+
+    expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledWith(ctx);
+  });
+
+  it("session_start resolves even when offerKeybindingFix rejects (fire-and-forget safety)", async () => {
+    // Arrange: make the mock reject once to simulate an unexpected failure.
+    vi.mocked(offerKeybindingFix).mockRejectedValueOnce(new Error("boom"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const ctx = { ui: { theme: "dark" } };
+    const { fireOfferHandler } = freshFactory();
+
+    // Act: invoke the offer handler; it must not throw synchronously.
+    expect(() => fireOfferHandler(ctx)).not.toThrow();
+
+    // Drain the microtask queue so the .catch() branch has had time to run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The rejection must have been swallowed and logged — not re-thrown.
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "[archimedes] keybinding offer failed:",
+      expect.any(Error),
+    );
+
+    consoleSpy.mockRestore();
   });
 });
