@@ -14,6 +14,10 @@ import { isPluginEnabled, migrateLegacyPluginsMap } from "./plugins.js";
 import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
 import { registerSudo } from "@pi-archimedes/sudo";
+// Light module from the image-paste package (no heavy deps) — the offer
+// gates are self-contained, so it is statically imported and runs in its
+// own top-level session_start handler, independent of the lazy-load.
+import { offerKeybindingFix } from "@pi-archimedes/image-paste/keybinding-offer";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 import { registerPluginsCommand } from "./plugin-manager.js"
@@ -73,6 +77,32 @@ export default function (pi: ExtensionAPI): void {
     imagePasteShutdown = undefined;
     unpatchConsoleLog();
     archPrintTimings();
+  });
+
+  // First-run keybinding offer (see the module doc in
+  // packages/image-paste/src/keybinding-offer.ts). Registered at top level
+  // (AGENTS.md), and placed BEFORE the lazy-load handler below: the
+  // module's own gates (config enabled → TUI → flag unset → file absent
+  // → confirm) are self-contained, so ordering with that handler is not a
+  // correctness issue.
+  //
+  // Deliberately NOT gated with isPluginEnabled("image-paste"): the
+  // module's own gate 1 (isConfigEnabled("archimedes.imagePaste")) is the
+  // single gate — meta's gate reads a different namespace key (ADR 0012),
+  // and double-gating would drift. This handler runs unconditionally on
+  // every session_start; when not applicable the module's gates make it a
+  // no-op.
+  pi.on("session_start", (_event, ctx: ExtensionContext) => {
+    // Fire-and-forget: the offer is async (it may block on a user
+    // confirm) and must never block or take down session startup — any
+    // throw is logged, never propagated.
+    try {
+      void offerKeybindingFix(ctx).catch((e) => {
+        console.error("[archimedes] keybinding offer failed:", e);
+      });
+    } catch (e) {
+      console.error("[archimedes] keybinding offer failed:", e);
+    }
   });
 
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {

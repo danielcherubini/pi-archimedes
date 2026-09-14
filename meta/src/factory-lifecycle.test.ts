@@ -72,6 +72,9 @@ vi.mock("@pi-archimedes/image-paste", () => ({
   shutdownImagePaste: vi.fn(),
   initImagePasteSession: vi.fn(),
 }));
+vi.mock("@pi-archimedes/image-paste/keybinding-offer", () => ({
+  offerKeybindingFix: vi.fn(),
+}));
 vi.mock("@pi-archimedes/subagent", () => ({
   registerSubagent: vi.fn(),
   registerAgentsCommand: vi.fn(),
