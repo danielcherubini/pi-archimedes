@@ -43,6 +43,13 @@ export function truncLine(text: string, maxLen: number): string {
   return text.slice(0, maxLen - 3) + "...";
 }
 
+/**
+ * Renders one section per parallel result. The header line is intentionally
+ * byte-identical to the pre-#55 metrics summary (a contract, not an
+ * accident); the body mirrors the single-mode fallback chain
+ * (finalOutput ?? error ?? "completed") and is deliberately untruncated by
+ * design (see docs/decisions/0020-subagent-parallel-full-output.md).
+ */
 export function formatParallelResults(results: SubagentResult[]): string {
   const sections = results.map((r) => {
     const status = r.exitCode === 0 ? "✓" : "✗";

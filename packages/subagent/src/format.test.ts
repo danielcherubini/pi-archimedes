@@ -95,6 +95,20 @@ describe("formatParallelResults", () => {
     expect(formatParallelResults([r])).toBe("✓ test-agent 5 tools · 0k tok · 3s\nout");
   });
 
+  it("keeps internal newlines in a multi-line body and trims only the tail", () => {
+    const r1 = makeResult({
+      agent: "researcher",
+      finalOutput: "line one\nline two\n",
+    });
+    const r2 = makeResult({
+      agent: "reviewer",
+      finalOutput: "second",
+    });
+    expect(formatParallelResults([r1, r2])).toBe(
+      "✓ researcher 5 tools · 0k tok · 3s\nline one\nline two\n\n✓ reviewer 5 tools · 0k tok · 3s\nsecond",
+    );
+  });
+
   it("keeps duplicate agent names distinguishable by position and body", () => {
     const a = makeResult({ agent: "researcher", finalOutput: "first" });
     const b = makeResult({ agent: "researcher", finalOutput: "second" });
