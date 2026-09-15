@@ -19,6 +19,9 @@ const CONFIRM_MESSAGE =
 const SNIPPET_JSON = '{ "app.clipboard.pasteImage": [] }';
 
 export const CREATED_NOTIFY = "Created ~/.pi/agent/keybindings.json — reloading now";
+/** Fallback wording for runtimes whose event ctx has no reload (Pi 0.85.1). */
+export const CREATED_RELOAD_HINT =
+  "Created ~/.pi/agent/keybindings.json — run /reload to apply";
 
 interface PromptConfig {
   keybindingsPromptDone: boolean;
@@ -59,9 +62,11 @@ function markPromptDone(ctx: ExtensionContext): void {
  * offer to create it with the docs snippet so Pi's built-in clipboard paste
  * doesn't double-fire with image-paste's Ctrl+V handler. Accepting writes the
  * file (atomic tmp+rename, pre-rename existence re-check) and then sets the
- * one-shot flag and reloads the TUI (`ctx.reload()` — the exact /reload flow:
- * re-reads keybindings.json and re-binds shortcuts) so the cleared built-in
- * binding applies immediately. Declining or cancelling (Esc/timeout — `confirm`
+ * one-shot flag and, when the runtime exposes `reload()` on the session ctx,
+ * reloads the TUI (the exact /reload flow: re-reads keybindings.json and
+ * re-binds shortcuts) so the cleared built-in binding applies immediately. On
+ * Pi 0.85.1 the event ctx has no `reload`, so the user is notified to run
+ * `/reload` instead. Declining or cancelling (Esc/timeout — `confirm`
  * resolves `false` either way) sets the flag without touching the file. A
  * failed file write leaves the flag unset, so the offer self-heals next session.
  *
@@ -146,20 +151,30 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
   // File written successfully → THEN set the flag (deliberately after the
   // write, per the design).
   markPromptDone(ctx);
-  ctx.ui.notify(CREATED_NOTIFY, "info");
 
-  // Auto-apply: ctx.reload() runs the exact /reload TUI flow (re-reads
-  // keybindings.json + re-binds extension shortcuts). Must be the LAST
-  // use of ctx — the reload invalidates this extension instance. If the
-  // reload itself fails, the TUI shows its own "Reload failed" status;
-  // the file + flag are already persisted, so a manual /reload heals
-  // it and the offer is not repeated (flag gate).
+  // Auto-apply: when the runtime exposes `reload()` on this ctx, run the
+  // exact /reload TUI flow (re-reads keybindings.json + re-binds extension
+  // shortcuts) so the cleared built-in binding applies immediately. Pi
+  // 0.85.1 attaches `reload()` ONLY to the command context — the base
+  // context that event handlers (like this session_start handler) receive
+  // has no `reload` property, so auto-reload activates only on Pi versions
+  // that add it to the event ctx; otherwise the user is told to run
+  // /reload. reload() must be the LAST use of ctx — the reload invalidates
+  // this extension instance. If the reload itself fails, the TUI shows its
+  // own "Reload failed" status; the file + flag are already persisted, so a
+  // manual /reload heals it and the offer is not repeated (flag gate).
   // Cast: reload() is typed on ExtensionCommandContext; the session_start
-  // handler receives the base ExtensionContext, but at TUI runtime the
-  // reload action is always present (verified: runner.js:611).
-  try {
-    await (ctx as ExtensionCommandContext).reload();
-  } catch {
-    // Swallowed on purpose: see comment above. The offer never throws.
+  // handler receives the base ExtensionContext, hence the presence guard.
+  const reload = (ctx as ExtensionCommandContext).reload;
+  if (typeof reload === "function") {
+    ctx.ui.notify(CREATED_NOTIFY, "info");
+    try {
+      await reload();
+    } catch {
+      // Swallowed on purpose: the TUI shows its own "Reload failed" status;
+      // the offer never throws.
+    }
+  } else {
+    ctx.ui.notify(CREATED_RELOAD_HINT, "info");
   }
 }

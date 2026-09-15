@@ -43,7 +43,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0.
 > { "app.clipboard.pasteImage": [] }
 > ```
 >
-> **First-run offer (once ever, all platforms)** — when installed via the suite, on the first TUI session with image-paste enabled, if `~/.pi/agent/keybindings.json` doesn't exist yet, the suite offers to create it with exactly the snippet above: accepting creates the file and the TUI reloads automatically (the cleared binding applies immediately; if the reload fails, run `/reload`), declining or cancelling (Esc) never asks again — re-open by deleting `archimedes.imagePaste.keybindingsPromptDone` from `~/.pi/agent/settings.json`.
+> **First-run offer (once ever, all platforms)** — when installed via the suite, on the first TUI session with image-paste enabled, if `~/.pi/agent/keybindings.json` doesn't exist yet, the suite offers to create it with exactly the snippet above: accepting creates the file and attempts an automatic reload where the runtime supports it (on current Pi 0.85.1 you're notified to run `/reload`, and the cleared binding applies once it runs), declining or cancelling (Esc) never asks again — re-open by deleting `archimedes.imagePaste.keybindingsPromptDone` from `~/.pi/agent/settings.json`.
 
 ## Per-platform requirements
 
