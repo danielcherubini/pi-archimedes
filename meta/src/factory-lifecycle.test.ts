@@ -132,8 +132,6 @@ function freshFactory(): {
   harness: PiHarness;
   startSession: (ctx: unknown) => Promise<unknown>;
   shutdownSession: () => unknown;
-  /** Fire EVERY registered session_start handler in registration order. */
-  fireAllStartHandlers: (ctx: unknown) => Promise<void>;
   /** Fire ONLY the keybinding-offer session_start handler (the one registered
    *  before the lazy-load handler). Useful for isolating offer behaviour
    *  without triggering the heavy dynamic-import path. */
@@ -158,11 +156,6 @@ function freshFactory(): {
     harness,
     startSession: (ctx: unknown) => startRc(undefined, ctx) as Promise<unknown>,
     shutdownSession: () => shutdownRc(undefined, {}),
-    fireAllStartHandlers: async (ctx: unknown) => {
-      for (const handler of startRcs) {
-        await (handler(undefined, ctx) as Promise<unknown>);
-      }
-    },
     fireOfferHandler: (ctx: unknown) => {
       offerRc(undefined, ctx);
     },

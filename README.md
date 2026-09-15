@@ -64,7 +64,7 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
    }
    ```
 
-   If it already exists, just add/set `"app.clipboard.pasteImage": []` in there and run `/reload`. Or skip the step entirely if the file doesn't exist yet: on the first TUI session the suite offers to create it automatically with the snippet above — accepting creates it and reloads the terminal automatically (the cleared binding applies immediately); declining or cancelling (Esc) never asks again.
+   If it already exists, just add/set `"app.clipboard.pasteImage": []` in there and run `/reload`. Or skip the step entirely if the file doesn't exist yet: on the first TUI session the suite offers to create it automatically with the snippet above — accepting creates the file and attempts an automatic reload where the runtime supports it (on current Pi 0.85.1 you're notified to run `/reload`, and the cleared binding applies once it runs); declining or cancelling (Esc) never asks again.
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 

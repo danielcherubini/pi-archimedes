@@ -43,7 +43,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 // re-exported from the package root.
 type Mode = "tui" | "rpc" | "json" | "print";
 
-const { offerKeybindingFix, CREATED_NOTIFY } = await import("./keybinding-offer.js");
+const { offerKeybindingFix, CREATED_NOTIFY, CREATED_RELOAD_HINT } = await import("./keybinding-offer.js");
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -86,15 +86,21 @@ function cleanupArtifacts(): void {
   }
 }
 
-function makeCtx(mode: Mode) {
+function makeCtx(mode: Mode, opts?: { withReload?: boolean }) {
   const confirm = vi.fn();
   const notify = vi.fn();
-  const reload = vi.fn(async () => {});
+  // Intentionally mirrors the base ExtensionContext the real session_start
+  // handler receives: no command-only methods like `reload` (Pi 0.85.1
+  // attaches reload to the command context only), so tests stay honest about
+  // what the real ctx provides. The auto-reload branch is covered separately
+  // by passing { withReload: true }, which simulates a future Pi version
+  // that puts reload() on the event ctx.
+  const reload = opts?.withReload ? vi.fn(async () => {}) : undefined;
   const ctx = {
     mode,
     hasUI: true,
     ui: { confirm, notify },
-    reload,
+    ...(reload ? { reload } : {}),
   } as unknown as ExtensionContext;
   return { ctx, confirm, notify, reload };
 }
@@ -219,9 +225,10 @@ describe("offerKeybindingFix — gate matrix", () => {
 
       // ── notifications ──
       if (shouldAsk && outcome === "yes") {
+        // Base-shape ctx has no reload, so the offer emits the /reload hint
         expect(
           callArgs(notify).some(
-            (c) => c[0] === CREATED_NOTIFY && c[1] === "info",
+            (c) => c[0] === CREATED_RELOAD_HINT && c[1] === "info",
           ),
         ).toBe(true);
       } else {
@@ -320,22 +327,62 @@ describe("flag write throws → notify, no crash (file write already succeeded)"
 
     const args = callArgs(notify);
     expect(
-      args.some((c) => c[0] === CREATED_NOTIFY && c[1] === "info"),
-    ).toBe(true); // the file WAS created
+      args.some((c) => c[0] === CREATED_RELOAD_HINT && c[1] === "info"),
+    ).toBe(true); // the file WAS created (base-shape ctx → /reload hint)
     expect(args.some((c) => c[1] === "warning" && String(c[0]).length > 0)).toBe(true); // flag save error: non-empty warning message
   });
 });
 
-// ── auto-reload on accept ────────────────────────────────────────────────────
+// ── accept with base-shape ctx (no reload — Pi 0.85.1 event ctx) ──────────
+// The real session_start ctx has no reload property (Pi 0.85.1 attaches it
+// to the command context only), so the offer must fall back to a /reload
+// hint instead of claiming it reloaded.
 
-describe("auto-reload on accept", () => {
-  it("yes path: ctx.reload() called exactly once after flag is persisted and CREATED_NOTIFY emitted", async () => {
+describe("accept with base-shape ctx (no reload)", () => {
+  it("yes: fallback /reload hint notified, file written, flag persisted, no throw", async () => {
+    const { ctx, confirm, notify } = makeCtx("tui");
+    confirm.mockResolvedValue(true);
+
+    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+
+    // File written with the exact snippet
+    expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
+    // Flag persisted
+    expect(readFlag()).toBe(true);
+    // The truthful fallback message — no "reloading now" claim
+    expect(
+      callArgs(notify).some(
+        (c) => c[0] === CREATED_RELOAD_HINT && c[1] === "info",
+      ),
+    ).toBe(true);
+    expect(callArgs(notify).some((c) => c[0] === CREATED_NOTIFY)).toBe(false);
+  });
+
+  it("no path: no created notification at all", async () => {
+    const { ctx, confirm, notify } = makeCtx("tui");
+    confirm.mockResolvedValue(false);
+    await offerKeybindingFix(ctx);
+    expect(
+      callArgs(notify).some(
+        (c) => c[0] === CREATED_NOTIFY || c[0] === CREATED_RELOAD_HINT,
+      ),
+    ).toBe(false);
+  });
+});
+
+// ── auto-reload branch: simulates a future Pi version that puts ────────────
+// reload() on the event ctx. A reload-carrying ctx (makeCtx with
+// { withReload: true }) covers that branch; the base-shape tests above
+// cover current Pi.
+
+describe("auto-reload branch (future Pi with reload on the event ctx)", () => {
+  it("yes path: reload called exactly once after flag is persisted and CREATED_NOTIFY emitted", async () => {
     // Track invocation order so we can assert flag is persisted before reload.
     const order: string[] = [];
-    const { ctx, confirm, notify, reload } = makeCtx("tui");
+    const { ctx, confirm, notify, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
     // Wrap the reload spy to record when it's called relative to flag write.
-    reload.mockImplementation(async () => {
+    reload!.mockImplementation(async () => {
       // At this point the flag must already be persisted to disk.
       order.push(readFlag() ? "flag-then-reload" : "reload-before-flag");
     });
@@ -361,33 +408,56 @@ describe("auto-reload on accept", () => {
     expect(CREATED_NOTIFY).toContain("reloading now");
   });
 
-  it("no path: ctx.reload() NOT called", async () => {
-    const { ctx, confirm, reload } = makeCtx("tui");
+  it("no path: reload NOT called", async () => {
+    const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(false);
     await offerKeybindingFix(ctx);
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it("cancel (resolves false) path: ctx.reload() NOT called", async () => {
-    const { ctx, confirm, reload } = makeCtx("tui");
+  it("cancel (resolves false) path: reload NOT called", async () => {
+    const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(false); // Esc/timeout: same as no
     await offerKeybindingFix(ctx);
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it("file-write-fails path: ctx.reload() NOT called", async () => {
+  it("file-write-fails path: reload NOT called", async () => {
     // Block the file write by making the tmp path a directory
     fs.mkdirSync(tmpPath(), { recursive: true });
-    const { ctx, confirm, reload } = makeCtx("tui");
+    const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
+    confirm.mockResolvedValue(true);
+    await offerKeybindingFix(ctx);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("TOCTOU path: reload NOT called (file appeared before the rename)", async () => {
+    // Same spy materialization as the concurrent-creation test: the file
+    // appears between gate 4 and the pre-rename re-check, so the offer ends
+    // before the reload step is ever reached.
+    let kbHits = 0;
+    existsSyncSpy.mockImplementation((p: unknown) => {
+      const s = String(p);
+      if (s === keybindingsPath()) {
+        kbHits += 1;
+        if (kbHits >= 2) {
+          if (!fs.existsSync(s)) fs.writeFileSync(s, CONCURRENT_CONTENT, "utf-8");
+          return true;
+        }
+      }
+      return fs.existsSync(s);
+    });
+
+    const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
     await offerKeybindingFix(ctx);
     expect(reload).not.toHaveBeenCalled();
   });
 
   it("reload rejects: offer still resolves, flag persisted, file present, CREATED_NOTIFY emitted", async () => {
-    const { ctx, confirm, notify, reload } = makeCtx("tui");
+    const { ctx, confirm, notify, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
-    reload.mockRejectedValue(new Error("Reload failed"));
+    reload!.mockRejectedValue(new Error("Reload failed"));
 
     await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
 
@@ -403,29 +473,6 @@ describe("auto-reload on accept", () => {
     ).toBe(true);
     // reload was still attempted once
     expect(reload).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("TOCTOU path: ctx.reload() NOT called", () => {
-  it("file created between gate 4 and pre-rename re-check: reload NOT called", async () => {
-    let kbHits = 0;
-    existsSyncSpy.mockImplementation((p: unknown) => {
-      const s = String(p);
-      if (s === keybindingsPath()) {
-        kbHits += 1;
-        if (kbHits >= 2) {
-          if (!fs.existsSync(s)) fs.writeFileSync(s, CONCURRENT_CONTENT, "utf-8");
-          return true;
-        }
-      }
-      return fs.existsSync(s);
-    });
-
-    const { ctx, confirm, reload } = makeCtx("tui");
-    confirm.mockResolvedValue(true);
-    await offerKeybindingFix(ctx);
-
-    expect(reload).not.toHaveBeenCalled();
   });
 });
 
@@ -464,9 +511,13 @@ describe("concurrent creation is never clobbered", () => {
     expect(fs.existsSync(tmpPath())).toBe(false);
     // The offer ends: the offer was made and the fix is in force (file exists)
     expect(readFlag()).toBe(true);
-    // We did not create the file, so we do not claim to
+    // We did not create the file, so we do not claim to — and the offer
+    // ends before any reload step (no "reloading now" / /reload-hint
+    // notification either)
     expect(
-      callArgs(notify).some((c) => c[0] === CREATED_NOTIFY),
+      callArgs(notify).some(
+        (c) => c[0] === CREATED_NOTIFY || c[0] === CREATED_RELOAD_HINT,
+      ),
     ).toBe(false);
   });
 });

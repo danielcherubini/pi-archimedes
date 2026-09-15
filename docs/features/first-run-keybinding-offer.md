@@ -1,7 +1,7 @@
 ---
 status: live
-last-verified: 2026-09-14
-verified-by: "pnpm test — packages/image-paste/src/keybinding-offer.test.ts (107 tests: gate matrix, auto-reload ordering, updateConfig concurrency) + meta/src/factory-lifecycle.test.ts (wiring)"
+last-verified: 2026-09-15
+verified-by: "pnpm test — packages/image-paste/src/keybinding-offer.test.ts (109 tests: gate matrix, auto-reload fallback + branch ordering, updateConfig concurrency) + meta/src/factory-lifecycle.test.ts (wiring)"
 ---
 
 # First-run keybinding offer
@@ -38,7 +38,9 @@ own Ctrl+V handler. The user must accept; the file is never created silently.
 
 The `keybindingsPromptDone` flag is set on **every** outcome:
 
-- **Accept** (confirm → `true`) — file written, then flag set, then reload.
+- **Accept** (confirm → `true`) — file written, then flag set, then an
+  automatic reload is attempted where the runtime exposes `reload()` on the
+  event ctx (on Pi 0.85.1 the user is notified to run `/reload` instead).
 - **Decline** (confirm → `false`) — flag set; file untouched.
 - **Cancel** (Esc / session tear-down / timeout — `confirm` resolves `false` either way) — counts as decline; flag set.
 
@@ -67,15 +69,20 @@ write notifies the user via `ctx.ui.notify` and returns without crashing.
 
 ## Auto-reload on accept
 
-After a successful write and flag set, the module calls `await ctx.reload()`.
-This runs the exact `/reload` TUI flow: re-reads `keybindings.json` and
+After a successful write and flag set, the module checks whether the runtime
+exposes `reload()` on the session ctx. If it does, it calls `await
+ctx.reload()` — the exact `/reload` TUI flow: re-reads `keybindings.json` and
 re-binds extension shortcuts, so the cleared built-in binding applies
-immediately.
+immediately. On Pi 0.85.1, `reload()` is attached only to the command
+context; the base context that event handlers receive has no `reload`, so
+auto-reload activates only on Pi versions that add it to the event ctx —
+otherwise the user is notified to run `/reload`.
 
-`ctx.reload()` **must be the last use of `ctx`** — Pi invalidates the extension
-runtime on reload. If the reload fails, the TUI shows its own "Reload failed"
-status; the file and flag are already persisted, so a manual `/reload` heals it
-and the offer is not repeated (flag gate).
+When a reload is attempted, it **must be the last use of `ctx`** — Pi
+invalidates the extension runtime on reload. If the reload fails, the TUI
+shows its own "Reload failed" status; the file and flag are already
+persisted, so a manual `/reload` heals it and the offer is not repeated
+(flag gate).
 
 ## Wiring
 
