@@ -1,3 +1,5 @@
+import type { SubagentResult } from "./types.js";
+
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return Math.round(n / 1_000) + "k";
@@ -39,6 +41,27 @@ export function truncLine(text: string, maxLen: number): string {
   }
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen - 3) + "...";
+}
+
+/**
+ * Renders one section per parallel result. The header line is intentionally
+ * byte-identical to the pre-#55 metrics summary (a contract, not an
+ * accident); the body mirrors the single-mode fallback chain
+ * (finalOutput ?? error ?? "completed"), `trimEnd()`-ed so sections stay
+ * separated by exactly one blank line, and is deliberately untruncated by
+ * design (see docs/decisions/0020-subagent-parallel-full-output.md).
+ */
+export function formatParallelResults(results: SubagentResult[]): string {
+  const sections = results.map((r) => {
+    const status = r.exitCode === 0 ? "✓" : "✗";
+    const summary = r.progressSummary
+      ? `${r.progressSummary.toolCount} tools · ${Math.round(r.progressSummary.tokens / 1000)}k tok · ${Math.round(r.progressSummary.durationMs / 1000)}s`
+      : "";
+    const header = `${status} ${r.agent}${summary ? " " + summary : ""}`;
+    const body = (r.finalOutput ?? r.error ?? "completed").trimEnd();
+    return `${header}\n${body}`;
+  });
+  return sections.join("\n\n");
 }
 
 export interface StatsData {

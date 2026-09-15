@@ -3,6 +3,7 @@ import { Text, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { SUBAGENT_PARAMS_SCHEMA } from "./tool-schema.js";
 import { executeSubagent, executeParallel } from "./execute.js";
+import { formatParallelResults } from "./format.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
@@ -110,7 +111,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
         });
 
         return {
-          content: [{ type: "text", text: formatResultsSummary(results) }],
+          content: [{ type: "text", text: formatParallelResults(results) }],
           details: {
             mode: "parallel",
             results,
@@ -277,17 +278,6 @@ function formatProgressSummary(progress: SubagentProgress[]): string {
       p.tokens > 0 ? Math.round(p.tokens / 1000) + "k tok" : "",
     ].filter(Boolean).join(" · ");
     return p.agent + tool + (stats ? " " + stats : "");
-  });
-  return lines.join("\n");
-}
-
-function formatResultsSummary(results: SubagentResult[]): string {
-  const lines = results.map((r) => {
-    const status = r.exitCode === 0 ? "✓" : "✗";
-    const summary = r.progressSummary
-      ? `${r.progressSummary.toolCount} tools · ${Math.round(r.progressSummary.tokens / 1000)}k tok · ${Math.round(r.progressSummary.durationMs / 1000)}s`
-      : "";
-    return `${status} ${r.agent}${summary ? " " + summary : ""}`;
   });
   return lines.join("\n");
 }
