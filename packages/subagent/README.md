@@ -44,7 +44,7 @@ The `agent` field is optional — omitting it is not a built-in default agent, a
 }
 ```
 
-**The dispatch waits.** A call — single or parallel — blocks until every task completes and returns the combined results, each optionally carrying the child's `childSessionId`. There is an `async` field in the schema; the implementation ignores it, so don't plan on fire-and-forget: batch the work into `tasks` and let the call block on all of it.
+**The dispatch waits.** A call — single or parallel — blocks until every task completes and returns the combined results, each optionally carrying the child's `childSessionId`. There is an `async` field in the schema; the implementation ignores it, so don't plan on fire-and-forget: batch the work into `tasks` and let the call block on all of it. In parallel mode each result section carries the child's final output beneath its metrics line.
 
 ### Model and thinking resolution
 
