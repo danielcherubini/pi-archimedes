@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { getBridge } from "@pi-archimedes/core/bridge";
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion } from "./selection.js";
@@ -183,6 +184,28 @@ export function buildAskSessionContent(results: QuestionResult[]): string {
 	return `User answers:\n${summaryLines}\n\nAnswer context:\n${contextBlocks}`;
 }
 
+/**
+ * Build QuestionResult[] from an AskResponsePayload-shaped response. Shared by
+ * the bridge branch and the child (headless) branch.
+ */
+function responseToResults(
+	response: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> },
+	questions: AskParams["questions"],
+): QuestionResult[] {
+	return questions.map((q, i) => {
+		const r = response.results[i];
+		return {
+			id: q.id,
+			question: q.question,
+			description: q.description && q.description.trim().length > 0 ? q.description : undefined,
+			options: q.options.map((o) => o.label),
+			multi: q.multi ?? false,
+			selectedOptions: r?.selectedOptions ?? [],
+			customInput: r?.customInput ?? undefined,
+		};
+	});
+}
+
 // ── Tool description ─────────────────────────────────────────────────────────
 
 const ASK_TOOL_DESCRIPTION = `
@@ -207,6 +230,45 @@ export function registerAskTool(pi: ExtensionAPI): void {
 		parameters: AskParamsSchema,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
+			// Bridge mode (checked first): the root's Client request is sent by
+			// bridge.ask() directly — NOT by the relay/bridge bus subscription.
+			// The bus events are notify + refcount only, and the pairing
+			// ASK_RESPONSE fires on ALL paths (success, error, timeout) so the
+			// refcount never leaks and the state machine is not stuck at blocked.
+			if (getBridge().active) {
+				const requestId = randomUUID();
+				getBus().emit(Events.ASK_REQUEST, {
+					source: "main",
+					requestId,
+					questions: params.questions,
+					toolCallId: _toolCallId,
+				});
+
+				let response: { cancelled: boolean; results: Array<{ id: string; selectedOptions: string[]; customInput?: string }> };
+				try {
+					// Pass the turn's AbortSignal: if the user aborts while the Client
+					// modal is open, the bridge request is cancelled (instead of
+					// lingering up to the 5-minute timeout) and the paired cancelled
+					// ASK_RESPONSE keeps the refcount balanced.
+					response = await getBridge().ask(params, _toolCallId, _signal);
+				} catch {
+					response = { cancelled: true, results: params.questions.map((q) => ({ id: q.id, selectedOptions: [] })) };
+				}
+				getBus().emit(Events.ASK_RESPONSE, { requestId, cancelled: response.cancelled, results: response.results });
+
+				const results = responseToResults(response, params.questions);
+				if (response.cancelled && results.every((r) => r.selectedOptions.length === 0)) {
+					return {
+						content: [{ type: "text", text: "User cancelled the question." }],
+						details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,
+					};
+				}
+				return {
+					content: [{ type: "text", text: buildAskSessionContent(results) }],
+					details: { results, customInput: undefined, description: undefined } satisfies AskToolDetails,
+				};
+			}
+
 			// Headless/subagent path: the child's ask tool connects to the parent's
 			// PI_SUBAGENT_SOCKET bridge (created in subagent/spawn.ts:startAskSocketServer)
 			// and exchanges ask_request/ask_response JSON lines.
@@ -237,6 +299,7 @@ export function registerAskTool(pi: ExtensionAPI): void {
 							type: "ask_request",
 							requestId,
 							questions: params.questions,
+							toolCallId: _toolCallId,
 						}) + "\n");
 					});
 
@@ -272,19 +335,8 @@ export function registerAskTool(pi: ExtensionAPI): void {
 					timer.unref();
 				});
 
-				// Build results from response
-				const results: QuestionResult[] = params.questions.map((q, i) => {
-					const r = response.results[i];
-					return {
-						id: q.id,
-						question: q.question,
-						description: q.description && q.description.trim().length > 0 ? q.description : undefined,
-						options: q.options.map((o) => o.label),
-						multi: q.multi ?? false,
-						selectedOptions: r?.selectedOptions ?? [],
-						customInput: r?.customInput ?? undefined,
-					};
-				});
+				// Build results from response (shared with the bridge branch)
+				const results = responseToResults(response, params.questions);
 
 				if (response.cancelled && results.every((r) => r.selectedOptions.length === 0)) {
 					return {
@@ -307,7 +359,7 @@ export function registerAskTool(pi: ExtensionAPI): void {
 			}
 
 			// Emit bus event so notify (if installed) can schedule a desktop notification
-			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions });
+			getBus().emit(Events.ASK_REQUEST, { source: "main", requestId: randomUUID(), questions: params.questions, toolCallId: _toolCallId });
 
 			if (params.questions.length === 1) {
 				const q = params.questions[0]!;

@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { getBridge } from "@pi-archimedes/core/bridge";
 
 /**
  * Render one `•` per typed character — pure, so the masking itself is
@@ -25,6 +26,13 @@ export function maskLine(buffer: string): string {
  * or confirms with an empty buffer — callers treat `""` as cancellation.
  */
 export function promptForPassword(ctx: ExtensionContext, command?: string, reason?: string): Promise<string> {
+	// Bridge mode: the password comes from the Client's masked modal over the
+	// bridge channel — user-paced, 0010-compliant (never a tool parameter). The
+	// 0010 headless gate below is intentionally UNCHANGED: it sits after the
+	// bridge branch, so non-bridge headless sessions still reject verbatim.
+	if (getBridge().active) {
+		return getBridge().password({ command: command ?? "", reason: reason ?? "" });
+	}
 	if (ctx.mode !== "tui") {
 		return Promise.reject(
 			new Error(
@@ -94,6 +102,11 @@ export function promptForPassword(ctx: ExtensionContext, command?: string, reaso
  * prompting for a password.
  */
 export async function confirmCommand(ctx: ExtensionContext, command: string, reason: string): Promise<boolean> {
+	// Bridge mode: the Client's confirm modal (user-paced) replaces the TUI
+	// confirm; the ctx.ui.confirm path below is otherwise unchanged.
+	if (getBridge().active) {
+		return getBridge().confirm({ command, reason });
+	}
 	const message = ["This will run with elevated privileges (password required until cached):", "", `$ ${command}`, "", `Reason: ${reason}`].join("\n");
 	return ctx.ui.confirm("Confirm privileged command", message);
 }

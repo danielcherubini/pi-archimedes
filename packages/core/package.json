@@ -16,6 +16,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./bridge": "./src/bridge/index.ts",
     "./bus": "./src/bus.ts",
     "./chrome": "./src/chrome.ts",
     "./text": "./src/text.ts",

@@ -18,6 +18,20 @@ vi.mock("@pi-archimedes/core/settings-io", () => ({
 	},
 }));
 
+// Mock the bridge — per-test control of `active` (same pattern as ask/tool.test.ts).
+// Default: inactive, so the pre-existing headless/TUI tests are unaffected.
+const bridgeState = vi.hoisted(() => ({
+	active: false,
+	ask: vi.fn(),
+	confirm: vi.fn(),
+	password: vi.fn(),
+	state: vi.fn(() => "idle"),
+}));
+
+vi.mock("@pi-archimedes/core/bridge", () => ({
+	getBridge: () => bridgeState,
+}));
+
 import { buildSudoArgv, createSudoExecTool, probeSudoTicket, scrubSecret } from "./tool.js";
 import type { SudoChild, SudoSpawner } from "./tool.js";
 import { credentialCache } from "./cache.js";
@@ -206,6 +220,89 @@ describe("sudo_exec tool", () => {
 			const tool = createSudoExecTool();
 			const result = await run(tool, headlessCtx("json"), { command: "apt install ripgrep", reason: "install tool" });
 			expect((result.details as { reason: string }).reason).toBe("install tool");
+		});
+	});
+
+	describe("bridge mode (Task 3)", () => {
+		afterEach(() => {
+			bridgeState.active = false;
+			bridgeState.confirm.mockReset();
+			bridgeState.password.mockReset();
+		});
+
+		it("bypasses the headless gate in bridge mode: confirm + password route through the bridge and the command runs", async () => {
+			bridgeState.active = true;
+			bridgeState.confirm.mockResolvedValue(true);
+			bridgeState.password.mockResolvedValue("s3cret");
+			const { spawner, last } = makeFakeSpawner({ stdout: "ok\n", stderr: "", code: 0 });
+			const tool = createSudoExecTool({ spawner, authProbe: () => Promise.resolve(true) });
+			const ui = { confirm: vi.fn(async () => true), custom: vi.fn(async () => "") } as unknown as ExtensionContext["ui"];
+			const ctx = { mode: "rpc", hasUI: true, ui } as unknown as ExtensionContext;
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBeFalsy();
+			expect(last.command).toBe("sudo");
+			expect(last.args).toEqual(["-S", "apt", "update"]);
+			expect(last.child.stdin.written.join("")).toBe("s3cret\n"); // bridge password → sudo -S stdin
+			expect(ui.confirm).not.toHaveBeenCalled(); // the Client's modal, not the TUI
+			expect(ui.custom).not.toHaveBeenCalled();
+		});
+
+		it("declines via the bridge: 'not confirmed', no password prompt, no spawn", async () => {
+			bridgeState.active = true;
+			bridgeState.confirm.mockResolvedValue(false);
+			bridgeState.password.mockResolvedValue("should-not-be-used");
+			let spawned = false;
+			const tool = createSudoExecTool({
+				spawner: () => {
+					spawned = true;
+					throw new Error("spawner must not be called");
+				},
+			});
+			const ctx = headlessCtx("rpc");
+
+			const result = await run(tool, ctx, { command: "reboot", reason: "x" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/not confirmed/i);
+			expect(spawned).toBe(false);
+			expect(bridgeState.password).not.toHaveBeenCalled();
+		});
+
+		it("bridge password cancel ('' → 'password entry cancelled', nothing cached, no spawn)", async () => {
+			bridgeState.active = true;
+			bridgeState.confirm.mockResolvedValue(true);
+			bridgeState.password.mockResolvedValue("");
+			let spawned = false;
+			const tool = createSudoExecTool({
+				spawner: () => {
+					spawned = true;
+					throw new Error("spawner must not be called");
+				},
+			});
+			const ctx = headlessCtx("rpc");
+
+			const result = await run(tool, ctx, { command: "apt update", reason: "maintain" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/password entry cancelled/i);
+			expect(spawned).toBe(false);
+			expect(credentialCache.get()).toBeNull();
+		});
+
+		it("still rejects in headless mode when the bridge is inactive (the 0010 gate is unchanged)", async () => {
+			bridgeState.active = false;
+			const tool = createSudoExecTool();
+			const ui = { confirm: vi.fn(), custom: vi.fn() } as unknown as ExtensionContext["ui"];
+			const ctx = { mode: "json", hasUI: false, ui } as unknown as ExtensionContext;
+
+			const result = await run(tool, ctx, { command: "apt install ripgrep", reason: "install tool" });
+
+			expect(result.isError).toBe(true);
+			expect((result.content[0] as { text: string }).text).toMatch(/interactive/i);
+			expect(ui.confirm).not.toHaveBeenCalled();
+			expect(ui.custom).not.toHaveBeenCalled();
 		});
 	});
 

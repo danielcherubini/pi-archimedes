@@ -104,6 +104,7 @@ export const Events = {
   TODOS_CLEAR: "archimedes:todos_clear",
   ASK_REQUEST: "archimedes:ask_request",
   ASK_RESPONSE: "archimedes:ask_response",
+  ASK_CANCEL: "archimedes:ask_cancel",
 } as const;
 
 interface TodoUpdatePayload {
@@ -118,6 +119,7 @@ interface TodoClearPayload {
 interface AskRequestPayload {
   source: string;        // "subagent:<agent-name>"
   requestId: string;     // unique id to match request → response
+  toolCallId?: string;   // the tool-call id of the process that invoked the tool (carried for Client correlation)
   questions: Array<{ id: string; question: string; description?: string; options: Array<{ label: string }>; multi?: boolean; recommended?: number }>;
 }
 
@@ -127,4 +129,9 @@ interface AskResponsePayload {
   results: Array<{ id: string; selectedOptions: string[]; customInput?: string }>;
 }
 
-export type { CostUpdatePayload, TodoUpdatePayload, TodoClearPayload, AskRequestPayload, AskResponsePayload };
+interface AskCancelPayload {
+  requestId: string;
+  source: string;
+}
+
+export type { CostUpdatePayload, TodoUpdatePayload, TodoClearPayload, AskRequestPayload, AskResponsePayload, AskCancelPayload };

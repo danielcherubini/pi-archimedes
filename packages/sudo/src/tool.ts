@@ -6,6 +6,7 @@ import { credentialCache } from "./cache.js";
 import { splitCommandIntoArgv } from "./argv-split.js";
 import { loadSudoConfig } from "./config.js";
 import { confirmCommand, promptForPassword } from "./prompt.js";
+import { getBridge } from "@pi-archimedes/core/bridge";
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -410,7 +411,10 @@ export function createSudoExecTool(options: {
 				});
 			}
 
-			if (ctx.mode !== "tui") {
+			// Bridge mode bypasses the 0010 gate: the bridge confirm/password are
+			// user-paced Client modals (0010-compliant). TUI and RPC-no-env behave
+			// exactly as before.
+			if (ctx.mode !== "tui" && !getBridge().active) {
 				return fail("sudo_exec requires an interactive session — run privileged commands from the main session.", {
 					command,
 					reason,

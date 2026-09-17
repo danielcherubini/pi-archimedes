@@ -92,12 +92,16 @@ function registerAndCapture(): {
 } {
   const onSpy = vi.fn();
   registerCore({ on: onSpy } as unknown as ExtensionAPI);
-  // Top-level registrations are exactly: session_shutdown + session_start
-  // (message_end is registered inside the session_start handler).
+  // Top-level registrations: registerBridge (added right after patchConsoleLog)
+  // registers session_start + agent_start + agent_settled FIRST, then
+  // registerCore registers session_shutdown + its own session_start. The core's
+  // session_start handler (the one that drives the editor/spin logic) is the
+  // LAST session_start registered — find it by position, not .find (which would
+  // return the bridge's no-op handler).
   const calls = onSpy.mock.calls as Array<
     [string, (event: unknown, ctx: ExtensionContext) => void]
   >;
-  const startCall = calls.find((c) => c[0] === "session_start");
+  const startCall = calls.filter((c) => c[0] === "session_start").at(-1);
   const shutdownCall = calls.find((c) => c[0] === "session_shutdown");
   expect(startCall).toBeTruthy();
   expect(shutdownCall).toBeTruthy();

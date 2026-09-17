@@ -1,6 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { confirmCommand, maskLine, promptForPassword } from "./prompt.js";
+
+// Mock the bridge BEFORE the prompt module loads — the real module is
+// env-gated and would be inactive, but the tests need per-test control of
+// `active` (same pattern as ask/tool.test.ts). Default: inactive, so the
+// pre-existing headless/TUI tests run against the mock with active=false.
+const bridgeState = vi.hoisted(() => ({
+	active: false,
+	ask: vi.fn(),
+	confirm: vi.fn(),
+	password: vi.fn(),
+	state: vi.fn(() => "idle"),
+}));
+
+vi.mock("@pi-archimedes/core/bridge", () => ({
+	getBridge: () => bridgeState,
+}));
 
 // ── minimal ui.custom fakes ──────────────────────────────────────────────────
 
@@ -145,5 +161,81 @@ describe("promptForPassword — masked component", () => {
 		const promise = promptForPassword(ctx);
 		component().handleInput("\r");
 		await expect(promise).resolves.toBe("");
+	});
+});
+
+// ── bridge routing (Task 3) ────────────────────────────────────────────────
+
+function bridgeRpcCtx() {
+	const confirm = vi.fn(async () => true);
+	const custom = vi.fn(async () => "");
+	const ui = { confirm, custom } as unknown as ExtensionContext["ui"];
+	const ctx = { mode: "rpc" as const, hasUI: true, ui } as unknown as ExtensionContext;
+	return { ctx, confirm, custom };
+}
+
+describe("promptForPassword — bridge routing", () => {
+	afterEach(() => {
+		bridgeState.active = false;
+		bridgeState.password.mockReset();
+	});
+
+	it("routes through the bridge in bridge mode (rpc ctx) and never touches ui.custom", async () => {
+		bridgeState.active = true;
+		bridgeState.password.mockResolvedValue("s3cret");
+		const { ctx, custom } = bridgeRpcCtx();
+
+		await expect(promptForPassword(ctx, "apt install ripgrep", "install ripgrep")).resolves.toBe("s3cret");
+		expect(bridgeState.password).toHaveBeenCalledWith({ command: "apt install ripgrep", reason: "install ripgrep" });
+		expect(custom).not.toHaveBeenCalled(); // the Client's modal, not the TUI field
+	});
+
+	it("resolves '' on bridge cancellation (the caller treats '' as cancellation — unchanged)", async () => {
+		bridgeState.active = true;
+		bridgeState.password.mockResolvedValue("");
+		const { ctx } = bridgeRpcCtx();
+
+		await expect(promptForPassword(ctx)).resolves.toBe("");
+	});
+
+	it("still rejects in headless mode when the bridge is inactive (the 0010 gate is unchanged)", async () => {
+		bridgeState.active = false;
+		await expect(promptForPassword(headlessCtx("json"))).rejects.toThrow();
+		expect(bridgeState.password).not.toHaveBeenCalled();
+	});
+});
+
+describe("confirmCommand — bridge routing", () => {
+	afterEach(() => {
+		bridgeState.active = false;
+		bridgeState.confirm.mockReset();
+	});
+
+	it("routes through the bridge in bridge mode (rpc ctx) and never touches ui.confirm", async () => {
+		bridgeState.active = true;
+		bridgeState.confirm.mockResolvedValue(true);
+		const { ctx, confirm, custom } = bridgeRpcCtx();
+
+		await expect(confirmCommand(ctx, "apt install ripgrep", "install ripgrep")).resolves.toBe(true);
+		expect(bridgeState.confirm).toHaveBeenCalledWith({ command: "apt install ripgrep", reason: "install ripgrep" });
+		expect(confirm).not.toHaveBeenCalled(); // the Client's modal, not the TUI confirm
+	});
+
+	it("resolves false on bridge decline", async () => {
+		bridgeState.active = true;
+		bridgeState.confirm.mockResolvedValue(false);
+		const { ctx } = bridgeRpcCtx();
+
+		await expect(confirmCommand(ctx, "reboot", "retry service")).resolves.toBe(false);
+	});
+
+	it("still uses ui.confirm in TUI when the bridge is inactive (unchanged)", async () => {
+		bridgeState.active = false;
+		const confirm = vi.fn(async (_title: string, _message: string) => true);
+		const ctx = { mode: "tui" as const, hasUI: true, ui: { confirm } } as unknown as ExtensionContext;
+
+		await expect(confirmCommand(ctx, "apt install ripgrep", "install ripgrep")).resolves.toBe(true);
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(bridgeState.confirm).not.toHaveBeenCalled();
 	});
 });

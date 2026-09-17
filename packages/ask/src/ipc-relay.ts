@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { getBridge } from "@pi-archimedes/core/bridge";
 import { type AskQuestion, type AskSelection } from "./selection.js";
 import { askSingleQuestionWithInlineNote } from "./picker.js";
 import { askQuestionsWithTabs } from "./dialog.js";
@@ -18,6 +19,13 @@ export function registerIpcRelay(
 
 		// Skip main agent — it shows its own UI in the tool handler
 		if (data.source === "main") return;
+
+		// Bridge mode: the bridge forwards subagent asks to the Client — the
+		// relay must stay inert (per-message gate: registerIpcRelay runs at
+		// extension load when bridge.active is false in every mode, and ctx.mode
+		// is only captured at the first session_start, so a registration-time
+		// gate would silently reintroduce the double-consumption bug).
+		if (getBridge().active) return;
 
 		if (!data.questions || data.questions.length === 0) return;
 

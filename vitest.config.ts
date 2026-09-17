@@ -10,6 +10,7 @@ export default defineConfig({
       "packages/todo",
       "packages/notify",
       "packages/ask",
+      "packages/sudo",
       "packages/image-paste",
       "packages/mcp",
     ],

@@ -10,6 +10,7 @@ import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
 import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, type CoreConfig } from "./config.js";
 import { initBus } from "./bus.js";
+import { registerBridge } from "./bridge/index.js";
 
 // Re-export for session lifecycle management
 export { unpatchConsoleLog } from "./startup/capture.js";
@@ -131,6 +132,11 @@ function clearSpinInterval(): void {
 export function registerCore(pi: ExtensionAPI): void {
   // Patch console.log for model scope capture
   patchConsoleLog();
+
+  // Bridge (env-gated local channel to the Client) — top-level, like
+  // patchConsoleLog (never inside a session handler, so it doesn't accumulate
+  // on /reload).
+  registerBridge(pi);
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {

@@ -67,17 +67,22 @@ function resolvePiBinary(): string {
  * Start a Unix socket server that bridges the child's ask tool to the parent bus.
  *
  * The child's ask tool (in packages/ask) connects to PI_SUBAGENT_SOCKET and sends:
- *   { type: "ask_request", requestId, questions } as a JSON line
+ *   { type: "ask_request", requestId, questions, toolCallId } as a JSON line
  * and waits for:
  *   { type: "ask_response", requestId, cancelled, results } as a JSON line
  *
- * We forward the request onto the bus (ASK_REQUEST), the ask package shows the
- * parent TUI dialog, then emits ASK_RESPONSE on the bus, and we write it back
- * to the socket connection.
+ * We forward the request onto the bus (ASK_REQUEST, carrying toolCallId), the
+ * ask package (or the bridge, in bridge mode) answers it, then emits
+ * ASK_RESPONSE on the bus, and we write it back to the socket connection.
+ *
+ * When the socket closes (child exit, or the child's own 5-min timeout →
+ * socket.end()) we signal the bridge via ASK_CANCEL for any still-pending ask.
+ * We do NOT emit ASK_RESPONSE ourselves — the bridge is the sole emitter
+ * (no double-decrement of its refcount).
  *
  * Returns the socket path and a cleanup function.
  */
-function startAskSocketServer(agentName: string): { socketPath: string; cleanup: () => void } {
+export function startAskSocketServer(agentName: string): { socketPath: string; cleanup: () => void } {
   // Use named pipes on Windows, Unix domain sockets elsewhere.
   // Linux socket path limit is 108 chars — keep it short.
   const id = randomUUID().slice(0, 8);
@@ -110,6 +115,8 @@ function startAskSocketServer(agentName: string): { socketPath: string; cleanup:
 
   const server = net.createServer((socket) => {
     let buffer = "";
+    // requestIds seen on this socket (for the ASK_CANCEL wiring below)
+    const socketRequestIds = new Set<string>();
 
     socket.on("data", (chunk: Buffer) => {
       buffer += chunk.toString("utf-8");
@@ -124,6 +131,7 @@ function startAskSocketServer(agentName: string): { socketPath: string; cleanup:
             type: string;
             requestId: string;
             questions: unknown[];
+            toolCallId?: string;
           };
           if (msg.type === "ask_request") {
             // Register write-back so ASK_RESPONSE handler can find this socket
@@ -134,15 +142,31 @@ function startAskSocketServer(agentName: string): { socketPath: string; cleanup:
                 // socket already closed
               }
             });
-            // Forward to bus — ask package will show the TUI dialog
+            socketRequestIds.add(msg.requestId);
+            // Forward to bus — the ask package (or the bridge, in bridge mode)
+            // answers it; toolCallId rides along for Client correlation
             getBus().emit(Events.ASK_REQUEST, {
               source: `subagent:${agentName}`,
               requestId: msg.requestId,
               questions: msg.questions,
+              toolCallId: msg.toolCallId,
             });
           }
         } catch {
           // malformed JSON — ignore
+        }
+      }
+    });
+
+    // Child exit (or the child's own 5-min timeout → socket.end()) closes the
+    // socket: signal the bridge via ASK_CANCEL for any still-pending ask so it
+    // can cancel the relayed Client request. We only signal — the bridge is
+    // the sole ASK_RESPONSE emitter (no double-decrement of its refcount).
+    socket.on("close", () => {
+      for (const rid of socketRequestIds) {
+        if (pending.has(rid)) {
+          getBus().emit(Events.ASK_CANCEL, { requestId: rid, source: `subagent:${agentName}` });
+          pending.delete(rid);
         }
       }
     });
@@ -245,7 +269,12 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
         forceKill.unref();
       }
     };
-    options.signal.addEventListener("abort", abortHandler, { once: true });
+    // A signal that is ALREADY aborted never dispatches its "abort" event (it
+    // fires exactly once, at abort time), so addEventListener alone would never
+    // kill the child — call the handler directly in that case. (kill is
+    // idempotent via the child.killed guard, so both branches coexist safely.)
+    if (options.signal.aborted) abortHandler();
+    else options.signal.addEventListener("abort", abortHandler, { once: true });
     child.on("exit", () => options.signal!.removeEventListener("abort", abortHandler));
   }
 
