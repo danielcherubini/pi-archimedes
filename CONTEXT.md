@@ -28,6 +28,14 @@ _Avoid_: Plugin, module, package entry
 An npm package tagged with `"keywords": ["pi-package"]` that is loadable by pi's extension system. Requires `"pi": { "extensions": ["./src/index.ts"] }` in `package.json`.
 _Avoid_: Pi plugin, pi extension package
 
+**Bridge**:
+The mechanism by which the suite, when running as a process managed by the Archimedes Desktop (the **Client**), routes its interactive UI primitives (ask picker, confirmations, masked password input) and ambient state (todos, cost, subagent streams, agent state) to the Client over a local channel (the **bridge channel** — a Unix socket; a named pipe on Windows). Generalizes the subagent socket pattern: the suite talks out-of-band to its manager — the main pi process in subagent mode, the Client when the Client manages the process. See the desktop glossary for the Client-side view.
+_Avoid_: Side channel, client mode, host mode
+
+**Bridge mode**:
+The suite's operating state when the Client manages the agent process (bridge env vars present at spawn). Interactive prompts are delegated to the Client and ambient state is pushed over the bridge channel. Contrast: TUI mode, subagent mode, headless mode. TUI mode always wins over bridge mode when both could apply.
+_Avoid_: RPC mode (overlapping but not identical — the gate is env presence, not `ctx.mode`), client mode, host mode
+
 ## MCP terminology
 
 **Proxy tool**:
