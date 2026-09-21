@@ -6,6 +6,8 @@
  * - doesn't fit → two lines (system info above, stats + bar below)
  * - left sections alone overflow → three or more lines
  * - below splitThreshold (default 150) → at least two lines, as configured
+ * - oversized extension statuses are word-wrapped into multiple chunks so no
+ *   content is ever truncated by clampLine
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -15,7 +17,7 @@ import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
 import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
-import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount } from "./utils/format.js";
+import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, wrapStatusToChunks } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
 import { packFooterLines, SEP_W, SEPARATOR } from "./utils/layout.js";
 
@@ -76,8 +78,10 @@ export function registerFooter(pi: ExtensionAPI): void {
 
             const branchIcon = inWorktree ? footerIcons.worktree : footerIcons.branch;
 
-            // Extension status texts (pi setStatus) — may contain ANSI, render as-is
-            const extensionStatuses = [...footerData.getExtensionStatuses().values()].filter(Boolean);
+            // Extension status texts (pi setStatus) — may contain ANSI; oversized statuses wrap
+            const extensionStatusChunks = [...footerData.getExtensionStatuses().values()]
+              .filter(Boolean)
+              .flatMap((s) => wrapStatusToChunks(s, width));
 
             // System info sections: dir | branch [+status] | model | thinking | ext-statuses
             const leftSections = [
@@ -85,7 +89,7 @@ export function registerFooter(pi: ExtensionAPI): void {
               currentBranch ? colorize("success", branchIcon + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
-              ...extensionStatuses,
+              ...extensionStatusChunks,
             ].filter(Boolean);
 
             // Usage stats: ↑in ↓out RcacheRead WcacheWrite $cost contextWindow

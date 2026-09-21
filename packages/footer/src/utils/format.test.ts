@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { stripAnsi } from "@pi-archimedes/core/text";
 import {
   formatTokenCount,
   formatContextBar,
   formatGitStatusIndicators,
   formatThinkingIndicator,
+  wrapStatusToChunks,
 } from "./format.js";
 import { thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.js";
 
@@ -159,5 +161,57 @@ describe("formatThinkingIndicator", () => {
 
   it("falls back for unknown levels", () => {
     expect(formatThinkingIndicator("unknown", mockColor)).toBe("◑ unknown");
+  });
+});
+
+// ── wrapStatusToChunks ──────────────────────────────────────────────────────
+
+describe("wrapStatusToChunks", () => {
+  it("short status fits → returned unchanged (including ANSI)", () => {
+    const status = "\u001b[33m⚠ token invalid\u001b[0m";
+    const chunks = wrapStatusToChunks(status, 80);
+    expect(chunks).toEqual([status]);
+  });
+
+  it("empty status → [status]", () => {
+    expect(wrapStatusToChunks("", 80)).toEqual([""]);
+    expect(wrapStatusToChunks("   ", 80)).toEqual(["   "]);
+  });
+
+  it("oversized status wraps: no content loss, every chunk ≤ width", () => {
+    const colored = "\u001b[33m⚠\u001b[0m";
+    // Build a ~40-word status with an ANSI-colored prefix
+    const words = Array.from({ length: 40 }, (_, i) => `word${i}`);
+    const status = colored + " " + words.join(" ");
+    const width = 40;
+    const chunks = wrapStatusToChunks(status, width);
+    // Every chunk must fit in width
+    expect(chunks.every((c) => visibleWidth(c) <= width)).toBe(true);
+    // No content loss — normalise whitespace in stripped versions
+    const joined = chunks.map(stripAnsi).join(" ").replace(/\s+/g, " ").trim();
+    const original = stripAnsi(status).replace(/\s+/g, " ").trim();
+    expect(joined).toBe(original);
+  });
+
+  it("oversized single word (URL) splits without loss", () => {
+    const url = "https://" + "a".repeat(192);
+    const width = 30;
+    const chunks = wrapStatusToChunks(url, width);
+    // Concat of stripped chunks equals stripped original
+    expect(chunks.map(stripAnsi).join("")).toBe(stripAnsi(url));
+    // Every chunk fits
+    expect(chunks.every((c) => visibleWidth(c) <= width)).toBe(true);
+  });
+
+  it("word-wider-than-width preserves ANSI — concatenated raw string equals input", () => {
+    const longWord = "\u001b[31m" + "Z".repeat(60) + "\u001b[0m";
+    const width = 20;
+    const chunks = wrapStatusToChunks(longWord, width);
+    // Some chunk must contain the opening escape
+    expect(chunks.some((c) => c.includes("\u001b[31m"))).toBe(true);
+    // Concatenation of raw chunks (no spaces) equals the input
+    expect(chunks.join("")).toBe(longWord);
+    // No chunk exceeds width
+    expect(chunks.every((c) => visibleWidth(c) <= width)).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { stripAnsi } from "@pi-archimedes/core/text";
 import { packFooterLines, SEP_W, SEPARATOR } from "./layout.js";
-import { formatContextBar } from "./format.js";
+import { formatContextBar, wrapStatusToChunks } from "./format.js";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 // Minimal stand-ins: same visible chars as the real footer, no ANSI
@@ -94,6 +94,26 @@ describe("render glue simulation", () => {
     // (a) status text is fully present across joined lines (no clipping)
     expect(all).toContain(STATUS);
     // (b) no line exceeds 158 visible columns
+    expect(lines.every((l) => visibleWidth(stripAnsi(l)) <= 158)).toBe(true);
+  });
+
+  it("oversized extension status wraps through the production path without truncation", () => {
+    const LONG =
+      "⚠ litellm token invalid — re-auth required: " +
+      "gcloud auth application-default login (see https://support.google.com/a/answer/9368756 for details) — check Settings → Auth for more context " +
+      "and verify your credentials are up-to-date before retrying the long operation that failed";
+    // Verify it is >158 visible chars
+    expect(visibleWidth(LONG)).toBeGreaterThan(158);
+    const chunks = wrapStatusToChunks(LONG, 158);
+    const lines = buildLines(158, 12, 150, chunks);
+    const stripped = lines.map((l) => stripAnsi(l));
+    // (a) every word of the original status appears in the joined lines
+    const allText = stripped.join(" ");
+    const words = stripAnsi(LONG).split(/\s+/).filter(Boolean);
+    for (const word of words) {
+      expect(allText).toContain(word);
+    }
+    // (b) every line ≤ 158 visible cols
     expect(lines.every((l) => visibleWidth(stripAnsi(l)) <= 158)).toBe(true);
   });
 });
