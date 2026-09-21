@@ -14,13 +14,14 @@ const MODEL = "🧠 claude-sonnet-4-6";
 const THINKING = "◕ high"; // current format for the 'high' level
 const STATS = "↑141 ↓42k R8.7M W220k $4.25 116k/977k";
 
-function buildLines(width: number, pct: number, splitThreshold = 150) {
+function buildLines(width: number, pct: number, splitThreshold = 150, extraSections: string[] = []) {
   const leftSections = [
     DIR,
     BRANCH,
     WORKTREE,
     MODEL,
     THINKING,
+    ...extraSections,
   ].filter(Boolean);
   let groups = packFooterLines([...leftSections, STATS], width, SEP_W);
   if (groups.length < 2 && width < splitThreshold && leftSections.length > 0) {
@@ -83,5 +84,16 @@ describe("render glue simulation", () => {
     expect(all).toContain("116k/977k");
     // No line exceeds 40 visible columns
     expect(lines.every((l) => visibleWidth(stripAnsi(l)) <= 40)).toBe(true);
+  });
+
+  it("extension status chunk wraps without truncation on the user's terminal", () => {
+    const STATUS = "⚠ litellm token invalid — re-auth required";
+    const lines = buildLines(158, 12, 150, [STATUS]);
+    const stripped = lines.map((l) => stripAnsi(l));
+    const all = stripped.join(" ");
+    // (a) status text is fully present across joined lines (no clipping)
+    expect(all).toContain(STATUS);
+    // (b) no line exceeds 158 visible columns
+    expect(lines.every((l) => visibleWidth(stripAnsi(l)) <= 158)).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 /**
- * dir | branch [+status] | worktree | model | ◕thinking | ↑↓R W $cost ━ context%
+ * dir | branch [+status] | worktree | model | ◕thinking · ⚠ext-status | ↑↓R W $cost ━ context%
  *
  * Adaptive layout — wraps to additional lines instead of truncating:
  * - fits width → single line (system info · stats · context bar)
@@ -76,12 +76,16 @@ export function registerFooter(pi: ExtensionAPI): void {
 
             const branchIcon = inWorktree ? footerIcons.worktree : footerIcons.branch;
 
-            // System info sections: dir | branch [+status] | model | thinking
+            // Extension status texts (pi setStatus) — may contain ANSI, render as-is
+            const extensionStatuses = [...footerData.getExtensionStatuses().values()].filter(Boolean);
+
+            // System info sections: dir | branch [+status] | model | thinking | ext-statuses
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
               currentBranch ? colorize("success", branchIcon + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
+              ...extensionStatuses,
             ].filter(Boolean);
 
             // Usage stats: ↑in ↓out RcacheRead WcacheWrite $cost contextWindow
