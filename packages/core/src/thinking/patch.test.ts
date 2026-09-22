@@ -401,6 +401,8 @@ describe("patchThinkingRenderer", () => {
 	async function renderThinkingComponent(options?: {
 		hideThinkingBlock?: boolean;
 		message?: any;
+		isStreaming?: boolean;
+		config?: { labelText?: string; labelColor?: string; autoCollapseThinking?: boolean };
 	}) {
 		const MockClass = function AssistantMessageComponent() {};
 		MockClass.prototype.updateContent = function updateContent() {
@@ -447,6 +449,7 @@ describe("patchThinkingRenderer", () => {
 		const mod = await import("./patch.js");
 		mod.patchThinkingRenderer(
 			() => ({ getFgAnsi: () => "", fg: (_t: string, text: string) => text, italic: (text: string) => text }) as any,
+			options?.config,
 		);
 
 		const addedChildren: any[] = [];
@@ -471,7 +474,8 @@ describe("patchThinkingRenderer", () => {
 			content: [{ type: "thinking", thinking: "Testing thinking toggle" }],
 			stopReason: undefined,
 		};
-		instance.updateContent(message, false);
+		const isStreaming = options?.isStreaming ?? false;
+		instance.updateContent(message, isStreaming);
 		return { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText };
 	}
 
@@ -560,5 +564,89 @@ describe("patchThinkingRenderer", () => {
 		mouseRegions[1]!.onMouse({ type: "click", button: "left" });
 		expect(instance.thinkingVisibilityOverrides.get(0)).toBeUndefined();
 		expect(instance.thinkingVisibilityOverrides.get(1)).toBe(true);
+	});
+
+	describe("autoCollapseThinking", () => {
+		it("renders expanded Markdown while actively streaming thinking", async () => {
+			const { addedChildren, MockMouseRegion, MockMarkdown } = await renderThinkingComponent({
+				config: { autoCollapseThinking: true },
+				isStreaming: true,
+				message: {
+					content: [{ type: "thinking", thinking: "Streamed thought" }],
+				},
+			});
+			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
+			expect(mouseRegions).toHaveLength(1);
+			expect(mouseRegions[0]!.child).toBeInstanceOf(MockMarkdown);
+		});
+
+		it("collapses to Text once streaming ends", async () => {
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { autoCollapseThinking: true },
+				isStreaming: false,
+				message: {
+					content: [{ type: "thinking", thinking: "Finished thought" }],
+				},
+			});
+			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
+			expect(mouseRegions).toHaveLength(1);
+			expect(mouseRegions[0]!.child).toBeInstanceOf(MockText);
+		});
+
+		it("collapses to Text during streaming when followed by text content", async () => {
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { autoCollapseThinking: true },
+				isStreaming: true,
+				message: {
+					content: [
+						{ type: "thinking", thinking: "Completed thought" },
+						{ type: "text", text: "Answer in progress..." },
+					],
+				},
+			});
+			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
+			expect(mouseRegions).toHaveLength(1);
+			expect(mouseRegions[0]!.child).toBeInstanceOf(MockText);
+		});
+
+		it("collapses to Text during streaming when followed by toolCall", async () => {
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { autoCollapseThinking: true },
+				isStreaming: true,
+				message: {
+					content: [
+						{ type: "thinking", thinking: "Completed thought" },
+						{ type: "toolCall", id: "call_1", name: "bash", args: {} },
+					],
+				},
+			});
+			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
+			expect(mouseRegions).toHaveLength(1);
+			expect(mouseRegions[0]!.child).toBeInstanceOf(MockText);
+		});
+
+		it("respects user click override when autoCollapseThinking is enabled", async () => {
+			const { instance, addedChildren, MockMouseRegion, MockMarkdown } = await renderThinkingComponent({
+				config: { autoCollapseThinking: true },
+				isStreaming: false,
+				message: {
+					content: [{ type: "thinking", thinking: "Finished thought" }],
+				},
+			});
+			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(mouseRegion).toBeDefined();
+
+			// User clicks collapsed block to expand it
+			mouseRegion!.onMouse({ type: "click", button: "left" });
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			// Re-render with override applied
+			const childrenAfter: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfter.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const regionAfter = childrenAfter.find((c) => c instanceof MockMouseRegion);
+			expect(regionAfter!.child).toBeInstanceOf(MockMarkdown);
+		});
 	});
 });

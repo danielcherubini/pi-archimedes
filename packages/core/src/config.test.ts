@@ -25,6 +25,7 @@ describe("loadCoreConfig", () => {
     const result = loadCoreConfig();
     expect(result).toEqual({
       mutedTheme: false,
+      autoCollapseThinking: false,
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -65,6 +66,7 @@ describe("DEFAULT_CORE_CONFIG", () => {
   it("has the expected shape", () => {
     expect(DEFAULT_CORE_CONFIG).toEqual({
       mutedTheme: false,
+      autoCollapseThinking: false,
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",

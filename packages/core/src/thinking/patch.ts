@@ -15,12 +15,12 @@ const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
  * Re-patches when pi version changes to catch breaking upstream changes.
  *
  * @param config Optional labelText/labelColor overrides for the thinking
- *   block header. When omitted (or empty/invalid), the original defaults
- *   ("Thinking..." / "255,215,0") are used, producing byte-identical output.
+ *   block header, and autoCollapseThinking flag. When omitted (or empty/invalid),
+ *   the original defaults are used.
  */
 export function patchThinkingRenderer(
   getTheme: () => Theme,
-  config?: { labelText?: string; labelColor?: string },
+  config?: { labelText?: string; labelColor?: string; autoCollapseThinking?: boolean },
 ): void {
   if (!AssistantMessageComponent) return;
 
@@ -205,15 +205,28 @@ export function patchThinkingRenderer(
         if (thinkBlocks.length === 0) continue;
 
         const runIndex = thinkingRunIndex++;
-        const hidden = this.thinkingVisibilityOverrides.get(runIndex) ?? this.hideThinkingBlock;
 
         const hasVisibleContentAfter = message.content
           .slice(i + 1)
           .some(
             (c: any) =>
               (c.type === "text" && c.text.trim()) ||
-              (c.type === "thinking" && c.thinking.trim()),
+              (c.type === "thinking" && c.thinking.trim()) ||
+              c.type === "toolCall",
           );
+
+        const userOverride = this.thinkingVisibilityOverrides.get(runIndex);
+        let hidden: boolean;
+        if (userOverride !== undefined) {
+          hidden = userOverride;
+        } else if (config?.autoCollapseThinking) {
+          // When auto-collapse is enabled, show thinking while it is actively streaming.
+          // Once thinking finishes (subsequent content arrives or streaming ends), collapse it.
+          const isThinkingActive = Boolean(this.isStreaming) && !hasVisibleContentAfter;
+          hidden = !isThinkingActive;
+        } else {
+          hidden = this.hideThinkingBlock;
+        }
 
         let thinkingComponent: Text | Markdown;
         if (hidden) {

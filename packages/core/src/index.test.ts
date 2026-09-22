@@ -36,6 +36,7 @@ vi.mock("./thinking/patch.js", () => ({
 
 const { registerCore, getCoreSettingsItems } = await import("./index.js");
 const { loadCoreConfig, DEFAULT_CORE_CONFIG } = await import("./config.js");
+const { patchThinkingRenderer } = await import("./thinking/patch.js");
 
 // ── Sparse spy handles (real casts strip the spy typing) ───────────────
 
@@ -362,5 +363,41 @@ describe("orphaned timer reaping", () => {
 
     // (5) The orphan was reaped BEFORE the new editor's setInterval
     expect(clearOrderA).toBeLessThan(setOrderB);
+  });
+});
+
+// ── 4. autoCollapseThinking ─────────────────────────────────────────────
+
+describe("autoCollapseThinking config & setting item", () => {
+  it("getCoreSettingsItems exposes autoCollapseThinking item correctly", () => {
+    const itemsOff = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      autoCollapseThinking: false,
+    });
+    const itemOff = itemsOff.find((i) => i.id === "autoCollapseThinking");
+    expect(itemOff).toBeDefined();
+    expect(itemOff!.currentValue).toBe("Off");
+    expect(itemOff!.values).toEqual(["On", "Off"]);
+
+    const itemsOn = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      autoCollapseThinking: true,
+    });
+    const itemOn = itemsOn.find((i) => i.id === "autoCollapseThinking");
+    expect(itemOn!.currentValue).toBe("On");
+  });
+
+  it("passes autoCollapseThinking config to patchThinkingRenderer", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      autoCollapseThinking: true,
+    });
+    start(ctx);
+    expect(patchThinkingRenderer).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        autoCollapseThinking: true,
+      }),
+    );
   });
 });

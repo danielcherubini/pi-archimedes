@@ -27,6 +27,13 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       values: ["On", "Off"],
     },
     {
+      id: "autoCollapseThinking",
+      label: "Auto-Collapse Thinking",
+      description: "Collapse thinking blocks after thinking completes",
+      currentValue: config.autoCollapseThinking ? "On" : "Off",
+      values: ["On", "Off"],
+    },
+    {
       id: "codeUnindent",
       label: "Code Unindent",
       description: "Remove 2-space indent from code blocks",
@@ -268,6 +275,7 @@ export function registerCore(pi: ExtensionAPI): void {
     patchThinkingRenderer(() => ctx.ui.theme, {
       labelText: config.labelText,
       labelColor: config.labelColor,
+      autoCollapseThinking: config.autoCollapseThinking,
     });
 
     // Register events

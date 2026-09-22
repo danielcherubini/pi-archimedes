@@ -15,6 +15,7 @@ export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 
 export interface CoreConfig {
   mutedTheme: boolean;
+  autoCollapseThinking: boolean;
   codeUnindent: boolean;
   labelText: string;
   labelColor: string;
@@ -40,6 +41,7 @@ export type SpinnerStyle =
 
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
   mutedTheme: false,
+  autoCollapseThinking: false,
   codeUnindent: true,
   labelText: "Thinking...",
   labelColor: "255,215,0",
