@@ -14,6 +14,8 @@ import type { AskResponsePayload, AskRequestPayload } from "../bus.js";
 import * as channel from "./channel.js";
 import * as events from "./events.js";
 
+export { BridgeTransportError } from "./channel.js";
+
 export class BridgeInactiveError extends Error {
   constructor() {
     super("bridge is not active");
@@ -30,7 +32,54 @@ function eventsState(): "working" | "idle" | "blocked" {
 }
 
 export function getBridge() {
-  return { active: channelActive(), ask, confirm, password, state: eventsState };
+  return { active: channelActive(), ask, confirm, password, dispatch, state: eventsState };
+}
+
+/**
+ * Delegate a subagent task to the Client (desktop) instead of forking a
+ * child pi process. The desktop runs the subagent session (a full ACP
+ * session on its worker runtime) and answers with the final output +
+ * metrics.
+ *
+ * The request opts OUT of the 5-minute timeout (`timeoutMs: null`): the
+ * desktop's lifecycle (parent close / EOF / app exit) is the cancel path —
+ * the tool's AbortSignal cancels the request (the promise settles
+ * deterministically with a plain "cancelled" error — NOT a
+ * BridgeTransportError, so it can never trigger a fork fallback) and the
+ * socket close delivers the desktop's EOF → the subagent session cancels.
+ * An unreachable bridge rejects with BridgeTransportError (the subagent's
+ * fork-fallback trigger); a response-carrying `error` (incl. the terminal
+ * `"cancelled"` frame) is authoritative and never a fallback.
+ */
+export interface DispatchParams {
+  agentName: string;
+  task: string;
+  systemPrompt: string | null;
+  model: string | null;
+  thinking: string | null;
+  tools: string[] | null;
+}
+
+export interface DispatchResult {
+  output: string;
+  metrics: { inputTokens: number; outputTokens: number; cost: number; durationMs: number };
+}
+
+export function dispatch(params: DispatchParams, toolCallId: string | undefined, signal?: AbortSignal): Promise<DispatchResult> {
+  if (!channelActive()) throw new BridgeInactiveError();
+  const handle = channel.request<DispatchResult>("dispatch_subagent", params, { toolCallId, source: "main", timeoutMs: null });
+  if (signal) {
+    // Same abort wiring as ask (see there for the full rationale): a
+    // pre-aborted signal cancels immediately, the listener is removed on
+    // settle via the .then(onFulfilled, onRejected) form.
+    if (signal.aborted) handle.cancel();
+    else signal.addEventListener("abort", handle.cancel, { once: true });
+    handle.promise.then(
+      () => { signal?.removeEventListener("abort", handle.cancel); },
+      () => { signal?.removeEventListener("abort", handle.cancel); },
+    );
+  }
+  return handle.promise;
 }
 
 /**
@@ -48,7 +97,8 @@ export function ask(params: { questions: AskRequestPayload["questions"] }, toolC
     // "abort" event (it fires exactly once, at abort time), so an addEventListener
     // alone would leave the request lingering until the Client responds or the
     // 5-minute timeout — call cancel() directly in that case. cancel() is
-    // idempotent and settles the promise via the socket-close handler, so both
+    // idempotent and settles the promise deterministically (the
+    // socket-close handler it triggers is a no-op once settled), so both
     // branches coexist safely. The listener is removed on settle; the
     // .then(onFulfilled, onRejected) form (not .finally) avoids an unhandled
     // rejection from the derived promise when the request rejects.

@@ -17,6 +17,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./bridge": "./src/bridge/index.ts",
+    "./bridge/channel": "./src/bridge/channel.ts",
     "./bus": "./src/bus.ts",
     "./chrome": "./src/chrome.ts",
     "./text": "./src/text.ts",

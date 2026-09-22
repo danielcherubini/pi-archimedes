@@ -401,3 +401,61 @@ describe("autoCollapseThinking config & setting item", () => {
     );
   });
 });
+
+// ── 5. compactThinking ──────────────────────────────────────────────────
+
+describe("compactThinking config & setting item", () => {
+  it("getCoreSettingsItems exposes compactThinking item correctly", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      compactThinking: "3 lines",
+    });
+    const item = items.find((i) => i.id === "compactThinking");
+    expect(item).toBeDefined();
+    expect(item!.label).toBe("Compact thinking");
+    expect(item!.currentValue).toBe("3 lines");
+    expect(item!.values).toEqual(["Off", "1 line", "3 lines", "5 lines"]);
+    expect(item!.description).toBe(
+      "Display only the last N lines of thinking (expands to full on click)",
+    );
+  });
+
+  it("normalizes invalid compactThinking values in getCoreSettingsItems", () => {
+    const items = getCoreSettingsItems({
+      ...DEFAULT_CORE_CONFIG,
+      compactThinking: "invalid" as any,
+    });
+    const item = items.find((i) => i.id === "compactThinking");
+    expect(item).toBeDefined();
+    expect(item!.currentValue).toBe("Off");
+  });
+
+  it("passes compactThinking config to patchThinkingRenderer", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      compactThinking: "3 lines",
+    });
+    start(ctx);
+    expect(patchThinkingRenderer).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        compactThinking: "3 lines",
+      }),
+    );
+  });
+
+  it("normalizes compactThinking before passing to patchThinkingRenderer", () => {
+    vi.mocked(loadCoreConfig).mockReturnValue({
+      ...DEFAULT_CORE_CONFIG,
+      compactThinking: "unknown" as any,
+    });
+    start(ctx);
+    expect(patchThinkingRenderer).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        compactThinking: "Off",
+      }),
+    );
+  });
+});
+

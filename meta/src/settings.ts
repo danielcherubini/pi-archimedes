@@ -94,6 +94,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           // ── Core settings ──
           case "mutedTheme": coreConfig.mutedTheme = newValue === "On"; break;
           case "autoCollapseThinking": coreConfig.autoCollapseThinking = newValue === "On"; break;
+          case "compactThinking": coreConfig.compactThinking = newValue as CoreConfig["compactThinking"]; break;
           case "codeUnindent": coreConfig.codeUnindent = newValue === "On"; break;
           case "editorSpinBorder": coreConfig.editorSpinBorder = newValue === "On"; break;
           case "editorSpinSpeed": coreConfig.editorSpinSpeed = newValue.toLowerCase() as CoreConfig["editorSpinSpeed"]; break;

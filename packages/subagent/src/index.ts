@@ -96,6 +96,9 @@ export function registerSubagent(pi: ExtensionAPI): void {
             model: t.model,
             activeModel: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
             cwd: t.cwd ?? undefined,
+            // All N tasks share the single subagent tool-call's id (the frame
+            // carries it for Client correlation).
+            toolCallId: _id,
           })),
           signal: signal ?? undefined,
           onUpdate: (progress: SubagentProgress[]) => {
@@ -163,6 +166,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           activeModel: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
           cwd: params.cwd ?? undefined,
           signal: signal ?? undefined,
+          toolCallId: _id,
           onUpdate: (progress: SubagentProgress) => {
             onUpdate?.({
               content: [],

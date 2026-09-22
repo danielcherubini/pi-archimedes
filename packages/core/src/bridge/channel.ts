@@ -6,15 +6,46 @@
 //   - sendEvent: best-effort push (initial + 2 retries at 500/1500 ms, then
 //     drop; coalesced to at most one in-flight connection per event type).
 //   - request: interactive (a single request/response over one connection;
-//     5-minute timeout (unref'd) → immediate reject + socket destroy;
+//     5-minute timeout by default (unref'd, overridable per-request —
+//     `timeoutMs: null` = no timeout) → immediate reject + socket destroy;
 //     connection close = immediate cancel; unreachable channel → fail fast).
 //     Returns a cancellable handle ({ promise, cancel }).
 //
 // The `active` flag does NOT depend on a successful connection (lazy,
 // per-message connect). A failed connect is a no-op.
+//
+// Failure taxonomy: a response frame carrying `error` rejects with a plain
+// Error (the desktop answered — it is alive and the outcome is authoritative);
+// a transport-level failure (unreachable socket / mid-connection error / a
+// clean close before any response) rejects with BridgeTransportError — the
+// subagent's fallback trigger. A timeout is ALSO "no response frame" but is
+// deliberately a plain Error (ambiguous liveness — the desktop may still be
+// working on a long request) so it can never trigger a fork fallback (double
+// execution); a deliberate cancel() is a plain Error for the same reason — a
+// cancel must never fork either.
 
 import * as net from "node:net";
 import { randomUUID } from "node:crypto";
+
+/**
+ * A transport-level failure: the connection never delivered a response
+ * frame (unreachable socket / ECONNREFUSED, a mid-connection error, or a
+ * clean close before any response — the desktop is effectively gone).
+ * Distinct from a response-carrying error (the desktop answered with an
+ * `error` — it is alive and the outcome is authoritative).
+ *
+ * A timeout is also "no response frame" but is DELIBERATELY NOT a
+ * BridgeTransportError: it is an ambiguous-liveness outcome (the desktop may
+ * still be working on a long request) and must never trigger a fork
+ * fallback (double execution) — it rejects with a plain Error. Callers that
+ * cannot tolerate a 5-minute silence should pass a smaller `timeoutMs`.
+ */
+export class BridgeTransportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BridgeTransportError";
+  }
+}
 
 let active = false;
 let socketPath: string | undefined;
@@ -161,7 +192,7 @@ function settle(event: string): void {
 export function request<T>(
   method: string,
   params: unknown,
-  opts?: { toolCallId?: string; source?: string },
+  opts?: { toolCallId?: string | undefined; source?: string; timeoutMs?: number | null | undefined },
 ): { promise: Promise<T>; cancel: () => void } {
   const id = randomUUID();
   const frame = {
@@ -177,17 +208,24 @@ export function request<T>(
   let settled = false;
   let socket: net.Socket | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // The settle helper (assigned in the executor below — the executor runs
+  // synchronously, so it is assigned before any caller can invoke cancel()).
+  let finish: (err?: Error, value?: T) => void = () => {};
 
   const promise = new Promise<T>((resolve, reject) => {
     const target = socketTarget();
     if (!target) {
-      // Unreachable channel → fail fast.
+      // Unreachable channel → fail fast (a transport-level failure — the
+      // desktop is effectively gone, so the subagent's fallback trigger).
       settled = true;
-      reject(new Error("bridge channel unreachable"));
+      reject(new BridgeTransportError("bridge channel unreachable"));
       return;
     }
 
-    const finish = (err?: Error, value?: T) => {
+    finish = (err?: Error, value?: T) => {
+      // Idempotent: the socket's close handler (fired by the destroy below)
+      // must NOT double-settle a request already settled by a timeout or a
+      // deterministic cancel.
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
@@ -196,11 +234,28 @@ export function request<T>(
       else resolve(value as T);
     };
 
-    // 5-minute timeout (unref'd) → immediate reject + socket destroy.
-    timer = setTimeout(() => {
-      finish(new Error("bridge request timed out"));
-    }, 5 * 60 * 1000);
-    timer.unref?.();
+    // Timeout: `timeoutMs: null` = NO timeout (skip the timer entirely —
+    // dispatch_subagent, whose cancel path is the desktop's lifecycle, not a
+    // timer); `timeoutMs: undefined` = the 5-minute default. Note: `??`
+    // cannot express this (it falls back for null AND undefined) — hence the
+    // explicit undefined check. A NEGATIVE value is clamped to 1 ms (the
+    // minimum setTimeout delay — `null`, not a negative, is the "never"
+    // case). The timer is unref'd so a pending request never keeps the
+    // process alive.
+    //
+    // A timeout is an AMBIGUOUS-LIVENESS outcome (the desktop may still be
+    // working on a long request) — it is deliberately NOT a
+    // BridgeTransportError, so it can never trigger a fork fallback (double
+    // execution); callers that cannot tolerate a 5-minute silence should pass
+    // a smaller `timeoutMs` or `null`.
+    const rawTimeoutMs = opts?.timeoutMs === undefined ? 5 * 60 * 1000 : opts!.timeoutMs;
+    if (rawTimeoutMs !== null) {
+      const delay = rawTimeoutMs < 0 ? 1 : rawTimeoutMs; // clamp negatives to the 1 ms minimum
+      timer = setTimeout(() => {
+        finish(new Error("bridge request timed out"));
+      }, delay);
+      timer.unref?.();
+    }
 
     socket = net.createConnection(target);
     const sock = socket; // capture non-undefined for the handlers below
@@ -226,17 +281,25 @@ export function request<T>(
         } catch { /* malformed line — ignore */ }
       }
     });
-    // error / close before a response → cancel.
-    sock.on("error", () => finish(new Error("bridge channel error")));
-    sock.on("close", () => finish(new Error("bridge channel closed before response")));
+    // error / close before a response → a transport-level failure (the
+    // desktop is effectively gone). A response frame carrying `error` still
+    // rejects with a plain Error — the desktop answered, so its outcome is
+    // authoritative (NOT a transport failure). (A deterministic cancel()
+    // settles first — the close it triggers is a no-op here.)
+    sock.on("error", () => finish(new BridgeTransportError("bridge channel error")));
+    sock.on("close", () => finish(new BridgeTransportError("bridge channel closed before response")));
   });
 
-  // cancel() closes the socket (→ the promise rejects with a cancel error) and
-  // is idempotent. A bare Promise cannot be cancelled, so the ASK_CANCEL path
-  // needs this surface.
+  // cancel() settles the promise DETERMINISTICALLY with a plain, NON-
+  // BridgeTransportError error: a deliberate cancel is NOT "the desktop is
+  // gone", so a dispatch-like caller must map it to a FAILED outcome, never a
+  // fork fallback (a deliberate cancel must never fork — forking would spawn
+  // a fresh child pi for a task the user just cancelled). The socket destroy
+  // (inside finish) still delivers the desktop's EOF → the subagent session
+  // cancels. Idempotent: finish() no-ops a second settle, and the close
+  // handler (fired by the destroy) is a no-op once settled.
   const cancel = () => {
-    if (settled) return;
-    try { socket?.destroy(); } catch { /* already closed */ }
+    finish(new Error("bridge request cancelled"));
   };
 
   return { promise, cancel };
