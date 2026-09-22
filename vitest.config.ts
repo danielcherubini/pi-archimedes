@@ -14,6 +14,7 @@ export default defineConfig({
       "packages/session-name",
       "packages/image-paste",
       "packages/mcp",
+      "packages/ui",
     ],
     passWithNoTests: true,
   },

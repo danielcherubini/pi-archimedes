@@ -1,0 +1,44 @@
+{
+  "name": "@pi-archimedes/ui",
+  "version": "2.8.0",
+  "description": "Terminal UI enhancements, styled bash tool rendering, and visual presentation components for Pi",
+  "type": "module",
+  "main": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielcherubini/pi-archimedes.git"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./bash": "./src/bash/index.ts",
+    "./editor": "./src/editor/index.ts",
+    "./thinking": "./src/thinking/patch.ts",
+    "./startup": "./src/startup/index.ts",
+    "./config": "./src/config.ts"
+  },
+  "dependencies": {
+    "@pi-archimedes/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.87.0",
+    "@earendil-works/pi-coding-agent": "^0.87.0",
+    "@earendil-works/pi-tui": "^0.87.0",
+    "typescript": "^6.0.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.1.0",
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
+  }
+}
