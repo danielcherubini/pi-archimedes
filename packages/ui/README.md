@@ -34,8 +34,8 @@ TUI enhancements for the Pi Archimedes monorepo.
 | `autoCollapseThinking` | boolean | `false` | Automatically collapse thinking blocks |
 | `compactThinking` | "Off" \| "1 line" \| "3 lines" \| "5 lines" | `"Off"` | Compact thinking block mode |
 | `codeUnindent` | boolean | `true` | Strip common indentation from code blocks |
-| `labelText` | string | `"Thinking..."` | Startup splash header text |
-| `labelColor` | string | `"255,215,0"` | Startup splash header color (RGB triplet) |
+| `labelText` | string | `"Thinking..."` | Text shown before thinking blocks |
+| `labelColor` | string | `"255,215,0"` | RGB color for the thinking label (e.g. `255,215,0`) |
 | `animationStyle` | "diagonal" \| "top-right" \| "bottom-left" \| "bottom-right" \| "center-out" \| "wave" \| "horizontal" \| "vertical" \| "vertical-up" | `"vertical-up"` | Startup logo animation |
 | `editorSpinBorder` | boolean | `true` | Animated spinner border on editor |
 | `editorSpinSpeed` | "slow" \| "normal" \| "fast" | `"normal"` | Editor border spinner speed |
