@@ -219,11 +219,12 @@ Build `packages/ui`'s full presentation layer: `editor/`, `thinking/`, `startup/
    - Map utilities: `from "../chrome.js"` → `from "@pi-archimedes/core/chrome"`, `from "../color.js"` → `from "@pi-archimedes/core/color"`, `from "../text.js"` → `from "@pi-archimedes/core/text"`.
 3. Port `thinking/` files into `packages/ui/src/thinking/`:
    - `patch.ts`, `theme.ts`, `transform.ts`, `unindent.ts`, and test files.
-   - Map utilities: `from "../color.js"` → `from "@pi-archimedes/core/color"`, `from "../text.js"` → `from "@pi-archimedes/core/text"`.
+   - Map utilities: `from "../color.js"` → `from "@pi-archimedes/core/color"`, `from "../text.js"` → `from "@pi-archimedes/core/text"` (in `theme.test.ts`).
 4. Port `startup/` files into `packages/ui/src/startup/`:
    - `index.ts`, `capture.ts`, `logo.ts`, `sections.ts`, `version.ts`, and test files.
    - In `startup/index.ts`: use `loadUIConfig` from `../config.js`.
    - Map utilities: `from "../color.js"` → `from "@pi-archimedes/core/color"`, `from "../text.js"` → `from "@pi-archimedes/core/text"`.
+   - Verify `unpatchConsoleLog` in `capture.ts` is idempotent and safe to call when `patchConsoleLog` did not run.
 5. Run grep to verify zero dangling `from "../` imports in `packages/ui/src/{editor,thinking,startup}`.
 6. `packages/ui/src/migration.ts`:
    - `migrateCoreToUIConfig(): void`: copies any existing UI keys from `archimedes.core` to `archimedes.ui` and deletes those keys from `archimedes.core`.
@@ -266,6 +267,7 @@ Build `packages/ui`'s full presentation layer: `editor/`, `thinking/`, `startup/
 
 **Context:**
 Now that `packages/ui` is fully self-contained and tested, atomically decouple `packages/core` (removing `editor`, `thinking`, `startup` directories, cleaning `CoreConfig` to an empty `{}` interface, and rewriting `packages/core/src/index.test.ts`) AND rewire `meta` to use `@pi-archimedes/ui`. Doing this in a single commit keeps the entire repository green and avoids intermediate broken states.
+In `meta/src/settings.ts`, UI settings are gated by `if (isPluginEnabled("ui")) items.push(...getUISettingsItems({ ...allConfig.ui }));` (consistent with all other plugins). In `meta/src/plugins.test.ts`, tests are updated to assert `mutedTheme` is included when `ui` is enabled and excluded when `ui` is disabled.
 
 **Files:**
 - Remove: `packages/core/src/editor/`
@@ -312,14 +314,21 @@ Now that `packages/ui` is fully self-contained and tested, atomically decouple `
          sessionName: SessionNameSettings;
        }
        ```
-     - Import `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `type UIConfig`, `ANIMATION_STYLES` from `@pi-archimedes/ui/config`.
+     - Import and re-export `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `type UIConfig`, `ANIMATION_STYLES` from `@pi-archimedes/ui/config`.
      - In `loadAllConfig()`: add `ui: loadUIConfig()`.
    - `meta/src/settings.ts`:
+     - Remove unused imports: `getCoreSettingsItems` from `@pi-archimedes/core`, and `saveCoreConfig, type CoreConfig` from `./config.js`.
      - Import `getUISettingsItems`, `saveUIConfig`, `type UIConfig` from `@pi-archimedes/ui`.
-     - In `buildSettingsItems`: replace `getCoreSettingsItems({ ...allConfig.core })` with `getUISettingsItems({ ...allConfig.ui })`.
+     - In `buildSettingsItems`:
+       ```ts
+       const items: SettingItem[] = [];
+       if (isPluginEnabled("ui")) {
+         items.push(...getUISettingsItems({ ...allConfig.ui }));
+       }
+       ```
      - In `openSettings`: rename local `const coreConfig: CoreConfig` to `const uiConfig: UIConfig = { ...allConfig.ui };`.
      - In the `switch` statement: route all UI setting branches (`mutedTheme`, `autoCollapseThinking`, `compactThinking`, `codeUnindent`, `editorSpin*`, `labelText`, `labelColor`, `animationStyle`, `bashToolStyling`) to `uiConfig`.
-     - In `onSave`: replace `saveCoreConfig(coreConfig)` with `saveUIConfig(uiConfig)`.
+     - In `onSave`: replace `saveCoreConfig(coreConfig)` with `saveUIConfig(uiConfig)` (drop `saveCoreConfig`).
    - `meta/src/plugins.ts`:
      - Add `ui` plugin definition to `PLUGINS`:
        `{ id: "ui", label: "UI Enhancements", description: "Bash styling, editor spinner, thinking collapse, splash animation", namespace: "archimedes.ui", load: () => import("@pi-archimedes/ui") }`.
@@ -331,9 +340,9 @@ Now that `packages/ui` is fully self-contained and tested, atomically decouple `
 3. In `meta` unit tests:
    - `meta/src/plugins.test.ts`:
      - Add `"ui"` to `EXPECTED_IDS` array (lines 188–199).
-     - Update test title from `"lists exactly the 10 non-core packages (no drift)"` to `"lists exactly the 11 non-core packages (no drift)"`.
+     - Update test title on line 201 from `"lists exactly the 10 non-core packages (no drift)"` to `"lists exactly the 11 non-core packages (no drift)"`.
      - In `fakeAllConfig()` (lines 247–255), add `ui: {} as any`.
-     - Replace the `@pi-archimedes/core` mock for `getCoreSettingsItems` with a mock of `@pi-archimedes/ui` returning `{ id: "mutedTheme", label: "Muted theme", currentValue: "Off", values: ["On", "Off"] }`:
+     - Replace the `@pi-archimedes/core` mock for `getCoreSettingsItems` with a mock of `@pi-archimedes/ui`:
        ```ts
        vi.mock("@pi-archimedes/ui", () => ({
          getUISettingsItems: vi.fn(() => [
@@ -345,18 +354,19 @@ Now that `packages/ui` is fully self-contained and tested, atomically decouple `
          unpatchConsoleLog: vi.fn(),
        }));
        ```
+     - In the test `"excludes disabled packages' items"`, add a check disabling `archimedes.ui` (`mockStore["archimedes.ui"] = { enabled: false }`) and assert `mutedTheme` is excluded when ui is disabled.
    - `meta/src/factory-lifecycle.test.ts`:
-     - Keep `registerCore: vi.fn()` in `@pi-archimedes/core` mock.
+     - In `@pi-archimedes/core` mock: simplify to `{ registerCore: vi.fn() }` (drop `unpatchConsoleLog`).
      - Add `vi.mock("@pi-archimedes/ui", () => ({ registerUI: vi.fn(), unpatchConsoleLog: vi.fn() }))`.
      - Update expectations for shutdown to verify `unpatchConsoleLog` from `@pi-archimedes/ui` was called.
 
 **Steps:**
 - [ ] Remove `editor/`, `thinking/`, `startup/` from `packages/core/src/`
 - [ ] Clean up `packages/core/src/index.ts`, `config.ts`, `package.json`, and rewrite `index.test.ts`
-- [ ] Update `meta/src/config.ts` and `meta/src/settings.ts`
+- [ ] Update `meta/src/config.ts` and `meta/src/settings.ts` (with gating and clean imports)
 - [ ] Add `ui` to `PLUGINS` in `meta/src/plugins.ts`
 - [ ] Update `meta/src/index.ts` with `registerUI` and `unpatchConsoleLog`
-- [ ] Update `meta/src/plugins.test.ts` (`EXPECTED_IDS`, test title, `fakeAllConfig`, mock) and `meta/src/factory-lifecycle.test.ts`
+- [ ] Update `meta/src/plugins.test.ts` (`EXPECTED_IDS`, test title, `fakeAllConfig`, mock, gating test) and `meta/src/factory-lifecycle.test.ts`
 - [ ] Run `npx vitest run packages/core`
 - [ ] Run `cd meta && npx vitest run`
 - [ ] Run `pnpm test` at root (runs all 12 vitest projects)
