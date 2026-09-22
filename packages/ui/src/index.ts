@@ -62,6 +62,12 @@ export function registerUI(pi: ExtensionAPI): void {
   // Patch console.log for model scope capture
   patchConsoleLog();
 
+  pi.on("message_end", (event, _ctx) => {
+    if (loadUIConfig().codeUnindent) {
+      transformThinkingContent(event.message as any);
+    }
+  });
+
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, ctx) => {
     unpatchConsoleLog();
@@ -192,12 +198,6 @@ export function registerUI(pi: ExtensionAPI): void {
         compactThinking: normalizeCompactThinking(config.compactThinking),
       });
     }
-
-    pi.on("message_end", (event, _ctx) => {
-      if (config.codeUnindent) {
-        transformThinkingContent(event.message as any);
-      }
-    });
   });
 }
 

@@ -245,7 +245,7 @@ describe("packages/ui lifecycle and registration", () => {
       expect(registerBashToolOverride).not.toHaveBeenCalled();
     });
 
-    it("triggers transformThinkingContent on message_end if codeUnindent is enabled", () => {
+    it("does not accumulate message_end listeners on repeated session_start (simulating /reload)", () => {
       vi.mocked(loadUIConfig).mockReturnValue({
         ...DEFAULT_UI_CONFIG,
         codeUnindent: true,
@@ -255,11 +255,12 @@ describe("packages/ui lifecycle and registration", () => {
       const { ctx } = makeCtx(true);
 
       triggerStart(ctx);
+      triggerStart(ctx); // Simulate second session_start
 
       const msg = { role: "assistant", content: [] };
       triggerMessageEnd(msg);
 
-      expect(transformThinkingContent).toHaveBeenCalledWith(msg);
+      expect(transformThinkingContent).toHaveBeenCalledTimes(1);
     });
 
     it("skips transformThinkingContent on message_end if codeUnindent is false", () => {
