@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
-import { Markdown, type MarkdownOptions, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // Track which pi version we patched against to detect incompatibility
@@ -85,6 +85,7 @@ export function patchThinkingRenderer(
     this.lastMessage = message;
     if (isStreaming !== undefined) this.isStreaming = isStreaming;
 
+    this.thinkingVisibilityOverrides = this.thinkingVisibilityOverrides ?? new Map<number, boolean>();
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
 
@@ -173,6 +174,8 @@ export function patchThinkingRenderer(
         return out;
       };
 
+    let thinkingRunIndex = 0;
+
     // Render content in order.
     for (let i = 0; i < message.content.length; i++) {
       const content = message.content[i];
@@ -201,6 +204,9 @@ export function patchThinkingRenderer(
         i--;
         if (thinkBlocks.length === 0) continue;
 
+        const runIndex = thinkingRunIndex++;
+        const hidden = this.thinkingVisibilityOverrides.get(runIndex) ?? this.hideThinkingBlock;
+
         const hasVisibleContentAfter = message.content
           .slice(i + 1)
           .some(
@@ -209,16 +215,16 @@ export function patchThinkingRenderer(
               (c.type === "thinking" && c.thinking.trim()),
           );
 
-        if (this.hideThinkingBlock) {
+        let thinkingComponent: Text | Markdown;
+        if (hidden) {
           // One static label for the whole run when hidden.
           const t = ensureTheme();
           if (!t) continue;
-          this.contentContainer.addChild(
-            new Text(t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad ?? 1, 0),
+          thinkingComponent = new Text(
+            t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)),
+            this.outputPad ?? 1,
+            0,
           );
-          if (hasVisibleContentAfter) {
-            this.contentContainer.addChild(new Spacer(1));
-          }
         } else {
           let thinkingContent = thinkBlocks.join("\n\n");
           const label = buildThinkingLabel();
@@ -228,22 +234,29 @@ export function patchThinkingRenderer(
           const t = ensureTheme();
           if (!t) continue;
           const muted = ensureMuted();
-          this.contentContainer.addChild(
-            new Markdown(
-              thinkingContent,
-              this.outputPad ?? 1,
-              0,
-              muted ?? this.markdownTheme,
-              {
-                color: (text: string) => t.fg("thinkingText", text),
-                italic: true,
-              },
-              { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
-            ),
+          thinkingComponent = new Markdown(
+            thinkingContent,
+            this.outputPad ?? 1,
+            0,
+            muted ?? this.markdownTheme,
+            {
+              color: (text: string) => t.fg("thinkingText", text),
+              italic: true,
+            },
+            { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
           );
-          if (hasVisibleContentAfter) {
-            this.contentContainer.addChild(new Spacer(1));
-          }
+        }
+
+        this.contentContainer.addChild(
+          new MouseRegion(thinkingComponent, (event) => {
+            if (event.type !== "click" || event.button !== "left") return undefined;
+            this.thinkingVisibilityOverrides.set(runIndex, !hidden);
+            if (this.lastMessage) this.updateContent(this.lastMessage);
+            return { handled: true };
+          }),
+        );
+        if (hasVisibleContentAfter) {
+          this.contentContainer.addChild(new Spacer(1));
         }
       }
     }
