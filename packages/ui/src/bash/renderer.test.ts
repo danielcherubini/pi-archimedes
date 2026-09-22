@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { formatDuration, renderBashCall, renderBashResult } from "./renderer.js";
+import { formatDuration, renderBashCall, renderBashResult, clearActiveBashIntervals } from "./renderer.js";
 
 // Mock Text from @earendil-works/pi-tui
 vi.mock("@earendil-works/pi-tui", () => {
@@ -147,13 +147,13 @@ describe("renderBashResult - Collapsed view", () => {
     expect(content(out)).toContain(`[muted:${expectedTruncated}]`);
   });
 
-  it("formats collapsed row with leading space and exact spacing", () => {
+  it("formats collapsed row with exact spacing (no leading space)", () => {
     const context = {
       args: { command: "ls" },
       state: { startedAt: 1000, endedAt: 2000 },
     };
     const out = renderBashResult({}, { expanded: false }, theme, context);
-    expect(content(out)).toBe(" [success:✓] [muted:ls] [dim:(1.0s)]");
+    expect(content(out)).toBe("[success:✓] [muted:ls] [dim:(1.0s)]");
   });
 });
 
@@ -200,16 +200,21 @@ describe("renderBashResult - Live timer lifecycle", () => {
     expect(context.state.endedAt).toBeDefined();
   });
 
-  it("clears interval when error occurs", () => {
+  it("clears active bash intervals when clearActiveBashIntervals is called", () => {
     const context = {
-      isError: true,
+      executionStarted: true,
+      invalidate: vi.fn(),
       state: {} as any,
     };
 
     renderBashResult({}, { isPartial: true }, theme, context);
-    // context.isError clears interval even if isPartial was true
-    expect(context.state.interval).toBeUndefined();
-    expect(context.state.endedAt).toBeDefined();
+    expect(context.state.interval).toBeDefined();
+
+    clearActiveBashIntervals();
+    expect(context.state.interval).toBeDefined(); // The reference in state remains, but interval should be cleared
+    // We can verify by checking if the interval still triggers
+    vi.advanceTimersByTime(1000);
+    expect(context.invalidate).not.toHaveBeenCalled();
   });
 });
 

@@ -56,6 +56,7 @@ vi.mock("./migration.js", () => ({
 
 vi.mock("./bash/index.js", () => ({
   registerBashToolOverride: vi.fn(),
+  clearActiveBashIntervals: vi.fn(),
 }));
 
 import defaultExport, {

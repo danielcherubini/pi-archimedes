@@ -26,7 +26,7 @@ import {
 } from "./config.js";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig } from "./migration.js";
-import { registerBashToolOverride } from "./bash/index.js";
+import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
 
 // Re-exports
 export { unpatchConsoleLog } from "./startup/capture.js";
@@ -65,6 +65,7 @@ export function registerUI(pi: ExtensionAPI): void {
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, ctx) => {
     unpatchConsoleLog();
+    clearActiveBashIntervals();
 
     const targetCtx = ctx?.hasUI ? ctx : uiCtx;
     if (targetCtx?.hasUI) {

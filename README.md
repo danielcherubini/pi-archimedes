@@ -170,7 +170,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 ## Settings
 
-Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (chrome, spinner, thinking), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), [image-paste](packages/image-paste/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
+Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (chrome, spinner, thinking), [ui](packages/ui/README.md), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), [image-paste](packages/image-paste/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
 
 ---
 
@@ -179,7 +179,7 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | Component | npm package | What it adds |
 |-----------|-------------|--------------|
 | **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
-| **UI** | [`@pi-archimedes/ui`](packages/ui/README.md) | Bash tool styling, editor spin animations, compact thinking |
+| **UI** | [`@pi-archimedes/ui`](packages/ui/README.md) | Splash/editor/spinner/thinking components, bash tool styling |
 | **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
 | **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
 | **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |

@@ -8,6 +8,15 @@ export interface BashRendererState {
   interval?: NodeJS.Timeout | undefined;
 }
 
+const activeIntervals = new Set<NodeJS.Timeout>();
+
+export function clearActiveBashIntervals(): void {
+  for (const interval of activeIntervals) {
+    clearInterval(interval);
+  }
+  activeIntervals.clear();
+}
+
 /**
  * Format duration in milliseconds as:
  * - <X.X>s for under 10 seconds (e.g. "1.5s")
@@ -98,6 +107,7 @@ export function renderBashResult(
       state.interval = setInterval(() => {
         ctx.invalidate?.();
       }, 1000);
+      activeIntervals.add(state.interval);
     }
   }
 
@@ -105,6 +115,7 @@ export function renderBashResult(
     state.endedAt ??= Date.now();
     if (state.interval) {
       clearInterval(state.interval);
+      activeIntervals.delete(state.interval);
       state.interval = undefined;
     }
   }
@@ -147,7 +158,7 @@ export function renderBashResult(
     const styledCmd = theme.fg("muted", truncatedCmd);
     const styledDuration = theme.fg("dim", `(${formatDuration(elapsed)})`);
 
-    textComponent.setText(` ${statusGlyph} ${styledCmd} ${styledDuration}`);
+    textComponent.setText(`${statusGlyph} ${styledCmd} ${styledDuration}`);
     return textComponent;
   }
 
