@@ -149,7 +149,10 @@ export async function generateTitle(
     const model = settingsModel ?? ctx.model;
     if (!model) return;
 
-    // 4. Stream simple with built-in auth resolution
+    // 4. Check auth — skip without incrementing failCount if not configured
+    if (!ctx.modelRegistry.hasConfiguredAuth(model)) return;
+
+    // 5. Stream simple with built-in auth resolution
     const stream = ctx.modelRegistry.streamSimple(
       model,
       {
@@ -169,7 +172,11 @@ export async function generateTitle(
     );
 
     const response = await stream.result();
-    if (response.stopReason === "error" || response.stopReason === "aborted") {
+    // User/system cancellation is not a failure; don't burn the retry budget
+    if (response.stopReason === "aborted") {
+      return;
+    }
+    if (response.stopReason === "error") {
       onFailure();
       return;
     }

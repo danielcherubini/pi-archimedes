@@ -16,6 +16,7 @@ function createMockCtx(options: {
   streamSimpleResult?: any;
   branch?: any[];
   model?: any;
+  hasConfiguredAuth?: boolean;
 }) {
   const defaultBranch = [
     {
@@ -45,6 +46,7 @@ function createMockCtx(options: {
     },
     modelRegistry: {
       getAll: vi.fn(() => [defaultModel]),
+      hasConfiguredAuth: vi.fn(() => options.hasConfiguredAuth ?? true),
       streamSimple: vi.fn(() => ({
         result: vi.fn().mockResolvedValue(
           options.streamSimpleResult ?? {
@@ -118,7 +120,7 @@ describe("generateTitle", () => {
     expect(onFailure).toHaveBeenCalledTimes(1);
   });
 
-  it("triggers onFailure when streamSimple returns stopReason === 'aborted'", async () => {
+  it("does not call onFailure when streamSimple returns stopReason === 'aborted'", async () => {
     const pi = createMockPi();
     const ctx = createMockCtx({
       streamSimpleResult: {
@@ -134,7 +136,24 @@ describe("generateTitle", () => {
     expect(ctx.modelRegistry.streamSimple).toHaveBeenCalledTimes(1);
     expect(pi.setSessionName).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(onFailure).toHaveBeenCalledTimes(1);
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+
+  it("skips title generation without incrementing failCount if model lacks configured auth", async () => {
+    const pi = createMockPi();
+    const ctx = createMockCtx({
+      hasConfiguredAuth: false,
+    });
+    const onSuccess = vi.fn();
+    const onFailure = vi.fn();
+
+    await generateTitle(pi as any, ctx as any, onSuccess, onFailure);
+
+    expect(ctx.modelRegistry.hasConfiguredAuth).toHaveBeenCalledWith(ctx.model);
+    expect(ctx.modelRegistry.streamSimple).not.toHaveBeenCalled();
+    expect(pi.setSessionName).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
   });
 
   it("aborts without setting session name if race condition occurs (session name already set)", async () => {
