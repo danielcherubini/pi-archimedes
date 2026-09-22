@@ -1,5 +1,3 @@
-import { complete } from "@earendil-works/pi-ai/compat";
-import type { ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "@pi-archimedes/core/settings-io";
 import type { SettingItem } from "@earendil-works/pi-tui";
@@ -76,7 +74,7 @@ export function resolveModel<T extends { provider: string; id: string }>(
  * Generate and set a session title. Runs asynchronously without blocking
  * the agent_end handler so the UI stays responsive.
  */
-async function generateTitle(
+export async function generateTitle(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   onSuccess: () => void,
@@ -151,31 +149,30 @@ async function generateTitle(
     const model = settingsModel ?? ctx.model;
     if (!model) return;
 
-    // 4. Check auth
-    if (!ctx.modelRegistry.hasConfiguredAuth(model)) return;
+    // 4. Stream simple with built-in auth resolution
+    const stream = ctx.modelRegistry.streamSimple(
+      model,
+      {
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: titlePrompt }],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      {
+        reasoning: "minimal",
+        cacheRetention: "none",
+        sessionId: crypto.randomUUID(),
+      },
+    );
 
-    // 5. Get API key and headers
-    const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-    if (!auth.ok) return;
-
-    // 6. Make API call
-    const opts: { reasoning: "minimal"; cacheRetention: "none"; sessionId: string; apiKey?: string; headers?: ProviderHeaders } = {
-      reasoning: "minimal",
-      cacheRetention: "none",
-      sessionId: crypto.randomUUID(),
-    };
-    if (auth.apiKey) opts.apiKey = auth.apiKey;
-    if (auth.headers) opts.headers = auth.headers;
-
-    const response = await complete(model, {
-      messages: [
-        {
-          role: "user" as const,
-          content: [{ type: "text" as const, text: titlePrompt }],
-          timestamp: Date.now(),
-        },
-      ],
-    }, opts);
+    const response = await stream.result();
+    if (response.stopReason === "error") {
+      onFailure();
+      return;
+    }
 
     // 7. Extract and clean title
     const title = response.content

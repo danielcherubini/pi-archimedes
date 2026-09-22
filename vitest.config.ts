@@ -11,6 +11,7 @@ export default defineConfig({
       "packages/notify",
       "packages/ask",
       "packages/sudo",
+      "packages/session-name",
       "packages/image-paste",
       "packages/mcp",
     ],
