@@ -12,9 +12,10 @@ import {
   confirm,
   password,
   registerBridge,
+  dispatch,
   BridgeInactiveError,
 } from "./index.js";
-import { configure, sendEvent, request, __resetForTests as resetChannel } from "./channel.js";
+import { configure, sendEvent, request, BridgeTransportError, __resetForTests as resetChannel } from "./channel.js";
 import {
   state,
   start,
@@ -174,6 +175,11 @@ describe("inactive API", () => {
   it("password resolves empty string", async () => {
     clearBridgeEnv();
     await expect(password({ command: "sudo apt install", reason: "test" })).resolves.toBe("");
+  });
+
+  it("dispatch throws BridgeInactiveError", () => {
+    clearBridgeEnv();
+    expect(() => dispatch({ agentName: "a", task: "t", systemPrompt: null, model: null, thinking: null, tools: null }, "tool-1")).toThrow(BridgeInactiveError);
   });
 });
 
@@ -379,6 +385,146 @@ describe("request round-trip + cancel", () => {
 
     server.close();
     try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+});
+
+// ── 8b. request timeout override + BridgeTransportError ─────────────────
+
+describe("request timeout override + BridgeTransportError", () => {
+  it("timeoutMs: null does NOT reject at 5 minutes (no timer)", async () => {
+    vi.useFakeTimers();
+    try {
+      const sockPath = tempSocketPath();
+      const server = await startServer(sockPath, () => {
+        /* accept but never respond */
+      });
+
+      configure({ active: true, socketPath: sockPath });
+      const { promise } = request("dispatch_subagent", { task: "x" }, { toolCallId: "t1", source: "main", timeoutMs: null });
+      let settled = false;
+      promise.then(() => { settled = true; }, () => { settled = true; });
+
+      // Advance 6 minutes of fake time — the 5-minute timer (if any) would
+      // have fired. The promise must still be pending.
+      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
+      expect(settled).toBe(false);
+
+      server.close();
+      try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the default (timeoutMs omitted) still rejects after 5 minutes", async () => {
+    vi.useFakeTimers();
+    try {
+      const sockPath = tempSocketPath();
+      const server = await startServer(sockPath, () => {
+        /* accept but never respond */
+      });
+
+      configure({ active: true, socketPath: sockPath });
+      const { promise } = request("ask", { questions: [makeQuestion()] });
+      // Attach the handler BEFORE advancing (a rejection during the advance
+      // with no handler attached would be an unhandled rejection).
+      const outcome = promise.then(() => null, (e: unknown) => e);
+
+      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
+      const err = await outcome;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("bridge request timed out");
+
+      server.close();
+      try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a negative timeoutMs is clamped to the 1 ms minimum (the timer still fires — NOT 'no timer')", async () => {
+    vi.useFakeTimers();
+    try {
+      const sockPath = tempSocketPath();
+      const server = await startServer(sockPath, () => {
+        /* accept but never respond */
+      });
+
+      configure({ active: true, socketPath: sockPath });
+      const { promise } = request("ask", { questions: [makeQuestion()] }, { timeoutMs: -5000 });
+      // `null` is the "never" case; a negative value is clamped to the 1 ms
+      // minimum, so a short advance must fire the timeout (not skip it).
+      const outcome = promise.then(() => null, (e: unknown) => e);
+
+      await vi.advanceTimersByTimeAsync(2);
+      const err = await outcome;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("bridge request timed out");
+
+      server.close();
+      try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a mid-connection close (no response frame) rejects with a BridgeTransportError", async () => {
+    const sockPath = tempSocketPath();
+    const server = net.createServer((socket) => {
+      // Accept then destroy — the desktop is effectively gone.
+      socket.destroy();
+    });
+    await new Promise<void>((resolve) => server.listen(sockPath, resolve));
+
+    configure({ active: true, socketPath: sockPath });
+    const { promise } = request("ask", { questions: [makeQuestion()] });
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BridgeTransportError);
+
+    server.close();
+    try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+
+  it("a response-carrying error frame rejects with a plain Error (NOT BridgeTransportError)", async () => {
+    const sockPath = tempSocketPath();
+    const server = net.createServer((socket) => {
+      let buffer = "";
+      socket.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString("utf-8");
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const msg = JSON.parse(trimmed) as { type?: string; id?: string };
+            if (msg.type === "request" && msg.id) {
+              socket.write(JSON.stringify({ v: 1, type: "response", id: msg.id, error: "cancelled" }) + "\n");
+            }
+          } catch { /* malformed — ignore */ }
+        }
+      });
+      socket.on("error", () => { /* connection dropped */ });
+    });
+    await new Promise<void>((resolve) => server.listen(sockPath, resolve));
+
+    configure({ active: true, socketPath: sockPath });
+    const { promise } = request("dispatch_subagent", { task: "x" }, { toolCallId: "t1", source: "main", timeoutMs: null });
+    const err = await promise.catch((e: unknown) => e);
+    // The desktop answered — it is alive and the outcome is authoritative.
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(BridgeTransportError);
+    expect((err as Error).message).toBe("cancelled");
+
+    server.close();
+    try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+
+  it("an unreachable channel (no socket target) rejects with a BridgeTransportError", async () => {
+    configure({ active: true, socketPath: "/tmp/definitely-does-not-exist-bridge2.sock" });
+    const { promise } = request("ask", { questions: [makeQuestion()] });
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BridgeTransportError);
   });
 });
 

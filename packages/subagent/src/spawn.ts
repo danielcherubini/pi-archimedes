@@ -17,6 +17,15 @@ export interface SpawnOptions {
 }
 
 /**
+ * Resolve the model for a subagent run: agent config model > call model >
+ * active (parent) model. Shared by the fork path (spawnSubagent) and the
+ * bridge path (dispatch) so both resolve identically.
+ */
+export function resolveModel(options: Pick<SpawnOptions, "model" | "activeModel"> & { agent?: AgentConfig | undefined }): string | undefined {
+  return options.agent?.model ?? options.model ?? options.activeModel;
+}
+
+/**
  * Resolve the pi binary path.
  *
  * Walk up from process.argv[1] (the pi CLI entry point) looking for the
@@ -205,7 +214,7 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
   const args: string[] = ["--mode", "json", "--no-session", "-p"];
 
   // Model: agent.model > options.model > options.activeModel
-  const model = options.agent?.model ?? options.model ?? options.activeModel;
+  const model = resolveModel(options);
   if (model) {
     args.push("--model", model);
   }
