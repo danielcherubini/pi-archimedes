@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
-import { Markdown, type MarkdownOptions, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // Track which pi version we patched against to detect incompatibility
@@ -15,12 +15,12 @@ const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
  * Re-patches when pi version changes to catch breaking upstream changes.
  *
  * @param config Optional labelText/labelColor overrides for the thinking
- *   block header. When omitted (or empty/invalid), the original defaults
- *   ("Thinking..." / "255,215,0") are used, producing byte-identical output.
+ *   block header, and autoCollapseThinking flag. When omitted (or empty/invalid),
+ *   the original defaults are used.
  */
 export function patchThinkingRenderer(
   getTheme: () => Theme,
-  config?: { labelText?: string; labelColor?: string },
+  config?: { labelText?: string; labelColor?: string; autoCollapseThinking?: boolean },
 ): void {
   if (!AssistantMessageComponent) return;
 
@@ -85,6 +85,7 @@ export function patchThinkingRenderer(
     this.lastMessage = message;
     if (isStreaming !== undefined) this.isStreaming = isStreaming;
 
+    this.thinkingVisibilityOverrides = this.thinkingVisibilityOverrides ?? new Map<number, boolean>();
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
 
@@ -173,6 +174,8 @@ export function patchThinkingRenderer(
         return out;
       };
 
+    let thinkingRunIndex = 0;
+
     // Render content in order.
     for (let i = 0; i < message.content.length; i++) {
       const content = message.content[i];
@@ -201,24 +204,40 @@ export function patchThinkingRenderer(
         i--;
         if (thinkBlocks.length === 0) continue;
 
+        const runIndex = thinkingRunIndex++;
+
         const hasVisibleContentAfter = message.content
           .slice(i + 1)
           .some(
             (c: any) =>
               (c.type === "text" && c.text.trim()) ||
-              (c.type === "thinking" && c.thinking.trim()),
+              (c.type === "thinking" && c.thinking.trim()) ||
+              c.type === "toolCall",
           );
 
-        if (this.hideThinkingBlock) {
+        const userOverride = this.thinkingVisibilityOverrides.get(runIndex);
+        let hidden: boolean;
+        if (userOverride !== undefined) {
+          hidden = userOverride;
+        } else if (config?.autoCollapseThinking) {
+          // When auto-collapse is enabled, show thinking while it is actively streaming.
+          // Once thinking finishes (subsequent content arrives or streaming ends), collapse it.
+          const isThinkingActive = Boolean(this.isStreaming) && !hasVisibleContentAfter;
+          hidden = !isThinkingActive;
+        } else {
+          hidden = this.hideThinkingBlock;
+        }
+
+        let thinkingComponent: Text | Markdown;
+        if (hidden) {
           // One static label for the whole run when hidden.
           const t = ensureTheme();
           if (!t) continue;
-          this.contentContainer.addChild(
-            new Text(t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad ?? 1, 0),
+          thinkingComponent = new Text(
+            t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)),
+            this.outputPad ?? 1,
+            0,
           );
-          if (hasVisibleContentAfter) {
-            this.contentContainer.addChild(new Spacer(1));
-          }
         } else {
           let thinkingContent = thinkBlocks.join("\n\n");
           const label = buildThinkingLabel();
@@ -228,22 +247,29 @@ export function patchThinkingRenderer(
           const t = ensureTheme();
           if (!t) continue;
           const muted = ensureMuted();
-          this.contentContainer.addChild(
-            new Markdown(
-              thinkingContent,
-              this.outputPad ?? 1,
-              0,
-              muted ?? this.markdownTheme,
-              {
-                color: (text: string) => t.fg("thinkingText", text),
-                italic: true,
-              },
-              { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
-            ),
+          thinkingComponent = new Markdown(
+            thinkingContent,
+            this.outputPad ?? 1,
+            0,
+            muted ?? this.markdownTheme,
+            {
+              color: (text: string) => t.fg("thinkingText", text),
+              italic: true,
+            },
+            { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
           );
-          if (hasVisibleContentAfter) {
-            this.contentContainer.addChild(new Spacer(1));
-          }
+        }
+
+        this.contentContainer.addChild(
+          new MouseRegion(thinkingComponent, (event) => {
+            if (event.type !== "click" || event.button !== "left") return undefined;
+            this.thinkingVisibilityOverrides.set(runIndex, !hidden);
+            if (this.lastMessage) this.updateContent(this.lastMessage);
+            return { handled: true };
+          }),
+        );
+        if (hasVisibleContentAfter) {
+          this.contentContainer.addChild(new Spacer(1));
         }
       }
     }

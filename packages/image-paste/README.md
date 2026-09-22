@@ -47,9 +47,9 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0.
 
 ## Per-platform requirements
 
-- **Linux** — a graphical session (`DISPLAY` or `WAYLAND_DISPLAY`) and one of `wl-clipboard` (tried first on Wayland sessions), `xclip` (tried first on X11), or the `@mariozechner/clipboard` native module. Termux is not supported.
-- **macOS** — the only image reader on macOS is the `@mariozechner/clipboard` native module (no other CLI fallback); it ships inside the `pi-coding-agent` installation but must be importable from the extension's location, so if your Pi install's layout puts it out of resolution reach, a read reports the reader as unavailable — make the module resolvable beside the extension and `/reload`.
-- **Windows** — the `@mariozechner/clipboard` native module first, with a PowerShell fallback.
+- **Linux** — a graphical session (`DISPLAY` or `WAYLAND_DISPLAY`) and one of `wl-clipboard` (tried first on Wayland sessions), `xclip` (tried first on X11), or `@earendil-works/pi-tui` native clipboard bindings. Termux is not supported.
+- **macOS** — `@earendil-works/pi-tui` bundled native clipboard helper.
+- **Windows** — `@earendil-works/pi-tui` native clipboard helper first, with a PowerShell fallback.
 
 ## Settings
 

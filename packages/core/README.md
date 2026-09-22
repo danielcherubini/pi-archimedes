@@ -48,6 +48,7 @@ Settings live in `~/.pi/agent/settings.json` under `archimedes.core`. The file i
 | `animationStyle` | string | `vertical-up` | Splash-screen reveal style (the nine styles above) |
 | `labelText` | string | `Thinking...` | Prefix before thinking blocks |
 | `labelColor` | string | `255,215,0` | RGB string for the thinking label |
+| `autoCollapseThinking` | bool | `false` | Automatically collapse thinking blocks once thinking concludes (expands back on click) |
 | `codeUnindent` | bool | `true` | Strip common indentation from code blocks in thinking sections |
 | `mutedTheme` | bool | `false` | Stored, but **not yet effective** — the current thinking renderer doesn't consult it, so treat it as a pending toggle |
 
