@@ -128,7 +128,7 @@ The details are easier to catch when they're easier to read.
 
 [Paste screenshots](packages/image-paste/README.md) with inline previews. Keep your [branch, model, context usage, and costs](packages/footer/README.md) in view. Give sessions [useful names automatically](packages/session-name/README.md) so they're easier to find later.
 
-Bash tools gain [enhanced styling](packages/ui/README.md) with collapsed/expanded views and live status indicators. A [framed editor](packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
+Bash tools gain [enhanced styling](packages/ui/README.md) with collapsed/expanded views and live status indicators. A [framed editor](packages/ui/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
 
 **Practical notes:** the paste markers appear as you paste; image previews appear when you submit the message. Image rendering and desktop alerts both depend on your terminal's support — the [image-paste](packages/image-paste/README.md) and [notify](packages/notify/README.md) docs cover what each needs. Naming is a separate (potentially billed) model call, not included in the footer's totals.
 

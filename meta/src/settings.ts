@@ -91,6 +91,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
       onChange: (id: string, newValue: string) => {
         switch (id) {
           // ── UI settings ──
+          case "bashToolStyling": uiConfig.bashToolStyling = newValue === "On"; break;
           case "mutedTheme": uiConfig.mutedTheme = newValue === "On"; break;
           case "autoCollapseThinking": uiConfig.autoCollapseThinking = newValue === "On"; break;
           case "compactThinking": uiConfig.compactThinking = newValue as UIConfig["compactThinking"]; break;
