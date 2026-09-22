@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { CompactThinking } from "../config.js";
 
 // Symbols used by patch.ts to mark patched prototypes
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
 const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
+const THINKING_STATES_KEY = Symbol.for("archimedes:thinkingStateOverrides");
 
 // Dynamic import after mocking the pi-coding-agent module
 async function importPatch() {
@@ -402,7 +404,12 @@ describe("patchThinkingRenderer", () => {
 		hideThinkingBlock?: boolean;
 		message?: any;
 		isStreaming?: boolean;
-		config?: { labelText?: string; labelColor?: string; autoCollapseThinking?: boolean };
+		config?: {
+			labelText?: string;
+			labelColor?: string;
+			autoCollapseThinking?: boolean;
+			compactThinking?: CompactThinking;
+		};
 	}) {
 		const MockClass = function AssistantMessageComponent() {};
 		MockClass.prototype.updateContent = function updateContent() {
@@ -647,6 +654,198 @@ describe("patchThinkingRenderer", () => {
 
 			const regionAfter = childrenAfter.find((c) => c instanceof MockMouseRegion);
 			expect(regionAfter!.child).toBeInstanceOf(MockMarkdown);
+		});
+	});
+
+	describe("compactThinking", () => {
+		const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
+
+		it("renders single inline Text containing label and last line for '1 line' (streaming and finished)", async () => {
+			const multiline = "Line 1\nLine 2\nLine 3";
+
+			// Streaming
+			const streamingResult = await renderThinkingComponent({
+				config: { compactThinking: "1 line" },
+				isStreaming: true,
+				message: { content: [{ type: "thinking", thinking: multiline }] },
+			});
+			const streamRegion = streamingResult.addedChildren.find((c) => c instanceof streamingResult.MockMouseRegion);
+			expect(streamRegion).toBeDefined();
+			expect(streamRegion!.child).toBeInstanceOf(streamingResult.MockText);
+			expect((streamRegion!.child as any).text).toBe(`${THINKING_LABEL} Line 3`);
+
+			// Finished
+			const finishedResult = await renderThinkingComponent({
+				config: { compactThinking: "1 line" },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: multiline }] },
+			});
+			const finishedRegion = finishedResult.addedChildren.find((c) => c instanceof finishedResult.MockMouseRegion);
+			expect(finishedRegion).toBeDefined();
+			expect(finishedRegion!.child).toBeInstanceOf(finishedResult.MockText);
+			expect((finishedRegion!.child as any).text).toBe(`${THINKING_LABEL} Line 3`);
+		});
+
+		it("renders multi-line Text containing label on line 1 and last 3 lines formatted line-by-line for '3 lines'", async () => {
+			const text = "L1\nL2\nL3\nL4\nL5";
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { compactThinking: "3 lines" },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: text }] },
+			});
+			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(region).toBeDefined();
+			expect(region!.child).toBeInstanceOf(MockText);
+			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nL3\nL4\nL5`);
+		});
+
+		it("renders multi-line Text containing label on line 1 and last 5 lines for '5 lines'", async () => {
+			const text = "1\n2\n3\n4\n5\n6\n7";
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { compactThinking: "5 lines" },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: text }] },
+			});
+			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(region).toBeDefined();
+			expect(region!.child).toBeInstanceOf(MockText);
+			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\n3\n4\n5\n6\n7`);
+		});
+
+		it("displays all available lines when thinking text has fewer lines than compact limit", async () => {
+			const text = "Alpha\nBeta";
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { compactThinking: "5 lines" },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: text }] },
+			});
+			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(region).toBeDefined();
+			expect(region!.child).toBeInstanceOf(MockText);
+			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nAlpha\nBeta`);
+		});
+
+		it("collapses to hidden Text once streaming concludes when both compactThinking and autoCollapseThinking are active", async () => {
+			// While streaming: renders compact
+			const streamResult = await renderThinkingComponent({
+				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				isStreaming: true,
+				message: { content: [{ type: "thinking", thinking: "A\nB\nC\nD" }] },
+			});
+			const streamRegion = streamResult.addedChildren.find((c) => c instanceof streamResult.MockMouseRegion);
+			expect(streamRegion!.child).toBeInstanceOf(streamResult.MockText);
+			expect((streamRegion!.child as any).text).toBe(`${THINKING_LABEL}\nB\nC\nD`);
+
+			// Finished streaming: collapses to hidden label
+			const finishedResult = await renderThinkingComponent({
+				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: "A\nB\nC\nD" }] },
+			});
+			const finishedRegion = finishedResult.addedChildren.find((c) => c instanceof finishedResult.MockMouseRegion);
+			expect(finishedRegion!.child).toBeInstanceOf(finishedResult.MockText);
+			expect((finishedRegion!.child as any).text).toBe("Thinking..."); // this.hiddenThinkingLabel
+		});
+
+		it("transitions state properly on click with compact active: compact -> full -> compact", async () => {
+			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText } =
+				await renderThinkingComponent({
+					config: { compactThinking: "3 lines" },
+					message: { content: [{ type: "thinking", thinking: "A\nB\nC" }] },
+				});
+
+			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(mouseRegion!.child).toBeInstanceOf(MockText);
+
+			// First click: compact -> full
+			mouseRegion!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("full");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			const childrenAfterClick1: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfterClick1.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const region1 = childrenAfterClick1.find((c) => c instanceof MockMouseRegion);
+			expect(region1!.child).toBeInstanceOf(MockMarkdown);
+
+			// Second click: full -> compact
+			region1!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("compact");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			const childrenAfterClick2: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfterClick2.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const region2 = childrenAfterClick2.find((c) => c instanceof MockMouseRegion);
+			expect(region2!.child).toBeInstanceOf(MockText);
+			expect((region2!.child as any).text).toBe(`${THINKING_LABEL}\nA\nB\nC`);
+		});
+
+		it("transitions from hidden to full, and subsequent click returns to compact", async () => {
+			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText } =
+				await renderThinkingComponent({
+					config: { compactThinking: "3 lines", autoCollapseThinking: true },
+					isStreaming: false,
+					message: { content: [{ type: "thinking", thinking: "A\nB\nC" }] },
+				});
+
+			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(mouseRegion!.child).toBeInstanceOf(MockText);
+			expect((mouseRegion!.child as any).text).toBe("Thinking..."); // Hidden state
+
+			// First click on hidden: hidden -> full
+			mouseRegion!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("full");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			const childrenAfterClick1: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfterClick1.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const region1 = childrenAfterClick1.find((c) => c instanceof MockMouseRegion);
+			expect(region1!.child).toBeInstanceOf(MockMarkdown);
+
+			// Second click: full -> compact
+			region1!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("compact");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			const childrenAfterClick2: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfterClick2.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const region2 = childrenAfterClick2.find((c) => c instanceof MockMouseRegion);
+			expect(region2!.child).toBeInstanceOf(MockText);
+			expect((region2!.child as any).text).toBe(`${THINKING_LABEL}\nA\nB\nC`);
+		});
+
+		it("synchronizes thinkingVisibilityOverrides (false for compact/full, true for hidden)", async () => {
+			const { instance, addedChildren, MockMouseRegion } = await renderThinkingComponent({
+				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				isStreaming: false, // will resolve to hidden initially
+				message: { content: [{ type: "thinking", thinking: "Thought" }] },
+			});
+
+			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
+			// Initially hidden because autoCollapseThinking is true and not streaming
+			// Click to full
+			mouseRegion!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("full");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
+
+			// Re-render to get updated MouseRegion with state === "full"
+			const childrenAfterClick1: any[] = [];
+			instance.contentContainer.addChild = vi.fn((c: any) => childrenAfterClick1.push(c));
+			instance.updateContent(instance.lastMessage, false);
+
+			const region1 = childrenAfterClick1.find((c) => c instanceof MockMouseRegion);
+
+			// Click to compact
+			region1!.onMouse({ type: "click", button: "left" });
+			expect(instance[THINKING_STATES_KEY].get(0)).toBe("compact");
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
 		});
 	});
 });

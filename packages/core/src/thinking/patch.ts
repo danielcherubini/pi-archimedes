@@ -1,11 +1,13 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
+import type { CompactThinking } from "../config.js";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // Track which pi version we patched against to detect incompatibility
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
 const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
+const THINKING_STATES_KEY = Symbol.for("archimedes:thinkingStateOverrides");
 
 /**
  * Patches `AssistantMessageComponent.prototype.updateContent` so thinking
@@ -20,7 +22,12 @@ const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
  */
 export function patchThinkingRenderer(
   getTheme: () => Theme,
-  config?: { labelText?: string; labelColor?: string; autoCollapseThinking?: boolean },
+  config?: {
+    labelText?: string;
+    labelColor?: string;
+    autoCollapseThinking?: boolean;
+    compactThinking?: CompactThinking;
+  },
 ): void {
   if (!AssistantMessageComponent) return;
 
@@ -86,6 +93,16 @@ export function patchThinkingRenderer(
     if (isStreaming !== undefined) this.isStreaming = isStreaming;
 
     this.thinkingVisibilityOverrides = this.thinkingVisibilityOverrides ?? new Map<number, boolean>();
+    (this as any)[THINKING_STATES_KEY] =
+      (this as any)[THINKING_STATES_KEY] ?? new Map<number, "hidden" | "compact" | "full">();
+    const compactLines =
+      config?.compactThinking === "1 line"
+        ? 1
+        : config?.compactThinking === "3 lines"
+          ? 3
+          : config?.compactThinking === "5 lines"
+            ? 5
+            : 0;
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
 
@@ -215,59 +232,137 @@ export function patchThinkingRenderer(
               c.type === "toolCall",
           );
 
-        const userOverride = this.thinkingVisibilityOverrides.get(runIndex);
-        let hidden: boolean;
-        if (userOverride !== undefined) {
-          hidden = userOverride;
-        } else if (config?.autoCollapseThinking) {
-          // When auto-collapse is enabled, show thinking while it is actively streaming.
-          // Once thinking finishes (subsequent content arrives or streaming ends), collapse it.
-          const isThinkingActive = Boolean(this.isStreaming) && !hasVisibleContentAfter;
-          hidden = !isThinkingActive;
-        } else {
-          hidden = this.hideThinkingBlock;
-        }
-
-        let thinkingComponent: Text | Markdown;
-        if (hidden) {
-          // One static label for the whole run when hidden.
-          const t = ensureTheme();
-          if (!t) continue;
-          thinkingComponent = new Text(
-            t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)),
-            this.outputPad ?? 1,
-            0,
-          );
-        } else {
-          let thinkingContent = thinkBlocks.join("\n\n");
-          const label = buildThinkingLabel();
-          if (!thinkingContent.startsWith(label)) {
-            thinkingContent = `${label}\n\n${thinkingContent}`;
+        if (compactLines === 0) {
+          const userOverride = this.thinkingVisibilityOverrides.get(runIndex);
+          let hidden: boolean;
+          if (userOverride !== undefined) {
+            hidden = userOverride;
+          } else if (config?.autoCollapseThinking) {
+            // When auto-collapse is enabled, show thinking while it is actively streaming.
+            // Once thinking finishes (subsequent content arrives or streaming ends), collapse it.
+            const isThinkingActive = Boolean(this.isStreaming) && !hasVisibleContentAfter;
+            hidden = !isThinkingActive;
+          } else {
+            hidden = this.hideThinkingBlock;
           }
-          const t = ensureTheme();
-          if (!t) continue;
-          const muted = ensureMuted();
-          thinkingComponent = new Markdown(
-            thinkingContent,
-            this.outputPad ?? 1,
-            0,
-            muted ?? this.markdownTheme,
-            {
-              color: (text: string) => t.fg("thinkingText", text),
-              italic: true,
-            },
-            { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
+
+          let thinkingComponent: Text | Markdown;
+          if (hidden) {
+            // One static label for the whole run when hidden.
+            const t = ensureTheme();
+            if (!t) continue;
+            thinkingComponent = new Text(
+              t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)),
+              this.outputPad ?? 1,
+              0,
+            );
+          } else {
+            let thinkingContent = thinkBlocks.join("\n\n");
+            const label = buildThinkingLabel();
+            if (!thinkingContent.startsWith(label)) {
+              thinkingContent = `${label}\n\n${thinkingContent}`;
+            }
+            const t = ensureTheme();
+            if (!t) continue;
+            const muted = ensureMuted();
+            thinkingComponent = new Markdown(
+              thinkingContent,
+              this.outputPad ?? 1,
+              0,
+              muted ?? this.markdownTheme,
+              {
+                color: (text: string) => t.fg("thinkingText", text),
+                italic: true,
+              },
+              { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
+            );
+          }
+
+          this.contentContainer.addChild(
+            new MouseRegion(thinkingComponent, (event) => {
+              if (event.type !== "click" || event.button !== "left") return undefined;
+              this.thinkingVisibilityOverrides.set(runIndex, !hidden);
+              if (this.lastMessage) this.updateContent(this.lastMessage);
+              return { handled: true };
+            }),
+          );
+        } else {
+          const userState = (this as any)[THINKING_STATES_KEY].get(runIndex);
+          let state: "hidden" | "compact" | "full";
+          if (userState !== undefined) {
+            state = userState;
+          } else if (config?.autoCollapseThinking && (!Boolean(this.isStreaming) || hasVisibleContentAfter)) {
+            state = "hidden";
+          } else {
+            state = "compact";
+          }
+
+          let thinkingComponent: Text | Markdown;
+          if (state === "hidden") {
+            const t = ensureTheme();
+            if (!t) continue;
+            thinkingComponent = new Text(
+              t.italic(t.fg("thinkingText", this.hiddenThinkingLabel)),
+              this.outputPad ?? 1,
+              0,
+            );
+          } else if (state === "compact") {
+            const t = ensureTheme();
+            if (!t) continue;
+            const combined = thinkBlocks.join("\n\n").trimEnd();
+            const allLines = combined.split("\n");
+            const tailLines = allLines.slice(-compactLines);
+            const label = buildThinkingLabel();
+            let textContent: string;
+            if (compactLines === 1) {
+              const line = tailLines[0] ?? "";
+              textContent = `${label} ${t.italic(t.fg("thinkingText", line))}`;
+            } else {
+              const formattedLines = tailLines.map((l) => t.italic(t.fg("thinkingText", l))).join("\n");
+              textContent = `${label}\n${formattedLines}`;
+            }
+            thinkingComponent = new Text(textContent, this.outputPad ?? 1, 0);
+          } else {
+            let thinkingContent = thinkBlocks.join("\n\n");
+            const label = buildThinkingLabel();
+            if (!thinkingContent.startsWith(label)) {
+              thinkingContent = `${label}\n\n${thinkingContent}`;
+            }
+            const t = ensureTheme();
+            if (!t) continue;
+            const muted = ensureMuted();
+            thinkingComponent = new Markdown(
+              thinkingContent,
+              this.outputPad ?? 1,
+              0,
+              muted ?? this.markdownTheme,
+              {
+                color: (text: string) => t.fg("thinkingText", text),
+                italic: true,
+              },
+              { transform: transformFor("assistant-thinking") } as MarkdownOptionsWithTransform,
+            );
+          }
+
+          this.contentContainer.addChild(
+            new MouseRegion(thinkingComponent, (event) => {
+              if (event.type !== "click" || event.button !== "left") return undefined;
+              let nextState: "hidden" | "compact" | "full";
+              if (state === "compact") {
+                nextState = "full";
+              } else if (state === "full") {
+                nextState = "compact";
+              } else {
+                // From hidden -> expand to full
+                nextState = "full";
+              }
+              (this as any)[THINKING_STATES_KEY].set(runIndex, nextState);
+              this.thinkingVisibilityOverrides.set(runIndex, (nextState as string) === "hidden");
+              if (this.lastMessage) this.updateContent(this.lastMessage);
+              return { handled: true };
+            }),
           );
         }
-
-        this.contentContainer.addChild(
-          new MouseRegion(thinkingComponent, (event) => {
-            if (event.type !== "click" || event.button !== "left") return undefined;
-            this.thinkingVisibilityOverrides.set(runIndex, !hidden);
-            if (this.lastMessage) this.updateContent(this.lastMessage);
-            return { handled: true };
-          }),
-        );
         if (hasVisibleContentAfter) {
           this.contentContainer.addChild(new Spacer(1));
         }
