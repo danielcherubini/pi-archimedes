@@ -1,12 +1,13 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetImage, mockGetNativeClipboard, mockConvertToPng, mockSpawn } = vi.hoisted(() => {
+const { mockGetImage, mockGetNativeClipboard, mockConvertToPng, mockSpawn, mockSpawnSync } = vi.hoisted(() => {
   return {
     mockGetImage: vi.fn(),
     mockGetNativeClipboard: vi.fn(),
     mockConvertToPng: vi.fn(),
     mockSpawn: vi.fn(),
+    mockSpawnSync: vi.fn(),
   };
 });
 
@@ -23,10 +24,11 @@ vi.mock("node:child_process", async (importOriginal) => {
   return {
     ...actual,
     spawn: mockSpawn,
+    spawnSync: mockSpawnSync,
   };
 });
 
-import { readClipboardImage } from "./clipboard.js";
+import { readClipboardImage, readClipboardImageViaNativeModule } from "./clipboard.js";
 
 function createMockChildProcess(stdoutData = "", exitCode = 0) {
   const child = new EventEmitter() as any;
@@ -180,6 +182,30 @@ describe("readClipboardImage", () => {
         mimeType: "image/png",
       });
     });
+
+    it("logs a console.warn when PowerShell stdout exceeds MAX_BUFFER_BYTES", async () => {
+      mockGetNativeClipboard.mockReturnValue(undefined);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const child = new EventEmitter() as any;
+      child.stdout = new EventEmitter();
+      child.kill = vi.fn();
+      mockSpawn.mockImplementation(() => {
+        setTimeout(() => {
+          child.stdout.emit("data", Buffer.alloc(50 * 1024 * 1024 + 1));
+          child.emit("close", 0);
+        }, 5);
+        return child;
+      });
+
+      const result = await readClipboardImage({ platform: "win32", environment: {} });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[archimedes] Clipboard image exceeded maximum buffer size (50MB)",
+      );
+      expect(result).toBeNull();
+      warnSpy.mockRestore();
+    });
   });
 
   describe("Unavailable reader error messages", () => {
@@ -208,6 +234,78 @@ describe("readClipboardImage", () => {
       await expect(
         readClipboardImage({ platform: "win32", environment: {} }),
       ).rejects.toThrow(/@earendil-works\/pi-tui native clipboard or CLI tools/);
+    });
+  });
+
+  describe("Linux paths", () => {
+    it("prefers Wayland (wl-paste attempted first) when WAYLAND_DISPLAY is set", async () => {
+      mockSpawnSync.mockImplementation((command: string, args: string[]) => {
+        if (command === "wl-paste" && args[0] === "--list-types") {
+          return { status: 0, stdout: Buffer.from("image/png\n"), error: undefined };
+        }
+        if (command === "wl-paste" && args[0] === "--type") {
+          return { status: 0, stdout: Buffer.from([1, 2, 3, 4]), error: undefined };
+        }
+        return { status: 1, stdout: Buffer.alloc(0), error: undefined };
+      });
+
+      const result = await readClipboardImage({
+        platform: "linux",
+        environment: { WAYLAND_DISPLAY: "wayland-0" },
+      });
+
+      expect(mockSpawnSync).toHaveBeenCalled();
+      expect(mockSpawnSync.mock.calls[0]![0]).toBe("wl-paste");
+      expect(result).toEqual({
+        bytes: new Uint8Array([1, 2, 3, 4]),
+        mimeType: "image/png",
+      });
+    });
+
+    it("prefers X11 (xclip attempted first) when DISPLAY is set without Wayland", async () => {
+      mockSpawnSync.mockImplementation((command: string, args: string[]) => {
+        if (command === "xclip" && args.includes("TARGETS")) {
+          return { status: 0, stdout: Buffer.from("image/png\n"), error: undefined };
+        }
+        if (command === "xclip" && args.includes("image/png")) {
+          return { status: 0, stdout: Buffer.from([5, 6, 7]), error: undefined };
+        }
+        return { status: 1, stdout: Buffer.alloc(0), error: undefined };
+      });
+
+      const result = await readClipboardImage({
+        platform: "linux",
+        environment: { DISPLAY: ":0" },
+      });
+
+      expect(mockSpawnSync).toHaveBeenCalled();
+      expect(mockSpawnSync.mock.calls[0]![0]).toBe("xclip");
+      expect(result).toEqual({
+        bytes: new Uint8Array([5, 6, 7]),
+        mimeType: "image/png",
+      });
+    });
+
+    it("throws appropriate graphical session error when DISPLAY and WAYLAND_DISPLAY are missing", async () => {
+      await expect(
+        readClipboardImage({ platform: "linux", environment: {} }),
+      ).rejects.toThrow(
+        "Clipboard image paste requires a graphical desktop session with DISPLAY or WAYLAND_DISPLAY.",
+      );
+    });
+
+    it("TERMUX_VERSION returns { available: false, image: null } from native module and null from readClipboardImage", async () => {
+      const nativeResult = await readClipboardImageViaNativeModule("linux", {
+        TERMUX_VERSION: "0.118.0",
+        DISPLAY: ":0",
+      });
+      expect(nativeResult).toEqual({ available: false, image: null });
+
+      const result = await readClipboardImage({
+        platform: "linux",
+        environment: { TERMUX_VERSION: "0.118.0", DISPLAY: ":0" },
+      });
+      expect(result).toBeNull();
     });
   });
 });

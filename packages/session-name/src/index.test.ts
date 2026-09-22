@@ -118,6 +118,25 @@ describe("generateTitle", () => {
     expect(onFailure).toHaveBeenCalledTimes(1);
   });
 
+  it("triggers onFailure when streamSimple returns stopReason === 'aborted'", async () => {
+    const pi = createMockPi();
+    const ctx = createMockCtx({
+      streamSimpleResult: {
+        stopReason: "aborted",
+        content: [{ type: "text", text: "Partial Title" }],
+      },
+    });
+    const onSuccess = vi.fn();
+    const onFailure = vi.fn();
+
+    await generateTitle(pi as any, ctx as any, onSuccess, onFailure);
+
+    expect(ctx.modelRegistry.streamSimple).toHaveBeenCalledTimes(1);
+    expect(pi.setSessionName).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onFailure).toHaveBeenCalledTimes(1);
+  });
+
   it("aborts without setting session name if race condition occurs (session name already set)", async () => {
     let getSessionNameCallCount = 0;
     const pi = {

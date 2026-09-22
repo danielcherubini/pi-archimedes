@@ -169,7 +169,7 @@ export async function generateTitle(
     );
 
     const response = await stream.result();
-    if (response.stopReason === "error") {
+    if (response.stopReason === "error" || response.stopReason === "aborted") {
       onFailure();
       return;
     }

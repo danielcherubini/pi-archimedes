@@ -243,6 +243,33 @@ describe("getTokenUsageStats", () => {
     });
   });
 
+  it("detects branch switch: changing first entry ID triggers clean re-scan even if tail anchor matches", async () => {
+    await loadModule();
+    // Branch 1: entries [a1, a2]
+    const branch1 = [
+      makeAssistantEntry("a1", { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } }),
+      makeAssistantEntry("a2", { input: 200, output: 100, cacheRead: 0, cacheWrite: 0, cost: { total: 0.02 } }),
+    ];
+    let ctx = makeCtx(branch1);
+    let result = getTokenUsageStats(ctx);
+    expect(result.totalInput).toBe(300);
+
+    // Branch switch where tail ID 'a2' happens to match, but head entry is 'a1_replaced'
+    const branch2: SessionEntry[] = [
+      makeAssistantEntry("a1_replaced", { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, cost: { total: 0.001 } }),
+      branch1[1]!,
+    ];
+    ctx = makeCtx(branch2);
+    result = getTokenUsageStats(ctx);
+    expect(result).toEqual({
+      totalInput: 210,
+      totalOutput: 105,
+      totalCacheRead: 0,
+      totalCacheWrite: 0,
+      totalCost: 0.021,
+    });
+  });
+
   it("updates total when tail entry usage mutates in-place with unchanged entry count", async () => {
     await loadModule();
     const tailEntry = makeAssistantEntry("a1", { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } });

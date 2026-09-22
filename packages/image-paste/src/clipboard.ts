@@ -24,7 +24,7 @@ interface CommandResult {
   missingCommand: boolean;
 }
 
-interface ClipboardReadResult {
+export interface ClipboardReadResult {
   available: boolean;
   image: ClipboardImage | null;
 }
@@ -62,7 +62,7 @@ function selectPreferredImageMimeType(mimeTypes: readonly string[]): string | nu
   return firstImage?.raw ?? null;
 }
 
-async function readClipboardImageViaNativeModule(
+export async function readClipboardImageViaNativeModule(
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
 ): Promise<ClipboardReadResult> {
@@ -196,7 +196,10 @@ try {
     let exceededMaxBuffer = false;
     child.stdout?.on("data", (data: Buffer) => {
       if (stdout.length + data.length > MAX_BUFFER_BYTES) {
-        exceededMaxBuffer = true;
+        if (!exceededMaxBuffer) {
+          exceededMaxBuffer = true;
+          console.warn("[archimedes] Clipboard image exceeded maximum buffer size (50MB)");
+        }
         return;
       }
       stdout += data.toString("utf8");

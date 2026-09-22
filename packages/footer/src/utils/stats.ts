@@ -48,6 +48,7 @@ function usageEquals(a: MessageUsage | undefined, b: MessageUsage | undefined): 
 // Running total from initial scan — avoids re-scanning old entries
 let runningTotal: TokenUsageStats | undefined;
 let runningTotalEntryCount = 0;
+let lastFirstEntryId: string | undefined;
 let lastAnchorEntryId: string | undefined;
 let lastTailUsage: MessageUsage | undefined;
 let statsCache: TokenUsageStats | undefined;
@@ -69,10 +70,12 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
   const anchorMatch =
     runningTotal !== undefined &&
     runningTotalEntryCount > 0 &&
+    entries[0]?.id === lastFirstEntryId &&
     entries[runningTotalEntryCount - 1]?.id === lastAnchorEntryId;
 
   if (anchorMatch && runningTotal) {
     if (entries.length === runningTotalEntryCount) {
+      // Invariant: for unchanged entry count, only the tail entry's usage mutates during streaming.
       const currentTailUsage = extractEntryUsage(entries[entries.length - 1]);
       if (!usageEquals(currentTailUsage ?? undefined, lastTailUsage)) {
         const pIn = lastTailUsage?.input ?? 0;
@@ -147,6 +150,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
 
       runningTotal = { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
       runningTotalEntryCount = entries.length;
+      lastFirstEntryId = entries[0]?.id;
       lastAnchorEntryId = entries[entries.length - 1]?.id;
       lastTailUsage = extractEntryUsage(entries[entries.length - 1]) ?? undefined;
       statsCache = runningTotal;
@@ -174,6 +178,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
 
   runningTotal = { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost };
   runningTotalEntryCount = entries.length;
+  lastFirstEntryId = entries[0]?.id;
   lastAnchorEntryId = entries[entries.length - 1]?.id;
   lastTailUsage = extractEntryUsage(entries[entries.length - 1]) ?? undefined;
   statsCache = runningTotal;
@@ -189,6 +194,7 @@ export function invalidateStatsCache(): void {
 export function resetStatsState(): void {
   runningTotal = undefined;
   runningTotalEntryCount = 0;
+  lastFirstEntryId = undefined;
   lastAnchorEntryId = undefined;
   lastTailUsage = undefined;
   statsCache = undefined;
