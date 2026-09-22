@@ -81,9 +81,13 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     if (!("fallback" in outcome)) {
       // Bridge used (success or a response-carrying error, incl. the terminal
       // "cancelled" frame — the desktop is alive, its outcome is authoritative):
-      // return it — NO fork fallback, and NO emitCostUpdate (the suite does not
-      // push the subagent's own usage in v1; double-counting the main agent's
-      // cost would be wrong).
+      // return it — NO fork fallback, and NO emitCostUpdate here — the PARENT
+      // never pushes the subagent's usage on the PARENT's bus (the fork-delta
+      // semantics: only the fork path reports a child's usage, source
+      // `subagent:<name>`). The subagent process self-emits its own usage to
+      // its OWN bridge (the core self-usage emitter,
+      // `subagent-metrics-cost-push` Task 1) — a different bus, a different
+      // session; no double-count.
       return outcome;
     }
     // { fallback: true } — unreachable bridge: fall through to the fork path.
