@@ -8,13 +8,16 @@ export interface BashRendererState {
   interval?: NodeJS.Timeout | undefined;
 }
 
-const activeIntervals = new Set<NodeJS.Timeout>();
+const activeStates = new Set<BashRendererState>();
 
 export function clearActiveBashIntervals(): void {
-  for (const interval of activeIntervals) {
-    clearInterval(interval);
+  for (const state of activeStates) {
+    if (state.interval) {
+      clearInterval(state.interval);
+      state.interval = undefined;
+    }
   }
-  activeIntervals.clear();
+  activeStates.clear();
 }
 
 /**
@@ -107,7 +110,7 @@ export function renderBashResult(
       state.interval = setInterval(() => {
         ctx.invalidate?.();
       }, 1000);
-      activeIntervals.add(state.interval);
+      activeStates.add(state);
     }
   }
 
@@ -115,9 +118,9 @@ export function renderBashResult(
     state.endedAt ??= Date.now();
     if (state.interval) {
       clearInterval(state.interval);
-      activeIntervals.delete(state.interval);
       state.interval = undefined;
     }
+    activeStates.delete(state);
   }
 
   const res = result as {
@@ -145,7 +148,7 @@ export function renderBashResult(
 
   if (!options.expanded) {
     // Collapsed view:
-    // ` <status> <command in muted grey in one line truncated> (<time running>)`
+    // `<status> <command in muted grey in one line truncated> (<time running>)`
     const statusGlyph = options.isPartial
       ? theme.fg("warning", "▸")
       : isError

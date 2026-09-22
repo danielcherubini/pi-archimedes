@@ -211,8 +211,8 @@ describe("renderBashResult - Live timer lifecycle", () => {
     expect(context.state.interval).toBeDefined();
 
     clearActiveBashIntervals();
-    expect(context.state.interval).toBeDefined(); // The reference in state remains, but interval should be cleared
-    // We can verify by checking if the interval still triggers
+    expect(context.state.interval).toBeUndefined();
+    // Verify if the interval still triggers
     vi.advanceTimersByTime(1000);
     expect(context.invalidate).not.toHaveBeenCalled();
   });

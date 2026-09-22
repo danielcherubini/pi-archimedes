@@ -31,16 +31,16 @@ TUI enhancements for the Pi Archimedes monorepo.
 | :--- | :--- | :--- | :--- |
 | `bashToolStyling` | boolean | `true` | Custom styled bash tool rendering |
 | `mutedTheme` | boolean | `false` | Muted theme for thinking blocks |
-| `autoCollapseThinking` | boolean | `true` | Automatically collapse thinking blocks |
+| `autoCollapseThinking` | boolean | `false` | Automatically collapse thinking blocks |
 | `compactThinking` | "Off" \| "1 line" \| "3 lines" \| "5 lines" | `"Off"` | Compact thinking block mode |
 | `codeUnindent` | boolean | `true` | Strip common indentation from code blocks |
-| `labelText` | string | `"HEPHAESTUS"` | Startup splash header text |
-| `labelColor` | string | `"#888888"` | Startup splash header color |
-| `animationStyle` | "none" \| "static" \| "vertical" \| "reveal" \| "all" | `"vertical"` | Startup logo animation |
+| `labelText` | string | `"Thinking..."` | Startup splash header text |
+| `labelColor` | string | `"255,215,0"` | Startup splash header color (RGB triplet) |
+| `animationStyle` | "diagonal" \| "top-right" \| "bottom-left" \| "bottom-right" \| "center-out" \| "wave" \| "horizontal" \| "vertical" \| "vertical-up" | `"vertical-up"` | Startup logo animation |
 | `editorSpinBorder` | boolean | `true` | Animated spinner border on editor |
 | `editorSpinSpeed` | "slow" \| "normal" \| "fast" | `"normal"` | Editor border spinner speed |
-| `editorSpinStyle` | "ascii" \| "braille" \| "block" \| "wave" \| "line" | `"braille"` | Editor spinner style |
-| `editorSpinLabel` | string | `"HEPHAESTUS"` | Spinner frame label |
+| `editorSpinStyle` | "typing" \| "pulse" \| "rain" \| "cascade" \| "columns" \| "wave-rows" \| "diagonal-swipe" \| "sparkle" \| "pendulum" \| "marquee" | `"pendulum"` | Editor spinner style |
+| `editorSpinLabel` | string | `"Working"` | Spinner frame label |
 
 ## Install
 
