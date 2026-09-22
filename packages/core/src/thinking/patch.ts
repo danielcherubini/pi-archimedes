@@ -362,7 +362,7 @@ export function patchThinkingRenderer(
                 nextState = "full";
               }
               (this as any)[THINKING_STATES_KEY].set(runIndex, nextState);
-              this.thinkingVisibilityOverrides.set(runIndex, (nextState as string) === "hidden");
+              this.thinkingVisibilityOverrides.set(runIndex, false);
               if (this.lastMessage) this.updateContent(this.lastMessage);
               return { handled: true };
             }),
