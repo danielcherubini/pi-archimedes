@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fc from "fast-check";
-import { stripAnsi } from "../text.js";
+import { stripAnsi } from "@pi-archimedes/core/text";
 
 // ── Helpers for dynamic imports with controlled TRUECOLOR ────────────────────
 

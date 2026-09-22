@@ -11,7 +11,7 @@ import {
   rgbToHsl,
   rgbToTruecolorFg,
   hexToRgb,
-} from "../color.js";
+} from "@pi-archimedes/core/color";
 
 export interface MutedThemeOptions {
   saturationFactor?: number; // default 0.5

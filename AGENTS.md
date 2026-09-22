@@ -4,7 +4,8 @@ Rules for AI agents working on this monorepo.
 
 ## Monorepo Structure
 
-- `packages/core` — bus, chrome, text/color utils, editor, message, startup, thinking
+- `packages/core` — bus, bridge, chrome, text/color utils, overlay, profiler, settings-io, tool-render
+- `packages/ui` — TUI enhancements: bash tool styling, custom editor, border spinner, thinking collapse, splash animation (depends on core)
 - `packages/ask` — structured question tool with tabbed flow and inline notes (depends on core)
 - `packages/footer` — status bar (depends on core)
 - `packages/diff` — Shiki-powered diff rendering (standalone)
@@ -15,7 +16,7 @@ Rules for AI agents working on this monorepo.
 - `packages/session-name` — auto session naming (depends on core)
 - `packages/mcp` — MCP client adapter (feature parity with pi-mcp-adapter: `/mcp` command family, management + setup panels, OAuth, metadata cache) (depends on core)
 - `packages/sudo` — safe privileged execution (sudo_exec tool, masked password prompt, interactive-sudo bash guard) (depends on core)
-- `meta` — orchestrator + composed settings (depends on all eleven)
+- `meta` — orchestrator + composed settings (depends on all twelve)
 
 ## Adding a New Package
 
@@ -104,15 +105,15 @@ Root `package.json` has `pi.extensions` pointing to `meta/src/index.ts`.
 
 - All packages share the same version (bump all together)
 - `git tag v0.x.y && git push origin v0.x.y` triggers the release workflow
-- Publishes in dependency order: core → sudo → ask → todo → notify → session-name → footer → diff → image-paste → subagent → mcp → meta
+- Publishes in dependency order: core → ui → sudo → ask → todo → notify → session-name → footer → diff → image-paste → subagent → mcp → meta
 
 ## Release Steps
 
 When releasing a new version, apply these steps after bumping versions but before tagging:
 
-1. **Bump all 12 package versions** — `packages/core`, `packages/sudo`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `packages/session-name`, `packages/mcp`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
+1. **Bump all 13 package versions** — `packages/core`, `packages/ui`, `packages/sudo`, `packages/ask`, `packages/footer`, `packages/diff`, `packages/image-paste`, `packages/notify`, `packages/subagent`, `packages/todo`, `packages/session-name`, `packages/mcp`, `meta` all share the same version. The root `package.json` is private and has no version to bump.
 
-2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 11 package directories (10 components + session-name). Don't release if any check fails.
+2. **Type-check all packages** — run `npx tsc --noEmit` in each of the 12 package directories (11 components + session-name). Don't release if any check fails.
 
 3. **Ensure CI is green** — check the latest CI run on `feature/monorepo-split` (or `main`). Don't release on a red build.
 

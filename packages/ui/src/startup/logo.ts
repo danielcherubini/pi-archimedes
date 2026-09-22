@@ -1,4 +1,4 @@
-import { gray, rgb, extractRgb, lerp } from "../color.js";
+import { gray, rgb, extractRgb, lerp } from "@pi-archimedes/core/color";
 import type { AnimationStyle } from "../config.js";
 
 // ── Truecolor detection ────────────────────────────────────────

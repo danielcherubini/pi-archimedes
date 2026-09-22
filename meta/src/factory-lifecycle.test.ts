@@ -53,6 +53,9 @@ vi.mock("@pi-archimedes/core/profiler", () => ({
 }));
 vi.mock("@pi-archimedes/core", () => ({
   registerCore: vi.fn(),
+}));
+vi.mock("@pi-archimedes/ui", () => ({
+  registerUI: vi.fn(),
   unpatchConsoleLog: vi.fn(),
 }));
 vi.mock("@pi-archimedes/footer", () => ({ registerFooter: vi.fn() }));
@@ -95,6 +98,7 @@ const { default: metaFactory } = await import("./index.js");
 
 const { registerImagePaste, shutdownImagePaste, initImagePasteSession } =
   await import("@pi-archimedes/image-paste");
+const { unpatchConsoleLog } = await import("@pi-archimedes/ui");
 
 const { offerKeybindingFix } =
   await import("@pi-archimedes/image-paste/keybinding-offer");
@@ -182,6 +186,7 @@ describe("image-paste factory lifecycle (registration is config-gated, teardown 
     // Session ends → cleanup MUST still run for this session's registration.
     shutdownSession();
     expect(vi.mocked(shutdownImagePaste)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(unpatchConsoleLog)).toHaveBeenCalledTimes(1);
   });
 
   it("registers nothing and tears down nothing when config is off at session start", async () => {

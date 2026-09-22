@@ -448,7 +448,7 @@ describe("patchThinkingRenderer", () => {
 		class MockMouseRegion {
 			child: any;
 			onMouse: (event: any) => any;
-			constructor(child: any, onMouse: (event: any) => any) {
+			constructor(child: any, onMouse: any) {
 				this.child = child;
 				this.onMouse = onMouse;
 			}

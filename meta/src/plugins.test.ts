@@ -51,6 +51,16 @@ vi.mock("@pi-archimedes/core", () => ({
   ]),
 }));
 
+vi.mock("@pi-archimedes/ui", () => ({
+  getUISettingsItems: vi.fn(() => [
+    { id: "mutedTheme", label: "Muted theme", currentValue: "Off", values: ["On", "Off"] },
+  ]),
+  loadUIConfig: vi.fn(() => ({})),
+  saveUIConfig: vi.fn(),
+  registerUI: vi.fn(),
+  unpatchConsoleLog: vi.fn(),
+}));
+
 vi.mock("@pi-archimedes/footer/config", () => ({
   getFooterSettingsItems: vi.fn(() => [
     { id: "splitThreshold", label: "Footer split threshold", currentValue: "120" },
@@ -76,6 +86,7 @@ vi.mock("@pi-archimedes/diff", () => ({
     { id: "diffTheme", label: "Diff theme", currentValue: "github-dark" },
   ]),
 }));
+const { getUISettingsItems } = await import("@pi-archimedes/ui");
 const {
   PLUGINS,
   isPluginEnabled,
@@ -186,6 +197,7 @@ describe("setPluginEnabled (save path)", () => {
 
 describe("PLUGINS manifest integrity", () => {
   const EXPECTED_IDS = [
+    "ui",
     "footer",
     "todo",
     "ask",
@@ -198,7 +210,7 @@ describe("PLUGINS manifest integrity", () => {
     "sudo",
   ];
 
-  it("lists exactly the 10 non-core packages (no drift)", () => {
+  it("lists exactly the 11 non-core packages (no drift)", () => {
     expect([...PLUGINS.map((p) => p.id)].sort()).toEqual([...EXPECTED_IDS].sort());
   });
 
@@ -243,10 +255,10 @@ const ARROW_RIGHT = "\x1b[C";
 
 /** All enabled — no `enabled` keys persisted anywhere. */
 function fakeAllConfig(): Parameters<typeof buildSettingsItems>[0] {
-  // Minimal shape — buildSettingsItems only reads core/notify/sessionName
+  // Minimal shape — buildSettingsItems only reads ui/notify/sessionName
   // through the (mocked) item builders, so missing fields never surface.
   return {
-    core: { mutedTheme: false },
+    ui: {},
     footer: { splitThreshold: 120 },
     diff: { diffTheme: "github-dark", diffSplitMinWidth: 150, diffSplitMinCodeWidth: 60 },
     notify: { delayMs: 30000, notifyOnAgentEnd: true, notifyOnQuestion: true },
@@ -258,6 +270,7 @@ describe("buildSettingsItems (settings gate)", () => {
   beforeEach(() => {
     for (const key of Object.keys(mockStore)) delete mockStore[key];
     vi.mocked(getDiffSettingsItems).mockClear();
+    vi.mocked(getUISettingsItems).mockClear();
   });
 
   it("includes all packages' items when everything is enabled, and lazy-imports diff", async () => {
@@ -272,9 +285,10 @@ describe("buildSettingsItems (settings gate)", () => {
     mockStore["archimedes.diff"] = { enabled: false };
     mockStore["archimedes.sessionName"] = { enabled: false };
     mockStore["archimedes.notify"] = { enabled: false };
+    mockStore["archimedes.ui"] = { enabled: false };
     const items = await buildSettingsItems(fakeAllConfig());
-    // Core items are always present
-    expect(items.map((i) => i.id)).toContain("mutedTheme");
+    // Core (UI) items are no longer automatically present
+    expect(items.map((i) => i.id)).not.toContain("mutedTheme");
     // No item from a disabled package
     for (const id of ["splitThreshold", "diffTheme", "delayMs", "sessionNameModel"]) {
       expect(items.map((i) => i.id)).not.toContain(id);

@@ -20,11 +20,11 @@ import {
   AUTOCOMPLETE_CURSOR,
   HINT_MARGIN_RIGHT,
   resolvePalette,
-} from "../chrome.js";
-import { isParentBorder, formatKey } from "../text.js";
+} from "@pi-archimedes/core/chrome";
+import { isParentBorder, formatKey } from "@pi-archimedes/core/text";
 import { SPIN_INTERVALS, BorderTypeSpinner } from "./spin.js";
 import { pickQuip, QUIP_ROTATION_MAX_SECS, QUIP_ROTATION_MIN_SECS } from "./spin-quips.js";
-import { SPIN_SPEED_MULT, type CoreConfig, type SpinnerStyle } from "../config.js";
+import { SPIN_SPEED_MULT, type UIConfig, type SpinnerStyle } from "../config.js";
 
 const DOUBLE_PRESS_WINDOW_MS = 500;
 
@@ -86,7 +86,7 @@ export class HephaestusEditor extends CustomEditor {
       /** Type a 4-cell spinner window into the editor's top border while the agent is busy (the animation mechanism lives in `BorderTypeSpinner`, `./spin.js`): the style-configured 4-cell window (the gallery-derived styles in `SPIN_VARIANTS` — the 2×4 braille dot block (⠁ → ⣿, Unicode chart order, `typing`) grows cell-by-cell left→right — each cell walking the 8 stages in 2-step line pairs (⠁⠉/⠋⠛/⠟⠿/⡿⣿) — then holds, clears, repeats (in EAW terminals the stage set falls back to the width-1 shading ░ → █; raw setting strings are tolerated — unknown names normalize to typing frames). */
       spin?: boolean;
       /** Tick period = the style's native per-tick tempo (`SPIN_INTERVALS[normalizeSpinnerStyle(spinStyle)]`) × the `editorSpinSpeed` multiplier (1.5 / 1 / 0.6), clamped at the 32 ms tick floor (the floor also caps a 30 ms native style under `fast` at 32). */
-      spinSpeed?: CoreConfig["editorSpinSpeed"];
+      spinSpeed?: UIConfig["editorSpinSpeed"];
       /** The `editorSpinStyle` setting — the default style, from the config default (pendulum); raw setting strings are tolerated, but unknown names still normalize to typing frames (the normalizer's fallback, kept distinct from the default). */
       spinStyle?: SpinnerStyle | string;
       /** Label typed after the window while busy (the `editorSpinLabel` setting): an empty string hides it. The default `"Working"` (and a hand-typed `"Working"`, indistinguishable from it) is replaced by a random quip picked once per busy episode, re-picked on a subtle random 15–45 s timer while a long episode continues; any other non-empty string is shown verbatim. Non-string values (corrupt config) fall back to `"Working"` — i.e. quip mode. */

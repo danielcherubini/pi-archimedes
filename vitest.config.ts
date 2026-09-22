@@ -14,10 +14,11 @@ export default defineConfig({
       "packages/session-name",
       "packages/image-paste",
       "packages/mcp",
+      "packages/ui",
+      "meta",
     ],
     passWithNoTests: true,
   },
 });
 
-// Note: meta is excluded — it is the orchestrator (depends on all packages) and
-// has no pure-logic functions to test in isolation.
+// Note: meta is the orchestrator (depends on all packages).

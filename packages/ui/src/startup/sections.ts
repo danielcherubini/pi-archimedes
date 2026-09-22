@@ -1,5 +1,5 @@
-import { clampLine, stripAnsi } from "../text.js";
-import { gray, rgb, extractRgb, lerp } from "../color.js";
+import { clampLine, stripAnsi } from "@pi-archimedes/core/text";
+import { gray, rgb, extractRgb, lerp } from "@pi-archimedes/core/color";
 import { TRUECOLOR } from "./logo.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";

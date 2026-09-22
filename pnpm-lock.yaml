@@ -53,6 +53,9 @@ importers:
       '@pi-archimedes/todo':
         specifier: workspace:*
         version: link:../packages/todo
+      '@pi-archimedes/ui':
+        specifier: workspace:*
+        version: link:../packages/ui
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.87.0
@@ -269,6 +272,25 @@ importers:
         version: 6.0.3
 
   packages/todo:
+    dependencies:
+      '@pi-archimedes/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@earendil-works/pi-ai':
+        specifier: ^0.87.0
+        version: 0.87.0(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent':
+        specifier: ^0.87.0
+        version: 0.87.0(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: ^0.87.0
+        version: 0.87.0
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+
+  packages/ui:
     dependencies:
       '@pi-archimedes/core':
         specifier: workspace:*

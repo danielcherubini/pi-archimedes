@@ -1,25 +1,20 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 
-import { getCoreSettingsItems } from "@pi-archimedes/core";
-import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
+import { getUISettingsItems, saveUIConfig, type UIConfig } from "@pi-archimedes/ui";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
-// diff (shiki) is lazy-loaded inside buildSettingsItems AND gated by the
-// per-namespace plugin gate (archimedes.diff.enabled — see ADR 0012) —
-// disabled means shiki is never imported
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
 import {
   loadAllConfig,
-  saveCoreConfig,
   saveFooterConfig,
   saveDiffConfig,
   saveNotifyConfig,
   saveSessionNameConfig,
-  type CoreConfig,
   type NotifyConfig,
 } from "./config.js";
 import { isPluginEnabled } from "./plugins.js";
+import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import { createSettingsManager, type PromptDescriptor } from "./settings-manager.js";
 
 // ── Free-input prompt descriptors (keyed by item.id) ───────────────────────
@@ -43,7 +38,11 @@ const PROMPTS: Record<string, PromptDescriptor> = {
 // not leak back in through the settings overlay. The diff import (heavy —
 // pulls in shiki) is lazy AND inside the gate: disabled diff is never loaded.
 export async function buildSettingsItems(allConfig: ReturnType<typeof loadAllConfig>): Promise<SettingItem[]> {
-  const items: SettingItem[] = [...getCoreSettingsItems({ ...allConfig.core })];
+  const items: SettingItem[] = [];
+
+  if (isPluginEnabled("ui")) {
+    items.push(...getUISettingsItems({ ...allConfig.ui }));
+  }
 
   if (isPluginEnabled("footer")) {
     items.push(...getFooterSettingsItems());
@@ -76,7 +75,7 @@ export async function buildSettingsItems(allConfig: ReturnType<typeof loadAllCon
 export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
   const allConfig = loadAllConfig();
 
-  const coreConfig: CoreConfig = { ...allConfig.core };
+  const uiConfig: UIConfig = { ...allConfig.ui };
   const notifyConfig: NotifyConfig = { ...allConfig.notify };
   const footerConfig = { ...allConfig.footer };
   const diffConfig = { ...allConfig.diff };
@@ -91,18 +90,19 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
       theme,
       onChange: (id: string, newValue: string) => {
         switch (id) {
-          // ── Core settings ──
-          case "mutedTheme": coreConfig.mutedTheme = newValue === "On"; break;
-          case "autoCollapseThinking": coreConfig.autoCollapseThinking = newValue === "On"; break;
-          case "compactThinking": coreConfig.compactThinking = newValue as CoreConfig["compactThinking"]; break;
-          case "codeUnindent": coreConfig.codeUnindent = newValue === "On"; break;
-          case "editorSpinBorder": coreConfig.editorSpinBorder = newValue === "On"; break;
-          case "editorSpinSpeed": coreConfig.editorSpinSpeed = newValue.toLowerCase() as CoreConfig["editorSpinSpeed"]; break;
-          case "editorSpinStyle": coreConfig.editorSpinStyle = newValue.toLowerCase().replace(/ /g, "-") as CoreConfig["editorSpinStyle"]; break;
-          case "editorSpinLabel": coreConfig.editorSpinLabel = newValue; break;
-          case "labelText": coreConfig.labelText = newValue; break;
-          case "labelColor": coreConfig.labelColor = newValue; break;
-          case "animationStyle": coreConfig.animationStyle = newValue as CoreConfig["animationStyle"]; break;
+          // ── UI settings ──
+          case "bashToolStyling": uiConfig.bashToolStyling = newValue === "On"; break;
+          case "mutedTheme": uiConfig.mutedTheme = newValue === "On"; break;
+          case "autoCollapseThinking": uiConfig.autoCollapseThinking = newValue === "On"; break;
+          case "compactThinking": uiConfig.compactThinking = newValue as UIConfig["compactThinking"]; break;
+          case "codeUnindent": uiConfig.codeUnindent = newValue === "On"; break;
+          case "editorSpinBorder": uiConfig.editorSpinBorder = newValue === "On"; break;
+          case "editorSpinSpeed": uiConfig.editorSpinSpeed = newValue.toLowerCase() as UIConfig["editorSpinSpeed"]; break;
+          case "editorSpinStyle": uiConfig.editorSpinStyle = newValue.toLowerCase().replace(/ /g, "-") as UIConfig["editorSpinStyle"]; break;
+          case "editorSpinLabel": uiConfig.editorSpinLabel = newValue; break;
+          case "labelText": uiConfig.labelText = newValue; break;
+          case "labelColor": uiConfig.labelColor = newValue; break;
+          case "animationStyle": uiConfig.animationStyle = newValue as UIConfig["animationStyle"]; break;
 
           // ── Footer settings ──
           case "splitThreshold": {
@@ -138,7 +138,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
         }
       },
       onSave: () => {
-        saveCoreConfig(coreConfig);
+        saveUIConfig(uiConfig);
         saveFooterConfig(footerConfig);
         saveDiffConfig(diffConfig);
         saveNotifyConfig(notifyConfig);

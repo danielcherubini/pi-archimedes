@@ -128,7 +128,7 @@ The details are easier to catch when they're easier to read.
 
 [Paste screenshots](packages/image-paste/README.md) with inline previews. Keep your [branch, model, context usage, and costs](packages/footer/README.md) in view. Give sessions [useful names automatically](packages/session-name/README.md) so they're easier to find later.
 
-A [framed editor](packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
+Bash tools gain [enhanced styling](packages/ui/README.md) with collapsed/expanded views and live status indicators. A [framed editor](packages/ui/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
 
 **Practical notes:** the paste markers appear as you paste; image previews appear when you submit the message. Image rendering and desktop alerts both depend on your terminal's support — the [image-paste](packages/image-paste/README.md) and [notify](packages/notify/README.md) docs cover what each needs. Naming is a separate (potentially billed) model call, not included in the footer's totals.
 
@@ -158,7 +158,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 | Command | Scope | Notes |
 |---------|-------|-------|
-| `/plugins` | Suite | Toggle the ten optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
+| `/plugins` | Suite | Toggle the eleven optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
 | `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
 | `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
 | `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
@@ -170,7 +170,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 ## Settings
 
-Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (chrome, spinner, thinking), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), [image-paste](packages/image-paste/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
+Every component keeps its own namespace under `~/.pi/agent/settings.json`, which Pi parses as **strict JSON** (no comments — unlike MCP server configs, which accept JSONC). Each component's README documents its namespace, fields, and defaults — including [core](packages/core/README.md) (bus, bridge, chrome, utilities), [ui](packages/ui/README.md) (bash tool styling, framed editor, spinner, thinking, splash), [footer](packages/footer/README.md), [diff](packages/diff/README.md), [notify](packages/notify/README.md), [mcp](packages/mcp/README.md), [image-paste](packages/image-paste/README.md), and [sudo](packages/sudo/README.md) (also strict JSON). The `/archimedes` panel covers the settings that have a control; not everything does.
 
 ---
 
@@ -178,7 +178,8 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 
 | Component | npm package | What it adds |
 |-----------|-------------|--------------|
-| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
+| **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Foundational non-UI runtime: event bus, bridge channel, pure text/color/tool-render utilities, overlay chrome, profiler |
+| **UI** | [`@pi-archimedes/ui`](packages/ui/README.md) | Splash/editor/spinner/thinking components, bash tool styling |
 | **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
 | **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
 | **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
@@ -196,6 +197,7 @@ To install just the components you want:
 
 ```bash
 pi install npm:@pi-archimedes/core
+pi install npm:@pi-archimedes/ui
 pi install npm:@pi-archimedes/subagent
 pi install npm:@pi-archimedes/todo
 pi install npm:@pi-archimedes/ask
@@ -217,7 +219,8 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 ```
 .
 ├── packages/
-│   ├── core/          # event bus, chrome, text/color utils, editor, thinking
+│   ├── core/          # Event bus, bridge channel, text/color/tool utilities, overlay chrome, profiler
+│   ├── ui/            # bash tool styling, editor spinner, thinking UI
 │   ├── footer/        # status bar
 │   ├── diff/          # Shiki-powered diff rendering
 │   ├── subagent/      # subagent dispatch (live streaming, cost tracking)
@@ -228,7 +231,7 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 │   ├── image-paste/   # clipboard image paste
 │   ├── notify/        # delayed desktop notifications
 │   └── session-name/  # auto session naming
-└── meta/              # the pi-archimedes orchestrator (depends on all eleven)
+└── meta/              # the pi-archimedes orchestrator (depends on all twelve)
 ```
 
 ```bash

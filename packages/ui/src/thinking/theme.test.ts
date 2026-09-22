@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { dimAnsiLine, buildMutedMarkdownTheme } from "./theme.js";
-import { stripAnsi } from "../text.js";
+import { stripAnsi } from "@pi-archimedes/core/text";
 
 // ── dimAnsiLine ──────────────────────────────────────────────────────────────
 

@@ -19,6 +19,7 @@ export interface PluginDef {
 
 // Array order = menu display order. There is no separate order constant.
 export const PLUGINS: PluginDef[] = [
+  { id: "ui",           label: "UI Enhancements",    description: "Bash styling, editor spinner, thinking collapse, splash animation", namespace: "archimedes.ui",           load: () => import("@pi-archimedes/ui") },
   { id: "footer",       label: "Footer status bar",  description: "Status bar with cost/timer",                      namespace: "archimedes.footer",      load: () => import("@pi-archimedes/footer") },
   { id: "todo",         label: "Todo list",          description: "manage_todo_list tool + widget",                  namespace: "archimedes.todo",        load: () => import("@pi-archimedes/todo") },
   { id: "ask",          label: "Ask tool",           description: "Structured in-conversation questions",            namespace: "archimedes.ask",         load: () => import("@pi-archimedes/ask") },

@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import { time as archTime, print as archPrintTimings, reset as archResetTimings } from "@pi-archimedes/core/profiler";
-import { registerCore, unpatchConsoleLog } from "@pi-archimedes/core";
+import { registerCore } from "@pi-archimedes/core";
+import { registerUI, unpatchConsoleLog } from "@pi-archimedes/ui";
 import { registerFooter } from "@pi-archimedes/footer";
 
 // Mark when module finishes evaluating (before factory runs) for gap analysis
@@ -39,6 +40,10 @@ export default function (pi: ExtensionAPI): void {
   // Register all component extensions (static imports already compiled by jiti above)
   registerCore(pi);
   archTime("registerCore");
+  if (isPluginEnabled("ui")) {
+    registerUI(pi);
+    archTime("registerUI");
+  }
   if (isPluginEnabled("footer")) registerFooter(pi);
   archTime("registerFooter");
 
