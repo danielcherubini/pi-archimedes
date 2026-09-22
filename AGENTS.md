@@ -5,6 +5,7 @@ Rules for AI agents working on this monorepo.
 ## Monorepo Structure
 
 - `packages/core` — bus, chrome, text/color utils, editor, message, startup, thinking
+- `packages/ui` — TUI enhancements: bash tool styling, custom editor, border spinner, thinking collapse, splash animation (depends on core)
 - `packages/ask` — structured question tool with tabbed flow and inline notes (depends on core)
 - `packages/footer` — status bar (depends on core)
 - `packages/diff` — Shiki-powered diff rendering (standalone)

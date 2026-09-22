@@ -128,7 +128,7 @@ The details are easier to catch when they're easier to read.
 
 [Paste screenshots](packages/image-paste/README.md) with inline previews. Keep your [branch, model, context usage, and costs](packages/footer/README.md) in view. Give sessions [useful names automatically](packages/session-name/README.md) so they're easier to find later.
 
-A [framed editor](packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
+Bash tools gain [enhanced styling](packages/ui/README.md) with collapsed/expanded views and live status indicators. A [framed editor](packages/core/README.md), animated working indicators, and configurable colours finish the picture. Small touches that make the whole setup feel considered.
 
 **Practical notes:** the paste markers appear as you paste; image previews appear when you submit the message. Image rendering and desktop alerts both depend on your terminal's support — the [image-paste](packages/image-paste/README.md) and [notify](packages/notify/README.md) docs cover what each needs. Naming is a separate (potentially billed) model call, not included in the footer's totals.
 
@@ -179,6 +179,7 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | Component | npm package | What it adds |
 |-----------|-------------|--------------|
 | **Core** | [`@pi-archimedes/core`](packages/core/README.md) | Shared event bus, splash screen, framed editor, working spinner, thinking blocks |
+| **UI** | [`@pi-archimedes/ui`](packages/ui/README.md) | Bash tool styling, editor spin animations, compact thinking |
 | **Subagent** | [`@pi-archimedes/subagent`](packages/subagent/README.md) | Live subagent dispatch, custom agent definitions; `/agents` editor with the suite |
 | **Todo** | [`@pi-archimedes/todo`](packages/todo/README.md) | Multi-column todo board with subagent columns and auto-clear |
 | **Ask** | [`@pi-archimedes/ask`](packages/ask/README.md) | Structured questions — including subagent questions relayed into your terminal |
@@ -196,6 +197,7 @@ To install just the components you want:
 
 ```bash
 pi install npm:@pi-archimedes/core
+pi install npm:@pi-archimedes/ui
 pi install npm:@pi-archimedes/subagent
 pi install npm:@pi-archimedes/todo
 pi install npm:@pi-archimedes/ask
@@ -218,6 +220,7 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 .
 ├── packages/
 │   ├── core/          # event bus, chrome, text/color utils, editor, thinking
+│   ├── ui/            # bash tool styling, editor spinner, thinking UI
 │   ├── footer/        # status bar
 │   ├── diff/          # Shiki-powered diff rendering
 │   ├── subagent/      # subagent dispatch (live streaming, cost tracking)
