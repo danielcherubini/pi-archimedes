@@ -123,27 +123,31 @@ Move visual presentation directories (`editor/`, `thinking/`, `startup/`) and al
          editorSpinStyle: SpinnerStyle;
        }
        ```
+     - Compatibility alias: `export type CoreConfig = UIConfig;` (so any internal code expecting `CoreConfig` compiles cleanly).
      - `DEFAULT_UI_CONFIG: UIConfig`: matching prior `DEFAULT_CORE_CONFIG` values plus `bashToolStyling: true`.
      - `loadUIConfig(): UIConfig`: reads `archimedes.ui` via `loadConfig(NAMESPACE, DEFAULT_UI_CONFIG)`.
      - `saveUIConfig(config: UIConfig): void`: writes `archimedes.ui` via `saveConfig(NAMESPACE, config)`.
 2. Move files from `packages/core/src/editor/` to `packages/ui/src/editor/`:
    - `index.ts`, `index.test.ts`, `spin.ts`, `spin.test.ts`, `spin-quips.ts`, `spin-quips.test.ts`.
+   - In `editor/index.ts`: update `import { SPIN_SPEED_MULT, type CoreConfig, type SpinnerStyle } from "../config.js"` → `import { SPIN_SPEED_MULT, type UIConfig, type SpinnerStyle } from "../config.js"`, and update `CoreConfig["editorSpinSpeed"]` → `UIConfig["editorSpinSpeed"]`.
    - Update imports in `editor/`:
      - `from "../chrome.js"` → `from "@pi-archimedes/core/chrome"`
      - `from "../color.js"` → `from "@pi-archimedes/core/color"`
      - `from "../text.js"` → `from "@pi-archimedes/core/text"`
-     - `from "../bus.js"` → `from "@pi-archimedes/core/bus"`
      - `from "../config.js"` → `from "../config.js"` (resolves to local `packages/ui/src/config.js`)
 3. Move files from `packages/core/src/thinking/` to `packages/ui/src/thinking/`:
    - `patch.ts`, `patch.test.ts`, `theme.ts`, `theme.test.ts`, `transform.ts`, `transform.test.ts`, `unindent.ts`, `unindent.test.ts`.
    - Update imports in `thinking/`:
      - `from "../color.js"` → `from "@pi-archimedes/core/color"`
+     - `from "../text.js"` → `from "@pi-archimedes/core/text"` (in `theme.test.ts`)
      - `from "../config.js"` → `from "../config.js"` (resolves to local `packages/ui/src/config.js`)
 4. Move files from `packages/core/src/startup/` to `packages/ui/src/startup/`:
    - `index.ts`, `capture.ts`, `logo.ts`, `logo.test.ts`, `sections.ts`, `sections.test.ts`, `version.ts`, `version.test.ts`.
    - In `startup/index.ts`: update `loadCoreConfig` to `loadUIConfig` from `../config.js`.
    - Update cross-package imports to `@pi-archimedes/core/color`, `@pi-archimedes/core/text`.
-5. Unit tests:
+5. Run a check for any dangling `from "../`:
+   - Verify that all relative imports in `packages/ui/src/{editor,thinking,startup}` point only to valid local files (like `../config.js`) or `@pi-archimedes/core/*`.
+6. Unit tests:
    - `packages/ui/src/config.test.ts`: test `loadUIConfig`, `saveUIConfig`, normalization of `compactThinking`, and default values.
    - Run all migrated tests in `packages/ui`.
 
@@ -158,7 +162,7 @@ Move visual presentation directories (`editor/`, `thinking/`, `startup/`) and al
 
 **Acceptance criteria:**
 - [ ] All unit tests for editor, thinking, and startup pass under `packages/ui`.
-- [ ] `packages/ui` typechecks cleanly.
+- [ ] `packages/ui` typechecks cleanly with no dangling relative imports.
 
 ---
 
@@ -247,7 +251,7 @@ Implement custom rendering for Pi's built-in `bash` tool in `packages/ui/src/bas
 ### Task 4: UI Settings, Migration & Complete Extension Lifecycle
 
 **Context:**
-Create settings items and one-time migration for `archimedes.ui`. Wire the complete `registerUI` extension function in `packages/ui/src/index.ts`, porting the full splash-screen, editor, and thinking lifecycle verbatim from `packages/core/src/index.ts` (including `ListingRef`, `setHeader(headerFactory)`, `patchStartupListing`, `HephaestusEditor`, `setWorkingVisible`, spin interval reaping, and matching teardown in `session_shutdown`). Re-export `unpatchConsoleLog` from `packages/ui`.
+Create settings items and one-time migration for `archimedes.ui`. Wire the complete `registerUI` extension function in `packages/ui/src/index.ts`, porting the full splash-screen, editor, and thinking lifecycle verbatim from `packages/core/src/index.ts` (including `ListingRef`, `setHeader(headerFactory)`, `patchStartupListing`, `HephaestusEditor`, `setWorkingVisible`, spin interval reaping, and matching teardown in `session_shutdown`). Re-export `unpatchConsoleLog`, `getUISettingsItems`, `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `UIConfig`, and `ANIMATION_STYLES` from `packages/ui/src/index.ts`. Port the comprehensive lifecycle tests from the old core test into `packages/ui/src/index.test.ts`.
 
 **Files:**
 - Create: `packages/ui/src/migration.ts`
@@ -255,6 +259,7 @@ Create settings items and one-time migration for `archimedes.ui`. Wire the compl
 - Create: `packages/ui/src/settings.ts`
 - Create: `packages/ui/src/settings.test.ts`
 - Modify: `packages/ui/src/index.ts`
+- Modify: `packages/ui/src/index.test.ts`
 
 **What to implement:**
 1. `packages/ui/src/migration.ts`:
@@ -270,14 +275,18 @@ Create settings items and one-time migration for `archimedes.ui`. Wire the compl
      - Editor settings: `editorSpinBorder`, `editorSpinSpeed`, `editorSpinStyle`, `editorSpinLabel`.
      - Startup setting: `animationStyle`.
 3. `packages/ui/src/index.ts`:
-   - Re-export `unpatchConsoleLog` from `./startup/capture.js`.
+   - Root re-exports:
+     - `export { unpatchConsoleLog } from "./startup/capture.js";`
+     - `export { getUISettingsItems } from "./settings.js";`
+     - `export { loadUIConfig, saveUIConfig, DEFAULT_UI_CONFIG, ANIMATION_STYLES, type UIConfig } from "./config.js";`
+     - `export { registerUI }` and `export default (pi) => registerUI(pi);`
    - `registerUI(pi: ExtensionAPI)`:
      - Runs `migrateCoreToUIConfig()` at top level.
-     - Sets up `patchConsoleLog()` during startup.
+     - Calls `patchConsoleLog()` during startup.
      - Subscribes `session_start` to:
        - Load `UIConfig`.
        - If `config.bashToolStyling !== false`: call `registerBashToolOverride(pi, ctx.cwd)`.
-       - If `hasUI`:
+       - If `ctx.hasUI`:
          - Thinking: apply `patchThinkingRenderer()`, wire `transformThinkingContent` via `context` event.
          - Splash header: create `ListingRef`, install `ctx.ui.setHeader(headerFactory)` where `headerFactory` calls `renderHeader(theme, ref, width, tui.terminal.rows - 3)`, and call `patchStartupListing(tui, theme, ref)`.
          - Editor: if `config.editorSpinBorder`, install `HephaestusEditor` via `ctx.ui.setEditorComponent(...)` and manage border spinner intervals.
@@ -286,9 +295,12 @@ Create settings items and one-time migration for `archimedes.ui`. Wire the compl
        - Settles `ListingRef`, restores patched `addChild`, clears animation and debounce timers.
        - Restores `ctx.ui.setWorkingVisible(true)`.
        - Reaps editor spin intervals and resets editor component `ctx.ui.setEditorComponent(undefined)`.
-4. Unit tests:
-   - `packages/ui/src/migration.test.ts`: verify keys move correctly from `archimedes.core` to `archimedes.ui` and core is stripped.
-   - `packages/ui/src/settings.test.ts`: verify all setting items are returned with correct IDs and current values.
+4. `packages/ui/src/index.test.ts`:
+   - Port all lifecycle tests previously covering editor/thinking/splash from `packages/core/src/index.test.ts`:
+     - Test that `registerUI` registers `session_start` and `session_shutdown`.
+     - Test that `session_start` sets header and editor component when `hasUI` is true.
+     - Test that `session_shutdown` reaps spin timers, unpatches console log, restores `addChild`, and clears editor component.
+     - Test that bash tool override is registered when `bashToolStyling` is true.
 
 **Steps:**
 - [ ] Write failing test for `migrateCoreToUIConfig` in `packages/ui/src/migration.test.ts`
@@ -297,16 +309,18 @@ Create settings items and one-time migration for `archimedes.ui`. Wire the compl
   - Did all migration tests pass?
 - [ ] Write failing test for `getUISettingsItems` in `packages/ui/src/settings.test.ts`
 - [ ] Implement `packages/ui/src/settings.ts`
-- [ ] Complete `packages/ui/src/index.ts` with complete `registerUI` lifecycle and `unpatchConsoleLog` export
+- [ ] Complete `packages/ui/src/index.ts` with complete `registerUI` lifecycle and all root re-exports
+- [ ] Write lifecycle test suite in `packages/ui/src/index.test.ts`
 - [ ] Run `npx vitest run packages/ui`
   - Did all tests pass?
 - [ ] Run `npx tsc --noEmit` in `packages/ui`
-- [ ] Commit with message: "feat(ui): add settings, migration, and full extension lifecycle"
+- [ ] Commit with message: "feat(ui): add settings, migration, root re-exports, and full extension lifecycle"
 
 **Acceptance criteria:**
 - [ ] `migrateCoreToUIConfig` moves legacy keys to `archimedes.ui` without data loss.
 - [ ] `getUISettingsItems` provides full settings configuration including `bashToolStyling`.
-- [ ] `registerUI` includes complete header/editor/thinking lifecycle with zero leaked intervals or unhandled teardown on reload.
+- [ ] Root exports include `registerUI`, `unpatchConsoleLog`, `getUISettingsItems`, `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `UIConfig`.
+- [ ] `packages/ui/src/index.test.ts` passes and covers full lifecycle.
 
 ---
 
@@ -314,15 +328,48 @@ Create settings items and one-time migration for `archimedes.ui`. Wire the compl
 
 **Context:**
 To keep the monorepo build and typecheck green at every step, clean up `packages/core` and rewire `meta` in the same task:
-- In `packages/core`: remove visual components (`editor`, `thinking`, `startup`), clean `CoreConfig` to empty `{}` interface, simplify `packages/core/src/index.ts` so `registerCore(pi)` only registers `initBus()` and `registerBridge(pi)`. Remove `./editor`, `./thinking`, `./startup` from `core/package.json` exports.
+- In `packages/core`:
+  - `packages/core/src/index.ts`: remove all visual imports and registrations (`HephaestusEditor`, `renderHeader`, `patchStartupListing`, `patchConsoleLog`, `unpatchConsoleLog`, `patchThinkingRenderer`, `transformThinkingContent`, `getCoreSettingsItems`). `registerCore(pi: ExtensionAPI)` now only registers `initBus()` and `registerBridge(pi)`. Remove `./editor`, `./thinking`, `./startup` from `core/package.json` exports.
+  - `packages/core/src/config.ts`: clean `CoreConfig` to empty `{}` interface (`export interface CoreConfig {}`, `DEFAULT_CORE_CONFIG = {}`, `loadCoreConfig() { return {}; }`, `saveCoreConfig() {}`).
+  - `packages/core/src/index.test.ts`: **rewrite completely** to test only `registerCore` registering `initBus` and `registerBridge(pi)` (removing all editor/thinking/startup/settings mocks and assertions).
+  - `packages/core/src/config.test.ts`: update to test the minimal core config.
 - In `meta`:
-  - `meta/src/config.ts`: import and re-export `UIConfig`, `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `ANIMATION_STYLES` from `@pi-archimedes/ui/config`, and put `ui: loadUIConfig()` in `loadAllConfig()`.
-  - `meta/src/settings.ts`: import `getUISettingsItems`, `saveUIConfig`, `type UIConfig` from `@pi-archimedes/ui`. Replace `getCoreSettingsItems` with `getUISettingsItems`.
-  - `meta/src/plugins.ts`: add `ui` to `PLUGINS` manifest:
-    `{ id: "ui", label: "UI Enhancements", description: "Bash styling, editor spinner, thinking collapse, splash animation", namespace: "archimedes.ui", load: () => import("@pi-archimedes/ui") }`.
-  - `meta/src/index.ts`: keep `registerCore(pi)` for foundational bus/bridge; add `if (isPluginEnabled("ui")) registerUI(pi);` with `archTime("registerUI")`; import `unpatchConsoleLog` from `@pi-archimedes/ui`.
-  - Update `meta/src/plugins.test.ts`: add `"ui"` to `EXPECTED_IDS` array (lines 188-203), update test description from "10 non-core packages" to "11 non-core packages", and add mock for `@pi-archimedes/ui` with `getUISettingsItems`.
-  - Update `meta/src/factory-lifecycle.test.ts`: keep `registerCore: vi.fn()` in `@pi-archimedes/core` mock; add `@pi-archimedes/ui` mock with `registerUI: vi.fn()` and `unpatchConsoleLog: vi.fn()`.
+  - `meta/src/config.ts`:
+    - Update return-type annotation of `loadAllConfig()`:
+      ```ts
+      export function loadAllConfig(): {
+        core: CoreConfig;
+        ui: UIConfig;
+        footer: FooterConfig;
+        diff: DiffConfig;
+        notify: NotifyConfig;
+        sessionName: SessionNameSettings;
+      }
+      ```
+    - Import and re-export `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `type UIConfig`, `ANIMATION_STYLES` from `@pi-archimedes/ui/config`.
+    - In `loadAllConfig()`: add `ui: loadUIConfig()`.
+  - `meta/src/settings.ts`:
+    - Import `getUISettingsItems`, `saveUIConfig`, `type UIConfig` from `@pi-archimedes/ui`.
+    - In `buildSettingsItems`: replace `getCoreSettingsItems({ ...allConfig.core })` with `getUISettingsItems({ ...allConfig.ui })`.
+    - In `openSettings`: rename local `const coreConfig: CoreConfig` to `const uiConfig: UIConfig = { ...allConfig.ui };`.
+    - In the `switch` statement: route all UI setting branches (`mutedTheme`, `autoCollapseThinking`, `compactThinking`, `codeUnindent`, `editorSpin*`, `labelText`, `labelColor`, `animationStyle`, `bashToolStyling`) to `uiConfig`.
+    - In `onSave`: replace `saveCoreConfig(coreConfig)` with `saveUIConfig(uiConfig)` (drop `saveCoreConfig`).
+  - `meta/src/plugins.ts`:
+    - Add `ui` plugin definition to `PLUGINS`:
+      `{ id: "ui", label: "UI Enhancements", description: "Bash styling, editor spinner, thinking collapse, splash animation", namespace: "archimedes.ui", load: () => import("@pi-archimedes/ui") }`.
+  - `meta/src/index.ts`:
+    - Import `registerUI`, `unpatchConsoleLog` from `@pi-archimedes/ui`.
+    - Retain `registerCore(pi)` for foundational bus/bridge.
+    - Add `if (isPluginEnabled("ui")) registerUI(pi);` with `archTime("registerUI")`.
+    - Call `unpatchConsoleLog()` in `session_shutdown`.
+  - Update `meta/src/plugins.test.ts`:
+    - Add `"ui"` to `EXPECTED_IDS` array (lines 188-203).
+    - Update test title from `"lists exactly the 10 non-core packages (no drift)"` to `"lists exactly the 11 non-core packages (no drift)"`.
+    - Replace the `@pi-archimedes/core` mock for `getCoreSettingsItems` with a mock of `@pi-archimedes/ui` exporting `getUISettingsItems: vi.fn(() => [])`.
+  - Update `meta/src/factory-lifecycle.test.ts`:
+    - Keep `registerCore: vi.fn()` in `@pi-archimedes/core` mock.
+    - Add `vi.mock("@pi-archimedes/ui", () => ({ registerUI: vi.fn(), unpatchConsoleLog: vi.fn() }))`.
+    - Update expectations for shutdown to verify `unpatchConsoleLog` from `@pi-archimedes/ui` was called.
 
 **Files:**
 - Modify: `packages/core/src/index.ts`
@@ -337,46 +384,10 @@ To keep the monorepo build and typecheck green at every step, clean up `packages
 - Modify: `meta/src/plugins.test.ts`
 - Modify: `meta/src/factory-lifecycle.test.ts`
 
-**What to implement:**
-1. `packages/core/src/index.ts`:
-   - Remove imports for `HephaestusEditor`, `renderHeader`, `patchStartupListing`, `patchConsoleLog`, `unpatchConsoleLog`, `patchThinkingRenderer`, `transformThinkingContent`, `getCoreSettingsItems`.
-   - `registerCore(pi: ExtensionAPI)` registers `initBus()` and `registerBridge(pi)`.
-   - `packages/core/package.json`: remove subpaths for `./editor`, `./thinking`, `./startup`.
-2. `packages/core/src/config.ts`:
-   - Simplify to empty/minimal `CoreConfig`:
-     ```ts
-     export interface CoreConfig {}
-     export const DEFAULT_CORE_CONFIG: CoreConfig = {};
-     export function loadCoreConfig(): CoreConfig { return {}; }
-     export function saveCoreConfig(_config: CoreConfig): void {}
-     ```
-   - Update `packages/core/src/config.test.ts` and `packages/core/src/index.test.ts`.
-3. `meta/src/config.ts`:
-   - Import and re-export `loadUIConfig`, `saveUIConfig`, `DEFAULT_UI_CONFIG`, `type UIConfig`, `ANIMATION_STYLES` from `@pi-archimedes/ui/config`.
-   - In `loadAllConfig()`: add `ui: loadUIConfig()`.
-4. `meta/src/settings.ts`:
-   - Replace `getCoreSettingsItems` with `getUISettingsItems({ ...allConfig.ui })`.
-   - In change handler: route UI setting IDs (`bashToolStyling`, `editorSpin*`, `compactThinking`, etc.) to `uiConfig` and call `saveUIConfig(uiConfig)`.
-5. `meta/src/plugins.ts`:
-   - Add `ui` plugin definition to `PLUGINS`:
-     `{ id: "ui", label: "UI Enhancements", description: "Bash styling, editor spinner, thinking collapse, splash animation", namespace: "archimedes.ui", load: () => import("@pi-archimedes/ui") }`.
-6. `meta/src/index.ts`:
-   - Import `registerUI`, `unpatchConsoleLog` from `@pi-archimedes/ui`.
-   - Retain `registerCore(pi)`.
-   - Add `if (isPluginEnabled("ui")) registerUI(pi);` with `archTime("registerUI")`.
-   - Call `unpatchConsoleLog()` in `session_shutdown`.
-7. `meta` unit tests:
-   - In `meta/src/plugins.test.ts`:
-     - Add `"ui"` to `EXPECTED_IDS` array.
-     - Update test title to `"lists exactly the 11 non-core packages (no drift)"`.
-     - Add `vi.mock("@pi-archimedes/ui", () => ({ getUISettingsItems: vi.fn(() => []), registerUI: vi.fn(), unpatchConsoleLog: vi.fn() }))`.
-   - In `meta/src/factory-lifecycle.test.ts`:
-     - Add `vi.mock("@pi-archimedes/ui", () => ({ registerUI: vi.fn(), unpatchConsoleLog: vi.fn() }))`.
-     - Update expectations for shutdown to verify `unpatchConsoleLog` from `@pi-archimedes/ui` was called.
-
 **Steps:**
-- [ ] Clean up `packages/core/src/index.ts`, `config.ts`, `package.json`, and test files
-- [ ] Update `meta/src/config.ts` and `meta/src/settings.ts` to use `@pi-archimedes/ui`
+- [ ] Clean up `packages/core/src/index.ts`, `config.ts`, `package.json`
+- [ ] Rewrite `packages/core/src/index.test.ts` and update `config.test.ts`
+- [ ] Update `meta/src/config.ts` and `meta/src/settings.ts`
 - [ ] Add `ui` to `PLUGINS` in `meta/src/plugins.ts`
 - [ ] Update `meta/src/index.ts` with `registerUI` and `unpatchConsoleLog` from `@pi-archimedes/ui`
 - [ ] Update `meta/src/plugins.test.ts` (`EXPECTED_IDS`, test title, mock) and `meta/src/factory-lifecycle.test.ts`
@@ -388,6 +399,7 @@ To keep the monorepo build and typecheck green at every step, clean up `packages
 
 **Acceptance criteria:**
 - [ ] `packages/core` has no visual components or UI settings.
+- [ ] `packages/core/src/index.test.ts` passes cleanly testing core bus/bridge.
 - [ ] `meta` compiles and passes all unit tests using `@pi-archimedes/ui`.
 - [ ] `cd meta && npx vitest run` passes 100%.
 - [ ] All tests across root and meta pass cleanly.
@@ -430,7 +442,7 @@ Complete all documentation requirements from `AGENTS.md` rule 7: create `package
    - Update dependency publish order line in Publishing section:
      `core → ui → sudo → ask → todo → notify → session-name → footer → diff → image-paste → subagent → mcp → meta`.
 5. Monorepo verification:
-   - `pnpm test` at root (runs all 12 package projects in projects array).
+   - `pnpm test` at root (runs all 12 vitest projects, meta excluded).
    - `cd meta && npx vitest run` (runs meta tests).
    - `pnpm -r exec -- tsc --noEmit` (runs typecheck across all 13 package directories).
 
