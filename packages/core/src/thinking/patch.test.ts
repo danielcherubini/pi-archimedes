@@ -354,7 +354,7 @@ describe("patchThinkingRenderer", () => {
 
 		expect(captured).toHaveLength(1);
 		expect(
-			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m\n\n"),
+			captured[0]!.content.startsWith("\x1b[3m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[23m\n\n"),
 		).toBe(true);
 	});
 
@@ -362,9 +362,9 @@ describe("patchThinkingRenderer", () => {
 		const captured = await patchAndRender();
 
 		expect(captured).toHaveLength(1);
-		// Byte-identical to the previous hardcoded THINKING_LABEL
+		// Italic truecolor label
 		expect(
-			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m\n\n"),
+			captured[0]!.content.startsWith("\x1b[3m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[23m\n\n"),
 		).toBe(true);
 	});
 
@@ -375,7 +375,7 @@ describe("patchThinkingRenderer", () => {
 		});
 
 		expect(
-			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m\n\n"),
+			captured[0]!.content.startsWith("\x1b[3m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[23m\n\n"),
 		).toBe(true);
 	});
 
@@ -386,12 +386,12 @@ describe("patchThinkingRenderer", () => {
 		});
 
 		expect(
-			captured[0]!.content.startsWith("\x1b[1m\x1b[38;2;255;215;0mHmm\x1b[39m\x1b[22m\n\n"),
+			captured[0]!.content.startsWith("\x1b[3m\x1b[38;2;255;215;0mHmm\x1b[39m\x1b[23m\n\n"),
 		).toBe(true);
 	});
 
 	it("does not double-prepend the label when content already starts with it", async () => {
-		const label = "\x1b[1m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[22m";
+		const label = "\x1b[3m\x1b[38;2;255;215;0mYapping...\x1b[39m\x1b[23m";
 		const captured = await patchAndRender(
 			{ labelText: "Yapping...", labelColor: "255,215,0" },
 			`${label}\n\nAlready labelled body.`,
@@ -667,7 +667,7 @@ describe("patchThinkingRenderer", () => {
 	});
 
 	describe("compactThinking", () => {
-		const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
+		const THINKING_LABEL = "\x1b[3m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[23m";
 
 		it("renders single inline TruncatedText containing label and last line for '1 line' (streaming and finished)", async () => {
 			const multiline = "Line 1\nLine 2\nLine 3";

@@ -109,8 +109,7 @@ export function patchThinkingRenderer(
     this.contentContainer.clear();
 
     // Build the thinking-block header from the closure config once per render.
-    // Defaults preserve the original byte-identical output ("Thinking..." in
-    // bold truecolor 255,215,0).
+    // Defaults to "Thinking..." in italic truecolor 255,215,0.
     const buildThinkingLabel = (): string => {
       const label = config?.labelText?.trim() ? config.labelText.trim() : "Thinking...";
       const color = config?.labelColor?.trim() ? config.labelColor.trim() : "255,215,0";
@@ -120,7 +119,7 @@ export function patchThinkingRenderer(
         parts.length === 3 &&
         parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
       const [r, g, b] = valid ? parts : ["255", "215", "0"];
-      return `\x1b[1m\x1b[38;2;${r};${g};${b}m${label}\x1b[39m\x1b[22m`;
+      return `\x1b[3m\x1b[38;2;${r};${g};${b}m${label}\x1b[39m\x1b[23m`;
     };
 
     const hasVisibleContent = message.content.some(
