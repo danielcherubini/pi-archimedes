@@ -284,7 +284,7 @@ export function registerCore(pi: ExtensionAPI): void {
       labelColor: config.labelColor,
       autoCollapseThinking: config.autoCollapseThinking,
       compactThinking: normalizeCompactThinking(config.compactThinking),
-    } as any);
+    });
 
     // Register events
     pi.on("message_end", (event, _ctx) => {

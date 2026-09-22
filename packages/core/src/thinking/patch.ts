@@ -7,6 +7,8 @@ import { buildMutedMarkdownTheme } from "./theme.js";
 // Track which pi version we patched against to detect incompatibility
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
 const PATCH_VERSION_KEY = Symbol.for("archimedes:thinkingPatchVersion");
+// THINKING_STATES_KEY is authoritative in compact mode; thinkingVisibilityOverrides
+// is mirrored to keep external state consumers consistent.
 const THINKING_STATES_KEY = Symbol.for("archimedes:thinkingStateOverrides");
 
 /**
@@ -287,6 +289,8 @@ export function patchThinkingRenderer(
             }),
           );
         } else {
+          // THINKING_STATES_KEY is authoritative in compact mode; thinkingVisibilityOverrides
+          // is mirrored to keep external state consumers consistent.
           const userState = (this as any)[THINKING_STATES_KEY].get(runIndex);
           let state: "hidden" | "compact" | "full";
           if (userState !== undefined) {

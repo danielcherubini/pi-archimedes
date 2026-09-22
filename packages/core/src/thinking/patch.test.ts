@@ -856,5 +856,15 @@ describe("patchThinkingRenderer", () => {
 			expect(instance[THINKING_STATES_KEY].get(0)).toBe("compact");
 			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(false);
 		});
+
+		it("renders no MouseRegion child for whitespace-only thinking content", async () => {
+			const { addedChildren, MockMouseRegion } = await renderThinkingComponent({
+				config: { compactThinking: "3 lines" },
+				isStreaming: false,
+				message: { content: [{ type: "thinking", thinking: "   " }] },
+			});
+			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
+			expect(mouseRegions).toHaveLength(0);
+		});
 	});
 });
