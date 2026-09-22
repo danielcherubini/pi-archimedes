@@ -1,11 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
-import type { ClipboardImage } from "./types.js";
+import { convertToPng } from "@earendil-works/pi-coding-agent";
+import { getNativeClipboard } from "@earendil-works/pi-tui";
 
-const require = createRequire(import.meta.url);
+import type { ClipboardImage } from "./types.js";
 
 const LIST_TYPES_TIMEOUT_MS = 1000;
 const READ_TIMEOUT_MS = 5000;
@@ -18,25 +18,13 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   "image/bmp",
 ] as const;
 
-let cachedClipboardModule: ClipboardModule | null | undefined;
-
-/** Reset the clipboard module cache — allows retry after install. */
-export function resetClipboardModuleCache(): void {
-  cachedClipboardModule = undefined;
-}
-
-interface ClipboardModule {
-  hasImage: () => boolean;
-  getImageBinary: () => Promise<Array<number> | Uint8Array>;
-}
-
 interface CommandResult {
   ok: boolean;
   stdout: Buffer;
   missingCommand: boolean;
 }
 
-interface ClipboardReadResult {
+export interface ClipboardReadResult {
   available: boolean;
   image: ClipboardImage | null;
 }
@@ -74,54 +62,53 @@ function selectPreferredImageMimeType(mimeTypes: readonly string[]): string | nu
   return firstImage?.raw ?? null;
 }
 
-function loadClipboardModule(
-  platform: NodeJS.Platform = process.platform,
-  environment: NodeJS.ProcessEnv = process.env,
-): ClipboardModule | null {
-  if (cachedClipboardModule !== undefined) {
-    return cachedClipboardModule;
-  }
-
-  if (environment.TERMUX_VERSION || !hasGraphicalSession(platform, environment)) {
-    cachedClipboardModule = null;
-    return cachedClipboardModule;
-  }
-
-  try {
-    cachedClipboardModule = require("@mariozechner/clipboard") as ClipboardModule;
-  } catch {
-    cachedClipboardModule = null;
-  }
-
-  return cachedClipboardModule;
-}
-
-async function readClipboardImageViaNativeModule(
+export async function readClipboardImageViaNativeModule(
   platform: NodeJS.Platform,
   environment: NodeJS.ProcessEnv,
 ): Promise<ClipboardReadResult> {
-  const clipboard = loadClipboardModule(platform, environment);
-  if (!clipboard) {
+  if (environment.TERMUX_VERSION || !hasGraphicalSession(platform, environment)) {
     return { available: false, image: null };
   }
 
-  if (!clipboard.hasImage()) {
-    return { available: true, image: null };
-  }
+  try {
+    const native = getNativeClipboard();
+    if (!native) {
+      return { available: false, image: null };
+    }
 
-  const imageData = await clipboard.getImageBinary();
-  if (!imageData || imageData.length === 0) {
-    return { available: true, image: null };
-  }
+    const bytes = await native.getImage();
+    if (!bytes || bytes.length === 0) {
+      return { available: true, image: null };
+    }
 
-  const bytes = imageData instanceof Uint8Array ? imageData : Uint8Array.from(imageData);
-  return {
-    available: true,
-    image: {
-      bytes,
-      mimeType: "image/png",
-    },
-  };
+    const rawBytes = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+
+    if (platform === "win32") {
+      if (rawBytes.length >= 2 && rawBytes[0] === 0x42 && rawBytes[1] === 0x4d) {
+        const png = await convertToPng(Buffer.from(rawBytes).toString("base64"), "image/bmp");
+        if (png) {
+          return {
+            available: true,
+            image: {
+              bytes: Uint8Array.from(Buffer.from(png.data, "base64")),
+              mimeType: png.mimeType,
+            },
+          };
+        }
+        return { available: false, image: null };
+      }
+    }
+
+    return {
+      available: true,
+      image: {
+        bytes: rawBytes,
+        mimeType: "image/png",
+      },
+    };
+  } catch {
+    return { available: false, image: null };
+  }
 }
 
 function runCommand(
@@ -209,7 +196,10 @@ try {
     let exceededMaxBuffer = false;
     child.stdout?.on("data", (data: Buffer) => {
       if (stdout.length + data.length > MAX_BUFFER_BYTES) {
-        exceededMaxBuffer = true;
+        if (!exceededMaxBuffer) {
+          exceededMaxBuffer = true;
+          console.warn("[archimedes] Clipboard image exceeded maximum buffer size (50MB)");
+        }
         return;
       }
       stdout += data.toString("utf8");
@@ -345,11 +335,11 @@ function readClipboardImageViaXclip(): ClipboardReadResult {
 function getUnavailableReaderMessage(platform: NodeJS.Platform): string {
   switch (platform) {
     case "linux":
-      return "No Linux clipboard image reader is available. Install wl-clipboard or xclip, or ensure @mariozechner/clipboard is installed.";
+      return "No Linux clipboard image reader is available. Install wl-clipboard or xclip, or ensure @earendil-works/pi-tui native clipboard or CLI tools are available.";
     case "darwin":
-      return "No macOS clipboard image reader is available. Ensure @mariozechner/clipboard is installed.";
+      return "No macOS clipboard image reader is available. Ensure @earendil-works/pi-tui native clipboard or CLI tools are available.";
     case "win32":
-      return "No Windows clipboard image reader is available. Ensure PowerShell is available or @mariozechner/clipboard is installed.";
+      return "No Windows clipboard image reader is available. Ensure PowerShell is available or @earendil-works/pi-tui native clipboard or CLI tools are available.";
     default:
       return `Clipboard image paste is not supported on platform: ${platform}`;
   }
