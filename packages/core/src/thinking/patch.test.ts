@@ -306,6 +306,7 @@ describe("patchThinkingRenderer", () => {
 		}
 		class MockSpacer {}
 		class MockText {}
+		class MockTruncatedText {}
 		class MockMouseRegion {
 			child: any;
 			onMouse: any;
@@ -318,6 +319,7 @@ describe("patchThinkingRenderer", () => {
 			Markdown: MockMarkdown,
 			Spacer: MockSpacer,
 			Text: MockText,
+			TruncatedText: MockTruncatedText,
 			MouseRegion: MockMouseRegion,
 		}));
 
@@ -437,6 +439,12 @@ describe("patchThinkingRenderer", () => {
 				this.text = text;
 			}
 		}
+		class MockTruncatedText {
+			text: string;
+			constructor(text: string, ..._rest: any[]) {
+				this.text = text;
+			}
+		}
 		class MockMouseRegion {
 			child: any;
 			onMouse: (event: any) => any;
@@ -449,6 +457,7 @@ describe("patchThinkingRenderer", () => {
 			Markdown: MockMarkdown,
 			Spacer: MockSpacer,
 			Text: MockText,
+			TruncatedText: MockTruncatedText,
 			MouseRegion: MockMouseRegion,
 		}));
 
@@ -483,7 +492,7 @@ describe("patchThinkingRenderer", () => {
 		};
 		const isStreaming = options?.isStreaming ?? false;
 		instance.updateContent(message, isStreaming);
-		return { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText };
+		return { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText, MockTruncatedText };
 	}
 
 	it("wraps expanded thinking block in MouseRegion with Markdown child", async () => {
@@ -660,7 +669,7 @@ describe("patchThinkingRenderer", () => {
 	describe("compactThinking", () => {
 		const THINKING_LABEL = "\x1b[1m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[22m";
 
-		it("renders single inline Text containing label and last line for '1 line' (streaming and finished)", async () => {
+		it("renders single inline TruncatedText containing label and last line for '1 line' (streaming and finished)", async () => {
 			const multiline = "Line 1\nLine 2\nLine 3";
 
 			// Streaming
@@ -671,7 +680,7 @@ describe("patchThinkingRenderer", () => {
 			});
 			const streamRegion = streamingResult.addedChildren.find((c) => c instanceof streamingResult.MockMouseRegion);
 			expect(streamRegion).toBeDefined();
-			expect(streamRegion!.child).toBeInstanceOf(streamingResult.MockText);
+			expect(streamRegion!.child).toBeInstanceOf(streamingResult.MockTruncatedText);
 			expect((streamRegion!.child as any).text).toBe(`${THINKING_LABEL} Line 3`);
 
 			// Finished
@@ -682,7 +691,7 @@ describe("patchThinkingRenderer", () => {
 			});
 			const finishedRegion = finishedResult.addedChildren.find((c) => c instanceof finishedResult.MockMouseRegion);
 			expect(finishedRegion).toBeDefined();
-			expect(finishedRegion!.child).toBeInstanceOf(finishedResult.MockText);
+			expect(finishedRegion!.child).toBeInstanceOf(finishedResult.MockTruncatedText);
 			expect((finishedRegion!.child as any).text).toBe(`${THINKING_LABEL} Line 3`);
 		});
 

@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
-import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
+import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { CompactThinking } from "../config.js";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
@@ -297,7 +297,7 @@ export function patchThinkingRenderer(
             state = "compact";
           }
 
-          let thinkingComponent: Text | Markdown;
+          let thinkingComponent: Text | Markdown | TruncatedText;
           if (state === "hidden") {
             const t = ensureTheme();
             if (!t) continue;
@@ -317,11 +317,12 @@ export function patchThinkingRenderer(
             if (compactLines === 1) {
               const line = tailLines[0] ?? "";
               textContent = `${label} ${t.italic(t.fg("thinkingText", line))}`;
+              thinkingComponent = new TruncatedText(textContent, this.outputPad ?? 1, 0);
             } else {
               const formattedLines = tailLines.map((l) => t.italic(t.fg("thinkingText", l))).join("\n");
               textContent = `${label}\n${formattedLines}`;
+              thinkingComponent = new Text(textContent, this.outputPad ?? 1, 0);
             }
-            thinkingComponent = new Text(textContent, this.outputPad ?? 1, 0);
           } else {
             let thinkingContent = thinkBlocks.join("\n\n");
             const label = buildThinkingLabel();
