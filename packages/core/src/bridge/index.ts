@@ -14,7 +14,7 @@ import type { AskResponsePayload, AskRequestPayload } from "../bus.js";
 import * as channel from "./channel.js";
 import * as events from "./events.js";
 
-export { BridgeTransportError } from "./channel.js";
+export { BridgeTransportError, BridgeCancelledError } from "./channel.js";
 
 export class BridgeInactiveError extends Error {
   constructor() {
@@ -44,7 +44,7 @@ export function getBridge() {
  * The request opts OUT of the 5-minute timeout (`timeoutMs: null`): the
  * desktop's lifecycle (parent close / EOF / app exit) is the cancel path —
  * the tool's AbortSignal cancels the request (the promise settles
- * deterministically with a plain "cancelled" error — NOT a
+ * deterministically with a BridgeCancelledError — NOT a
  * BridgeTransportError, so it can never trigger a fork fallback) and the
  * socket close delivers the desktop's EOF → the subagent session cancels.
  * An unreachable bridge rejects with BridgeTransportError (the subagent's

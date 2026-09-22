@@ -47,6 +47,22 @@ export class BridgeTransportError extends Error {
   }
 }
 
+/**
+ * A deliberate cancel: the caller (the tool's AbortSignal, or the desktop's
+ * lifecycle via the abort wiring) aborted the request. Distinct from
+ * BridgeTransportError (the desktop is gone — the fork-fallback trigger) and
+ * from a timeout (ambiguous liveness): the request was intentionally
+ * aborted, so callers map it to a FAILED outcome — never a fork fallback.
+ * This class is the cancel contract between core and the subagent package
+ * (matched with `instanceof`, NOT the message string).
+ */
+export class BridgeCancelledError extends Error {
+  constructor() {
+    super("bridge request cancelled");
+    this.name = "BridgeCancelledError";
+  }
+}
+
 let active = false;
 let socketPath: string | undefined;
 let seq = 0; // starts at 0; the first frame is seq: 1
@@ -290,8 +306,8 @@ export function request<T>(
     sock.on("close", () => finish(new BridgeTransportError("bridge channel closed before response")));
   });
 
-  // cancel() settles the promise DETERMINISTICALLY with a plain, NON-
-  // BridgeTransportError error: a deliberate cancel is NOT "the desktop is
+  // cancel() settles the promise DETERMINISTICALLY with a BridgeCancelledError
+  // (NOT a BridgeTransportError): a deliberate cancel is NOT "the desktop is
   // gone", so a dispatch-like caller must map it to a FAILED outcome, never a
   // fork fallback (a deliberate cancel must never fork — forking would spawn
   // a fresh child pi for a task the user just cancelled). The socket destroy
@@ -299,7 +315,7 @@ export function request<T>(
   // cancels. Idempotent: finish() no-ops a second settle, and the close
   // handler (fired by the destroy) is a no-op once settled.
   const cancel = () => {
-    finish(new Error("bridge request cancelled"));
+    finish(new BridgeCancelledError());
   };
 
   return { promise, cancel };

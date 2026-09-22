@@ -14,11 +14,13 @@
 //     the outcome is authoritative, incl. the terminal `error: "cancelled"`
 //     frame) → a FAILED SubagentResult, NEVER a fallback.
 //   - A DETERMINISTIC LOCAL CANCEL (the tool's AbortSignal → the channel's
-//     cancel() settles with a plain "bridge request cancelled" error — the
-//     desktop is NOT gone, the user just cancelled) → a FAILED
-//     SubagentResult with error "cancelled" (the same outcome as the
-//     desktop's terminal `error: "cancelled" frame), NEVER a fallback — a
-//     deliberate cancel must never fork.
+//     cancel() settles with a BridgeCancelledError — the desktop is NOT
+//     gone, the user just cancelled) → a FAILED SubagentResult with error
+//     "cancelled" (the same outcome as the desktop's terminal
+//     `error: "cancelled" frame), NEVER a fallback — a deliberate cancel
+//     must never fork. The cancel is detected by TYPE
+//     (`instanceof BridgeCancelledError`), not by the message string — the
+//     class is the contract between core and this package.
 //
 // The pre-aborted-signal + unreachable-channel corner (cancel() is a no-op
 // there — the executor's early return leaves `finish` as the safe no-op — so
@@ -28,7 +30,7 @@
 // already has the signal; the channel-level function must not know fork
 // semantics).
 
-import { dispatch, BridgeTransportError } from "@pi-archimedes/core/bridge";
+import { dispatch, BridgeTransportError, BridgeCancelledError } from "@pi-archimedes/core/bridge";
 import { resolveModel } from "./spawn.js";
 import type { ExecuteOptions } from "./execute.js";
 import type { SubagentProgress, SubagentResult } from "./types.js";
@@ -159,12 +161,12 @@ export function dispatchViaBridge(
       }
       // A response-carrying error (the desktop answered — authoritative,
       // incl. the terminal "cancelled" frame) or a DETERMINISTIC LOCAL CANCEL
-      // (the tool's AbortSignal → channel.cancel() settles with a plain
-      // "bridge request cancelled" error — the same outcome as the desktop's
-      // terminal `error: "cancelled" frame) → a FAILED SubagentResult (the
-      // shared failed-progress synthesis), NEVER a fallback (a deliberate
-      // cancel must never fork).
-      const isLocalCancel = err instanceof Error && err.message === "bridge request cancelled";
+      // (the tool's AbortSignal → channel.cancel() settles with a
+      // BridgeCancelledError — the same outcome as the desktop's terminal
+      // `error: "cancelled" frame) → a FAILED SubagentResult (the shared
+      // failed-progress synthesis), NEVER a fallback (a deliberate cancel
+      // must never fork).
+      const isLocalCancel = err instanceof BridgeCancelledError;
       const errorMessage = isLocalCancel ? "cancelled" : err instanceof Error ? err.message : String(err);
       const durationMs = Date.now() - startTime;
       return buildFailedResult(agentName, options.task, errorMessage, model, durationMs);
