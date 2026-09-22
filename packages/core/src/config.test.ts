@@ -5,8 +5,14 @@ vi.mock("./settings-io.js", () => ({
   saveConfig: vi.fn(),
 }));
 
-const { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES } =
-  await import("./config.js");
+const {
+  loadCoreConfig,
+  saveCoreConfig,
+  DEFAULT_CORE_CONFIG,
+  ANIMATION_STYLES,
+  COMPACT_THINKING_VALUES,
+  normalizeCompactThinking,
+} = await import("./config.js");
 const { loadConfig, saveConfig } = await import("./settings-io.js");
 
 describe("loadCoreConfig", () => {
@@ -26,6 +32,7 @@ describe("loadCoreConfig", () => {
     expect(result).toEqual({
       mutedTheme: false,
       autoCollapseThinking: false,
+      compactThinking: "Off",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -67,6 +74,7 @@ describe("DEFAULT_CORE_CONFIG", () => {
     expect(DEFAULT_CORE_CONFIG).toEqual({
       mutedTheme: false,
       autoCollapseThinking: false,
+      compactThinking: "Off",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -76,6 +84,10 @@ describe("DEFAULT_CORE_CONFIG", () => {
       editorSpinLabel: "Working",
       editorSpinStyle: "pendulum",
     });
+  });
+
+  it("defaults compactThinking to Off", () => {
+    expect(DEFAULT_CORE_CONFIG.compactThinking).toBe("Off");
   });
 
   it("exposes a speed→multiplier map (slow/normal/fast = 1.5/1/0.6 × native tempo)", async () => {
@@ -113,5 +125,28 @@ describe("ANIMATION_STYLES", () => {
       "vertical",
       "vertical-up",
     ]);
+  });
+});
+
+describe("COMPACT_THINKING_VALUES and normalizeCompactThinking", () => {
+  it("exports COMPACT_THINKING_VALUES with expected options", () => {
+    expect(COMPACT_THINKING_VALUES).toEqual(["Off", "1 line", "3 lines", "5 lines"]);
+  });
+
+  it("normalizes valid values as-is", () => {
+    for (const val of COMPACT_THINKING_VALUES) {
+      expect(normalizeCompactThinking(val)).toBe(val);
+    }
+  });
+
+  it("normalizes invalid / unknown / non-string values to Off", () => {
+    expect(normalizeCompactThinking(undefined)).toBe("Off");
+    expect(normalizeCompactThinking(null)).toBe("Off");
+    expect(normalizeCompactThinking("")).toBe("Off");
+    expect(normalizeCompactThinking(123)).toBe("Off");
+    expect(normalizeCompactThinking(true)).toBe("Off");
+    expect(normalizeCompactThinking("2 lines")).toBe("Off");
+    expect(normalizeCompactThinking("10 lines")).toBe("Off");
+    expect(normalizeCompactThinking("off")).toBe("Off");
   });
 });

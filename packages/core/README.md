@@ -49,6 +49,7 @@ Settings live in `~/.pi/agent/settings.json` under `archimedes.core`. The file i
 | `labelText` | string | `Thinking...` | Prefix before thinking blocks |
 | `labelColor` | string | `255,215,0` | RGB string for the thinking label |
 | `autoCollapseThinking` | bool | `false` | Automatically collapse thinking blocks once thinking concludes (expands back on click) |
+| `compactThinking` | string | `Off` | Display only the last N lines of thinking blocks (`Off`, `1 line`, `3 lines`, `5 lines`; expands to full on click) |
 | `codeUnindent` | bool | `true` | Strip common indentation from code blocks in thinking sections |
 | `mutedTheme` | bool | `false` | Stored, but **not yet effective** — the current thinking renderer doesn't consult it, so treat it as a pending toggle |
 
