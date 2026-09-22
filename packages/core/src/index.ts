@@ -8,7 +8,7 @@ import { renderHeader, patchStartupListing, type ListingRef } from "./startup/in
 import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
-import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, type CoreConfig } from "./config.js";
+import { loadCoreConfig, saveCoreConfig, DEFAULT_CORE_CONFIG, ANIMATION_STYLES, normalizeCompactThinking, type CoreConfig } from "./config.js";
 import { initBus } from "./bus.js";
 import { registerBridge } from "./bridge/index.js";
 
@@ -32,6 +32,13 @@ export function getCoreSettingsItems(config: CoreConfig): SettingItem[] {
       description: "Collapse thinking blocks after thinking completes",
       currentValue: config.autoCollapseThinking ? "On" : "Off",
       values: ["On", "Off"],
+    },
+    {
+      id: "compactThinking",
+      label: "Compact thinking",
+      currentValue: normalizeCompactThinking(config.compactThinking),
+      values: ["Off", "1 line", "3 lines", "5 lines"],
+      description: "Display only the last N lines of thinking (expands to full on click)",
     },
     {
       id: "codeUnindent",
@@ -276,7 +283,8 @@ export function registerCore(pi: ExtensionAPI): void {
       labelText: config.labelText,
       labelColor: config.labelColor,
       autoCollapseThinking: config.autoCollapseThinking,
-    });
+      compactThinking: normalizeCompactThinking(config.compactThinking),
+    } as any);
 
     // Register events
     pi.on("message_end", (event, _ctx) => {

@@ -13,9 +13,25 @@ export const ANIMATION_STYLES = [
 ] as const;
 export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 
+export type CompactThinking = "Off" | "1 line" | "3 lines" | "5 lines";
+export const COMPACT_THINKING_VALUES: readonly CompactThinking[] = [
+  "Off",
+  "1 line",
+  "3 lines",
+  "5 lines",
+] as const;
+
+export function normalizeCompactThinking(value: unknown): CompactThinking {
+  if (typeof value === "string" && (COMPACT_THINKING_VALUES as readonly string[]).includes(value)) {
+    return value as CompactThinking;
+  }
+  return "Off";
+}
+
 export interface CoreConfig {
   mutedTheme: boolean;
   autoCollapseThinking: boolean;
+  compactThinking: CompactThinking;
   codeUnindent: boolean;
   labelText: string;
   labelColor: string;
@@ -42,6 +58,7 @@ export type SpinnerStyle =
 export const DEFAULT_CORE_CONFIG: CoreConfig = {
   mutedTheme: false,
   autoCollapseThinking: false,
+  compactThinking: "Off",
   codeUnindent: true,
   labelText: "Thinking...",
   labelColor: "255,215,0",
