@@ -1,19 +1,30 @@
-// ── Re-export core config ──────────────────────────────────────────────
+// ── Re-export UI config ──────────────────────────────────────────────
 
 import {
   loadCoreConfig,
-  saveCoreConfig,
-  DEFAULT_CORE_CONFIG,
-  ANIMATION_STYLES,
   type CoreConfig,
 } from "@pi-archimedes/core/config";
 export {
   loadCoreConfig,
-  saveCoreConfig,
-  DEFAULT_CORE_CONFIG,
-  ANIMATION_STYLES,
   type CoreConfig,
 } from "@pi-archimedes/core/config";
+
+// ── Re-export UI config ──────────────────────────────────────────────
+
+import {
+  loadUIConfig,
+  saveUIConfig,
+  DEFAULT_UI_CONFIG,
+  type UIConfig,
+  ANIMATION_STYLES,
+} from "@pi-archimedes/ui/config";
+export {
+  loadUIConfig,
+  saveUIConfig,
+  DEFAULT_UI_CONFIG,
+  type UIConfig,
+  ANIMATION_STYLES,
+} from "@pi-archimedes/ui/config";
 
 // ── Re-export footer config ────────────────────────────────────────────
 
@@ -71,6 +82,7 @@ export {
 
 export function loadAllConfig(): {
   core: CoreConfig;
+  ui: UIConfig;
   footer: FooterConfig;
   diff: DiffConfig;
   notify: NotifyConfig;
@@ -78,6 +90,7 @@ export function loadAllConfig(): {
 } {
   return {
     core: loadCoreConfig(),
+    ui: loadUIConfig(),
     footer: loadFooterConfig(),
     diff: loadDiffConfig(),
     notify: loadNotifyConfig(),

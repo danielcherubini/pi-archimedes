@@ -9,7 +9,7 @@
   "keywords": [
     "pi-package"
   ],
-  "description": "Core UI modules for pi-archimedes: editor, message, startup, thinking",
+  "description": "Core primitives for pi-archimedes",
   "files": [
     "src"
   ],
