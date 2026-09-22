@@ -839,6 +839,8 @@ describe("patchThinkingRenderer", () => {
 
 			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
 			// Initially hidden because autoCollapseThinking is true and not streaming
+			expect(instance.thinkingVisibilityOverrides.get(0)).toBe(true);
+
 			// Click to full
 			mouseRegion!.onMouse({ type: "click", button: "left" });
 			expect(instance[THINKING_STATES_KEY].get(0)).toBe("full");
@@ -865,6 +867,18 @@ describe("patchThinkingRenderer", () => {
 			});
 			const mouseRegions = addedChildren.filter((c) => c instanceof MockMouseRegion);
 			expect(mouseRegions).toHaveLength(0);
+		});
+
+		it("normalizes CRLF line endings in compact mode", async () => {
+			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
+				config: { compactThinking: "3 lines" },
+				message: {
+					content: [{ type: "thinking", thinking: "Line 1\r\nLine 2\r\nLine 3\r\nLine 4" }],
+				},
+			});
+			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
+			expect(region!.child).toBeInstanceOf(MockText);
+			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nLine 2\nLine 3\nLine 4`);
 		});
 	});
 });

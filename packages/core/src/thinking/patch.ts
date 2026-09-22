@@ -300,6 +300,7 @@ export function patchThinkingRenderer(
           } else {
             state = "compact";
           }
+          this.thinkingVisibilityOverrides.set(runIndex, state === "hidden");
 
           let thinkingComponent: Text | Markdown | TruncatedText;
           if (state === "hidden") {
@@ -314,7 +315,7 @@ export function patchThinkingRenderer(
             const t = ensureTheme();
             if (!t) continue;
             const combined = thinkBlocks.join("\n\n").trimEnd();
-            const allLines = combined.split("\n");
+            const allLines = combined.replace(/\r\n?/g, "\n").split("\n");
             const tailLines = allLines.slice(-compactLines);
             const label = buildThinkingLabel();
             let textContent: string;
