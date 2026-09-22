@@ -280,14 +280,10 @@ describe("getTokenUsageStats", () => {
     expect(initial.totalOutput).toBe(50);
     expect(initial.totalCost).toBe(0.01);
 
-    // In-place mutation of streaming assistant message
-    (tailEntry.message as AssistantMessage).usage = {
-      input: 100,
-      output: 120, // increased during streaming finalization
-      cacheRead: 0,
-      cacheWrite: 0,
-      cost: { total: 0.025 },
-    };
+    // Direct in-place property mutation of existing usage object (aliasing test)
+    const usageObj = (tailEntry.message as AssistantMessage).usage;
+    usageObj.output = 120;
+    usageObj.cost = { total: 0.025 };
 
     const updated = getTokenUsageStats(ctx);
     expect(updated.totalOutput).toBe(120);

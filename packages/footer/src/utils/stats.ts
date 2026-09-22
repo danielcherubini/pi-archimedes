@@ -32,8 +32,18 @@ export function extractEntryUsage(sessionEntry: any): MessageUsage | null {
   return null;
 }
 
+function snapshotUsage(usage: MessageUsage | null | undefined): MessageUsage | undefined {
+  if (!usage) return undefined;
+  return {
+    input: usage.input ?? 0,
+    output: usage.output ?? 0,
+    cacheRead: usage.cacheRead ?? 0,
+    cacheWrite: usage.cacheWrite ?? 0,
+    cost: { total: usage.cost?.total ?? 0 },
+  };
+}
+
 function usageEquals(a: MessageUsage | undefined, b: MessageUsage | undefined): boolean {
-  if (a === b) return true;
   if (!a && !b) return true;
   if (!a || !b) return false;
   return (
@@ -97,7 +107,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
           totalCacheWrite: runningTotal.totalCacheWrite + (cCw - pCw),
           totalCost: runningTotal.totalCost + (cCost - pCost),
         };
-        lastTailUsage = currentTailUsage ?? undefined;
+        lastTailUsage = snapshotUsage(currentTailUsage);
         statsCache = runningTotal;
         return runningTotal;
       }
@@ -152,7 +162,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
       runningTotalEntryCount = entries.length;
       lastFirstEntryId = entries[0]?.id;
       lastAnchorEntryId = entries[entries.length - 1]?.id;
-      lastTailUsage = extractEntryUsage(entries[entries.length - 1]) ?? undefined;
+      lastTailUsage = snapshotUsage(extractEntryUsage(entries[entries.length - 1]));
       statsCache = runningTotal;
       return runningTotal;
     }
@@ -180,7 +190,7 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
   runningTotalEntryCount = entries.length;
   lastFirstEntryId = entries[0]?.id;
   lastAnchorEntryId = entries[entries.length - 1]?.id;
-  lastTailUsage = extractEntryUsage(entries[entries.length - 1]) ?? undefined;
+  lastTailUsage = snapshotUsage(extractEntryUsage(entries[entries.length - 1]));
   statsCache = runningTotal;
   return runningTotal;
 }

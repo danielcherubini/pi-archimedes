@@ -21,9 +21,9 @@
     "@pi-archimedes/core": "workspace:*"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.1.0",
-    "@earendil-works/pi-ai": ">=0.1.0",
-    "@earendil-works/pi-tui": ">=0.1.0"
+    "@earendil-works/pi-coding-agent": ">=0.86.0",
+    "@earendil-works/pi-ai": ">=0.86.0",
+    "@earendil-works/pi-tui": ">=0.86.0"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^0.87.0",
