@@ -57,11 +57,15 @@ function getTextComponent(context: unknown): Text {
 
 /**
  * Render the bash tool call line with bold header.
+ *
+ * When the call sets a timeout (in seconds) it is appended to the header in
+ * dim, e.g. `bash (timeout: 30s)`; the command line below is left unchanged.
  */
-export function renderBashCall(_args: unknown, theme: Theme, context: unknown): Text {
+export function renderBashCall(args: unknown, theme: Theme, context: unknown): Text {
   const ctx = context as {
     executionStarted?: boolean;
     state?: BashRendererState;
+    args?: { command?: string; timeout?: number };
   } | undefined;
 
   if (ctx) {
@@ -75,7 +79,13 @@ export function renderBashCall(_args: unknown, theme: Theme, context: unknown): 
   }
 
   const text = getTextComponent(context);
-  text.setText(renderToolHeader("bash", undefined, theme));
+  const timeout =
+    (args as { timeout?: number } | undefined)?.timeout ?? ctx?.args?.timeout;
+  const suffix =
+    typeof timeout === "number" && Number.isFinite(timeout)
+      ? theme.fg("dim", ` (timeout: ${timeout}s)`)
+      : "";
+  text.setText(renderToolHeader("bash", undefined, theme) + suffix);
   return text;
 }
 

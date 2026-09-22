@@ -80,6 +80,21 @@ describe("renderBashCall", () => {
     expect(out).toBe(last);
     expect(content(out)).toBe("[toolTitle:**bash**]");
   });
+
+  it("appends the timeout to the header when provided in args", () => {
+    const text = renderBashCall({ command: "echo hi", timeout: 30 }, theme, {});
+    expect(content(text)).toBe("[toolTitle:**bash**][dim: (timeout: 30s)]");
+  });
+
+  it("falls back to context.args.timeout when absent from args", () => {
+    const text = renderBashCall({}, theme, { args: { command: "echo hi", timeout: 120 } });
+    expect(content(text)).toBe("[toolTitle:**bash**][dim: (timeout: 120s)]");
+  });
+
+  it("does not append the timeout when it is not a finite number", () => {
+    const text = renderBashCall({ command: "echo hi", timeout: Number.NaN }, theme, {});
+    expect(content(text)).toBe("[toolTitle:**bash**]");
+  });
 });
 
 describe("renderBashResult - Collapsed view", () => {
