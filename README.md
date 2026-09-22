@@ -231,7 +231,7 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 │   ├── image-paste/   # clipboard image paste
 │   ├── notify/        # delayed desktop notifications
 │   └── session-name/  # auto session naming
-└── meta/              # the pi-archimedes orchestrator (depends on all eleven)
+└── meta/              # the pi-archimedes orchestrator (depends on all twelve)
 ```
 
 ```bash
