@@ -55,13 +55,19 @@ export function formatDuration(ms: number): string {
  */
 export class TruncatedTextComponent implements Component {
   private text: string = "";
+  private theme: Theme | undefined = undefined;
 
-  constructor(text: string = "") {
+  constructor(text: string = "", theme?: Theme | undefined) {
     this.text = text;
+    this.theme = theme;
   }
 
   setText(text: string): void {
     this.text = text;
+  }
+
+  setTheme(theme?: Theme | undefined): void {
+    this.theme = theme;
   }
 
   getContent(): string {
@@ -73,7 +79,8 @@ export class TruncatedTextComponent implements Component {
   render(width: number): string[] {
     if (!this.text) return [""];
     const singleLine = this.text.replace(/[\r\n]+/g, " ");
-    const truncated = truncateToWidth(singleLine, width, "…");
+    const ellipsis = this.theme ? this.theme.fg("accent", "…") : "…";
+    const truncated = truncateToWidth(singleLine, width, ellipsis);
     const padNeeded = Math.max(0, width - visibleWidth(truncated));
     return [truncated + " ".repeat(padNeeded)];
   }
@@ -146,6 +153,7 @@ export function renderBashCall(args: unknown, theme: Theme, context: unknown): T
   }
 
   const comp = getCallComponent(context);
+  comp.setTheme(theme);
   const displayCmd = formatBashCommand(rawCmd);
   comp.setText(renderToolHeader("bash", displayCmd, theme));
   return comp;

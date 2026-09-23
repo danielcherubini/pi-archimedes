@@ -125,6 +125,12 @@ describe("TruncatedTextComponent", () => {
     expect(visibleWidth(lines[0]!)).toBe(10);
   });
 
+  it("styles truncation ellipsis with theme accent when theme is set", () => {
+    const comp = new TruncatedTextComponent("a".repeat(50), theme);
+    const lines = comp.render(10);
+    expect(lines[0]!.includes("[accent:…]")).toBe(true);
+  });
+
   it("normalizes newlines to spaces during render", () => {
     const comp = new TruncatedTextComponent("hello\nworld");
     const lines = comp.render(20);
