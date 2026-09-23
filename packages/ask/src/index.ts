@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { registerIpcRelay } from "./ipc-relay.js";
 import { registerAskTool } from "./tool.js";
+export { renderAskCall, renderAskResult } from "./renderer.js";
 
 export function registerAsk(pi: ExtensionAPI) {
 	const unsubscribes: Array<() => void> = [];

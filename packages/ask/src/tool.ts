@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { OTHER_OPTION, type AskQuestion } from "./selection.js";
 import { askSingleQuestionWithInlineNote } from "./picker.js";
 import { askQuestionsWithTabs } from "./dialog.js";
+import { renderAskCall, renderAskResult } from "./renderer.js";
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -228,6 +229,8 @@ export function registerAskTool(pi: ExtensionAPI): void {
 		label: "Ask",
 		description: ASK_TOOL_DESCRIPTION,
 		parameters: AskParamsSchema,
+		renderCall: renderAskCall,
+		renderResult: renderAskResult,
 
 		async execute(_toolCallId, params: AskParams, _signal, _onUpdate, ctx) {
 			// Bridge mode (checked first): the root's Client request is sent by
