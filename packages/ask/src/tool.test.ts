@@ -8,6 +8,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Events } from "@pi-archimedes/core/bus";
 import { registerAskTool } from "./tool.js";
 import { registerIpcRelay } from "./ipc-relay.js";
+import { renderAskCall, renderAskResult } from "./renderer.js";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 //
@@ -77,6 +78,8 @@ function captureTool(): {
 		onUpdate: unknown,
 		ctx: unknown,
 	) => Promise<{ content: Array<{ type: string; text: string }>; details: unknown }>;
+	renderCall?: unknown;
+	renderResult?: unknown;
 } {
 	const registered: Array<Record<string, unknown>> = [];
 	registerAskTool({ registerTool: (t: Record<string, unknown>) => registered.push(t) } as unknown as ExtensionAPI);
@@ -121,6 +124,14 @@ beforeEach(() => {
 });
 
 // ── Bridge branch (checked first) ────────────────────────────────────────────
+
+describe("tool registration", () => {
+	it("registers the correct render functions", () => {
+		const tool = captureTool();
+		expect(tool.renderCall).toBe(renderAskCall);
+		expect(tool.renderResult).toBe(renderAskResult);
+	});
+});
 
 describe("bridge branch", () => {
 	it("emits ASK_REQUEST (main) with toolCallId, then a paired ASK_RESPONSE, and returns the built results", async () => {
