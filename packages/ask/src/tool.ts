@@ -108,7 +108,7 @@ function toSessionSafeQuestionResult(result: QuestionResult): QuestionResult {
 	};
 }
 
-function formatSelectionForSummary(result: QuestionResult): string {
+export function formatSelectionForSummary(result: QuestionResult): string {
 	const hasSelectedOptions = result.selectedOptions.length > 0;
 	const hasCustomInput = Boolean(result.customInput);
 
