@@ -207,10 +207,11 @@ describe("PLUGINS manifest integrity", () => {
     "image-paste",
     "subagent",
     "mcp",
+    "web",
     "sudo",
   ];
 
-  it("lists exactly the 11 non-core packages (no drift)", () => {
+  it("lists exactly the 12 non-core packages (no drift)", () => {
     expect([...PLUGINS.map((p) => p.id)].sort()).toEqual([...EXPECTED_IDS].sort());
   });
 

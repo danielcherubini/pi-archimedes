@@ -27,7 +27,8 @@
     "@pi-archimedes/session-name": "workspace:*",
     "@pi-archimedes/mcp": "workspace:*",
     "@pi-archimedes/sudo": "workspace:*",
-    "@pi-archimedes/ui": "workspace:*"
+    "@pi-archimedes/ui": "workspace:*",
+    "@pi-archimedes/web": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0",

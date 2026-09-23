@@ -15,6 +15,7 @@ export default defineConfig({
       "packages/image-paste",
       "packages/mcp",
       "packages/ui",
+      "packages/web",
       "meta",
     ],
     passWithNoTests: true,

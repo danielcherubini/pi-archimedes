@@ -29,6 +29,7 @@ export const PLUGINS: PluginDef[] = [
   { id: "image-paste",  label: "Image paste",        description: "Clipboard image paste",                           namespace: "archimedes.imagePaste",  load: () => import("@pi-archimedes/image-paste") },
   { id: "subagent",     label: "Subagents",          description: "Live subagent dispatch (general, reviewer, …)",  namespace: "archimedes.subagent",    load: () => import("@pi-archimedes/subagent") },
   { id: "mcp",          label: "MCP",                description: "MCP client adapter + /mcp commands",             namespace: "archimedes.mcp",         load: () => import("@pi-archimedes/mcp") },
+  { id: "web",          label: "Web",                description: "Web search and content fetching with multi-provider routing", namespace: "archimedes.web",         load: () => import("@pi-archimedes/web") },
   { id: "sudo",         label: "Sudo",                 description: "Safe privileged execution",                      namespace: "archimedes.sudo",      load: () => import("@pi-archimedes/sudo") },
 ];
 
