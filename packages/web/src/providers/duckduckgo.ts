@@ -17,7 +17,7 @@ export const parseDuckDuckGoHTML = (html: string): SearchResultItem[] => {
       const urlParams = new URLSearchParams(url.split('?')[1]);
       const uddg = urlParams.get('uddg');
       if (uddg) {
-        url = decodeURIComponent(uddg);
+        url = uddg;
       }
       
       if (url.startsWith('//')) {

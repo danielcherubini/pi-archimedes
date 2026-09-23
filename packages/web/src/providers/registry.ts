@@ -41,14 +41,19 @@ export const executeSearch = async (
   const provider = resolveProvider(options.provider, config);
   const limit = pLimit(3);
   
-  const modifiedQuery = options.domainFilter ? `${queries[0] ?? ''} ${options.domainFilter.map(d => `site:${d}`).join(' ')}` : (queries[0] ?? '');
+  const results = await Promise.all(queries.map(q => limit(async () => provider.search(q, options, config))));
+  let merged = results.flat();
 
-  const results = await provider.search(modifiedQuery, options, config);
   
-  let merged = results;
-  
-  if (options.domainFilter) {
-    merged = merged.filter(r => r.url.includes(options.domainFilter!.join(" ")));
+  if (options.domainFilter && options.domainFilter.length > 0) {
+    merged = merged.filter((r) => {
+      try {
+        const h = new URL(r.url).hostname;
+        return options.domainFilter!.some((d) => h === d || h.endsWith('.' + d));
+      } catch {
+        return false;
+      }
+    });
   }
 
   const unique = Array.from(new Map(merged.map(r => [r.url, r])).values());

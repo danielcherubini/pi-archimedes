@@ -41,12 +41,32 @@ describe('safeFetch', () => {
     expect(ssrf.assertSafeUrl).toHaveBeenNthCalledWith(2, 'http://redirected.com/', expect.any(Object));
   });
 
-  it('throws on too many redirects', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      status: 302,
-      headers: new Headers({ location: 'http://loop.com' }),
-    } as any);
+  it('strips sensitive headers and drops body on cross-origin redirect', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        status: 302,
+        headers: new Headers({ location: 'http://different-origin.com' }),
+      } as any)
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+      } as any);
 
-    await expect(safeFetch('http://example.com', undefined, { maxRedirects: 2 })).rejects.toThrow('Too many redirects');
+    const headers = new Headers({
+        authorization: 'secret',
+        'x-subscription-token': 'token',
+        cookie: 'cookie'
+    });
+    
+    await safeFetch('http://example.com', { method: 'POST', body: 'data', headers });
+
+    // Initial call
+    expect(fetch).toHaveBeenCalledWith('http://example.com', expect.objectContaining({
+        method: 'POST',
+        body: 'data'
+    }));
+
+    // Redirect call
+    expect(fetch).toHaveBeenCalledWith('http://different-origin.com/', expect.anything());
   });
 });

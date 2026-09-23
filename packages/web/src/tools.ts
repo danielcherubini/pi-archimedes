@@ -75,7 +75,7 @@ export function registerTools(pi: ExtensionAPI) {
       
       return { 
         content: [{ type: "text", text: doc.markdown }], 
-        details: { responseId, url: doc.url, title: doc.title, wordCount: doc.wordCount, status: doc.status, extractor: doc.extractor } 
+        details: { responseId, url: doc.url, title: doc.title, wordCount: doc.wordCount, status: doc.status, extractor: doc.extractor, snippet: doc.markdown.slice(0, 500) } 
       };
     },
   });

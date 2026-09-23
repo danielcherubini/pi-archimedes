@@ -17,7 +17,12 @@ blockList.addAddress('::1', 'ipv6');
 blockList.addAddress('::', 'ipv6');
 blockList.addRange('fc00::', 'fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'ipv6');
 blockList.addRange('fe80::', 'febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'ipv6');
-blockList.addRange('64:ff9b::', '64:ff9b::ffff:ffff', 'ipv6');
+blockList.addRange('198.18.0.0', '198.19.255.255', 'ipv4');
+blockList.addRange('192.0.0.0', '192.0.0.255', 'ipv4');
+blockList.addRange('224.0.0.0', '239.255.255.255', 'ipv4');
+blockList.addRange('240.0.0.0', '255.255.255.255', 'ipv4');
+blockList.addSubnet('::ffff:0:0', 96, 'ipv6');
+blockList.addRange('ff00::', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'ipv6');
 
 export function isPrivateIp(ip: string): boolean {
   let address = ip;
@@ -32,7 +37,7 @@ export function isPrivateIp(ip: string): boolean {
     if (ipv4.includes(':')) {
         // Simple heuristic for this task: convert hex parts
         const parts = ipv4.split(':');
-        const bytes = parts.flatMap(p => [parseInt(p.slice(0, 2), 16), parseInt(p.slice(2), 16)]);
+        const bytes = parts.flatMap(p => [parseInt(p.padStart(4, '0').slice(0, 2), 16), parseInt(p.padStart(4, '0').slice(2), 16)]);
         ipv4 = bytes.join('.');
     }
     address = ipv4;
@@ -55,11 +60,6 @@ export async function assertSafeUrl(urlString: string, options?: { allowUrl?: st
 
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   
-  // Explicitly check localhost for assertSafeUrl test to pass
-  if (hostname === 'localhost') {
-    throw new Error('SSRF protection: access to private network address blocked');
-  }
-
   if (isIP(hostname)) {
     if (isPrivateIp(hostname)) {
       throw new Error('SSRF protection: access to private network address blocked');

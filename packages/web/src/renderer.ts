@@ -12,6 +12,10 @@ export function sanitizeStatus(text: string): string {
   return text.replace(/[\n\t\r\x00-\x1F\x7F]/g, ' ').trim();
 }
 
+export function sanitizeExpanded(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
 export function renderWebSearchCall(args: unknown, theme: Theme, context?: unknown): Text {
     const text = reuseText(context);
     try {
@@ -45,7 +49,7 @@ export function renderWebSearchResult(result: unknown, options: { expanded?: boo
       for (const res of details.results || []) {
         output += `${theme.fg("accent", res.title)}\n${theme.fg("dim", res.url)}\n${theme.fg("muted", res.snippet)}\n\n`;
       }
-      text.setText(output.trim());
+      text.setText(sanitizeExpanded(output.trim()));
     } else {
       text.setText(renderStatusLabel("success", sanitizeStatus(label), theme));
     }
@@ -82,7 +86,7 @@ export function renderFetchContentResult(result: unknown, options: { expanded?: 
     }
     
     if (options?.expanded) {
-      text.setText(`${details.title ?? "Untitled"}\n${details.url}\nExtractor: ${details.extractor ?? "default"}\nWords: ${details.wordCount ?? 0}\n\n${details.snippet ?? ""}`);
+      text.setText(sanitizeExpanded(`${details.title ?? "Untitled"}\n${details.url}\nExtractor: ${details.extractor ?? "default"}\nWords: ${details.wordCount ?? 0}\n\n${details.snippet ?? ""}`));
     } else {
       const label = `${details.status ?? 200} | ${details.title ?? "Untitled"} (${details.wordCount ?? 0} words)`;
       text.setText(renderStatusLabel("success", sanitizeStatus(label), theme));
@@ -116,7 +120,7 @@ export function renderGetSearchContentResult(result: unknown, options: { expande
     }
     
     if (options?.expanded) {
-      text.setText(details.passages?.join("\n\n") ?? "No passages found");
+      text.setText(sanitizeExpanded(details.matches ? details.matches.map((m: any) => m.passage).join("\n\n") : (details.content ?? "No content found")));
     } else {
       let label = "Content retrieved";
       if (details.matches) {

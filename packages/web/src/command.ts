@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { clearCache, getCacheStats } from "./storage/cache.js";
 import { loadConfig } from "./config.js";
-import { executeSearch } from "./providers/registry.js";
+import { resolveProvider, executeSearch } from "./providers/registry.js";
 
 export function registerCommand(pi: ExtensionAPI) {
   pi.registerCommand("web", {
@@ -16,10 +16,9 @@ export function registerCommand(pi: ExtensionAPI) {
           break;
         }
         case "status": {
-          const stats = getCacheStats();
           const config = loadConfig();
-          const keys = Object.keys(config).filter(k => (config as any)[k] !== undefined);
-          ctx.ui.notify(`Configured keys: ${keys.join(", ")} | Default provider: ${config.braveApiKey ? "Brave" : "Unknown"} | Cache items: ${stats.count}`);
+          const provider = resolveProvider(undefined, config);
+          ctx.ui.notify(`Active provider: ${provider.name}`);
           break;
         }
         case "search": {
@@ -28,7 +27,10 @@ export function registerCommand(pi: ExtensionAPI) {
             ctx.ui.notify("Usage: /web search <query>");
             return;
           }
-          await ctx.ui.notify("Error: executeTool not available");
+          const config = loadConfig();
+          const results = await executeSearch([query], {}, config);
+          const summary = `Found ${results.results.length} results using ${results.provider}:\n${results.results.map(r => `- ${r.title}: ${r.url}`).join("\n")}`;
+          ctx.ui.notify(summary, "info");
           break;
         }
         default:

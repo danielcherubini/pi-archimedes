@@ -21,6 +21,8 @@ export const OpenAIProvider: SearchProvider = {
       })
     });
     
+    if (!response.ok) throw new Error(`[openai] error: ${response.status} ${response.statusText}`);
+
     // Simplification for now, assuming standard provider interface expects SearchResultItem[]
     // Note: OpenAI isn't a search provider in the same sense, but here we fulfill the interface
     const data = await response.json();
