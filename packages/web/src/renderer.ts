@@ -14,7 +14,8 @@ export function sanitizeStatus(text: string): string {
 
 export function renderWebSearchCall(args: unknown, theme: Theme, context?: unknown): Text {
   try {
-    const query = (args as { query?: string })?.query ?? "unknown";
+    const params = args as { query?: string; queries?: string[] };
+    const query = params.queries?.[0] ?? params.query ?? "unknown";
     return new Text(renderToolHeader("web_search", query, theme), 0, 0);
   } catch {
     return new Text("web_search error", 0, 0);
@@ -23,7 +24,12 @@ export function renderWebSearchCall(args: unknown, theme: Theme, context?: unkno
 
 export function renderWebSearchResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   try {
-    const label = sanitizeStatus("5 results (brave)");
+    const details = (result as { details?: any })?.details;
+    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
+    
+    if (details.error) return new Text(renderStatusLabel("error", details.error, theme), 0, 0);
+
+    const label = `${details.resultCount ?? 0} results (${details.provider ?? "unknown"})`;
     return new Text(renderStatusLabel("success", label, theme), 0, 0);
   } catch {
     return new Text("result error", 0, 0);
@@ -41,7 +47,12 @@ export function renderFetchContentCall(args: unknown, theme: Theme, context?: un
 
 export function renderFetchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   try {
-    return new Text(renderStatusLabel("success", "200 OK", theme), 0, 0);
+    const details = (result as { details?: any })?.details;
+    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
+    if (details.error) return new Text(renderStatusLabel("error", details.error, theme), 0, 0);
+    
+    const label = `${details.status ?? 200} | ${details.title ?? "Untitled"} (${details.wordCount ?? 0} words)`;
+    return new Text(renderStatusLabel("success", label, theme), 0, 0);
   } catch {
     return new Text("result error", 0, 0);
   }
@@ -49,7 +60,8 @@ export function renderFetchContentResult(result: unknown, options: { expanded?: 
 
 export function renderGetSearchContentCall(args: unknown, theme: Theme, context?: unknown): Text {
   try {
-    return new Text(renderToolHeader("get_search_content", "query", theme), 0, 0);
+    const id = (args as { responseId?: string })?.responseId ?? "unknown";
+    return new Text(renderToolHeader("get_search_content", id, theme), 0, 0);
   } catch {
     return new Text("get_search_content error", 0, 0);
   }
@@ -57,7 +69,17 @@ export function renderGetSearchContentCall(args: unknown, theme: Theme, context?
 
 export function renderGetSearchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   try {
-    return new Text(renderStatusLabel("success", "Found passages", theme), 0, 0);
+    const details = (result as { details?: any })?.details;
+    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
+    
+    let label = "Content retrieved";
+    if (details.matches) {
+        label = `Found ${details.matches.length} passages`;
+    } else if (details.content) {
+        label = `${details.content.length} characters`;
+    }
+    
+    return new Text(renderStatusLabel("success", label, theme), 0, 0);
   } catch {
     return new Text("result error", 0, 0);
   }

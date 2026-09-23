@@ -17,7 +17,7 @@ Rules for AI agents working on this monorepo.
 - `packages/mcp` — MCP client adapter (feature parity with pi-mcp-adapter: `/mcp` command family, management + setup panels, OAuth, metadata cache) (depends on core)
 - `packages/web` — web search and content fetching with multi-provider routing (depends on core)
 - `packages/sudo` — safe privileged execution (sudo_exec tool, masked password prompt, interactive-sudo bash guard) (depends on core)
-- `meta` — orchestrator + composed settings (depends on all twelve)
+- `meta` — orchestrator + composed settings (depends on all thirteen)
 
 ## Adding a New Package
 

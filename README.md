@@ -188,6 +188,7 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
 | **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
 | **Web** | [`@pi-archimedes/web`](packages/web/README.md) | Web search, content fetching, and stored-content retrieval with multi-provider routing |
+| **Web** | [`@pi-archimedes/web`](packages/web/README.md) | Web search, content fetching, and stored-content retrieval with multi-provider routing |
 | **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Clipboard image paste with inline previews |
 | **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Delayed desktop notifications with input cancellation |
 | **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automatic session titles |
@@ -206,6 +207,7 @@ pi install npm:@pi-archimedes/mcp
 pi install npm:@pi-archimedes/sudo
 pi install npm:@pi-archimedes/diff
 pi install npm:@pi-archimedes/footer
+pi install npm:@pi-archimedes/web
 pi install npm:@pi-archimedes/image-paste
 pi install npm:@pi-archimedes/notify
 pi install npm:@pi-archimedes/session-name
