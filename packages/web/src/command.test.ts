@@ -8,7 +8,8 @@ describe('slash command registration', () => {
     };
     registerCommand(mockPi as any);
     expect(mockPi.registerCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'web' })
+      'web',
+      expect.objectContaining({ description: "Web search tools" })
     );
   });
 });
