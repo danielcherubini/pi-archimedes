@@ -50,7 +50,7 @@ export async function buildSettingsItems(allConfig: ReturnType<typeof loadAllCon
 
   if (isPluginEnabled("diff")) {
     const { getDiffSettingsItems } = await import("@pi-archimedes/diff");
-    items.push(...getDiffSettingsItems());
+    items.push(...getDiffSettingsItems(allConfig.diff));
   }
 
   if (isPluginEnabled("notify")) {
@@ -123,6 +123,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
             if (Number.isFinite(v)) diffConfig.diffSplitMinCodeWidth = v;
             break;
           }
+          case "diffSplitWrapCheck": diffConfig.diffSplitWrapCheck = newValue === "On"; break;
 
           // ── Notify settings ──
           case "notifyOnAgentEnd": notifyConfig.notifyOnAgentEnd = newValue === "On"; break;

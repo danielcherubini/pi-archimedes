@@ -29,12 +29,14 @@ export interface DiffConfig {
 	diffTheme: string;
 	diffSplitMinWidth: number;
 	diffSplitMinCodeWidth: number;
+	diffSplitWrapCheck?: boolean;
 }
 
 const DEFAULT_DIFF_CONFIG: DiffConfig = {
 	diffTheme: "github-dark",
 	diffSplitMinWidth: 150,
 	diffSplitMinCodeWidth: 60,
+	diffSplitWrapCheck: true,
 };
 
 let _readConfig: () => DiffConfig = () => DEFAULT_DIFF_CONFIG;
@@ -44,8 +46,8 @@ function getConfig(): DiffConfig { return _readConfig(); }
 // Settings
 // ---------------------------------------------------------------------------
 
-export function getDiffSettingsItems(): SettingItem[] {
-	const config = getConfig();
+export function getDiffSettingsItems(overrideConfig?: DiffConfig): SettingItem[] {
+	const config = overrideConfig ?? getConfig();
 	return [
 		{
 			id: "diffTheme",
@@ -64,6 +66,13 @@ export function getDiffSettingsItems(): SettingItem[] {
 			label: "Split Min Code Width",
 			description: "Minimum code column width for split diff view",
 			currentValue: String(config.diffSplitMinCodeWidth),
+		},
+		{
+			id: "diffSplitWrapCheck",
+			label: "Split Wrap Check",
+			description: "Fall back to unified diff if lines wrap",
+			currentValue: (config.diffSplitWrapCheck ?? true) ? "On" : "Off",
+			values: ["On", "Off"],
 		},
 	];
 }

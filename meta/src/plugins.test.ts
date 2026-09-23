@@ -261,7 +261,7 @@ function fakeAllConfig(): Parameters<typeof buildSettingsItems>[0] {
   return {
     ui: {},
     footer: { splitThreshold: 120 },
-    diff: { diffTheme: "github-dark", diffSplitMinWidth: 150, diffSplitMinCodeWidth: 60 },
+    diff: { diffTheme: "github-dark", diffSplitMinWidth: 150, diffSplitMinCodeWidth: 60, diffSplitWrapCheck: true },
     notify: { delayMs: 30000, notifyOnAgentEnd: true, notifyOnQuestion: true },
     sessionName: {},
   } as unknown as Parameters<typeof buildSettingsItems>[0];
