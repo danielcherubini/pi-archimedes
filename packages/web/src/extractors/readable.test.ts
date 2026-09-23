@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractReadable } from './readable';
+import { extractReadable } from './readable.js';
 
 describe('readable extractor', () => {
   it('should extract main content from simple HTML', async () => {

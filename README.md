@@ -188,7 +188,6 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
 | **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
 | **Web** | [`@pi-archimedes/web`](packages/web/README.md) | Web search, content fetching, and stored-content retrieval with multi-provider routing |
-| **Web** | [`@pi-archimedes/web`](packages/web/README.md) | Web search, content fetching, and stored-content retrieval with multi-provider routing |
 | **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Clipboard image paste with inline previews |
 | **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Delayed desktop notifications with input cancellation |
 | **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automatic session titles |
@@ -211,7 +210,6 @@ pi install npm:@pi-archimedes/web
 pi install npm:@pi-archimedes/image-paste
 pi install npm:@pi-archimedes/notify
 pi install npm:@pi-archimedes/session-name
-pi install npm:@pi-archimedes/web
 ```
 
 ---
@@ -236,7 +234,7 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 │   ├── notify/        # delayed desktop notifications
 │   ├── web/           # web search, content fetching, stored-content retrieval
 │   └── session-name/  # auto session naming
-└── meta/              # the pi-archimedes orchestrator (depends on all twelve)
+└── meta/              # the pi-archimedes orchestrator (depends on all thirteen)
 ```
 
 ```bash

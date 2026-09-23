@@ -13,74 +13,122 @@ export function sanitizeStatus(text: string): string {
 }
 
 export function renderWebSearchCall(args: unknown, theme: Theme, context?: unknown): Text {
-  try {
-    const params = args as { query?: string; queries?: string[] };
-    const query = params.queries?.[0] ?? params.query ?? "unknown";
-    return new Text(renderToolHeader("web_search", query, theme), 0, 0);
-  } catch {
-    return new Text("web_search error", 0, 0);
-  }
+    const text = reuseText(context);
+    try {
+      const params = args as { query?: string; queries?: string[] };
+      const query = params.queries?.[0] ?? params.query ?? "unknown";
+      text.setText(renderToolHeader("web_search", query, theme));
+      return text;
+    } catch {
+      text.setText("web_search error");
+      return text;
+    }
 }
 
 export function renderWebSearchResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
+  const text = reuseText(context);
   try {
     const details = (result as { details?: any })?.details;
-    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
+    if (!details) {
+      text.setText(renderStatusLabel("error", sanitizeStatus("No details"), theme));
+      return text;
+    }
     
-    if (details.error) return new Text(renderStatusLabel("error", details.error, theme), 0, 0);
+    if (details.error) {
+      text.setText(renderStatusLabel("error", sanitizeStatus(details.error), theme));
+      return text;
+    }
 
     const label = `${details.resultCount ?? 0} results (${details.provider ?? "unknown"})`;
-    return new Text(renderStatusLabel("success", label, theme), 0, 0);
-  } catch {
-    return new Text("result error", 0, 0);
+    if (options?.expanded) {
+      let output = "";
+      for (const res of details.results || []) {
+        output += `${theme.fg("accent", res.title)}\n${theme.fg("dim", res.url)}\n${theme.fg("muted", res.snippet)}\n\n`;
+      }
+      text.setText(output.trim());
+    } else {
+      text.setText(renderStatusLabel("success", sanitizeStatus(label), theme));
+    }
+    return text;
+  } catch (e) {
+    text.setText(renderStatusLabel("error", sanitizeStatus(String(e)), theme));
+    return text;
   }
 }
 
 export function renderFetchContentCall(args: unknown, theme: Theme, context?: unknown): Text {
+  const text = reuseText(context);
   try {
     const url = (args as { url?: string })?.url ?? "unknown";
-    return new Text(renderToolHeader("fetch_content", url, theme), 0, 0);
+    text.setText(renderToolHeader("fetch_content", url, theme));
+    return text;
   } catch {
-    return new Text("fetch_content error", 0, 0);
+    text.setText("fetch_content error");
+    return text;
   }
 }
 
 export function renderFetchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
+  const text = reuseText(context);
   try {
     const details = (result as { details?: any })?.details;
-    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
-    if (details.error) return new Text(renderStatusLabel("error", details.error, theme), 0, 0);
+    if (!details) {
+      text.setText(renderStatusLabel("error", sanitizeStatus("No details"), theme));
+      return text;
+    }
+    if (details.error) {
+      text.setText(renderStatusLabel("error", sanitizeStatus(details.error), theme));
+      return text;
+    }
     
-    const label = `${details.status ?? 200} | ${details.title ?? "Untitled"} (${details.wordCount ?? 0} words)`;
-    return new Text(renderStatusLabel("success", label, theme), 0, 0);
-  } catch {
-    return new Text("result error", 0, 0);
+    if (options?.expanded) {
+      text.setText(`${details.title ?? "Untitled"}\n${details.url}\nExtractor: ${details.extractor ?? "default"}\nWords: ${details.wordCount ?? 0}\n\n${details.snippet ?? ""}`);
+    } else {
+      const label = `${details.status ?? 200} | ${details.title ?? "Untitled"} (${details.wordCount ?? 0} words)`;
+      text.setText(renderStatusLabel("success", sanitizeStatus(label), theme));
+    }
+    return text;
+  } catch (e) {
+    text.setText(renderStatusLabel("error", sanitizeStatus(String(e)), theme));
+    return text;
   }
 }
 
 export function renderGetSearchContentCall(args: unknown, theme: Theme, context?: unknown): Text {
+  const text = reuseText(context);
   try {
     const id = (args as { responseId?: string })?.responseId ?? "unknown";
-    return new Text(renderToolHeader("get_search_content", id, theme), 0, 0);
+    text.setText(renderToolHeader("get_search_content", id, theme));
+    return text;
   } catch {
-    return new Text("get_search_content error", 0, 0);
+    text.setText("get_search_content error");
+    return text;
   }
 }
 
 export function renderGetSearchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
+  const text = reuseText(context);
   try {
     const details = (result as { details?: any })?.details;
-    if (!details) return new Text(renderStatusLabel("error", "No details", theme), 0, 0);
-    
-    let label = "Content retrieved";
-    if (details.matches) {
-        label = `Found ${details.matches.length} passages`;
-    } else if (details.content) {
-        label = `${details.content.length} characters`;
+    if (!details) {
+      text.setText(renderStatusLabel("error", sanitizeStatus("No details"), theme));
+      return text;
     }
     
-    return new Text(renderStatusLabel("success", label, theme), 0, 0);
-  } catch {
-    return new Text("result error", 0, 0);
+    if (options?.expanded) {
+      text.setText(details.passages?.join("\n\n") ?? "No passages found");
+    } else {
+      let label = "Content retrieved";
+      if (details.matches) {
+          label = `Found ${details.matches.length} passages`;
+      } else if (details.content) {
+          label = `${details.content.length} characters`;
+      }
+      text.setText(renderStatusLabel("success", sanitizeStatus(label), theme));
+    }
+    return text;
+  } catch (e) {
+    text.setText(renderStatusLabel("error", sanitizeStatus(String(e)), theme));
+    return text;
   }
 }

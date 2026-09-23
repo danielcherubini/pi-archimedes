@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { registerCommand } from './command';
+import { registerCommand } from './command.js';
 
 describe('slash command registration', () => {
   it('should register /web command', () => {

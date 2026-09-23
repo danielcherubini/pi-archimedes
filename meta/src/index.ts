@@ -116,7 +116,7 @@ export default function (pi: ExtensionAPI): void {
     // Update module-level context ref so lazy-loaded callbacks always see current session
     currentCtx = ctx;
 
-    // ── Parallel lazy-load all three packages (saves ~100ms vs sequential) ──
+    // ── Parallel lazy-load all five packages (saves ~100ms vs sequential) ──
     const [diffMod, ipMod, saMod, mcpMod, webMod] = await Promise.all([
       isPluginEnabled("diff")
         ? import("@pi-archimedes/diff").catch((e) => { console.error("[archimedes] diff load failed:", e); return null; })

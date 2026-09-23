@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGitHubUrl } from './github';
+import { parseGitHubUrl } from './github.js';
 
 describe('github extractor', () => {
   it('should parse repository URL', () => {

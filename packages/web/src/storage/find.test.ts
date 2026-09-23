@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findPassages } from './find';
+import { findPassages } from './find.js';
 
 describe('find', () => {
   it('should find passages with context windows', () => {

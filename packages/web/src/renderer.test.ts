@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Text } from '@earendil-works/pi-tui';
-import { reuseText, sanitizeStatus, renderWebSearchCall } from './renderer';
+import { reuseText, sanitizeStatus, renderWebSearchCall } from './renderer.js';
 
 describe('renderer', () => {
   it('reuseText recycles existing Text component', () => {
@@ -22,9 +22,10 @@ describe('renderer', () => {
   });
 
   it('exception resilience: renderer does not throw on malformed input', () => {
-    const mockTheme = {} as any;
+    const mockTheme = { fg: () => "" } as any;
+    const mockContext = { lastComponent: new Text("", 0, 0) };
     expect(() => {
-        renderWebSearchCall(null, mockTheme);
+        renderWebSearchCall(null, mockTheme, mockContext);
     }).not.toThrow();
   });
 });
