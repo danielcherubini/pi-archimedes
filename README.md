@@ -68,12 +68,6 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 
-<p align="center">
-  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
-</p>
-
----
-
 ## Give your agent some backup.
 
 Have one subagent explore the codebase while another reviews your changes. [Subagents](packages/subagent/README.md) run with your choice of models and tools, stream their progress live into your terminal, and their tasks show up side by side on the [shared todo board](packages/todo/README.md).
@@ -82,6 +76,21 @@ Their token usage and costs feed into the same status bar. More work happening a
 
 See the [subagent guide](packages/subagent/README.md) for dispatching, agent definitions, and the `/agents` editor.
 
+<p align="center">
+  <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
+</p>
+
+---
+
+## Web Access
+
+Browse the web and fetch remote content directly in your session.
+
+- **Web Search**: Multi-provider search (Brave, Tavily, Perplexity, SearXNG, DuckDuckGo) with automatic failover and multi-query concurrency.
+- **Fetch Content**: SSRF-protected content fetching with specialized extractors for HTML readability, GitHub repos/issues/PRs, YouTube transcripts, and PDFs.
+- **Content Retrieval**: Stored-content search, passage extraction, and session-scoped LRU caching.
+
+See the [web guide](packages/web/README.md) for detailed tool documentation and configuration.
 <p align="center">
   <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
 </p>
@@ -158,10 +167,11 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 | Command | Scope | Notes |
 |---------|-------|-------|
-| `/plugins` | Suite | Toggle the eleven optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
+| `/plugins` | Suite | Toggle the twelve optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
 | `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
 | `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
 | `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
+| `/web`, `/web status` | Web component | Web search and content tools. `/web status` shows provider and cache usage. |
 | `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
 | `/sudo`, `/sudo forget` | Sudo component | Inspect cached credential state; `forget` clears it. |
 | `/reload` | Pi | Applies plugin changes and settings read at startup. |
@@ -187,6 +197,7 @@ Every component keeps its own namespace under `~/.pi/agent/settings.json`, which
 | **Sudo** | [`@pi-archimedes/sudo`](packages/sudo/README.md) | `sudo_exec` with masked password prompt and interactive-sudo guard |
 | **Diff** | [`@pi-archimedes/diff`](packages/diff/README.md) | Syntax-highlighted side-by-side and unified diffs with word-level highlights |
 | **Footer** | [`@pi-archimedes/footer`](packages/footer/README.md) | Branch, model, context usage, and token/cost status bar |
+| **Web** | [`@pi-archimedes/web`](packages/web/README.md) | Web search, content fetching, and stored-content retrieval with multi-provider routing |
 | **Image Paste** | [`@pi-archimedes/image-paste`](packages/image-paste/README.md) | Clipboard image paste with inline previews |
 | **Notify** | [`@pi-archimedes/notify`](packages/notify/README.md) | Delayed desktop notifications with input cancellation |
 | **Session Name** | [`@pi-archimedes/session-name`](packages/session-name/README.md) | Automatic session titles |
@@ -205,6 +216,7 @@ pi install npm:@pi-archimedes/mcp
 pi install npm:@pi-archimedes/sudo
 pi install npm:@pi-archimedes/diff
 pi install npm:@pi-archimedes/footer
+pi install npm:@pi-archimedes/web
 pi install npm:@pi-archimedes/image-paste
 pi install npm:@pi-archimedes/notify
 pi install npm:@pi-archimedes/session-name
@@ -230,8 +242,9 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 │   ├── sudo/          # sudo_exec tool + guards
 │   ├── image-paste/   # clipboard image paste
 │   ├── notify/        # delayed desktop notifications
+│   ├── web/           # web search, content fetching, stored-content retrieval
 │   └── session-name/  # auto session naming
-└── meta/              # the pi-archimedes orchestrator (depends on all twelve)
+└── meta/              # the pi-archimedes orchestrator (depends on all thirteen)
 ```
 
 ```bash
