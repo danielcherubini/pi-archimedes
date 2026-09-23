@@ -1,10 +1,10 @@
 import type { WebConfig, SearchProvider, SearchOptions, SearchResultItem } from './types.js';
-import { DuckDuckGoProvider } from './duckduckgo';
-import { BraveProvider } from './brave';
-import { TavilyProvider } from './tavily';
-import { OpenAIProvider } from './openai';
-import { PerplexityProvider } from './perplexity';
-import { SearXNGProvider } from './searxng';
+import { DuckDuckGoProvider } from './duckduckgo.js';
+import { BraveProvider } from './brave.js';
+import { TavilyProvider } from './tavily.js';
+import { OpenAIProvider } from './openai.js';
+import { PerplexityProvider } from './perplexity.js';
+import { SearXNGProvider } from './searxng.js';
 import pLimit from 'p-limit';
 
 const ALL_PROVIDERS: SearchProvider[] = [
@@ -34,14 +34,27 @@ export const executeSearch = async (
   options: SearchOptions,
   config: WebConfig
 ): Promise<{ provider: string; results: SearchResultItem[] }> => {
-  const provider = resolveProvider(undefined, config);
+  if (queries.length === 0) {
+    throw new Error('Queries array is empty');
+  }
+
+  const provider = resolveProvider(options.provider, config);
   const limit = pLimit(3);
   
+  const modifiedQueries = queries.map(q => 
+    options.domainFilter ? `${q} site:${options.domainFilter}` : q
+  );
+
   const allResults = await Promise.all(
-    queries.map(q => limit(() => provider.search(q, options, config)))
+    modifiedQueries.map(q => limit(() => provider.search(q, options, config)))
   );
   
-  const merged = allResults.flat();
+  let merged = allResults.flat();
+  
+  if (options.domainFilter) {
+    merged = merged.filter(r => r.url.includes(options.domainFilter!));
+  }
+
   const unique = Array.from(new Map(merged.map(r => [r.url, r])).values());
   
   return { provider: provider.id, results: unique };

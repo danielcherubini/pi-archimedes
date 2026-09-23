@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveProvider } from './registry';
-import type { WebConfig } from '../config';
+import { resolveProvider } from './registry.js';
+import type { WebConfig } from '../config.js';
 
 describe('registry provider resolution', () => {
   it('should resolve explicit provider', () => {

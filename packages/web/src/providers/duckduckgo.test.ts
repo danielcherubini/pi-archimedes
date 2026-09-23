@@ -5,7 +5,8 @@ import * as fetchModule from '../network/fetch.js';
 describe('DuckDuckGoProvider', () => {
   it('should fetch and parse', async () => {
     vi.spyOn(fetchModule, 'safeFetch').mockResolvedValue({
-      text: async () => '<div class="result__body"><a class="result__a" href="https://example.com">Example</a><div class="result__snippet">Snippet</div></div>',
+      ok: true,
+      text: async () => '<div class="result"><a class="result__a" href="https://example.com">Example</a><div class="result__snippet">Snippet</div></div>',
     } as any);
 
     const results = await DuckDuckGoProvider.search('test', { numResults: 1 }, {} as any);

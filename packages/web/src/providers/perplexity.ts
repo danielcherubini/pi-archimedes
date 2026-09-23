@@ -21,11 +21,29 @@ export const PerplexityProvider: SearchProvider = {
       })
     });
     
+    if (!response.ok) {
+      throw new Error(`[perplexity] error: ${response.status} ${response.statusText}`);
+    }
+    
     const data = await response.json();
-    return [{
+    
+    const results: SearchResultItem[] = [];
+    if (data.citations) {
+      data.citations.forEach((url: string, index: number) => {
+        results.push({
+          url,
+          title: `Source ${index + 1}`,
+          snippet: ''
+        });
+      });
+    }
+
+    results.push({
       url: 'https://perplexity.ai',
-      title: 'Perplexity Response',
+      title: 'Perplexity Answer',
       snippet: data.choices[0]?.message.content ?? ''
-    }];
+    });
+
+    return results;
   }
 };

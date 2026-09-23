@@ -19,6 +19,10 @@ export const BraveProvider: SearchProvider = {
       }
     );
 
+    if (!response.ok) {
+      throw new Error(`[brave] error: ${response.status} ${response.statusText}`);
+    }
+
     const data = await response.json();
     return (data.web?.results ?? []).map((r: any) => ({
       url: r.url,

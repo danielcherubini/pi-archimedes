@@ -1,16 +1,33 @@
+import { parseHTML } from 'linkedom';
 import { safeFetch } from '../network/fetch.js';
-import type { SearchProvider, SearchOptions, WebConfig, SearchResultItem } from './types.js';
+import type { SearchProvider, SearchResultItem } from './types.js';
 
 export const parseDuckDuckGoHTML = (html: string): SearchResultItem[] => {
+  const { document } = parseHTML(html);
   const results: SearchResultItem[] = [];
-  const regex = /<div class="result__body">.*?<a class="result__a" href="(.*?)">(.*?)<\/a>.*?<div class="result__snippet">(.*?)<\/div>/gs;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    if (match[1] && match[2] && match[3]) {
+  const elements = document.querySelectorAll('.result');
+  
+  for (const el of elements as any) {
+    const a = el.querySelector('a.result__a') as HTMLAnchorElement | null;
+    const snippetEl = el.querySelector('.result__snippet') ?? el.querySelector('.result__body');
+    
+    if (a && snippetEl) {
+      let url = a.getAttribute('href') ?? '';
+      
+      const urlParams = new URLSearchParams(url.split('?')[1]);
+      const uddg = urlParams.get('uddg');
+      if (uddg) {
+        url = decodeURIComponent(uddg);
+      }
+      
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      }
+      
       results.push({
-        url: match[1],
-        title: match[2].replace(/<[^>]*>/g, ''),
-        snippet: match[3].replace(/<[^>]*>/g, '')
+        url,
+        title: a.textContent?.trim() ?? '',
+        snippet: snippetEl.textContent?.trim() ?? ''
       });
     }
   }
@@ -27,6 +44,11 @@ export const DuckDuckGoProvider: SearchProvider = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
     });
+
+    if (!response.ok) {
+      throw new Error(`[duckduckgo] error: ${response.status} ${response.statusText}`);
+    }
+
     const html = await response.text();
     const results = parseDuckDuckGoHTML(html);
     return results.slice(0, options.numResults ?? 5);

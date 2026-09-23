@@ -21,6 +21,10 @@ export const TavilyProvider: SearchProvider = {
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`[tavily] error: ${response.status} ${response.statusText}`);
+    }
+
     const data = await response.json();
     return (data.results ?? []).map((r: any) => ({
       url: r.url,

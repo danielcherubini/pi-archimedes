@@ -12,14 +12,20 @@ export async function extractGitHub(url: string): Promise<ExtractedDoc> {
   if (!parsed) throw new Error('Invalid GitHub URL');
 
   const response = await safeFetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`);
+  if (!response.ok) {
+    throw new Error(`[github] error: ${response.status} ${response.statusText}`);
+  }
+
   const data = await response.json();
+  const text = `${data.full_name} ${data.description}`;
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   
   return {
     title: data.full_name,
     url,
     markdown: `## ${data.full_name}\n\n${data.description}\n\nStars: ${data.stargazers_count}`,
-    wordCount: 10,
-    status: 200,
+    wordCount,
+    status: response.status,
     extractor: 'github',
   };
 }
