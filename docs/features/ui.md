@@ -12,8 +12,8 @@ verified-by: pnpm test
 
 1. **Bash Tool Styling**:
    - Overrides Pi's built-in `bash` tool with styled Archimedes conventions (`renderBashCall` and `renderBashResult`).
-   - Header renders bold `bash` tool name.
-   - Collapsed view renders single-line status: `<glyph> <command> (<duration>)` where glyph is orange `▸` (running), green `✓` (success), or red `✗` (error).
+   - Header renders bold `bash` tool name with command preview in orange accent color.
+   - Collapsed view renders status line: `<glyph> <duration> (timeout: <timeout>s)` where glyph is orange `▸` (running), green `✓` (success), or red `✗` (error).
    - Live 1s interval timer updates elapsed duration in-flight; all intervals are tracked and cleared on completion, error, or session shutdown.
    - Expanded view displays `$ <command>`, stdout/stderr output, spill notices, and execution duration footer.
 

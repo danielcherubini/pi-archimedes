@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { formatDuration, renderBashCall, renderBashResult, clearActiveBashIntervals } from "./renderer.js";
+import { stripAnsi } from "@pi-archimedes/core/text";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import {
+  formatDuration,
+  formatBashCommand,
+  renderBashCall,
+  renderBashResult,
+  clearActiveBashIntervals,
+  TruncatedTextComponent,
+} from "./renderer.js";
 
-// Mock Text from @earendil-works/pi-tui
-vi.mock("@earendil-works/pi-tui", () => {
+// Mock Text from @earendil-works/pi-tui while preserving real utility functions
+vi.mock("@earendil-works/pi-tui", async () => {
+  const actual = await vi.importActual<typeof import("@earendil-works/pi-tui")>("@earendil-works/pi-tui");
   class MockText {
     private _content = "";
 
@@ -20,6 +30,7 @@ vi.mock("@earendil-works/pi-tui", () => {
     }
   }
   return {
+    ...actual,
     Text: MockText,
   };
 });
@@ -62,10 +73,105 @@ describe("formatDuration", () => {
   });
 });
 
+describe("formatBashCommand", () => {
+  it("returns undefined for undefined or non-string input", () => {
+    expect(formatBashCommand(undefined)).toBeUndefined();
+    expect(formatBashCommand(null as any)).toBeUndefined();
+    expect(formatBashCommand(123 as any)).toBeUndefined();
+  });
+
+  it("returns undefined for empty or whitespace-only commands", () => {
+    expect(formatBashCommand("")).toBeUndefined();
+    expect(formatBashCommand("   ")).toBeUndefined();
+    expect(formatBashCommand("\t\n")).toBeUndefined();
+  });
+
+  it("returns trimmed single-line command", () => {
+    expect(formatBashCommand("  echo hi  ")).toBe("echo hi");
+  });
+
+  it("normalizes newlines to spaces", () => {
+    expect(formatBashCommand("echo 'first'\r\necho 'second'\necho 'third'")).toBe(
+      "echo 'first' echo 'second' echo 'third'",
+    );
+  });
+
+  it("preserves full command when maxLength is omitted", () => {
+    const longCmd = "a".repeat(120);
+    expect(formatBashCommand(longCmd)).toBe(longCmd);
+  });
+
+  it("truncates via truncateToWidth when maxLength is provided", () => {
+    const longCmd = "a".repeat(80);
+    const result = formatBashCommand(longCmd, 70)!;
+    expect(stripAnsi(result)).toBe("a".repeat(69) + "…");
+    expect(visibleWidth(result)).toBe(70);
+  });
+});
+
+describe("TruncatedTextComponent", () => {
+  it("renders single-line text and pads to width", () => {
+    const comp = new TruncatedTextComponent("hello");
+    const lines = comp.render(10);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toBe("hello     ");
+  });
+
+  it("truncates text wider than width with … via truncateToWidth", () => {
+    const comp = new TruncatedTextComponent("a".repeat(50));
+    const lines = comp.render(10);
+    expect(lines).toHaveLength(1);
+    expect(stripAnsi(lines[0]!)).toBe("a".repeat(9) + "…");
+    expect(visibleWidth(lines[0]!)).toBe(10);
+  });
+
+  it("styles truncation ellipsis with theme accent when theme is set", () => {
+    const comp = new TruncatedTextComponent("a".repeat(50), theme);
+    const lines = comp.render(10);
+    expect(lines[0]!.includes("[accent:…]")).toBe(true);
+  });
+
+  it("normalizes newlines to spaces during render", () => {
+    const comp = new TruncatedTextComponent("hello\nworld");
+    const lines = comp.render(20);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.startsWith("hello world")).toBe(true);
+  });
+
+  it("returns single empty padded line when text is empty", () => {
+    const comp = new TruncatedTextComponent("");
+    expect(comp.render(5)).toEqual([""]);
+  });
+});
+
 describe("renderBashCall", () => {
-  it("renders bold bash header", () => {
-    const text = renderBashCall({ command: "echo hi" }, theme, {});
+  it("renders bold bash header when command is absent", () => {
+    const text = renderBashCall({}, theme, {});
     expect(content(text)).toBe("[toolTitle:**bash**]");
+  });
+
+  it("renders bold bash header with orange accent command when command is provided in args", () => {
+    const text = renderBashCall({ command: "echo hi" }, theme, {});
+    expect(content(text)).toBe("[toolTitle:**bash**] [accent:echo hi]");
+  });
+
+  it("falls back to context.args.command when absent from args", () => {
+    const text = renderBashCall({}, theme, { args: { command: "git status" } });
+    expect(content(text)).toBe("[toolTitle:**bash**] [accent:git status]");
+  });
+
+  it("normalizes newlines to spaces in command in header", () => {
+    const text = renderBashCall({ command: "echo 1\r\necho 2\necho 3" }, theme, {});
+    expect(content(text)).toBe("[toolTitle:**bash**] [accent:echo 1 echo 2 echo 3]");
+  });
+
+  it("preserves full command text in component and truncates dynamically at render width", () => {
+    const longCmd = "a".repeat(120);
+    const comp = renderBashCall({ command: longCmd }, theme, {});
+    expect(content(comp)).toBe(`[toolTitle:**bash**] [accent:${longCmd}]`);
+    // Render at width 50: dynamically truncated
+    const lines50 = comp.render(50);
+    expect(lines50[0]!.includes("…")).toBe(true);
   });
 
   it("sets startedAt when executionStarted is true and startedAt is undefined", () => {
@@ -74,44 +180,38 @@ describe("renderBashCall", () => {
     expect(typeof context.state.startedAt).toBe("number");
   });
 
-  it("reuses context.lastComponent if present", () => {
-    const last = new MockText("stale");
+  it("reuses context.lastComponent if present and an instance of TruncatedTextComponent", () => {
+    const last = new TruncatedTextComponent("stale");
     const out = renderBashCall({ command: "echo hi" }, theme, { lastComponent: last });
     expect(out).toBe(last);
-    expect(content(out)).toBe("[toolTitle:**bash**]");
+    expect(content(out)).toBe("[toolTitle:**bash**] [accent:echo hi]");
   });
 
-  it("appends the timeout to the header when provided in args", () => {
-    const text = renderBashCall({ command: "echo hi", timeout: 30 }, theme, {});
-    expect(content(text)).toBe("[toolTitle:**bash**][dim: (timeout: 30s)]");
+  it("stores timeout and command in context state when provided", () => {
+    const context = { state: {} as any };
+    renderBashCall({ command: "echo hi", timeout: 30 }, theme, context);
+    expect(context.state.timeout).toBe(30);
+    expect(context.state.command).toBe("echo hi");
   });
 
-  it("falls back to context.args.timeout when absent from args", () => {
-    const text = renderBashCall({}, theme, { args: { command: "echo hi", timeout: 120 } });
-    expect(content(text)).toBe("[toolTitle:**bash**][dim: (timeout: 120s)]");
-  });
-
-  it("does not append the timeout when it is not a finite number", () => {
-    const text = renderBashCall({ command: "echo hi", timeout: Number.NaN }, theme, {});
-    expect(content(text)).toBe("[toolTitle:**bash**]");
+  it("does not store timeout when not a finite number", () => {
+    const context = { state: {} as any };
+    renderBashCall({ command: "echo hi", timeout: Number.NaN }, theme, context);
+    expect(context.state.timeout).toBeUndefined();
   });
 });
 
 describe("renderBashResult - Collapsed view", () => {
-  it("renders running status glyph (warning ▸) when isPartial is true", () => {
+  it("renders running status glyph (warning ▸) and live duration when isPartial is true", () => {
     const context = {
-      args: { command: "npm test" },
       state: { startedAt: Date.now() - 1500 },
     };
     const out = renderBashResult({}, { isPartial: true, expanded: false }, theme, context);
-    expect(content(out)).toContain("[warning:▸]");
-    expect(content(out)).toContain("[muted:npm test]");
-    expect(content(out)).toContain("[dim:(1.5s)]");
+    expect(content(out)).toBe("[warning:▸] [muted:1.5s]");
   });
 
-  it("renders success status glyph (success ✓) when exit 0", () => {
+  it("renders success status glyph (success ✓) and duration when exit 0", () => {
     const context = {
-      args: { command: "git status" },
       state: { startedAt: 1000, endedAt: 2500 },
     };
     const out = renderBashResult(
@@ -120,15 +220,12 @@ describe("renderBashResult - Collapsed view", () => {
       theme,
       context,
     );
-    expect(content(out)).toContain("[success:✓]");
-    expect(content(out)).toContain("[muted:git status]");
-    expect(content(out)).toContain("[dim:(1.5s)]");
+    expect(content(out)).toBe("[success:✓] [muted:1.5s]");
   });
 
-  it("renders error status glyph (error ✗) when context.isError or result.isError", () => {
+  it("renders error status glyph (error ✗) and duration when context.isError or result.isError", () => {
     const context = {
       isError: true,
-      args: { command: "bad-command" },
       state: { startedAt: 1000, endedAt: 2500 },
     };
     const out = renderBashResult(
@@ -137,38 +234,42 @@ describe("renderBashResult - Collapsed view", () => {
       theme,
       context,
     );
-    expect(content(out)).toContain("[error:✗]");
-    expect(content(out)).toContain("[muted:bad-command]");
-    expect(content(out)).toContain("[dim:(1.5s)]");
+    expect(content(out)).toBe("[error:✗] [muted:1.5s]");
   });
 
-  it("normalizes newlines to spaces in command preview", () => {
+  it("appends timeout when timeout is provided in args", () => {
     const context = {
-      args: { command: "echo 'first'\r\necho 'second'\necho 'third'" },
+      args: { timeout: 1800 },
+      state: { startedAt: 1000, endedAt: 26000 },
+    };
+    const out = renderBashResult({}, { expanded: false }, theme, context);
+    expect(content(out)).toBe("[success:✓] [muted:25s][dim: (timeout: 1800s)]");
+  });
+
+  it("appends timeout when timeout is stored in state", () => {
+    const context = {
+      state: { timeout: 30, startedAt: 1000, endedAt: 2500 },
+    };
+    const out = renderBashResult({}, { expanded: false }, theme, context);
+    expect(content(out)).toBe("[success:✓] [muted:1.5s][dim: (timeout: 30s)]");
+  });
+
+  it("does not append timeout when timeout is not a finite number", () => {
+    const context = {
+      args: { timeout: Number.NaN },
       state: { startedAt: 1000, endedAt: 2000 },
     };
     const out = renderBashResult({}, { expanded: false }, theme, context);
-    expect(content(out)).toContain("[muted:echo 'first' echo 'second' echo 'third']");
+    expect(content(out)).toBe("[success:✓] [muted:1.0s]");
   });
 
-  it("truncates command preview to 70 chars with …", () => {
-    const longCmd = "a".repeat(80);
+  it("formats running collapsed row with timeout and exact spacing", () => {
     const context = {
-      args: { command: longCmd },
-      state: { startedAt: 1000, endedAt: 2000 },
+      args: { timeout: 1800 },
+      state: { startedAt: Date.now() - 25000 },
     };
-    const out = renderBashResult({}, { expanded: false }, theme, context);
-    const expectedTruncated = "a".repeat(70) + "…";
-    expect(content(out)).toContain(`[muted:${expectedTruncated}]`);
-  });
-
-  it("formats collapsed row with exact spacing (no leading space)", () => {
-    const context = {
-      args: { command: "ls" },
-      state: { startedAt: 1000, endedAt: 2000 },
-    };
-    const out = renderBashResult({}, { expanded: false }, theme, context);
-    expect(content(out)).toBe("[success:✓] [muted:ls] [dim:(1.0s)]");
+    const out = renderBashResult({}, { isPartial: true, expanded: false }, theme, context);
+    expect(content(out)).toBe("[warning:▸] [muted:25s][dim: (timeout: 1800s)]");
   });
 });
 

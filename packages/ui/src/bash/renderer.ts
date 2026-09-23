@@ -1,11 +1,13 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { renderToolHeader } from "@pi-archimedes/core/tool-render";
 
 export interface BashRendererState {
   startedAt?: number | undefined;
   endedAt?: number | undefined;
   interval?: NodeJS.Timeout | undefined;
+  timeout?: number | undefined;
+  command?: string | undefined;
 }
 
 const activeStates = new Set<BashRendererState>();
@@ -47,6 +49,66 @@ export function formatDuration(ms: number): string {
   return `${hours}h ${remainderMinutes}m ${remainderSeconds}s`;
 }
 
+/**
+ * Component that renders single-line text dynamically truncated to the
+ * viewport/terminal width via truncateToWidth.
+ */
+export class TruncatedTextComponent implements Component {
+  private text: string = "";
+  private theme: Theme | undefined = undefined;
+
+  constructor(text: string = "", theme?: Theme | undefined) {
+    this.text = text;
+    this.theme = theme;
+  }
+
+  setText(text: string): void {
+    this.text = text;
+  }
+
+  setTheme(theme?: Theme | undefined): void {
+    this.theme = theme;
+  }
+
+  getContent(): string {
+    return this.text;
+  }
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    if (!this.text) return [""];
+    const singleLine = this.text.replace(/[\r\n]+/g, " ");
+    const ellipsis = this.theme ? this.theme.fg("accent", "…") : "…";
+    const truncated = truncateToWidth(singleLine, width, ellipsis);
+    const padNeeded = Math.max(0, width - visibleWidth(truncated));
+    return [truncated + " ".repeat(padNeeded)];
+  }
+}
+
+/**
+ * Format a bash command for display in the tool header line.
+ * Normalizes newlines to spaces and trims whitespace.
+ * If maxLength is specified, truncates via truncateToWidth with an ellipsis.
+ */
+export function formatBashCommand(command?: string, maxLength?: number): string | undefined {
+  if (typeof command !== "string") return undefined;
+  const oneLine = command.replace(/[\r\n]+/g, " ").trim();
+  if (!oneLine) return undefined;
+  if (typeof maxLength === "number" && maxLength > 0) {
+    return truncateToWidth(oneLine, maxLength, "…");
+  }
+  return oneLine;
+}
+
+function getCallComponent(context: unknown): TruncatedTextComponent {
+  const ctx = context as { lastComponent?: unknown } | undefined;
+  if (ctx?.lastComponent instanceof TruncatedTextComponent) {
+    return ctx.lastComponent;
+  }
+  return new TruncatedTextComponent("");
+}
+
 function getTextComponent(context: unknown): Text {
   const ctx = context as { lastComponent?: unknown } | undefined;
   if (ctx?.lastComponent instanceof Text) {
@@ -56,17 +118,23 @@ function getTextComponent(context: unknown): Text {
 }
 
 /**
- * Render the bash tool call line with bold header.
+ * Render the bash tool call line with bold header and command in accent color.
+ * Truncates dynamically to the viewport width at render time.
  *
- * When the call sets a timeout (in seconds) it is appended to the header in
- * dim, e.g. `bash (timeout: 30s)`; the command line below is left unchanged.
+ * Line 1: `bash` (bold toolTitle) + command (accent)
  */
-export function renderBashCall(args: unknown, theme: Theme, context: unknown): Text {
+export function renderBashCall(args: unknown, theme: Theme, context: unknown): TruncatedTextComponent {
   const ctx = context as {
     executionStarted?: boolean;
     state?: BashRendererState;
     args?: { command?: string; timeout?: number };
   } | undefined;
+
+  const rawCmd =
+    (args as { command?: string; timeout?: number } | undefined)?.command ??
+    ctx?.args?.command;
+  const timeout =
+    (args as { timeout?: number } | undefined)?.timeout ?? ctx?.args?.timeout;
 
   if (ctx) {
     if (!ctx.state) {
@@ -76,17 +144,19 @@ export function renderBashCall(args: unknown, theme: Theme, context: unknown): T
       ctx.state.startedAt = Date.now();
       ctx.state.endedAt = undefined;
     }
+    if (typeof timeout === "number" && Number.isFinite(timeout)) {
+      ctx.state.timeout = timeout;
+    }
+    if (typeof rawCmd === "string") {
+      ctx.state.command = rawCmd;
+    }
   }
 
-  const text = getTextComponent(context);
-  const timeout =
-    (args as { timeout?: number } | undefined)?.timeout ?? ctx?.args?.timeout;
-  const suffix =
-    typeof timeout === "number" && Number.isFinite(timeout)
-      ? theme.fg("dim", ` (timeout: ${timeout}s)`)
-      : "";
-  text.setText(renderToolHeader("bash", undefined, theme) + suffix);
-  return text;
+  const comp = getCallComponent(context);
+  comp.setTheme(theme);
+  const displayCmd = formatBashCommand(rawCmd);
+  comp.setText(renderToolHeader("bash", displayCmd, theme));
+  return comp;
 }
 
 /**
@@ -111,7 +181,7 @@ export function renderBashResult(
     ctx.state = state;
   }
 
-  if (ctx?.executionStarted && state.startedAt === undefined) {
+  if ((ctx?.executionStarted || options.isPartial) && state.startedAt === undefined) {
     state.startedAt = Date.now();
   }
 
@@ -158,26 +228,31 @@ export function renderBashResult(
 
   if (!options.expanded) {
     // Collapsed view:
-    // `<status> <command in muted grey in one line truncated> (<time running>)`
+    // `<status> <timer> (timeout: <timeout value>)`
     const statusGlyph = options.isPartial
       ? theme.fg("warning", "▸")
       : isError
         ? theme.fg("error", "✗")
         : theme.fg("success", "✓");
 
-    const rawCmd = typeof ctx?.args?.command === "string" ? ctx.args.command : "";
-    const oneLineCmd = rawCmd.replace(/[\r\n]+/g, " ");
-    const truncatedCmd = oneLineCmd.length > 70 ? oneLineCmd.slice(0, 70) + "…" : oneLineCmd;
-    const styledCmd = theme.fg("muted", truncatedCmd);
-    const styledDuration = theme.fg("dim", `(${formatDuration(elapsed)})`);
+    const timeout = ctx?.args?.timeout ?? state.timeout;
+    const timeoutSuffix =
+      typeof timeout === "number" && Number.isFinite(timeout)
+        ? theme.fg("dim", ` (timeout: ${timeout}s)`)
+        : "";
 
-    textComponent.setText(`${statusGlyph} ${styledCmd} ${styledDuration}`);
+    const styledDuration = theme.fg("muted", formatDuration(elapsed));
+
+    textComponent.setText(`${statusGlyph} ${styledDuration}${timeoutSuffix}`);
     return textComponent;
   }
 
   // Expanded view:
   const parts: string[] = [];
-  const rawCmd = typeof ctx?.args?.command === "string" ? ctx.args.command : "";
+  const rawCmd =
+    typeof ctx?.args?.command === "string"
+      ? ctx.args.command
+      : (state.command ?? "");
   parts.push(theme.fg("dim", "$ ") + theme.fg("toolOutput", rawCmd));
 
   const textBlocks = Array.isArray(res?.content)
