@@ -1,4 +1,6 @@
-import { WebConfig } from "../config.js";
+import type { WebConfig } from "../config.js";
+
+export type { WebConfig };
 
 export interface SearchResultItem {
   title: string;
@@ -12,9 +14,8 @@ export interface SearchOptions {
   recencyFilter?: string;
   domainFilter?: string[];
   proxy?: string;
+  provider?: string;
 }
-
-export { WebConfig };
 
 export interface SearchProvider {
   id: string;

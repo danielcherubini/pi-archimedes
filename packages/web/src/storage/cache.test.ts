@@ -28,10 +28,10 @@ describe('cache', () => {
       ids.push(storeResponse({ type: 'search', content: `content ${i}` }));
     }
     
-    expect(getResponse(ids[0])).toBeUndefined();
+    expect(getResponse(ids[0]!)).toBeUndefined();
     
     for (let i = 1; i <= 50; i++) {
-      expect(getResponse(ids[i])).toBeDefined();
+      expect(getResponse(ids[i]!)).toBeDefined();
     }
   });
 });

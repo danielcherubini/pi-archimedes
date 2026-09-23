@@ -4,11 +4,9 @@ import { loadConfig } from '../config.js';
 export async function safeFetch(
   url: string,
   init?: RequestInit,
-  options?: { proxy?: string; maxRedirects?: number; allowPrivateOrigin?: string; timeout?: number }
+  options?: { proxy?: string; allowPrivateOrigin?: string; maxRedirects?: number }
 ): Promise<Response> {
-  const config = loadConfig();
   const maxRedirects = options?.maxRedirects ?? 5;
-  const timeout = options?.timeout ?? 15000;
   let currentUrl = url;
   let currentMethod = init?.method ?? 'GET';
   let currentBody = init?.body;
@@ -17,20 +15,19 @@ export async function safeFetch(
   while (redirects <= maxRedirects) {
     await assertSafeUrl(currentUrl, { allowUrl: options?.allowPrivateOrigin });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    const headers = new Headers(init?.headers);
-
-    const response = await fetch(currentUrl, {
+    const fetchInit: RequestInit = {
       ...init,
       method: currentMethod,
-      body: currentBody,
-      headers,
+      body: currentBody ?? null,
       redirect: 'manual',
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+      signal: AbortSignal.any([
+        init?.signal ?? new AbortController().signal,
+        AbortSignal.timeout(15_000),
+      ]),
+    };
+    if (currentBody === undefined) delete fetchInit.body;
+
+    const response = await fetch(currentUrl, fetchInit);
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
@@ -40,9 +37,11 @@ export async function safeFetch(
 
       // Handle Cross-Origin
       if (nextUrl.origin !== new URL(currentUrl).origin) {
+        const headers = new Headers(init?.headers);
         headers.delete('authorization');
         headers.delete('x-subscription-token');
         headers.delete('cookie');
+        init = { ...init, headers };
 
         if ((response.status === 301 || response.status === 302 || response.status === 303) && currentMethod === 'POST') {
           currentMethod = 'GET';
@@ -55,9 +54,6 @@ export async function safeFetch(
       continue;
     }
 
-    // Byte limit handling (streaming)
-    // Note: This requires Node.js environment or specific browser fetch impl
-    // For simplicity, we assume we return the response and caller handles streaming
     return response;
   }
 

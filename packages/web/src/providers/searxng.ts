@@ -8,7 +8,7 @@ export const SearXNGProvider: SearchProvider = {
   search: async (query, options, config) => {
     if (!config.searxngUrl) throw new Error('SearXNG URL not configured');
 
-    const response = await safeFetch(`${config.searxngUrl}/search?format=json&q=${encodeURIComponent(query)}`, {
+    const response = await safeFetch(`${config.searxngUrl}/search?format=json&q=${encodeURIComponent(query)}`, undefined, {
       allowPrivateOrigin: config.searxngUrl
     });
 

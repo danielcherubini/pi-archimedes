@@ -43,7 +43,7 @@ export function isPrivateIp(ip: string): boolean {
   return blockList.check(address, family);
 }
 
-export async function assertSafeUrl(urlString: string, options?: { allowUrl?: string }): Promise<void> {
+export async function assertSafeUrl(urlString: string, options?: { allowUrl?: string | undefined }): Promise<void> {
   const url = new URL(urlString);
 
   if (options?.allowUrl) {

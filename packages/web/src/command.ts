@@ -28,7 +28,7 @@ export function registerCommand(pi: ExtensionAPI) {
             ctx.ui.notify("Usage: /web search <query>");
             return;
           }
-          await ctx.pi.executeTool("web_search", { query });
+          await ctx.ui.notify("Error: executeTool not available");
           break;
         }
         default:
