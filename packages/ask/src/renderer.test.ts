@@ -117,6 +117,24 @@ describe("renderer", () => {
 		expect(text.getText()).toBe("[success] auth: OAuth, cache: Redis");
 	});
 
+	it("renderAskResult sanitizes multiline and control characters in collapsed status row", () => {
+		const text = createMockText();
+		const result = {
+			details: {
+				results: [{
+					id: "note\n1",
+					question: "q",
+					options: ["Option\r\nLine"],
+					multi: false,
+					selectedOptions: ["Option\r\nLine\x00"],
+					customInput: "Line 1\nLine 2\t\x07extra"
+				}]
+			}
+		};
+		renderAskResult(result, {}, mockTheme, { lastComponent: text });
+		expect(text.getText()).toBe("[success] Option Line + Other: \"Line 1 Line 2 extra\"");
+	});
+
 	it("renderAskResult cancelled renders (cancelled)", () => {
 		const text = createMockText();
 		const result = {

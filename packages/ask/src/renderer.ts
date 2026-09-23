@@ -58,6 +58,14 @@ export function formatExpandedBreakdown(results: QuestionResult[], isCancelled: 
 	).join("\n\n");
 }
 
+function sanitizeForStatusRow(value: string): string {
+	return value
+		.replace(/[\r\n\t]/g, " ")
+		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+		.replace(/\s{2,}/g, " ")
+		.trim();
+}
+
 export function renderAskCall(args: unknown, theme: Theme, context?: unknown): Text {
 	const text = reuseText(context as RenderContext | undefined);
 	try {
@@ -87,12 +95,13 @@ export function renderAskResult(result: unknown, options: RenderOptions = {}, th
 		} else {
 			if (isPartial) text.setText(renderStatusLabel("running", "waiting for input...", theme));
 			else if (isCancelled) text.setText(renderStatusLabel("error", "(cancelled)", theme));
-			else if (isError) text.setText(renderStatusLabel("error", errorMessage ?? "failed", theme));
+			else if (isError) text.setText(renderStatusLabel("error", sanitizeForStatusRow(errorMessage ?? "failed"), theme));
 			else if (results.length === 1) {
 				const first = results[0];
-				text.setText(renderStatusLabel("success", first ? formatSelectionForSummary(first) : "(unknown)", theme));
+				const label = sanitizeForStatusRow(first ? formatSelectionForSummary(first) : "(unknown)");
+				text.setText(renderStatusLabel("success", label, theme));
 			} else if (results.length > 1) {
-				const summary = results.map((r) => `${r.id}: ${formatSelectionForSummary(r)}`).join(", ");
+				const summary = sanitizeForStatusRow(results.map((r) => `${r.id}: ${formatSelectionForSummary(r)}`).join(", "));
 				text.setText(renderStatusLabel("success", summary, theme));
 			} else {
 				text.setText(renderStatusLabel("error", "failed", theme));
