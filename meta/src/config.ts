@@ -51,6 +51,7 @@ export const DEFAULT_DIFF_CONFIG: DiffConfig = {
   diffTheme: "github-dark",
   diffSplitMinWidth: 150,
   diffSplitMinCodeWidth: 60,
+  diffSplitWrapCheck: true,
 };
 
 const NAMESPACE = "archimedes.diff";

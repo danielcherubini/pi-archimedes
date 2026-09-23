@@ -43,13 +43,14 @@ The renderer displays `edit` and `write` tool changes in the tool UI, including 
 
 ## Appearance
 
-Standalone, the renderer runs on fixed defaults — the `github-dark` theme, a 150-column minimum for split view, and 60 code columns per side — and it does **not** read settings, because standalone has no config reader. In the [suite](https://github.com/danielcherubini/pi-archimedes), its `archimedes.diff` namespace supplies the same three values (`diffTheme`, `diffSplitMinWidth`, `diffSplitMinCodeWidth`) through the suite's config reader:
+Standalone, the renderer runs on fixed defaults — the `github-dark` theme, a 150-column minimum for split view, 60 code columns per side, and line-wrap safety checks enabled — and it does **not** read settings, because standalone has no config reader. In the [suite](https://github.com/danielcherubini/pi-archimedes), its `archimedes.diff` namespace supplies the settings through the suite's config reader:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `diffTheme` | string | `github-dark` | Shiki syntax-highlighting theme |
 | `diffSplitMinWidth` | number | `150` | Minimum terminal columns for split view (≥ 100) |
 | `diffSplitMinCodeWidth` | number | `60` | Minimum code columns per side in split view (≥ 30) |
+| `diffSplitWrapCheck` | boolean | `true` | Fall back to unified view when lines wrap (>20% or ≥8 lines) |
 
 The palette is derived from the chosen Shiki theme; it does **not** automatically pick up Pi's active theme colours. If you want a different look, pick a closer theme rather than expecting a live match.
 

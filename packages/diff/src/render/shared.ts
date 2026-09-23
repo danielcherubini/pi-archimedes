@@ -14,22 +14,32 @@ export const MAX_HL_CHARS = 80_000;
 export const WORD_DIFF_MIN_SIM = 0.15;
 const SPLIT_MAX_WRAP_RATIO = 0.2;
 const SPLIT_MAX_WRAP_LINES = 8;
-const MAX_WRAP_ROWS_WIDE = 3;
-const MAX_WRAP_ROWS_MED = 2;
-const MAX_WRAP_ROWS_NARROW = 1;
+const MAX_WRAP_ROWS_WIDE = 5;
+const MAX_WRAP_ROWS_MED = 4;
+const MAX_WRAP_ROWS_NARROW = 2;
 export const DEFAULT_TERM_WIDTH = 200;
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-export function getConfig(): { diffSplitMinWidth: number; diffSplitMinCodeWidth: number } {
+export interface DiffRenderConfig {
+	diffSplitMinWidth: number;
+	diffSplitMinCodeWidth: number;
+	diffSplitWrapCheck?: boolean;
+}
+
+export function getConfig(): DiffRenderConfig {
 	return typeof _getConfig === "function" ? _getConfig() : DEFAULT_CONFIG;
 }
 
-const DEFAULT_CONFIG = { diffSplitMinWidth: 150, diffSplitMinCodeWidth: 60 };
-let _getConfig: (() => { diffSplitMinWidth: number; diffSplitMinCodeWidth: number }) | undefined;
-export function setConfigGetter(fn: () => { diffSplitMinWidth: number; diffSplitMinCodeWidth: number }): void {
+const DEFAULT_CONFIG: DiffRenderConfig = {
+	diffSplitMinWidth: 150,
+	diffSplitMinCodeWidth: 60,
+	diffSplitWrapCheck: true,
+};
+let _getConfig: (() => DiffRenderConfig) | undefined;
+export function setConfigGetter(fn: () => DiffRenderConfig): void {
 	_getConfig = fn;
 }
 
@@ -38,8 +48,8 @@ export function setConfigGetter(fn: () => { diffSplitMinWidth: number; diffSplit
 // ---------------------------------------------------------------------------
 
 export function adaptiveWrapRows(w: number): number {
-	if (w >= 180) return MAX_WRAP_ROWS_WIDE;
-	if (w >= 120) return MAX_WRAP_ROWS_MED;
+	if (w >= 80) return MAX_WRAP_ROWS_WIDE;
+	if (w >= 45) return MAX_WRAP_ROWS_MED;
 	return MAX_WRAP_ROWS_NARROW;
 }
 
@@ -111,6 +121,8 @@ export function shouldUseSplit(diff: ParsedDiff, tw: number, maxRows = MAX_PREVI
 	// with what the renderer will actually use.
 	const cw = Math.max(1, half - gw);
 	if (cw < cfg.diffSplitMinCodeWidth) return false;
+
+	if (cfg.diffSplitWrapCheck === false) return true;
 
 	const vis = diff.lines.slice(0, maxRows);
 	let contentLines = 0, wrapCandidates = 0;
