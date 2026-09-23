@@ -12,7 +12,26 @@ export async function extractGitHub(url: string): Promise<ExtractedDoc> {
   const parsed = parseGitHubUrl(url);
   if (!parsed) return await extractReadable(await (await safeFetch(url)).text(), url, 200);
 
-  const response = await safeFetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`);
+  const { owner, repo, subType, subId } = parsed;
+
+  if (subType === 'blob') {
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${subId}`;
+    const response = await safeFetch(rawUrl);
+    if (response.ok) {
+      const text = await response.text();
+      return { title: `${owner}/${repo} - ${subId}`, url, markdown: `\`\`\`\n${text}\n\`\`\``, wordCount: text.split(/\s+/).length, status: 200, extractor: 'github' };
+    }
+  } else if (subType === 'issues' || subType === 'pull') {
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${subId}`;
+    const response = await safeFetch(apiUrl);
+    if (response.ok) {
+      const data = await response.json();
+      const markdown = `## ${data.title}\n\n**State:** ${data.state}\n\n${data.body}`;
+      return { title: data.title, url, markdown, wordCount: markdown.split(/\s+/).length, status: 200, extractor: 'github' };
+    }
+  }
+
+  const response = await safeFetch(`https://api.github.com/repos/${owner}/${repo}`);
   if (!response.ok) {
     return await extractReadable(await (await safeFetch(url)).text(), url, response.status);
   }

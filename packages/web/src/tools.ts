@@ -20,6 +20,7 @@ export function registerTools(pi: ExtensionAPI) {
       query: Type.Optional(Type.String()),
       queries: Type.Optional(Type.Array(Type.String())),
       numResults: Type.Optional(Type.Number()),
+      provider: Type.Optional(Type.String()),
       recencyFilter: Type.Optional(Type.String()),
       domainFilter: Type.Optional(Type.Array(Type.String())),
       proxy: Type.Optional(Type.String()),
@@ -105,6 +106,8 @@ export function registerTools(pi: ExtensionAPI) {
         const matches = findPassages(item.content, [params.findText]);
         return { content: [{ type: "text", text: JSON.stringify(matches) }], details: { matches } };
       }
+      
+      if (params.limit === 0) return { content: [{ type: "text", text: "" }], details: { content: "" } };
       
       const content = item.content.slice(params.offset ?? 0, params.limit ? (params.offset ?? 0) + params.limit : undefined);
       return { content: [{ type: "text", text: content }], details: { content } };

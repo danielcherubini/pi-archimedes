@@ -2,7 +2,6 @@ import type { WebConfig, SearchProvider, SearchOptions, SearchResultItem } from 
 import { DuckDuckGoProvider } from './duckduckgo.js';
 import { BraveProvider } from './brave.js';
 import { TavilyProvider } from './tavily.js';
-import { OpenAIProvider } from './openai.js';
 import { PerplexityProvider } from './perplexity.js';
 import { SearXNGProvider } from './searxng.js';
 import pLimit from 'p-limit';
@@ -11,7 +10,6 @@ const ALL_PROVIDERS: SearchProvider[] = [
   BraveProvider,
   TavilyProvider,
   PerplexityProvider,
-  OpenAIProvider,
   SearXNGProvider,
   DuckDuckGoProvider
 ];
@@ -22,15 +20,13 @@ export const resolveProvider = (requested: string | undefined, config: WebConfig
     if (provider) return provider;
   }
   
-  // Custom logic: skip OpenAI in auto-detection unless explicitly requested or configured
-  const autoDetectOrder = ALL_PROVIDERS.filter(p => p.id !== 'openai');
-  
-  if (config.defaultProvider === 'openai') {
-    const provider = ALL_PROVIDERS.find(p => p.id === 'openai');
+  if (config.defaultProvider && config.defaultProvider !== 'auto') {
+    const provider = ALL_PROVIDERS.find(p => p.id === config.defaultProvider);
     if (provider && provider.isAvailable(config)) return provider;
   }
 
-  for (const provider of autoDetectOrder) {
+  // Brave -> Tavily -> Perplexity -> SearXNG -> DuckDuckGo
+  for (const provider of ALL_PROVIDERS) {
     if (provider.isAvailable(config)) return provider;
   }
   
@@ -64,7 +60,12 @@ export const executeSearch = async (
     });
   }
 
-  const unique = Array.from(new Map(merged.map(r => [r.url, r])).values());
+  const unique = Array.from(new Map(merged.map(r => {
+    const url = new URL(r.url);
+    url.hash = '';
+    const canonical = url.toString().replace(/\/$/, '');
+    return [canonical, { ...r, url: canonical }];
+  })).values());
   
   return { provider: provider.id, results: unique };
 };
