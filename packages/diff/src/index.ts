@@ -29,7 +29,7 @@ export interface DiffConfig {
 	diffTheme: string;
 	diffSplitMinWidth: number;
 	diffSplitMinCodeWidth: number;
-	diffSplitWrapCheck: boolean;
+	diffSplitWrapCheck?: boolean;
 }
 
 const DEFAULT_DIFF_CONFIG: DiffConfig = {

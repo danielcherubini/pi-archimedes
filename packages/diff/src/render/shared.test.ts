@@ -1,6 +1,51 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { parseDiff } from "../core/diff.js";
-import { shouldUseSplit, setConfigGetter, getConfig } from "./shared.js";
+import {
+	shouldUseSplit,
+	setConfigGetter,
+	getConfig,
+	adaptiveWrapRows,
+	wrapAnsi,
+} from "./shared.js";
+
+describe("adaptiveWrapRows", () => {
+	it("returns correct row limits at width boundaries", () => {
+		expect(adaptiveWrapRows(44)).toBe(2);
+		expect(adaptiveWrapRows(45)).toBe(4);
+		expect(adaptiveWrapRows(79)).toBe(4);
+		expect(adaptiveWrapRows(80)).toBe(5);
+	});
+});
+
+describe("wrapAnsi", () => {
+	it("wraps lines without exceeding max rows", () => {
+		const str = "a".repeat(100);
+		// w=44 -> adaptiveWrapRows=2
+		const rows = wrapAnsi(str, 44);
+		expect(rows).toHaveLength(2);
+	});
+
+	it("wraps up to the adaptive row limits and emits › when truncated on maxRows", () => {
+		// w=80 -> maxRows=5; input requires > 5 rows
+		const longStr = "x".repeat(80 * 6);
+		const rows = wrapAnsi(longStr, 80);
+		expect(rows).toHaveLength(5);
+		expect(rows[4]).toContain("›");
+
+		// w=44 -> maxRows=2; input requires > 2 rows
+		const narrowLongStr = "y".repeat(44 * 3);
+		const narrowRows = wrapAnsi(narrowLongStr, 44);
+		expect(narrowRows).toHaveLength(2);
+		expect(narrowRows[1]).toContain("›");
+	});
+
+	it("does not emit › when content fits within maxRows", () => {
+		const str = "z".repeat(80 * 3);
+		const rows = wrapAnsi(str, 80);
+		expect(rows).toHaveLength(3);
+		expect(rows[2]).not.toContain("›");
+	});
+});
 
 describe("render shared / shouldUseSplit", () => {
 	beforeEach(() => {
