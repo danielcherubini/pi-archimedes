@@ -22,7 +22,15 @@ export const resolveProvider = (requested: string | undefined, config: WebConfig
     if (provider) return provider;
   }
   
-  for (const provider of ALL_PROVIDERS) {
+  // Custom logic: skip OpenAI in auto-detection unless explicitly requested or configured
+  const autoDetectOrder = ALL_PROVIDERS.filter(p => p.id !== 'openai');
+  
+  if (config.defaultProvider === 'openai') {
+    const provider = ALL_PROVIDERS.find(p => p.id === 'openai');
+    if (provider && provider.isAvailable(config)) return provider;
+  }
+
+  for (const provider of autoDetectOrder) {
     if (provider.isAvailable(config)) return provider;
   }
   

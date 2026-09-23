@@ -26,7 +26,12 @@ export function storeResponse(data: Omit<StoredItem, "id" | "timestamp">): strin
 }
 
 export function getResponse(responseId: string): StoredItem | undefined {
-  return cache.get(responseId);
+  const item = cache.get(responseId);
+  if (item) {
+    cache.delete(responseId);
+    cache.set(responseId, item);
+  }
+  return item;
 }
 
 export function clearCache(): void {

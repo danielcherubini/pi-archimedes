@@ -13,7 +13,9 @@ export function findPassages(
   const windowChars = options?.windowChars ?? 200;
   const results: PassageResult[] = [];
 
-  for (const query of queries) {
+  const validQueries = queries.filter(q => q && q.trim());
+
+  for (const query of validQueries) {
     let index = -1;
     const searchIn = mode === "case-insensitive" ? text.toLowerCase() : text;
     const searchFor = mode === "case-insensitive" ? query.toLowerCase() : query;
@@ -26,7 +28,9 @@ export function findPassages(
         offset: index,
         match: text.substring(index, index + searchFor.length),
       });
+      if (results.length >= 20) break;
     }
+    if (results.length >= 20) break;
   }
 
   return results;

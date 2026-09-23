@@ -5,6 +5,7 @@ import * as fetchModule from '../network/fetch.js';
 describe('pipeline', () => {
   it('should route to readable extractor for generic URLs', async () => {
     vi.spyOn(fetchModule, 'safeFetch').mockResolvedValue({
+      ok: true,
       headers: new Headers({ 'content-type': 'text/html' }),
       text: async () => '<html><body><h1>Hello</h1></body></html>',
     } as any);

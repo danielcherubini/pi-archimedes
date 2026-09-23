@@ -8,12 +8,16 @@ export function reuseText(context?: unknown): Text {
     : new Text("", 0, 0));
 }
 
+export function sanitizeRemoteString(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x1F\x7F]/g, '');
+}
+
 export function sanitizeStatus(text: string): string {
   return text.replace(/[\n\t\r\x00-\x1F\x7F]/g, ' ').trim();
 }
 
 export function sanitizeExpanded(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  return sanitizeRemoteString(text);
 }
 
 export function renderWebSearchCall(args: unknown, theme: Theme, context?: unknown): Text {

@@ -8,7 +8,7 @@ import { extractPDF } from './pdf.js';
 export async function extractContent(
   url: string, 
   mode: "readable" | "raw" | "answer" = 'readable', 
-  options?: { prompt?: string; proxy?: string }
+  options?: { prompt?: string; proxy?: string; signal?: AbortSignal }
 ): Promise<ExtractedDoc> {
   const parsedUrl = new URL(url);
   const hostname = parsedUrl.hostname;
@@ -20,7 +20,13 @@ export async function extractContent(
     return await extractYouTube(url);
   }
   
-  const response = await safeFetch(url, {}, options?.proxy ? { proxy: options.proxy } : undefined);
+  const response = await safeFetch(url, {}, { 
+    proxy: options?.proxy, 
+    signal: options?.signal 
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  }
   const contentType = response.headers.get('content-type') || '';
   
   if (parsedUrl.pathname.endsWith('.pdf') || contentType.includes('application/pdf')) {

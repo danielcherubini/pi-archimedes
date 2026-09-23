@@ -74,14 +74,14 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
 
 ---
 
-## Give your agent some backup.
+## Web Access
+Archimedes includes tools to browse the web and fetch remote content directly in your session.
 
-Have one subagent explore the codebase while another reviews your changes. [Subagents](packages/subagent/README.md) run with your choice of models and tools, stream their progress live into your terminal, and their tasks show up side by side on the [shared todo board](packages/todo/README.md).
+- **Web Search**: Multi-provider search (Brave, Tavily, Perplexity, SearXNG, DuckDuckGo) with provider routing and customisable priority.
+- **Fetch Content**: Robust remote-page content fetching with extractors for GitHub, YouTube, and PDFs.
+- **Content Retrieval**: Stored-content search,passage extraction, and LRU caching for high-performance retrieval.
 
-Their token usage and costs feed into the same status bar. More work happening at once, without losing sight of it.
-
-See the [subagent guide](packages/subagent/README.md) for dispatching, agent definitions, and the `/agents` editor.
-
+See [packages/web/README.md](packages/web/README.md) for detailed tool documentation and configuration.
 <p align="center">
   <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
 </p>
@@ -158,10 +158,10 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 
 | Command | Scope | Notes |
 |---------|-------|-------|
-| `/plugins` | Suite | Toggle the eleven optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
+| `/plugins` | Suite | Toggle the twelve optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
 | `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
 | `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
-| `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
+| `/web`, `/web status` | Web component | Web search and content tools. `/web status` shows provider and cache usage. |
 | `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
 | `/sudo`, `/sudo forget` | Sudo component | Inspect cached credential state; `forget` clears it. |
 | `/reload` | Pi | Applies plugin changes and settings read at startup. |

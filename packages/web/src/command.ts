@@ -18,7 +18,8 @@ export function registerCommand(pi: ExtensionAPI) {
         case "status": {
           const config = loadConfig();
           const provider = resolveProvider(undefined, config);
-          ctx.ui.notify(`Active provider: ${provider.name}`);
+          const stats = getCacheStats();
+          ctx.ui.notify(`Active provider: ${provider.name}\nCache: ${stats.count} items, ${stats.estimatedBytes} bytes`);
           break;
         }
         case "search": {

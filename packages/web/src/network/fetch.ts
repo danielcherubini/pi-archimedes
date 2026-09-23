@@ -1,11 +1,12 @@
 import { assertSafeUrl } from '../security/ssrf.js';
-import { loadConfig } from '../config.js';
 import { ProxyAgent } from 'undici';
+
+const proxyCache = new Map<string, ProxyAgent>();
 
 export async function safeFetch(
   url: string,
   init?: RequestInit,
-  options?: { proxy?: string; allowPrivateOrigin?: string; maxRedirects?: number; signal?: AbortSignal }
+  options?: { proxy?: string | undefined; allowPrivateOrigin?: string; maxRedirects?: number; signal?: AbortSignal | undefined }
 ): Promise<Response> {
   const maxRedirects = options?.maxRedirects ?? 5;
   let currentUrl = url;
@@ -13,7 +14,15 @@ export async function safeFetch(
   let currentBody = init?.body;
   let redirects = 0;
 
-  const dispatcher = options?.proxy ? new ProxyAgent(options.proxy) : undefined;
+  let dispatcher: ProxyAgent | undefined;
+  if (options?.proxy) {
+    await assertSafeUrl(options.proxy);
+    dispatcher = proxyCache.get(options.proxy);
+    if (!dispatcher) {
+      dispatcher = new ProxyAgent(options.proxy);
+      proxyCache.set(options.proxy, dispatcher);
+    }
+  }
 
   while (redirects <= maxRedirects) {
     await assertSafeUrl(currentUrl, { allowUrl: options?.allowPrivateOrigin });
@@ -24,7 +33,7 @@ export async function safeFetch(
       body: currentBody ?? null,
       redirect: 'manual',
       signal: AbortSignal.any([
-        options?.signal ?? new AbortController().signal,
+        ...(options?.signal ? [options.signal] : []),
         AbortSignal.timeout(15_000),
       ] as AbortSignal[]),
       // @ts-ignore
