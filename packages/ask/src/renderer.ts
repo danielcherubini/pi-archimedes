@@ -49,7 +49,7 @@ function extractQuestionResults(result: unknown, context?: RenderContext): { res
 	return { results, isCancelled, isError, errorMessage };
 }
 
-function formatExpandedBreakdown(results: QuestionResult[], isCancelled: boolean, theme: Theme): string {
+export function formatExpandedBreakdown(results: QuestionResult[], isCancelled: boolean, theme: Theme): string {
 	if (isCancelled) return theme.fg("error", "✗ (cancelled)");
 	if (results.length === 0) return theme.fg("muted", "(no details)");
 
@@ -98,7 +98,7 @@ export function renderAskResult(result: unknown, options: RenderOptions = {}, th
 				text.setText(renderStatusLabel("error", "failed", theme));
 			}
 		}
-	} catch (e) {
+	} catch {
 		text.setText("");
 	}
 	return text;
