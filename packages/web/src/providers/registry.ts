@@ -61,10 +61,14 @@ export const executeSearch = async (
   }
 
   const unique = Array.from(new Map(merged.map(r => {
-    const url = new URL(r.url);
-    url.hash = '';
-    const canonical = url.toString().replace(/\/$/, '');
-    return [canonical, { ...r, url: canonical }];
+    try {
+      const url = new URL(r.url);
+      url.hash = '';
+      const canonical = url.toString().replace(/\/$/, '');
+      return [canonical, { ...r, url: canonical }];
+    } catch {
+      return [r.url, r];
+    }
   })).values());
   
   return { provider: provider.id, results: unique };

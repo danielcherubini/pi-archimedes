@@ -23,6 +23,12 @@ export const parseDuckDuckGoHTML = (html: string): SearchResultItem[] => {
       if (url.startsWith('//')) {
         url = 'https:' + url;
       }
+
+      try {
+        new URL(url);
+      } catch {
+        continue;
+      }
       
       results.push({
         url,

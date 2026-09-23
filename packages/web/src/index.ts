@@ -4,8 +4,8 @@ import { registerCommand } from "./command.js";
 import { clearCache } from "./storage/cache.js";
 
 export function registerWeb(pi: ExtensionAPI) {
-  pi.on("session_start", () => clearCache());
   pi.on("session_shutdown", () => clearCache());
+  pi.on("session_start", () => clearCache());
   registerTools(pi);
   registerCommand(pi);
 }
