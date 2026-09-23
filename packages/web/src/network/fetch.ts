@@ -65,9 +65,16 @@ export async function safeFetch(
         headers.delete('x-subscription-token');
         headers.delete('cookie');
         init = { ...init, headers };
-        
+
         // 307/308 MUST NOT change the method or body (RFC 9110)
-        // Only 301/302/303 change methods/bodies
+        // If we redirect to a different origin, we MUST NOT carry the original body
+        // because it contains the API key.
+        if (response.status === 307 || response.status === 308) {
+          currentMethod = 'GET';
+          currentBody = undefined;
+          headers.delete('content-type');
+          init = { ...init, headers };
+        }
       }
       
       if (response.status === 301 || response.status === 302 || response.status === 303) {
