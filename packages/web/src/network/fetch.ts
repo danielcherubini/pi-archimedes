@@ -1,5 +1,5 @@
-import { assertSafeUrl } from '../security/ssrf';
-import { loadConfig } from '../config';
+import { assertSafeUrl } from '../security/ssrf.js';
+import { loadConfig } from '../config.js';
 
 export async function safeFetch(
   url: string,
@@ -14,14 +14,10 @@ export async function safeFetch(
   while (redirects <= maxRedirects) {
     await assertSafeUrl(currentUrl);
 
-    const proxy = options?.proxy ?? config.proxy;
     const fetchOptions: RequestInit = {
       ...init,
       redirect: 'manual',
     };
-
-    // Note: Node's native fetch doesn't directly support `proxy` option in RequestInit
-    // but in a real system we'd use a custom agent. Keeping it simple as per spec.
 
     const response = await fetch(currentUrl, fetchOptions);
 

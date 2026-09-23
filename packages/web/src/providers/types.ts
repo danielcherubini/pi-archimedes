@@ -12,13 +12,7 @@ export interface SearchOptions {
   proxy?: string;
 }
 
-export interface WebConfig {
-  braveApiKey?: string;
-  tavilyApiKey?: string;
-  openaiApiKey?: string;
-  perplexityApiKey?: string;
-  searxngUrl?: string;
-}
+import { WebConfig } from "../config.js";
 
 export interface SearchProvider {
   id: string;

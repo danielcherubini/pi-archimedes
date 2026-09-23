@@ -1,16 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { isPrivateIp, assertSafeUrl } from './ssrf';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { isPrivateIp, assertSafeUrl } from './ssrf.js';
+import dns from 'dns';
 
 describe('SSRF Guard', () => {
   describe('isPrivateIp', () => {
     it('detects loopback addresses', () => {
       expect(isPrivateIp('127.0.0.1')).toBe(true);
+      expect(isPrivateIp('127.255.255.255')).toBe(true);
       expect(isPrivateIp('::1')).toBe(true);
+      expect(isPrivateIp('::')).toBe(true);
     });
 
     it('detects private networks', () => {
       expect(isPrivateIp('10.0.0.1')).toBe(true);
       expect(isPrivateIp('172.16.0.1')).toBe(true);
+      expect(isPrivateIp('172.31.255.255')).toBe(true);
       expect(isPrivateIp('192.168.1.1')).toBe(true);
     });
 
@@ -21,6 +25,13 @@ describe('SSRF Guard', () => {
 
     it('detects IPv6 ULA', () => {
       expect(isPrivateIp('fc00::1')).toBe(true);
+      expect(isPrivateIp('fd00::1')).toBe(true);
+    });
+
+    it('detects IPv4-mapped IPv6', () => {
+        expect(isPrivateIp('::ffff:127.0.0.1')).toBe(true);
+        expect(isPrivateIp('::ffff:10.0.0.1')).toBe(true);
+        expect(isPrivateIp('::ffff:8.8.8.8')).toBe(false);
     });
 
     it('allows public IPs', () => {
@@ -29,6 +40,23 @@ describe('SSRF Guard', () => {
     });
   });
 
-  // Note: assertSafeUrl needs mocking or real network calls. 
-  // We'll trust DNS lookup works as expected for integration.
+  describe('assertSafeUrl', () => {
+    beforeEach(() => {
+        vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    });
+
+    it('throws for localhost', async () => {
+      await expect(assertSafeUrl('http://localhost')).rejects.toThrow();
+      await expect(assertSafeUrl('http://127.0.0.1')).rejects.toThrow();
+    });
+
+    it('throws for private network IPs via DNS', async () => {
+      vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '10.0.0.1', family: 4 }]);
+      await expect(assertSafeUrl('http://some-private-host')).rejects.toThrow();
+    });
+
+    it('allows public URLs', async () => {
+      await expect(assertSafeUrl('http://example.com')).resolves.not.toThrow();
+    });
+  });
 });
