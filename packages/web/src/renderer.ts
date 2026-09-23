@@ -9,7 +9,8 @@ export function reuseText(context?: unknown): Text {
 }
 
 export function sanitizeRemoteString(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x1F\x7F]/g, '');
+  // Strip escape sequences, but allow \n
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F]/g, '');
 }
 
 export function sanitizeStatus(text: string): string {
@@ -35,6 +36,10 @@ export function renderWebSearchCall(args: unknown, theme: Theme, context?: unkno
 
 export function renderWebSearchResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   const text = reuseText(context);
+  if (options?.isPartial) {
+    text.setText(renderStatusLabel("running", "in progress...", theme));
+    return text;
+  }
   try {
     const details = (result as { details?: any })?.details;
     if (!details) {
@@ -78,6 +83,10 @@ export function renderFetchContentCall(args: unknown, theme: Theme, context?: un
 
 export function renderFetchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   const text = reuseText(context);
+  if (options?.isPartial) {
+    text.setText(renderStatusLabel("running", "in progress...", theme));
+    return text;
+  }
   try {
     const details = (result as { details?: any })?.details;
     if (!details) {
@@ -116,6 +125,10 @@ export function renderGetSearchContentCall(args: unknown, theme: Theme, context?
 
 export function renderGetSearchContentResult(result: unknown, options: { expanded?: boolean; isPartial?: boolean }, theme: Theme, context?: unknown): Text {
   const text = reuseText(context);
+  if (options?.isPartial) {
+    text.setText(renderStatusLabel("running", "in progress...", theme));
+    return text;
+  }
   try {
     const details = (result as { details?: any })?.details;
     if (!details) {

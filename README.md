@@ -68,20 +68,29 @@ Then run `/reload` in your session (or start a new one) to pick it up — that r
 
 `/login` signs you into a supported provider (subscription or API key) and `/model` selects a model from it. Model access comes through the providers you configure in Pi — Pi's [provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md) list the supported ones, and Archimedes doesn't ship a model of its own. For the broader first run, Pi's [quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) is worth a read.
 
+## Give your agent some backup.
+
+Have one subagent explore the codebase while another reviews your changes. [Subagents](packages/subagent/README.md) run with your choice of models and tools, stream their progress live into your terminal, and their tasks show up side by side on the [shared todo board](packages/todo/README.md).
+
+Their token usage and costs feed into the same status bar. More work happening at once, without losing sight of it.
+
+See the [subagent guide](packages/subagent/README.md) for dispatching, agent definitions, and the `/agents` editor.
+
 <p align="center">
-  <img src="docs/images/splash-screen.png" width="600" alt="pi-archimedes splash screen">
+  <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
 </p>
 
 ---
 
 ## Web Access
-Archimedes includes tools to browse the web and fetch remote content directly in your session.
 
-- **Web Search**: Multi-provider search (Brave, Tavily, Perplexity, SearXNG, DuckDuckGo) with provider routing and customisable priority.
-- **Fetch Content**: Robust remote-page content fetching with extractors for GitHub, YouTube, and PDFs.
-- **Content Retrieval**: Stored-content search,passage extraction, and LRU caching for high-performance retrieval.
+Browse the web and fetch remote content directly in your session.
 
-See [packages/web/README.md](packages/web/README.md) for detailed tool documentation and configuration.
+- **Web Search**: Multi-provider search (Brave, Tavily, Perplexity, SearXNG, DuckDuckGo) with automatic failover and multi-query concurrency.
+- **Fetch Content**: SSRF-protected content fetching with specialized extractors for HTML readability, GitHub repos/issues/PRs, YouTube transcripts, and PDFs.
+- **Content Retrieval**: Stored-content search, passage extraction, and session-scoped LRU caching.
+
+See the [web guide](packages/web/README.md) for detailed tool documentation and configuration.
 <p align="center">
   <img src="docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
 </p>
@@ -161,6 +170,7 @@ Only want the diffs, footer, or MCP tools? Each component is available separatel
 | `/plugins` | Suite | Toggle the twelve optional extensions (core is always on and not toggleable). Toggles persist immediately; `/reload` (or a fresh session) applies them. |
 | `/archimedes` | Suite | Interactive settings panel — up/down moves, left/right changes values, Enter edits supported fields, `s` saves, Esc discards the current edits. Settings captured at startup need `/reload`. Not every setting has a panel control. |
 | `/agents` | Suite, subagent enabled | Browse, create, and edit custom subagent definitions in `.pi/agents/*.md`. |
+| `/todos` | Todo component | Refreshes the todo widget and reports its status. `/todos clear` clears the list. (The board's visibility is not a `/todos` toggle — see the [todo docs](packages/todo/README.md).) |
 | `/web`, `/web status` | Web component | Web search and content tools. `/web status` shows provider and cache usage. |
 | `/mcp`, `/mcp setup` | MCP component | Manage servers and run logins; the setup wizard scaffolds `.mcp.json` or imports configs from Cursor, Claude Code, Claude Desktop, or VS Code. |
 | `/sudo`, `/sudo forget` | Sudo component | Inspect cached credential state; `forget` clears it. |
