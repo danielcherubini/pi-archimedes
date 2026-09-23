@@ -59,6 +59,10 @@ export async function assertSafeUrl(urlString: string, options?: { allowUrl?: st
 
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   
+  if (hostname.toLowerCase() === 'localhost') {
+    throw new Error('SSRF protection: access to private network address blocked');
+  }
+
   if (isIP(hostname)) {
     if (isPrivateIp(hostname)) {
       throw new Error('SSRF protection: access to private network address blocked');

@@ -1,7 +1,5 @@
 import { assertSafeUrl } from '../security/ssrf.js';
 import { ProxyAgent } from 'undici';
-import dns from 'dns';
-import { isPrivateIp } from '../security/ssrf.js';
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const proxyCache = new Map<string, ProxyAgent>();
@@ -29,16 +27,9 @@ export async function safeFetch(
   }
 
   while (redirects <= maxRedirects) {
+    await assertSafeUrl(currentUrl, { allowUrl: options?.allowPrivateOrigin });
+
     const parsedUrl = new URL(currentUrl);
-    
-    // DNS Rebinding protection
-    const lookup = await dns.promises.lookup(parsedUrl.hostname, { all: true });
-    const addrs = Array.isArray(lookup) ? lookup : [lookup];
-    for (const addr of addrs) {
-      if (isPrivateIp(addr.address) && options?.allowPrivateOrigin !== parsedUrl.origin) {
-        throw new Error('SSRF protection: access to private network address blocked');
-      }
-    }
 
     const fetchInit: any = {
       ...init,
