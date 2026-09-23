@@ -42,7 +42,7 @@ describe('SSRF Guard', () => {
 
   describe('assertSafeUrl', () => {
     beforeEach(() => {
-        vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+        vi.spyOn(dns.promises, 'lookup').mockImplementation(async () => { return { address: '93.184.216.34', family: 4 } as dns.LookupAddress; });
     });
 
     it('throws for localhost', async () => {
@@ -51,7 +51,7 @@ describe('SSRF Guard', () => {
     });
 
     it('throws for private network IPs via DNS', async () => {
-      vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '10.0.0.1', family: 4 }]);
+      vi.spyOn(dns.promises, 'lookup').mockImplementation(async () => { return { address: '10.0.0.1', family: 4 } as dns.LookupAddress; });
       await expect(assertSafeUrl('http://some-private-host')).rejects.toThrow();
     });
 

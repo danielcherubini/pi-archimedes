@@ -1,10 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { parseDuckDuckGoHTML } from './duckduckgo';
+import { describe, it, expect, vi } from 'vitest';
+import { DuckDuckGoProvider } from './duckduckgo.js';
+import * as fetchModule from '../network/fetch.js';
 
-describe('DuckDuckGo parser', () => {
-  it('should parse basic results', () => {
-    const html = '<html><body><div class="result__body"><a class="result__a" href="https://example.com">Example</a><div class="result__snippet">Snippet</div></div></body></html>';
-    const results = parseDuckDuckGoHTML(html);
+describe('DuckDuckGoProvider', () => {
+  it('should fetch and parse', async () => {
+    vi.spyOn(fetchModule, 'safeFetch').mockResolvedValue({
+      text: async () => '<div class="result__body"><a class="result__a" href="https://example.com">Example</a><div class="result__snippet">Snippet</div></div>',
+    } as any);
+
+    const results = await DuckDuckGoProvider.search('test', { numResults: 1 }, {} as any);
     expect(results).toHaveLength(1);
     expect(results[0]?.url).toBe('https://example.com');
   });

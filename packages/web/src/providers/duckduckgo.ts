@@ -1,4 +1,5 @@
-import type { SearchProvider, SearchOptions, WebConfig, SearchResultItem } from './types';
+import { safeFetch } from '../network/fetch.js';
+import type { SearchProvider, SearchOptions, WebConfig, SearchResultItem } from './types.js';
 
 export const parseDuckDuckGoHTML = (html: string): SearchResultItem[] => {
   const results: SearchResultItem[] = [];
@@ -20,7 +21,14 @@ export const DuckDuckGoProvider: SearchProvider = {
   id: 'duckduckgo',
   name: 'DuckDuckGo',
   isAvailable: () => true,
-  search: async (query, options, config) => {
-    return [];
+  search: async (query, options, _config) => {
+    const response = await safeFetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    const html = await response.text();
+    const results = parseDuckDuckGoHTML(html);
+    return results.slice(0, options.numResults ?? 5);
   }
 };

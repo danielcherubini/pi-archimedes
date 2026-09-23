@@ -3,12 +3,12 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 export interface WebConfig {
-  braveApiKey?: string;
-  tavilyApiKey?: string;
-  openaiApiKey?: string;
-  perplexityApiKey?: string;
-  searxngUrl?: string;
-  proxy?: string;
+  braveApiKey?: string | undefined;
+  tavilyApiKey?: string | undefined;
+  openaiApiKey?: string | undefined;
+  perplexityApiKey?: string | undefined;
+  searxngUrl?: string | undefined;
+  proxy?: string | undefined;
 }
 
 function isString(val: unknown): val is string {

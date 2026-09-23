@@ -18,6 +18,9 @@ export async function safeFetch(
       ...init,
       redirect: 'manual',
     };
+    if (options?.proxy) {
+        // Mock proxy handling
+    }
 
     const response = await fetch(currentUrl, fetchOptions);
 

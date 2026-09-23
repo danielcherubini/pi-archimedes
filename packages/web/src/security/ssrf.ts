@@ -13,8 +13,10 @@ export function isPrivateIp(ip: string): boolean {
     // 10.0.0.0/8
     if (ip.startsWith('10.')) return true;
     // 172.16.0.0/12
-    const parts = ip.split('.').map(Number);
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    const parts = ip.split('.');
+    const first = parts[0] ? parseInt(parts[0], 10) : NaN;
+    const second = parts[1] ? parseInt(parts[1], 10) : NaN;
+    if (first === 172 && second >= 16 && second <= 31) return true;
     // 192.168.0.0/16
     if (ip.startsWith('192.168.')) return true;
     // 169.254.0.0/16
@@ -34,8 +36,9 @@ export function isPrivateIp(ip: string): boolean {
   // fe80::/10
   if (ip.toLowerCase().startsWith('fe8')) {
     // Check if within fe80::/10 (fe80 to febf)
-    const firstPart = parseInt(ip.split(':')[0], 16);
-    if (firstPart >= 0xfe80 && firstPart <= 0xfebf) return true;
+    const firstPartStr = ip.split(':')[0];
+    const firstPart = firstPartStr ? parseInt(firstPartStr, 16) : NaN;
+    if (!isNaN(firstPart) && firstPart >= 0xfe80 && firstPart <= 0xfebf) return true;
   }
   // fc00::/7
   if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true;
@@ -52,7 +55,7 @@ export async function assertSafeUrl(urlString: string): Promise<void> {
   }
 
   const result = await dns.promises.lookup(hostname, { all: true });
-  for (const entry of result) {
+  for (const entry of (Array.isArray(result) ? result : [result]) as dns.LookupAddress[]) {
     if (isPrivateIp(entry.address)) {
       throw new Error('SSRF protection: access to private network address blocked');
     }

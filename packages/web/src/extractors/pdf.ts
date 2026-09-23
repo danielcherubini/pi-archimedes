@@ -1,11 +1,15 @@
-import type { ExtractedDoc } from './types';
+import type { ExtractedDoc } from './types.js';
+import { extractText } from 'unpdf';
 
-export async function extractPDF(buffer: Buffer, url: string): Promise<ExtractedDoc> {
+export async function extractPDF(buffer: ArrayBuffer, url: string): Promise<ExtractedDoc> {
+  const result = await extractText(buffer, { mergePages: true });
+  const text = result.text as string;
+  
   return {
     title: 'PDF Document',
     url,
-    markdown: 'PDF content',
-    wordCount: 2,
+    markdown: text,
+    wordCount: text.split(/\s+/).length,
     status: 200,
     extractor: 'pdf',
   };
