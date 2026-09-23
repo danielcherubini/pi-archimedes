@@ -1,4 +1,4 @@
-import type { WebConfig, SearchProvider, SearchOptions, SearchResultItem } from './types';
+import type { WebConfig, SearchProvider, SearchOptions, SearchResultItem } from './types.js';
 import { DuckDuckGoProvider } from './duckduckgo';
 import { BraveProvider } from './brave';
 import { TavilyProvider } from './tavily';

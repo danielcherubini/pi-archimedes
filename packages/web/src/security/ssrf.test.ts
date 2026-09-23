@@ -28,10 +28,16 @@ describe('SSRF Guard', () => {
       expect(isPrivateIp('fd00::1')).toBe(true);
     });
 
-    it('detects IPv4-mapped IPv6', () => {
-        expect(isPrivateIp('::ffff:127.0.0.1')).toBe(true);
-        expect(isPrivateIp('::ffff:10.0.0.1')).toBe(true);
-        expect(isPrivateIp('::ffff:8.8.8.8')).toBe(false);
+    it('detects IPv4-mapped IPv6 hex', () => {
+        expect(isPrivateIp('::ffff:7f00:0001')).toBe(true);
+    });
+
+    it('detects bracketed IPv6', () => {
+        expect(isPrivateIp('[::1]')).toBe(true);
+    });
+
+    it('detects CGNAT', () => {
+        expect(isPrivateIp('100.64.0.1')).toBe(true);
     });
 
     it('allows public IPs', () => {

@@ -1,25 +1,4 @@
-export interface SearchResultItem {
-  title: string;
-  url: string;
-  snippet: string;
-  publishedDate?: string;
-}
-
-export interface SearchOptions {
-  numResults?: number;
-  recencyFilter?: string;
-  domainFilter?: string[];
-  proxy?: string;
-}
-
-export interface WebConfig {
-  braveApiKey?: string | undefined;
-  tavilyApiKey?: string | undefined;
-  openaiApiKey?: string | undefined;
-  perplexityApiKey?: string | undefined;
-  searxngUrl?: string | undefined;
-  proxy?: string | undefined;
-}
+import { WebConfig } from "../config.js";
 
 export interface SearchResultItem {
   title: string;
@@ -34,6 +13,8 @@ export interface SearchOptions {
   domainFilter?: string[];
   proxy?: string;
 }
+
+export { WebConfig };
 
 export interface SearchProvider {
   id: string;

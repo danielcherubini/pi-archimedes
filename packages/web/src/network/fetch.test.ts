@@ -20,7 +20,7 @@ describe('safeFetch', () => {
 
     await safeFetch('http://example.com');
 
-    expect(ssrf.assertSafeUrl).toHaveBeenCalledWith('http://example.com');
+    expect(ssrf.assertSafeUrl).toHaveBeenCalledWith('http://example.com', expect.any(Object));
     expect(fetch).toHaveBeenCalled();
   });
 
@@ -38,7 +38,7 @@ describe('safeFetch', () => {
     await safeFetch('http://example.com');
 
     expect(ssrf.assertSafeUrl).toHaveBeenCalledTimes(2);
-    expect(ssrf.assertSafeUrl).toHaveBeenNthCalledWith(2, 'http://redirected.com/');
+    expect(ssrf.assertSafeUrl).toHaveBeenNthCalledWith(2, 'http://redirected.com/', expect.any(Object));
   });
 
   it('throws on too many redirects', async () => {
