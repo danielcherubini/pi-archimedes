@@ -21,7 +21,6 @@ blockList.addRange('198.18.0.0', '198.19.255.255', 'ipv4');
 blockList.addRange('192.0.0.0', '192.0.0.255', 'ipv4');
 blockList.addRange('224.0.0.0', '239.255.255.255', 'ipv4');
 blockList.addRange('240.0.0.0', '255.255.255.255', 'ipv4');
-blockList.addSubnet('::ffff:0:0', 96, 'ipv6');
 blockList.addRange('ff00::', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'ipv6');
 
 export function isPrivateIp(ip: string): boolean {
