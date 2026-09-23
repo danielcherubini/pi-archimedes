@@ -15,6 +15,7 @@ export interface SearchOptions {
   domainFilter?: string[];
   proxy?: string;
   provider?: string;
+  signal?: AbortSignal | undefined;
 }
 
 export interface SearchProvider {

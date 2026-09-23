@@ -26,14 +26,16 @@ export function registerTools(pi: ExtensionAPI) {
     }),
     renderCall: renderWebSearchCall,
     renderResult: renderWebSearchResult,
-    execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+    execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
       const config = loadConfig();
       const queries = params.queries ?? (params.query ? [params.query] : []);
+      const proxy = params.proxy ?? config.proxy;
       const { provider, results } = await executeSearch(queries, {
         ...(params.numResults !== undefined && { numResults: params.numResults }),
         ...(params.recencyFilter !== undefined && { recencyFilter: params.recencyFilter }),
         ...(params.domainFilter !== undefined && { domainFilter: params.domainFilter }),
-        ...(params.proxy !== undefined && { proxy: params.proxy }),
+        ...(proxy !== undefined && { proxy }),
+        signal
       }, config);
       
       const summary = results.map(r => `[${r.title}](${r.url})`).join('\n');
@@ -62,10 +64,13 @@ export function registerTools(pi: ExtensionAPI) {
     }),
     renderCall: renderFetchContentCall,
     renderResult: renderFetchContentResult,
-    execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+    execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
+      const config = loadConfig();
+      const proxy = params.proxy ?? config.proxy;
       const doc = await extractContent(params.url, params.mode ?? "readable", { 
         ...(params.prompt !== undefined && { prompt: params.prompt }),
-        ...(params.proxy !== undefined && { proxy: params.proxy })
+        ...(proxy !== undefined && { proxy }),
+        signal: signal ?? undefined
       });
       const responseId = storeResponse({
         type: "fetch",

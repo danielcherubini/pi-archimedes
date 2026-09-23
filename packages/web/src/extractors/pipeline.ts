@@ -8,7 +8,7 @@ import { extractPDF } from './pdf.js';
 export async function extractContent(
   url: string, 
   mode: "readable" | "raw" | "answer" = 'readable', 
-  options?: { prompt?: string; proxy?: string; signal?: AbortSignal }
+  options?: { prompt?: string; proxy?: string; signal?: AbortSignal | undefined }
 ): Promise<ExtractedDoc> {
   const parsedUrl = new URL(url);
   const hostname = parsedUrl.hostname;
@@ -31,6 +31,7 @@ export async function extractContent(
   
   if (parsedUrl.pathname.endsWith('.pdf') || contentType.includes('application/pdf')) {
     const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > 5 * 1024 * 1024) throw new Error('SSRF protection: response body too large');
     return await extractPDF(buffer, url);
   }
 
@@ -38,6 +39,7 @@ export async function extractContent(
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   
   if (mode === 'raw') {
+    if (text.length > 5 * 1024 * 1024) throw new Error('SSRF protection: response body too large');
     return { title: 'Raw Content', url, markdown: text, wordCount, status: response.status, extractor: 'raw' };
   }
   
