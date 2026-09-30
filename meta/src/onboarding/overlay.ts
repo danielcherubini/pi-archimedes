@@ -224,8 +224,12 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
         const marker = i === (cursorByStep[3] ?? 0) ? "> " : "  ";
         const preview = spinFrame(name, tick);
         lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
-        // Slight vertical spacing between the spinner options.
-        lines.push("");
+        // Slight vertical spacing between the spinner options — one blank line
+        // after each option (the single explicit push below the loop covers the
+        // last option, so no in-loop blank after it: that would double it).
+        if (i < opts.spinners.length - 1) {
+          lines.push("");
+        }
       }
       lines.push("");
       lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish (skip rest) ", width - 2, theme));

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { SPINNER_STYLES } from "@pi-archimedes/ui/config";
 import { createOnboardingOverlay, type OnboardingResult } from "./overlay.js";
 import type { OverlayTheme } from "@pi-archimedes/core/overlay";
 
@@ -296,6 +297,23 @@ describe("createOnboardingOverlay", () => {
     }
   });
 
+  // (g3) The 10-option spinner step renders a specific total height (border +
+  // content) — documents the ~30-line height so a future change that adds or
+  // removes lines (e.g. the per-option spacing) is caught. Content: 4 header
+  // lines + question + blank + 10 options + 9 in-between blanks + separator
+  // blank + footer = 27; the border adds top + bottom = 29 total.
+  it("spinner step with the 10 real SPINNER_STYLES renders exactly 29 lines", () => {
+    const { comp } = makeOverlay({ spinners: SPINNER_STYLES });
+    toStep(comp, 3);
+    const lines = comp.render(80);
+    expect(SPINNER_STYLES).toHaveLength(10);
+    expect(lines).toHaveLength(29);
+    // Every one of the 10 names is rendered.
+    for (const name of SPINNER_STYLES) {
+      expect(lines.find((l) => l.includes(name))).toBeDefined();
+    }
+  });
+
   // (h) When requestRender is provided, the 40 ms interval fires it and the
   // rendered preview advances (tick increments).
   it("with requestRender: the interval fires it and the preview advances", () => {
@@ -385,6 +403,35 @@ describe("createOnboardingOverlay", () => {
     const result = resultOf(onDone);
     expect(result.spinnerAnswered).toBe(true);
     expect(result.spinnerValue).toBe(""); // empty list → empty value, no crash
+  });
+
+  // (l2) Down-arrow clamps at the BOTTOM of a 2-option step (the Math.min(count-1, …)
+  // ceiling) — repeated DOWN keeps the cursor at the last option, never past it.
+  it("down-arrow clamps the cursor at the last option of a 2-option step", () => {
+    const { comp } = makeOverlay({ thinkingDefault: "Full" });
+    comp.handleInput(DOWN); // Full → Compact (index 1)
+    comp.handleInput(DOWN); // already at the last option → stays 1
+    const lines = comp.render(80);
+    expect(lines.find((l) => l.includes("Compact"))).toContain("> Compact");
+    expect(lines.find((l) => l.includes("Full"))).not.toContain("> Full");
+  });
+
+  // (c3) space toggles the plugin at the MOVED cursor (not always index 0).
+  it("space on step 2 toggles the plugin at the moved cursor (index 1, not 0)", () => {
+    const { comp, onDone } = makeOverlay({
+      plugins: [
+        { id: "ui", label: "UI", description: "TUI", selected: true },
+        { id: "diff", label: "Diff", description: "Diff", selected: false },
+      ],
+    });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2 (plugins, cursor at index 0 = ui)
+    comp.handleInput(DOWN); // move to index 1 = diff
+    comp.handleInput(SPACE); // toggle diff: false → true (ui stays true)
+    comp.handleInput(ESC); // finalize
+    expect(onDone).toHaveBeenCalledTimes(1);
+    const result = resultOf(onDone);
+    expect(result.pluginSelections).toEqual({ ui: true, diff: true });
   });
 
   // (n) The header area carries a static next-session note on every step —
