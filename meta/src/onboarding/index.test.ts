@@ -49,7 +49,7 @@ vi.mock("@pi-archimedes/core/settings-io", () => {
 
 const settingsIo = await import("@pi-archimedes/core/settings-io");
 const mockStore = (settingsIo as unknown as { __store: Record<string, Record<string, unknown>> }).__store;
-const { updateConfig } = settingsIo;
+const { loadConfig, updateConfig } = settingsIo;
 
 // ── Mock the ui config module (the pre-selection source) ─────────────────
 
@@ -164,6 +164,31 @@ describe("runOnboarding gates", () => {
     const { ctx, custom } = makeCtx("rpc");
     await runOnboarding(ctx);
     expect(custom).not.toHaveBeenCalled();
+    // "marker not consumed" verified: the marker was NOT written — the store's
+    // archimedes.meta stays untouched (a later TUI session still gets the
+    // onboarding). No settings write of any kind happened either.
+    expect(mockStore["archimedes.meta"]).toBeUndefined();
+    expect(vi.mocked(updateConfig)).not.toHaveBeenCalled();
+  });
+
+  it("re-checks the marker after the defer (a concurrent session may have set it)", async () => {
+    // Simulate the marker being set BETWEEN the two loadConfig reads: the first
+    // read (gate 2) still sees it unset (as a side effect, the concurrent
+    // session sets it), so the post-defer re-check (the second read) sees it
+    // set and bails before opening the overlay.
+    vi.mocked(loadConfig)
+      .mockImplementationOnce(() => {
+        mockStore["archimedes.meta"] = { onboarded: true };
+        return { onboarded: false } as object;
+      })
+      .mockImplementationOnce(
+        ((ns: string, defaults: object) =>
+          ({ ...defaults, ...(mockStore[ns] ?? {}) } as object)) as typeof loadConfig,
+      );
+    const { ctx, custom } = makeCtx("tui");
+    await runOnboarding(ctx);
+    expect(custom).not.toHaveBeenCalled(); // the re-check caught it
+    expect(captured.onDone).toBeUndefined();
   });
 
   it("does not open the overlay when the marker is already set", async () => {

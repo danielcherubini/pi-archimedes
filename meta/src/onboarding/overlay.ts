@@ -70,7 +70,16 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
   // The live spinner-preview tick (the spinner step renders `spinFrame(name, tick)` next to each name); only advances when a repaint hook is provided.
   let tick = 0;
   const onTick = opts.requestRender;
-  const timer = onTick ? setInterval(() => { tick += 1; onTick(); }, 40) : undefined;
+  // Only the spinner step (2) renders a live frame — don't advance the tick or
+  // request a repaint while the user is on the style/plugin steps.
+  const timer = onTick
+    ? setInterval(() => {
+        if (activeStep === 2) {
+          tick += 1;
+          onTick();
+        }
+      }, 40)
+    : undefined;
 
   function optionsCountForStep(step: number): number {
     if (step === 0) return STYLE_OPTIONS.length;
@@ -81,6 +90,9 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
   function finalize(): void {
     if (finalized) return;
     finalized = true;
+    // Belt-and-braces: stop the interval the moment the wizard is done (in case
+    // the TUI tears down without calling dispose()).
+    if (timer) clearInterval(timer);
     const styleIdx = cursorByStep[0] ?? 0;
     const spinnerIdx = cursorByStep[2] ?? 0;
     const pluginSelections: Record<string, boolean> = {};
@@ -105,9 +117,14 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       return;
     }
     if (matchesKey(data, Key.down)) {
-      cursorByStep[activeStep] = Math.min(
-        optionsCountForStep(activeStep) - 1,
-        (cursorByStep[activeStep] ?? 0) + 1,
+      // Math.max(0, …): with an empty options list the min() bound alone is -1,
+      // which would drive the cursor negative (same discipline as the up clamp).
+      cursorByStep[activeStep] = Math.max(
+        0,
+        Math.min(
+          optionsCountForStep(activeStep) - 1,
+          (cursorByStep[activeStep] ?? 0) + 1,
+        ),
       );
       return;
     }
@@ -177,7 +194,7 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
         lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
       }
       lines.push("");
-      lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish ", width - 2, theme));
+      lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish (skip rest) ", width - 2, theme));
     }
 
     return wrapWithBorder(lines, width, theme);

@@ -229,11 +229,79 @@ describe("createOnboardingOverlay", () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const { comp } = makeOverlay({ requestRender });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2 (the interval only ticks here)
     vi.advanceTimersByTime(40);
     expect(requestRender).toHaveBeenCalledTimes(1);
     comp.dispose();
     vi.advanceTimersByTime(400);
     expect(requestRender).toHaveBeenCalledTimes(1); // no further calls
+  });
+
+  // (j) The interval only ticks on the spinner step — the style/plugin steps
+  // render no live frame, so no repaint is requested (and no tick advances)
+  // while the user is off the spinner step.
+  it("the interval only ticks on the spinner step (no repaint on the other steps)", () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const { comp } = makeOverlay({ requestRender });
+    vi.advanceTimersByTime(400);
+    expect(requestRender).not.toHaveBeenCalled(); // step 0: no repaint
+    comp.handleInput(ENTER); // step 0 → 1
+    vi.advanceTimersByTime(400);
+    expect(requestRender).not.toHaveBeenCalled(); // step 1: no repaint
+    comp.handleInput(ENTER); // step 1 → 2
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(2);
+    const lines = comp.render(80);
+    expect(lines.join("\n")).toContain(previewAt("typing", 2)); // tick advanced here
+  });
+
+  // (k) finalize() stops the interval (belt-and-braces — in case the TUI tears
+  // down without calling dispose()).
+  it("finalize() stops the interval (no repaint after the wizard is done)", () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const { comp, onDone } = makeOverlay({ requestRender });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+    comp.handleInput(ENTER); // step 2 → finalize
+    expect(onDone).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(400);
+    expect(requestRender).toHaveBeenCalledTimes(1); // the interval was cleared in finalize
+  });
+
+  // (l) With an empty options list the cursor is clamped at 0 — the min() bound
+  // alone could drive it to -1 (zero options → bound -1); Math.max(0, …) keeps it
+  // non-negative (finalize then yields a valid empty value, not a crash).
+  it("down-arrow with an empty options list keeps the cursor non-negative", () => {
+    const { comp, onDone } = makeOverlay({ spinners: [] });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2 (empty spinner list)
+    comp.handleInput(DOWN); // must stay at 0, never -1
+    comp.handleInput(DOWN);
+    comp.handleInput(UP);
+    comp.handleInput(ENTER); // finalize
+    expect(onDone).toHaveBeenCalledTimes(1);
+    const result = resultOf(onDone);
+    expect(result.spinnerAnswered).toBe(true);
+    expect(result.spinnerValue).toBe(""); // empty list → empty value, no crash
+  });
+
+  // (m) The spinner-step footer makes the esc skip/discard semantics explicit —
+  // esc finalizes and reports ONLY the confirmed steps (the unconfirmed ones
+  // are skipped, not applied), so the hint must not read like "keep my changes".
+  it("spinner step footer makes the esc skip/discard semantics explicit", () => {
+    const { comp } = makeOverlay();
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2
+    const footer = comp.render(80).find((l) => l.includes("esc"));
+    expect(footer).toBeDefined();
+    expect(footer).toContain("finish (skip rest)");
   });
 });
 
