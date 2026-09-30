@@ -16,7 +16,7 @@ export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 export type OutputStyle = "Full" | "Compact";
 export const OUTPUT_STYLE_VALUES: readonly OutputStyle[] = ["Full", "Compact"] as const;
 
-export const SPINNER_STYLES: readonly string[] = [
+export const SPINNER_STYLES: readonly SpinnerStyle[] = [
   "typing",
   "pulse",
   "rain",

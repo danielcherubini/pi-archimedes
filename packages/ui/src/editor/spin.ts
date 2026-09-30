@@ -402,7 +402,7 @@ export function shadeForMask(mask: number): string {
 }
 
 /** One 4-cell frame of a spinner style at `step` (stateless — for previews). Resolves the style (unknown → typing), wraps `step` into the cycle, applies the `hold` clamp (beat styles), and renders the 4 braille cells (or the width-1 EAW shading fallback). */
-export function spinFrame(style: SpinnerStyle, step: number, probe: (s: string) => number = visibleWidth): string {
+export function spinFrame(style: SpinnerStyle | string, step: number, probe: (s: string) => number = visibleWidth): string {
   const resolved = normalizeSpinnerStyle(style);
   const cfg = SPIN_VARIANTS[resolved]!;
   const s = ((step % cfg.steps) + cfg.steps) % cfg.steps;

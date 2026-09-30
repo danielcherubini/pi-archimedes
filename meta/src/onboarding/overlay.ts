@@ -173,7 +173,7 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       for (let i = 0; i < opts.spinners.length; i++) {
         const name = opts.spinners[i] ?? "";
         const marker = i === (cursorByStep[2] ?? 0) ? "> " : "  ";
-        const preview = spinFrame(name as never, tick);
+        const preview = spinFrame(name, tick);
         lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
       }
       lines.push("");
