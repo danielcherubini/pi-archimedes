@@ -7,6 +7,7 @@ import {
   type OverlayTheme,
 } from "@pi-archimedes/core/overlay";
 import type { OutputStyle } from "@pi-archimedes/ui/config";
+import { spinFrame } from "@pi-archimedes/ui/editor";
 
 /**
  * The onboarding modal's result. Each `*Answered` flag tells the orchestrator
@@ -31,6 +32,8 @@ export interface OnboardingOverlayOptions {
   plugins: { id: string; label: string; description: string; selected: boolean }[];
   spinners: readonly string[];
   spinnerDefault: string;
+  /** The TUI repaint hook (the `ui.custom` factory's `tui.requestRender`) — when provided, the spinner step's live 4-cell previews animate on a 40 ms tick; without it the previews are static (tick 0) and no timer runs. */
+  requestRender?: () => void;
   onDone: (result: OnboardingResult) => void;
 }
 
@@ -64,6 +67,10 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
   const pluginToggles: boolean[] = opts.plugins.map((p) => p.selected);
   const confirmed: boolean[] = [false, false, false];
   let finalized = false;
+  // The live spinner-preview tick (the spinner step renders `spinFrame(name, tick)` next to each name); only advances when a repaint hook is provided.
+  let tick = 0;
+  const onTick = opts.requestRender;
+  const timer = onTick ? setInterval(() => { tick += 1; onTick(); }, 40) : undefined;
 
   function optionsCountForStep(step: number): number {
     if (step === 0) return STYLE_OPTIONS.length;
@@ -166,7 +173,8 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       for (let i = 0; i < opts.spinners.length; i++) {
         const name = opts.spinners[i] ?? "";
         const marker = i === (cursorByStep[2] ?? 0) ? "> " : "  ";
-        lines.push(padEnd(`${marker}${name}`, width - 2));
+        const preview = spinFrame(name as never, tick);
+        lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
       }
       lines.push("");
       lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish ", width - 2, theme));
@@ -180,6 +188,8 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
     render,
     handleInput,
     invalidate(): void {},
-    dispose(): void {},
+    dispose(): void {
+      if (timer) clearInterval(timer);
+    },
   };
 }

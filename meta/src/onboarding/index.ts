@@ -70,13 +70,15 @@ export async function runOnboarding(ctx: ExtensionContext): Promise<void> {
     }
   };
 
-  await ctx.ui.custom((_tui, theme, _keybindings, done) => {
+  await ctx.ui.custom((tui, theme, _keybindings, done) => {
     return createOnboardingOverlay({
       theme,
       styleDefault: normalizeOutputStyle(ui.thinkingStyle),
       plugins,
       spinners: SPINNER_STYLES,
       spinnerDefault: ui.editorSpinStyle,
+      // The live spinner previews animate on a 40 ms tick (the TUI does not repaint on a global timer — the component owns the timer and asks for a repaint).
+      requestRender: () => tui.requestRender(),
       onDone: (result: OnboardingResult) => {
         finish(result);
         done(undefined);

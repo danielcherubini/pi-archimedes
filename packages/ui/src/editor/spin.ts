@@ -401,6 +401,28 @@ export function shadeForMask(mask: number): string {
   return "█";
 }
 
+/** One 4-cell frame of a spinner style at `step` (stateless — for previews). Resolves the style (unknown → typing), wraps `step` into the cycle, applies the `hold` clamp (beat styles), and renders the 4 braille cells (or the width-1 EAW shading fallback). */
+export function spinFrame(style: SpinnerStyle, step: number, probe: (s: string) => number = visibleWidth): string {
+  const resolved = normalizeSpinnerStyle(style);
+  const cfg = SPIN_VARIANTS[resolved]!;
+  const s = ((step % cfg.steps) + cfg.steps) % cfg.steps;
+  const idx = cfg.hold > 0 ? Math.min(s, cfg.steps - cfg.hold) - 1 : s;
+  if (idx < 0) return " ".repeat(4);
+  const braille = probe("⣿") === 1;
+  return cfg
+    .compute(idx)
+    .map((m) =>
+      m === 0
+        ? " "
+        : braille
+          ? String.fromCharCode(0x2800 + m)
+          : resolved === "typing"
+            ? STAGE_SHADE[STAGE_MASKS.indexOf(m)] ?? " "
+            : shadeForMask(m),
+    )
+    .join("");
+}
+
 /** The border-row spin spinner: a style-configured 4-cell window (the gallery-derived styles in `SPIN_VARIANTS` — batch 1: `typing` — the 8 chart-order stages in 2-step line pairs, then holds, clears, repeats) that fills frame by frame per the style's `compute`; repainted exactly once on the busy→idle transition. Owns the busy/idle tick machine and the precomputed frame table; the editor keeps the timer (style's native tempo × speed mult, 32 ms floor), the guards, and the border-row assembly. Grabbiness is chosen via the same probe as today: `visibleWidth("⣿") === 1` → braille path, otherwise the EAW path — for the typed style that is the existing stage-index shade lookup (byte-identical to the old frames), for other (port) styles the density tier via `shadeForMask`. */
 export class BorderTypeSpinner {
   /** The 4-cell window width inside the border row — both stage sets are 1 wide per stage char. */

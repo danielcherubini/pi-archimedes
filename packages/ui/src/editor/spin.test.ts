@@ -6,6 +6,7 @@ import {
   STAGE_MASKS,
   normalizeSpinnerStyle,
   shadeForMask,
+  spinFrame,
 } from "./spin.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -698,5 +699,65 @@ describe("typing compute round-trip (SPIN_VARIANTS.typing)", () => {
           .join(""),
       ).toBe("░░░░");
     });
+  });
+});
+
+// ── 5. spinFrame: the stateless preview frame (live onboarding previews) ───
+// One 4-cell frame of a style at a given step — mirrors the BorderTypeSpinner
+// frame resolution (hold clamp + the EAW width-1 fallback), stateless so all
+// ten previews can animate at once. Explicit `probe` arg for determinism.
+
+describe("spinFrame (stateless 4-cell preview frame)", () => {
+  it("probe → 1 (braille): typing at step 0 is a 4-char string (the blank beat, 4 spaces)", () => {
+    const f = spinFrame("typing", 0, () => 1);
+    expect(f).toHaveLength(4);
+    expect(f).toBe("    ");
+  });
+
+  it("probe → 1 (braille): a non-typing style (pulse) renders 4 braille chars from its raw masks", () => {
+    const pulse = SPIN_VARIANTS.pulse!;
+    const expected = pulse
+      .compute(0)
+      .map((m) => (m === 0 ? " " : String.fromCharCode(0x2800 + m)))
+      .join("");
+    expect(spinFrame("pulse", 0, () => 1)).toBe(expected);
+    expect(spinFrame("pulse", 0, () => 1)).toHaveLength(4);
+  });
+
+  it("probe → 1 (braille): typing mid-step — the grown cells appear (step 8: all 4 cells ⠉; step 17: ⠟⠛⠛⠛)", () => {
+    expect(spinFrame("typing", 8, () => 1)).toBe("⠉⠉⠉⠉");
+    expect(spinFrame("typing", 17, () => 1)).toBe("⠟⠛⠛⠛");
+  });
+
+  it("probe → 2 (EAW): typing uses the STAGE_SHADE width-1 lookup (░ → █), no braille", () => {
+    expect(spinFrame("typing", 1, () => 2)).toBe("░   ");
+    expect(spinFrame("typing", 8, () => 2)).toBe("░░░░");
+    expect(spinFrame("typing", 17, () => 2)).toBe("▒░░░");
+    expect(spinFrame("typing", 32, () => 2)).toBe("████");
+  });
+
+  it("probe → 2 (EAW): a non-typing style (pulse) uses the shadeForMask density tier (░▓▓░)", () => {
+    expect(spinFrame("pulse", 0, () => 2)).toBe("░▓▓░");
+  });
+
+  it("hold clamp: typing (hold 6) at step 37 (past the fill walk) clamps to the last grown frame, not an out-of-range index", () => {
+    expect(spinFrame("typing", 37, () => 1)).toBe("⣿⣿⣿⣿");
+    for (const s of [33, 34, 35, 36, 37]) {
+      expect(spinFrame("typing", s, () => 1)).toBe("⣿⣿⣿⣿");
+    }
+  });
+
+  it("modulo wrap: step 38 wraps to step 0 (the blank beat) — identical to step 0; step 45 wraps to step 7", () => {
+    expect(spinFrame("typing", 38, () => 1)).toBe(spinFrame("typing", 0, () => 1));
+    expect(spinFrame("typing", 45, () => 1)).toBe("⠉⠉⠉⠁"); // 45 % 38 = 7 → step 7
+  });
+
+  it("an unknown style normalizes to typing (identical frames)", () => {
+    expect(spinFrame("bogus" as never, 0, () => 1)).toBe(
+      spinFrame("typing", 0, () => 1),
+    );
+    expect(spinFrame("bogus" as never, 8, () => 1)).toBe(
+      spinFrame("typing", 8, () => 1),
+    );
   });
 });

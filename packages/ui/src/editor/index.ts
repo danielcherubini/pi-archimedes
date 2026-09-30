@@ -23,6 +23,7 @@ import {
 } from "@pi-archimedes/core/chrome";
 import { isParentBorder, formatKey } from "@pi-archimedes/core/text";
 import { SPIN_INTERVALS, BorderTypeSpinner } from "./spin.js";
+export { spinFrame } from "./spin.js";
 import { pickQuip, QUIP_ROTATION_MAX_SECS, QUIP_ROTATION_MIN_SECS } from "./spin-quips.js";
 import { SPIN_SPEED_MULT, type UIConfig, type SpinnerStyle } from "../config.js";
 

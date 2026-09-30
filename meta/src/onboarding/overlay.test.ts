@@ -1,6 +1,22 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createOnboardingOverlay, type OnboardingResult } from "./overlay.js";
 import type { OverlayTheme } from "@pi-archimedes/core/overlay";
+
+// The live-preview seam: a deterministic 4-char string that varies with `tick`
+// (so the tests can verify the frame advances) — the real spinFrame is the
+// stateless 4-cell frame resolver in @pi-archimedes/ui/editor.
+vi.mock("@pi-archimedes/ui/editor", () => ({
+  spinFrame: vi.fn((style: string, tick: number) => {
+    const c = 0x2800 + ((tick % 8) + (style.length % 4));
+    return String.fromCharCode(c) + "⣷⣾⣽";
+  }),
+}));
+
+// Mirrors the mock above — the expected preview for a style at a tick.
+const previewAt = (style: string, tick: number): string => {
+  const c = 0x2800 + ((tick % 8) + (style.length % 4));
+  return String.fromCharCode(c) + "⣷⣾⣽";
+};
 
 // A plain-object theme satisfying the structural OverlayTheme (no ANSI — the
 // `fg` mock returns its input verbatim, so rendered lines are plain text).
@@ -21,6 +37,7 @@ function makeOverlay(opts: {
   plugins?: PluginSeed[];
   spinners?: readonly string[];
   spinnerDefault?: string;
+  requestRender?: () => void;
 } = {}) {
   const onDone = vi.fn<(result: OnboardingResult) => void>();
   const comp = createOnboardingOverlay({
@@ -33,6 +50,10 @@ function makeOverlay(opts: {
       ],
     spinners: opts.spinners ?? ["typing", "pulse", "rain"],
     spinnerDefault: opts.spinnerDefault ?? "pulse",
+    // exactOptionalPropertyTypes: only pass the key when defined.
+    ...(opts.requestRender !== undefined
+      ? { requestRender: opts.requestRender }
+      : {}),
     onDone,
   });
   return { comp, onDone };
@@ -163,4 +184,60 @@ describe("createOnboardingOverlay", () => {
     const result = resultOf(onDone);
     expect(result.styleValue).toBe("Full"); // never wrapped to a negative index
   });
+
+  // (g) The spinner step renders a live 4-char preview next to each name
+  // (tick 0 — no requestRender means no timer, so the frame is static).
+  it("spinner step renders a 4-char preview next to each name", () => {
+    const { comp } = makeOverlay({ spinners: ["typing", "pulse", "rain"] });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2
+    const lines = comp.render(80);
+    expect(lines.join("\n")).toContain("Which spinner for the editor border?");
+    for (const name of ["typing", "pulse", "rain"]) {
+      const line = lines.find((l) => l.includes(name));
+      expect(line).toBeDefined();
+      expect(line).toContain(previewAt(name, 0));
+    }
+  });
+
+  // (h) When requestRender is provided, the 40 ms interval fires it and the
+  // rendered preview advances (tick increments).
+  it("with requestRender: the interval fires it and the preview advances", () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const { comp } = makeOverlay({ requestRender });
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(ENTER); // step 1 → 2 (spinner step)
+    const beforeLines = comp.render(80);
+    expect(beforeLines.join("\n")).toContain(previewAt("typing", 0));
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(2);
+    const afterLines = comp.render(80);
+    expect(afterLines.join("\n")).toContain(previewAt("typing", 2));
+    // The typing line's frame advanced (the previews are live, not static).
+    const typingBefore = beforeLines.find((l) => l.includes("typing"));
+    const typingAfter = afterLines.find((l) => l.includes("typing"));
+    expect(typingAfter).toBeDefined();
+    expect(typingBefore).toBeDefined();
+    expect(typingAfter).not.toBe(typingBefore);
+  });
+
+  // (i) dispose() stops the interval — no more requestRender calls after close.
+  it("dispose() stops the interval (no more requestRender calls)", () => {
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const { comp } = makeOverlay({ requestRender });
+    vi.advanceTimersByTime(40);
+    expect(requestRender).toHaveBeenCalledTimes(1);
+    comp.dispose();
+    vi.advanceTimersByTime(400);
+    expect(requestRender).toHaveBeenCalledTimes(1); // no further calls
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
 });
