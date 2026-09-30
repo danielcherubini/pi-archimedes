@@ -75,8 +75,19 @@ function markPromptDone(ctx: ExtensionContext): void {
  * tears down). This counts as a decline — the flag is set and the offer will
  * not appear again. To reset it, delete `archimedes.imagePaste.keybindingsPromptDone`
  * from `~/.pi/agent/settings.json`.
+ *
+ * **Return contract:** resolves `true` iff the offer triggered a successful
+ * `ctx.reload()` (the successful-accept path on a ctx that exposes `reload()`
+ * and the reload completed). Every other outcome — the gates (1–4), decline,
+ * a failed file write, the file-exists race, a base-shape ctx without
+ * `reload` (manual /reload hint), and a reload that itself failed (the TUI
+ * shows its own "Reload failed" and the session continues on the still-valid
+ * ctx) — resolves `false`. The meta factory uses this to sequence the
+ * first-run flows: if `true`, the reloaded session runs the flow again (where
+ * the offer is a no-op — keybindings.json now exists), so it skips the
+ * onboarding on the now-stale ctx.
  */
-export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
+export async function offerKeybindingFix(ctx: ExtensionContext): Promise<boolean> {
   // Gate 1: extension on.
   // NOTE: reading archimedes.imagePaste.enabled in-package is a sanctioned
   // exception to the AGENTS.md "Plugin on/off" rule and ADR 0012 — this
@@ -84,24 +95,24 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
   // registration, so there is no registration gate to catch it here.
   // See docs/decisions/0012-plugin-gate-in-package-namespace.md § Exception.
   if (!isConfigEnabled(NAMESPACE)) {
-    return;
+    return false;
   }
 
   // Gate 2: interactive TUI only. Deliberate: the flag is NOT consumed in
   // non-TUI modes, so a later TUI session still gets the offer.
   if (ctx.mode !== "tui") {
-    return;
+    return false;
   }
 
   // Gate 3: not yet consumed
   if (loadConfig<PromptConfig>(NAMESPACE, { ...PROMPT_DEFAULTS }).keybindingsPromptDone === true) {
-    return;
+    return false;
   }
 
   // Gate 4: file absent — never merge into or rewrite an existing user file
   const keybindingsPath = join(getAgentDir(), "keybindings.json");
   if (existsSync(keybindingsPath)) {
-    return;
+    return false;
   }
 
   // Gate 5: ask (confirm signature is TITLE first — docs/extensions.md:165)
@@ -111,7 +122,7 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
   // as decline): set the flag and do nothing else.
   if (!confirmed) {
     markPromptDone(ctx);
-    return;
+    return false;
   }
 
   // Yes: write the file atomically (tmp + rename) — strictly BEFORE the flag
@@ -130,7 +141,7 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
         // ignore
       }
       markPromptDone(ctx);
-      return;
+      return false;
     }
     renameSync(tmpPath, keybindingsPath);
   } catch (error) {
@@ -145,7 +156,7 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
       `Could not create keybindings.json: ${messageOf(error)}`,
       "warning",
     );
-    return;
+    return false;
   }
 
   // File written successfully → THEN set the flag (deliberately after the
@@ -170,11 +181,18 @@ export async function offerKeybindingFix(ctx: ExtensionContext): Promise<void> {
     ctx.ui.notify(CREATED_NOTIFY, "info");
     try {
       await reload();
+      // The reload completed: the reloaded session runs the flow again (where
+      // the offer is a no-op — keybindings.json now exists), so report that a
+      // reload was triggered and the caller can skip the onboarding on this
+      // now-stale ctx.
+      return true;
     } catch {
       // Swallowed on purpose: the TUI shows its own "Reload failed" status;
-      // the offer never throws.
+      // the offer never throws. The reload FAILED, so the session continues on
+      // the still-valid ctx → report `false` (the onboarding still runs).
+      return false;
     }
-  } else {
-    ctx.ui.notify(CREATED_RELOAD_HINT, "info");
   }
+  ctx.ui.notify(CREATED_RELOAD_HINT, "info");
+  return false;
 }

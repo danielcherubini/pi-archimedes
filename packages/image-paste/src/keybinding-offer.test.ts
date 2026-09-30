@@ -174,7 +174,11 @@ describe("offerKeybindingFix — gate matrix", () => {
       if (outcome === "yes") confirm.mockResolvedValue(true);
       else confirm.mockResolvedValue(false); // no + cancel: confirm resolves false
 
-      await offerKeybindingFix(ctx);
+      // All matrix rows use a base-shape ctx (no reload), so the offer
+      // resolves `false` — the `true` contract is covered by the
+      // auto-reload branch tests below.
+      const result = await offerKeybindingFix(ctx);
+      expect(result).toBe(false);
 
       const shouldAsk =
         enabled === true &&
@@ -251,7 +255,8 @@ describe("flag write preserves existing settings", () => {
     });
     const { ctx, confirm } = makeCtx("tui");
     confirm.mockResolvedValue(outcome === "yes");
-    await offerKeybindingFix(ctx);
+    // Base-shape ctx (no reload) → resolves `false` on both outcomes.
+    expect(await offerKeybindingFix(ctx)).toBe(false);
   }
 
   it("yes: snippet file written; other archimedes.imagePaste keys survive the flag set", async () => {
@@ -291,7 +296,8 @@ describe("file write throws → flag stays false (self-heals next session)", () 
     const { ctx, confirm, notify } = makeCtx("tui");
     confirm.mockResolvedValue(true);
 
-    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+    // Write failed → the offer never reloaded → `false`.
+    await expect(offerKeybindingFix(ctx)).resolves.toBe(false);
 
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(fs.existsSync(keybindingsPath())).toBe(false);
@@ -316,7 +322,8 @@ describe("flag write throws → notify, no crash (file write already succeeded)"
     const { ctx, confirm, notify } = makeCtx("tui");
     confirm.mockResolvedValue(true);
 
-    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+    // Base-shape ctx (no reload) → `false`, even though the file was written.
+    await expect(offerKeybindingFix(ctx)).resolves.toBe(false);
 
     // The file write strictly precedes the flag set and survived:
     expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
@@ -343,7 +350,9 @@ describe("accept with base-shape ctx (no reload)", () => {
     const { ctx, confirm, notify } = makeCtx("tui");
     confirm.mockResolvedValue(true);
 
-    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+    // No reload on this ctx → the user is told to run /reload manually,
+    // so the offer did NOT trigger a reload → `false`.
+    await expect(offerKeybindingFix(ctx)).resolves.toBe(false);
 
     // File written with the exact snippet
     expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
@@ -390,8 +399,10 @@ describe("auto-reload branch (future Pi with reload on the event ctx)", () => {
       if ((args[0] as string) === CREATED_NOTIFY) order.push("notify");
     });
 
-    await offerKeybindingFix(ctx);
+    const result = await offerKeybindingFix(ctx);
 
+    // The successful accept + reload() path resolves `true`
+    expect(result).toBe(true);
     // reload called exactly once
     expect(reload).toHaveBeenCalledTimes(1);
     // flag was already set when reload ran
@@ -411,14 +422,15 @@ describe("auto-reload branch (future Pi with reload on the event ctx)", () => {
   it("no path: reload NOT called", async () => {
     const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(false);
-    await offerKeybindingFix(ctx);
+    // Decline: no reload → `false`.
+    expect(await offerKeybindingFix(ctx)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 
   it("cancel (resolves false) path: reload NOT called", async () => {
     const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(false); // Esc/timeout: same as no
-    await offerKeybindingFix(ctx);
+    expect(await offerKeybindingFix(ctx)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 
@@ -427,7 +439,7 @@ describe("auto-reload branch (future Pi with reload on the event ctx)", () => {
     fs.mkdirSync(tmpPath(), { recursive: true });
     const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
-    await offerKeybindingFix(ctx);
+    expect(await offerKeybindingFix(ctx)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 
@@ -450,16 +462,19 @@ describe("auto-reload branch (future Pi with reload on the event ctx)", () => {
 
     const { ctx, confirm, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
-    await offerKeybindingFix(ctx);
+    expect(await offerKeybindingFix(ctx)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it("reload rejects: offer still resolves, flag persisted, file present, CREATED_NOTIFY emitted", async () => {
+  it("reload rejects: offer still resolves (false), flag persisted, file present, CREATED_NOTIFY emitted", async () => {
     const { ctx, confirm, notify, reload } = makeCtx("tui", { withReload: true });
     confirm.mockResolvedValue(true);
     reload!.mockRejectedValue(new Error("Reload failed"));
 
-    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+    // The reload FAILED: the TUI shows its own "Reload failed" status and the
+    // session continues on the (still-valid) ctx, so the offer reports `false`
+    // — the onboarding still runs on this session.
+    await expect(offerKeybindingFix(ctx)).resolves.toBe(false);
 
     // File must have been written
     expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(SNIPPET);
@@ -502,7 +517,8 @@ describe("concurrent creation is never clobbered", () => {
     const { ctx, confirm, notify } = makeCtx("tui");
     confirm.mockResolvedValue(true);
 
-    await expect(offerKeybindingFix(ctx)).resolves.toBeUndefined();
+    // The offer ended before the reload step → `false`.
+    await expect(offerKeybindingFix(ctx)).resolves.toBe(false);
 
     // The concurrently created file is never clobbered by the snippet
     expect(fs.readFileSync(keybindingsPath(), "utf-8")).toBe(CONCURRENT_CONTENT);

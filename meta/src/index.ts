@@ -16,10 +16,10 @@ import { registerNotify } from "@pi-archimedes/notify";
 import { registerSessionName } from "@pi-archimedes/session-name";
 import { registerSudo } from "@pi-archimedes/sudo";
 // Light module from the image-paste package (no heavy deps) — the offer
-// gates are self-contained, so it is statically imported and runs in its
-// own top-level session_start handler, independent of the lazy-load.
+// gates are self-contained, so it is statically imported and sequenced in
+// the first-run session_start handler below, before the lazy-load.
 import { offerKeybindingFix } from "@pi-archimedes/image-paste/keybinding-offer";
-import { registerOnboarding } from "./onboarding/index.js";
+import { runOnboarding } from "./onboarding/index.js";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 import { registerPluginsCommand } from "./plugin-manager.js"
@@ -85,40 +85,34 @@ export default function (pi: ExtensionAPI): void {
     archPrintTimings();
   });
 
-  // First-run keybinding offer (see the module doc in
-  // packages/image-paste/src/keybinding-offer.ts). Registered at top level
-  // (AGENTS.md), and placed BEFORE the lazy-load handler below: the
-  // module's own gates (config enabled → TUI → flag unset → file absent
-  // → confirm) are self-contained, so ordering with that handler is not a
-  // correctness issue.
+  // First-run flows, sequenced in ONE handler (see the module docs in
+  // packages/image-paste/src/keybinding-offer.ts and meta/src/onboarding/
+  // index.ts): the keybinding offer (if any) fully resolves BEFORE the
+  // onboarding overlay shows — no stacked first-run dialogs.
   //
   // Deliberately NOT gated with isPluginEnabled("image-paste"): that call
   // resolves to isConfigEnabled("archimedes.imagePaste") (ADR 0012), which
   // is exactly the same key the module's own gate 1 already checks — adding
   // a wrapper here would be a redundant duplicate of the identical check.
-  // This handler runs unconditionally on every session_start; the module's
-  // five gates make it a no-op when not applicable.
-  pi.on("session_start", (_event, ctx: ExtensionContext) => {
-    // Fire-and-forget: the offer is async (it may block on a user
-    // confirm) and must never block or take down session startup — any
-    // throw is logged, never propagated.
+  // This handler runs unconditionally on every session_start; the offer's
+  // five gates (and the onboarding's two) make it a no-op when not
+  // applicable.
+  pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+    // The offer may block on a user confirm; it must never fail session
+    // startup — any throw is logged, never propagated.
+    let reloaded = false;
     try {
-      void offerKeybindingFix(ctx).catch((e) => {
-        console.error("[archimedes] keybinding offer failed:", e);
-      });
+      reloaded = await offerKeybindingFix(ctx);
     } catch (e) {
       console.error("[archimedes] keybinding offer failed:", e);
     }
+    // If the offer triggered a reload, the fresh session runs this handler
+    // again (where the offer is a no-op — keybindings.json now exists), so
+    // do NOT run the onboarding on the now-stale ctx.
+    if (reloaded) return;
+    void runOnboarding(ctx).catch((err) => console.error("[archimedes] onboarding failed:", err));
   });
-
-  // First-run onboarding (meta/src/onboarding/index.ts). Registered at top
-  // level (AGENTS.md), placed AFTER the keybinding-offer handler above and
-  // BEFORE the lazy-load handler below, mirroring that offer's precedent:
-  // a top-level session_start handler, fire-and-forget, and deliberately
-  // NOT gated with isPluginEnabled — the module's own gates (TUI mode →
-  // marker unset) make it a no-op when not applicable.
-  registerOnboarding(pi);
-  archTime("registerOnboarding");
+  archTime("first-run handler");
 
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     archTime(`session_start (factory was ${Date.now() - _moduleEvalAt}ms ago)`);

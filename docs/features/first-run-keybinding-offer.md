@@ -1,7 +1,7 @@
 ---
 status: live
 last-verified: 2026-09-15
-verified-by: "pnpm test — packages/image-paste/src/keybinding-offer.test.ts (109 tests: gate matrix, auto-reload fallback + branch ordering, updateConfig concurrency) + meta/src/factory-lifecycle.test.ts (wiring)"
+verified-by: "npx vitest run — packages/image-paste/src/keybinding-offer.test.ts (109 tests: gate matrix, return contract, auto-reload fallback + branch ordering, updateConfig concurrency) + meta/src/factory-lifecycle.test.ts (merged first-run handler wiring + sequencing)"
 ---
 
 # First-run keybinding offer
@@ -82,14 +82,31 @@ When a reload is attempted, it **must be the last use of `ctx`** — Pi
 invalidates the extension runtime on reload. If the reload fails, the TUI
 shows its own "Reload failed" status; the file and flag are already
 persisted, so a manual `/reload` heals it and the offer is not repeated
-(flag gate).
+(flag gate). A **failed** reload leaves the (still-valid) ctx in place, so
+the offer reports `false` and the onboarding still runs on this session.
+
+## Return contract
+
+`offerKeybindingFix` returns `Promise<boolean>`: `true` iff the offer
+triggered a **successful** `ctx.reload()` (the successful-accept path on a
+ctx that exposes `reload()`). Every other outcome — the gates (1–4),
+decline, a failed file write, the file-exists race, a base-shape ctx without
+`reload` (manual /reload hint), and a reload that itself failed — resolves
+`false`.
 
 ## Wiring
 
-`offerKeybindingFix(ctx)` is called from a **top-level** `session_start` handler
-in `meta/src/index.ts` `register()` — top-level per the AGENTS.md rule (nested
-registration accumulates on `/reload`). The call is fire-and-forget; an uncaught
-error never takes down session startup.
+`offerKeybindingFix(ctx)` is awaited from a **top-level** `session_start`
+handler in `meta/src/index.ts` `register()` — top-level per the AGENTS.md
+rule (nested registration accumulates on `/reload`). The handler is the
+single **merged first-run handler**: it awaits the offer (a throw is logged,
+never propagated — the offer never fails session startup) and, unless the
+offer returned `true` (a reload was triggered — the reloaded session runs
+the flow again, where the offer is a no-op), it kicks off the first-run
+onboarding (`runOnboarding`, fire-and-forget) on the same ctx. Sequencing
+the two first-run flows this way means the keybinding confirm (a selector
+that replaces the editor container) fully resolves BEFORE the onboarding
+overlay shows — no stacked first-run dialogs.
 
 The handler is **not** double-gated with `isPluginEnabled("image-paste")`:
 that helper resolves to the same `archimedes.imagePaste.enabled` key as gate 1,

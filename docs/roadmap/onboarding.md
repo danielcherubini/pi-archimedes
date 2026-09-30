@@ -5,6 +5,8 @@ done-when: A fresh install shows the modal on first TUI session; the three answe
 
 # First-Run Onboarding + Full/Compact Style — Plan
 
+> **Superseded wiring note (2026-09-15):** the Task 4 order `[keybinding-offer, onboarding, lazy-load]` (two separate first-run `session_start` handlers) was replaced by a **single merged first-run handler** that awaits `offerKeybindingFix` (now `Promise<boolean>`) and only then runs `runOnboarding` fire-and-forget — so the keybinding confirm never stacks with the onboarding overlay, and a triggered reload skips the onboarding on the stale ctx. `registerOnboarding` was removed; the lazy-load handler remains the LAST `session_start` handler.
+
 **Goal:** Add a first-run onboarding modal (style / plugins / spinner) in `meta`, and introduce a `Full`/`Compact` output style that collapses the `compactThinking` setting and adds a `toolStyle` setting honored by a new native-tool patch.
 
 **Architecture:** The onboarding is a module in `meta` (the sole writer of plugin `enabled` flags, ADR 0012) that opens a dedicated `ui.custom` overlay on `session_start` when `archimedes.meta.onboarded` is unset. The style is two independent `ui` settings (`thinkingStyle`, `toolStyle`); `thinkingStyle` replaces `compactThinking` (with a one-shot migration) and drives the existing thinking patch, while `toolStyle` drives a new `patchToolRenderer` that wraps the native `ToolExecutionComponent` so `Full` starts tools expanded.

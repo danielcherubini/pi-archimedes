@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfig, updateConfig } from "@pi-archimedes/core/settings-io";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import {
@@ -11,12 +11,6 @@ import { isPluginEnabled, PLUGINS, setPluginEnabled } from "../plugins.js";
 import { createOnboardingOverlay, type OnboardingResult } from "./overlay.js";
 
 const META_NS = "archimedes.meta";
-
-export function registerOnboarding(pi: ExtensionAPI): void {
-  pi.on("session_start", (_event, ctx) => {
-    void runOnboarding(ctx).catch((err) => console.error("[archimedes] onboarding failed:", err));
-  });
-}
 
 export async function runOnboarding(ctx: ExtensionContext): Promise<void> {
   // Gate 1: TUI only (the marker is not consumed in non-TUI modes, so a later

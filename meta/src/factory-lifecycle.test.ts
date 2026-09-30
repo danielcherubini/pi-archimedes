@@ -88,7 +88,7 @@ vi.mock("@pi-archimedes/subagent", () => ({
 vi.mock("./config.js", () => ({ loadDiffConfig: vi.fn(() => ({})) }));
 vi.mock("./settings.js", () => ({ openSettings: vi.fn() }));
 vi.mock("./plugin-manager.js", () => ({ registerPluginsCommand: vi.fn() }));
-vi.mock("./onboarding/index.js", () => ({ registerOnboarding: vi.fn() }));
+vi.mock("./onboarding/index.js", () => ({ runOnboarding: vi.fn(async () => {}) }));
 
 // The real plugins.ts gate semantics are what these tests exercise
 // (read via the mocked settings-io on each call → mutable mid-session).
@@ -100,6 +100,7 @@ const { unpatchConsoleLog } = await import("@pi-archimedes/ui");
 
 const { offerKeybindingFix } =
   await import("@pi-archimedes/image-paste/keybinding-offer");
+const { runOnboarding } = await import("./onboarding/index.js");
 
 // ── Stub pi: record pi.on() registrations and command/tool registrations ───
 
@@ -134,10 +135,13 @@ function freshFactory(): {
   harness: PiHarness;
   startSession: (ctx: unknown) => Promise<unknown>;
   shutdownSession: () => unknown;
-  /** Fire ONLY the keybinding-offer session_start handler (the one registered
-   *  before the lazy-load handler). Useful for isolating offer behaviour
-   *  without triggering the heavy dynamic-import path. */
-  fireOfferHandler: (ctx: unknown) => void;
+  /** Fire ONLY the first-run (merged) session_start handler (the one
+   *  registered before the lazy-load handler). Useful for isolating the
+   *  offer → onboarding sequencing without triggering the heavy
+   *  dynamic-import path. */
+  fireFirstRunHandler: (ctx: unknown) => void;
+  /** Number of session_start handlers the factory registered. */
+  startRcCount: number;
 } {
   const harness = makePi();
   metaFactory(harness.pi);
@@ -149,18 +153,20 @@ function freshFactory(): {
   // The LAST session_start handler is the lazy-load one (existing tests rely on this).
   const startRc = (startRcs[startRcs.length - 1] ?? expect.fail("no session_start handler")) as (...args: unknown[]) => unknown;
   const shutdownRc = (shutdownRcs[shutdownRcs.length - 1] ?? expect.fail("no session_shutdown handler")) as (...args: unknown[]) => unknown;
-  // The keybinding-offer handler is at index 0 in this fully-mocked harness —
-  // all earlier package registrations are stubbed to no-op vi.fn(); if a
-  // package is un-mocked here, update the index.
-  const offerRc = (startRcs[0] ?? expect.fail("no offer session_start handler")) as (...args: unknown[]) => unknown;
+  // The first-run MERGED handler (offer + onboarding, sequenced) is at
+  // index 0 in this fully-mocked harness — all earlier package
+  // registrations are stubbed to no-op vi.fn(); if a package is un-mocked
+  // here, update the index.
+  const firstRunRc = (startRcs[0] ?? expect.fail("no first-run session_start handler")) as (...args: unknown[]) => unknown;
 
   return {
     harness,
     startSession: (ctx: unknown) => startRc(undefined, ctx) as Promise<unknown>,
     shutdownSession: () => shutdownRc(undefined, {}),
-    fireOfferHandler: (ctx: unknown) => {
-      offerRc(undefined, ctx);
+    fireFirstRunHandler: (ctx: unknown) => {
+      firstRunRc(undefined, ctx);
     },
+    startRcCount: startRcs.length,
   };
 }
 
@@ -217,18 +223,56 @@ describe("image-paste factory lifecycle (registration is config-gated, teardown 
   });
 });
 
-describe("keybinding-offer wiring (session_start → offerKeybindingFix, fire-and-forget)", () => {
-  it("calls offerKeybindingFix exactly once with the session ctx", () => {
-    const ctx = { ui: { theme: "dark" } };
-    // Return a resolved promise so the handler's .catch() has nothing to report.
-    vi.mocked(offerKeybindingFix).mockResolvedValueOnce(undefined);
-    const { fireOfferHandler } = freshFactory();
+describe("first-run sequencing (session_start → offerKeybindingFix, then runOnboarding)", () => {
+  it("registers exactly two session_start handlers (merged first-run + lazy-load)", () => {
+    const { startRcCount } = freshFactory();
+    // The keybinding offer and the onboarding are ONE merged handler — not
+    // two stacked first-run dialogs (which is what this guards against).
+    expect(startRcCount).toBe(2);
+  });
 
-    // The offer handler is synchronous from the caller's perspective (fire-and-forget).
-    fireOfferHandler(ctx);
+  it("calls offerKeybindingFix exactly once with the session ctx (before the onboarding)", () => {
+    const ctx = { ui: { theme: "dark" } };
+    // The merged handler awaits the offer; resolve false so the onboarding
+    // branch runs (a resolved promise, so nothing is left pending).
+    vi.mocked(offerKeybindingFix).mockResolvedValueOnce(false);
+    const { fireFirstRunHandler } = freshFactory();
+
+    fireFirstRunHandler(ctx);
 
     expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledWith(ctx);
+  });
+
+  it("when offerKeybindingFix resolves true (reloaded), runOnboarding is NOT called", async () => {
+    // The offer triggered a reload: the reloaded session runs this handler
+    // again (where the offer is a no-op), so the onboarding must NOT run on
+    // the now-stale ctx.
+    vi.mocked(offerKeybindingFix).mockResolvedValueOnce(true);
+    const ctx = { ui: { theme: "dark" } };
+    const { fireFirstRunHandler } = freshFactory();
+
+    fireFirstRunHandler(ctx);
+    // Drain the microtask queue so the awaited offer has resolved.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runOnboarding)).not.toHaveBeenCalled();
+  });
+
+  it("when offerKeybindingFix resolves false, runOnboarding IS called (fire-and-forget)", async () => {
+    vi.mocked(offerKeybindingFix).mockResolvedValueOnce(false);
+    const ctx = { ui: { theme: "dark" } };
+    const { fireFirstRunHandler } = freshFactory();
+
+    fireFirstRunHandler(ctx);
+    // Drain the microtask queue so the awaited offer has resolved and the
+    // (fire-and-forget) onboarding has been kicked off.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(vi.mocked(offerKeybindingFix)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runOnboarding)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runOnboarding)).toHaveBeenCalledWith(ctx);
   });
 
   it("session_start resolves even when offerKeybindingFix rejects (fire-and-forget safety)", async () => {
@@ -237,10 +281,10 @@ describe("keybinding-offer wiring (session_start → offerKeybindingFix, fire-an
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const ctx = { ui: { theme: "dark" } };
-    const { fireOfferHandler } = freshFactory();
+    const { fireFirstRunHandler } = freshFactory();
 
-    // Act: invoke the offer handler; it must not throw synchronously.
-    expect(() => fireOfferHandler(ctx)).not.toThrow();
+    // Act: invoke the handler; it must not throw synchronously.
+    expect(() => fireFirstRunHandler(ctx)).not.toThrow();
 
     // Drain the microtask queue so the .catch() branch has had time to run.
     await new Promise((r) => setTimeout(r, 0));
@@ -250,6 +294,8 @@ describe("keybinding-offer wiring (session_start → offerKeybindingFix, fire-an
       "[archimedes] keybinding offer failed:",
       expect.any(Error),
     );
+    // A failed offer must not block the onboarding (reloaded stays false).
+    expect(vi.mocked(runOnboarding)).toHaveBeenCalledTimes(1);
 
     consoleSpy.mockRestore();
   });
