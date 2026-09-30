@@ -1,7 +1,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
-import type { CompactThinking } from "../config.js";
+import type { OutputStyle } from "../config.js";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // Track which pi version we patched against to detect incompatibility
@@ -28,7 +28,7 @@ export function patchThinkingRenderer(
     labelText?: string;
     labelColor?: string;
     autoCollapseThinking?: boolean;
-    compactThinking?: CompactThinking;
+    thinkingStyle?: OutputStyle;
   },
 ): void {
   if (!AssistantMessageComponent) return;
@@ -97,14 +97,7 @@ export function patchThinkingRenderer(
     this.thinkingVisibilityOverrides = this.thinkingVisibilityOverrides ?? new Map<number, boolean>();
     (this as any)[THINKING_STATES_KEY] =
       (this as any)[THINKING_STATES_KEY] ?? new Map<number, "hidden" | "compact" | "full">();
-    const compactLines =
-      config?.compactThinking === "1 line"
-        ? 1
-        : config?.compactThinking === "3 lines"
-          ? 3
-          : config?.compactThinking === "5 lines"
-            ? 5
-            : 0;
+    const compactLines = config?.thinkingStyle === "Compact" ? 1 : 0;
     this.markdownTheme.codeBlockIndent = "";
     this.contentContainer.clear();
 

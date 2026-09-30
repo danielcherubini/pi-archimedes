@@ -1,7 +1,8 @@
 import type { SettingItem } from "@earendil-works/pi-tui";
 import {
   ANIMATION_STYLES,
-  normalizeCompactThinking,
+  normalizeOutputStyle,
+  OUTPUT_STYLE_VALUES,
   type UIConfig,
 } from "./config.js";
 
@@ -29,11 +30,18 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
       values: ["On", "Off"],
     },
     {
-      id: "compactThinking",
-      label: "Compact thinking",
-      currentValue: normalizeCompactThinking(config.compactThinking),
-      values: ["Off", "1 line", "3 lines", "5 lines"],
-      description: "Display only the last N lines of thinking (expands to full on click)",
+      id: "thinkingStyle",
+      label: "Thinking Style",
+      description: "How thinking blocks display (Full = full text, Compact = one line, click to expand)",
+      currentValue: normalizeOutputStyle(config.thinkingStyle),
+      values: [...OUTPUT_STYLE_VALUES],
+    },
+    {
+      id: "toolStyle",
+      label: "Tool Style",
+      description: "How tool results display (Full = expanded, Compact = collapsed, click to expand)",
+      currentValue: normalizeOutputStyle(config.toolStyle),
+      values: [...OUTPUT_STYLE_VALUES],
     },
     {
       id: "codeUnindent",

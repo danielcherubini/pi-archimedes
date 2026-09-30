@@ -20,12 +20,12 @@ import {
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
-  normalizeCompactThinking,
+  normalizeOutputStyle,
   type UIConfig,
   type CoreConfig,
 } from "./config.js";
 import { getUISettingsItems } from "./settings.js";
-import { migrateCoreToUIConfig } from "./migration.js";
+import { migrateCoreToUIConfig, migrateCompactThinkingToStyle } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
 
 // Re-exports
@@ -36,8 +36,11 @@ export {
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
+  normalizeOutputStyle,
+  OUTPUT_STYLE_VALUES,
   type UIConfig,
   type CoreConfig,
+  type OutputStyle,
 } from "./config.js";
 
 // Module-level state for session lifecycle
@@ -58,6 +61,7 @@ function clearSpinInterval(): void {
 export function registerUI(pi: ExtensionAPI): void {
   // One-time migration of any legacy core config to UI config
   migrateCoreToUIConfig();
+  migrateCompactThinkingToStyle();
 
   // Patch console.log for model scope capture
   patchConsoleLog();
@@ -195,7 +199,7 @@ export function registerUI(pi: ExtensionAPI): void {
         labelText: config.labelText,
         labelColor: config.labelColor,
         autoCollapseThinking: config.autoCollapseThinking,
-        compactThinking: normalizeCompactThinking(config.compactThinking),
+        thinkingStyle: normalizeOutputStyle(config.thinkingStyle),
       });
     }
   });

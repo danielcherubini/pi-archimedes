@@ -13,19 +13,27 @@ export const ANIMATION_STYLES = [
 ] as const;
 export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 
-export type CompactThinking = "Off" | "1 line" | "3 lines" | "5 lines";
-export const COMPACT_THINKING_VALUES: readonly CompactThinking[] = [
-  "Off",
-  "1 line",
-  "3 lines",
-  "5 lines",
-] as const;
+export type OutputStyle = "Full" | "Compact";
+export const OUTPUT_STYLE_VALUES: readonly OutputStyle[] = ["Full", "Compact"] as const;
 
-export function normalizeCompactThinking(value: unknown): CompactThinking {
-  if (typeof value === "string" && (COMPACT_THINKING_VALUES as readonly string[]).includes(value)) {
-    return value as CompactThinking;
-  }
-  return "Off";
+export const SPINNER_STYLES: readonly string[] = [
+  "typing",
+  "pulse",
+  "rain",
+  "cascade",
+  "columns",
+  "wave-rows",
+  "diagonal-swipe",
+  "sparkle",
+  "pendulum",
+  "marquee",
+];
+
+export function normalizeOutputStyle(value: unknown): OutputStyle {
+  if (value === "Full" || value === "Compact") return value;
+  if (value === "Off") return "Full";
+  if (value === "1 line" || value === "3 lines" || value === "5 lines") return "Compact";
+  return "Full";
 }
 
 export type SpinnerStyle =
@@ -44,7 +52,8 @@ export interface UIConfig {
   bashToolStyling: boolean;
   mutedTheme: boolean;
   autoCollapseThinking: boolean;
-  compactThinking: CompactThinking;
+  thinkingStyle: OutputStyle;
+  toolStyle: OutputStyle;
   codeUnindent: boolean;
   labelText: string;
   labelColor: string;
@@ -61,7 +70,8 @@ export const DEFAULT_UI_CONFIG: UIConfig = {
   bashToolStyling: true,
   mutedTheme: false,
   autoCollapseThinking: false,
-  compactThinking: "Off",
+  thinkingStyle: "Full",
+  toolStyle: "Compact",
   codeUnindent: true,
   labelText: "Thinking...",
   labelColor: "255,215,0",

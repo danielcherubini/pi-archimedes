@@ -10,8 +10,9 @@ import {
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
-  COMPACT_THINKING_VALUES,
-  normalizeCompactThinking,
+  OUTPUT_STYLE_VALUES,
+  SPINNER_STYLES,
+  normalizeOutputStyle,
   SPIN_SPEED_MULT,
 } from "./config.js";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
@@ -34,7 +35,8 @@ describe("loadUIConfig", () => {
       bashToolStyling: true,
       mutedTheme: false,
       autoCollapseThinking: false,
-      compactThinking: "Off",
+      thinkingStyle: "Full",
+      toolStyle: "Compact",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -77,7 +79,8 @@ describe("DEFAULT_UI_CONFIG", () => {
       bashToolStyling: true,
       mutedTheme: false,
       autoCollapseThinking: false,
-      compactThinking: "Off",
+      thinkingStyle: "Full",
+      toolStyle: "Compact",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -110,25 +113,59 @@ describe("ANIMATION_STYLES", () => {
   });
 });
 
-describe("COMPACT_THINKING_VALUES and normalizeCompactThinking", () => {
-  it("exports COMPACT_THINKING_VALUES with expected options", () => {
-    expect(COMPACT_THINKING_VALUES).toEqual(["Off", "1 line", "3 lines", "5 lines"]);
+describe("DEFAULT_UI_CONFIG output styles", () => {
+  it("defaults thinkingStyle to Full and toolStyle to Compact", () => {
+    expect(DEFAULT_UI_CONFIG.thinkingStyle).toBe("Full");
+    expect(DEFAULT_UI_CONFIG.toolStyle).toBe("Compact");
+  });
+});
+
+describe("OUTPUT_STYLE_VALUES", () => {
+  it("exports [Full, Compact]", () => {
+    expect(OUTPUT_STYLE_VALUES).toEqual(["Full", "Compact"]);
+  });
+});
+
+describe("SPINNER_STYLES", () => {
+  it("contains the 10 editorSpinStyle values in order", () => {
+    expect(SPINNER_STYLES).toEqual([
+      "typing",
+      "pulse",
+      "rain",
+      "cascade",
+      "columns",
+      "wave-rows",
+      "diagonal-swipe",
+      "sparkle",
+      "pendulum",
+      "marquee",
+    ]);
+  });
+});
+
+describe("normalizeOutputStyle", () => {
+  it("normalizes current values as-is", () => {
+    expect(normalizeOutputStyle("Full")).toBe("Full");
+    expect(normalizeOutputStyle("Compact")).toBe("Compact");
   });
 
-  it("normalizes valid values as-is", () => {
-    for (const val of COMPACT_THINKING_VALUES) {
-      expect(normalizeCompactThinking(val)).toBe(val);
-    }
+  it("maps legacy Off to Full", () => {
+    expect(normalizeOutputStyle("Off")).toBe("Full");
   });
 
-  it("normalizes invalid / unknown / non-string values to Off", () => {
-    expect(normalizeCompactThinking(undefined)).toBe("Off");
-    expect(normalizeCompactThinking(null)).toBe("Off");
-    expect(normalizeCompactThinking("")).toBe("Off");
-    expect(normalizeCompactThinking(123)).toBe("Off");
-    expect(normalizeCompactThinking(true)).toBe("Off");
-    expect(normalizeCompactThinking("2 lines")).toBe("Off");
-    expect(normalizeCompactThinking("10 lines")).toBe("Off");
-    expect(normalizeCompactThinking("off")).toBe("Off");
+  it("maps legacy N-lines values to Compact", () => {
+    expect(normalizeOutputStyle("1 line")).toBe("Compact");
+    expect(normalizeOutputStyle("3 lines")).toBe("Compact");
+    expect(normalizeOutputStyle("5 lines")).toBe("Compact");
+  });
+
+  it("normalizes invalid / unknown / non-string values to Full", () => {
+    expect(normalizeOutputStyle(undefined)).toBe("Full");
+    expect(normalizeOutputStyle(null)).toBe("Full");
+    expect(normalizeOutputStyle("")).toBe("Full");
+    expect(normalizeOutputStyle(123)).toBe("Full");
+    expect(normalizeOutputStyle(true)).toBe("Full");
+    expect(normalizeOutputStyle("off")).toBe("Full");
+    expect(normalizeOutputStyle("2 lines")).toBe("Full");
   });
 });

@@ -51,6 +51,7 @@ vi.mock("./startup/index.js", async (importOriginal) => {
 
 vi.mock("./migration.js", () => ({
   migrateCoreToUIConfig: vi.fn(),
+  migrateCompactThinkingToStyle: vi.fn(),
   UI_CONFIG_KEYS: [],
 }));
 
@@ -211,7 +212,7 @@ describe("packages/ui lifecycle and registration", () => {
           labelText: "Thinking...",
           labelColor: "255,215,0",
           autoCollapseThinking: false,
-          compactThinking: "Off",
+          thinkingStyle: "Full",
         }),
       );
     });

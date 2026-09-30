@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import type { CompactThinking } from "../config.js";
+import type { OutputStyle } from "../config.js";
 
 // Symbols used by patch.ts to mark patched prototypes
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
@@ -410,7 +410,7 @@ describe("patchThinkingRenderer", () => {
 			labelText?: string;
 			labelColor?: string;
 			autoCollapseThinking?: boolean;
-			compactThinking?: CompactThinking;
+			thinkingStyle?: OutputStyle;
 		};
 	}) {
 		const MockClass = function AssistantMessageComponent() {};
@@ -666,15 +666,15 @@ describe("patchThinkingRenderer", () => {
 		});
 	});
 
-	describe("compactThinking", () => {
+	describe("thinkingStyle", () => {
 		const THINKING_LABEL = "\x1b[3m\x1b[38;2;255;215;0mThinking...\x1b[39m\x1b[23m";
 
-		it("renders single inline TruncatedText containing label and last line for '1 line' (streaming and finished)", async () => {
+		it("renders single inline TruncatedText containing label and last line for thinkingStyle 'Compact' (streaming and finished)", async () => {
 			const multiline = "Line 1\nLine 2\nLine 3";
 
 			// Streaming
 			const streamingResult = await renderThinkingComponent({
-				config: { compactThinking: "1 line" },
+				config: { thinkingStyle: "Compact" },
 				isStreaming: true,
 				message: { content: [{ type: "thinking", thinking: multiline }] },
 			});
@@ -685,7 +685,7 @@ describe("patchThinkingRenderer", () => {
 
 			// Finished
 			const finishedResult = await renderThinkingComponent({
-				config: { compactThinking: "1 line" },
+				config: { thinkingStyle: "Compact" },
 				isStreaming: false,
 				message: { content: [{ type: "thinking", thinking: multiline }] },
 			});
@@ -695,59 +695,31 @@ describe("patchThinkingRenderer", () => {
 			expect((finishedRegion!.child as any).text).toBe(`${THINKING_LABEL} Line 3`);
 		});
 
-		it("renders multi-line Text containing label on line 1 and last 3 lines formatted line-by-line for '3 lines'", async () => {
-			const text = "L1\nL2\nL3\nL4\nL5";
-			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
-				config: { compactThinking: "3 lines" },
+		it("renders the full Markdown path for thinkingStyle 'Full'", async () => {
+			const { addedChildren, MockMouseRegion, MockMarkdown } = await renderThinkingComponent({
+				config: { thinkingStyle: "Full" },
 				isStreaming: false,
-				message: { content: [{ type: "thinking", thinking: text }] },
+				message: { content: [{ type: "thinking", thinking: "Full thought\nLine 2\nLine 3" }] },
 			});
 			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
 			expect(region).toBeDefined();
-			expect(region!.child).toBeInstanceOf(MockText);
-			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nL3\nL4\nL5`);
+			expect(region!.child).toBeInstanceOf(MockMarkdown);
 		});
 
-		it("renders multi-line Text containing label on line 1 and last 5 lines for '5 lines'", async () => {
-			const text = "1\n2\n3\n4\n5\n6\n7";
-			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
-				config: { compactThinking: "5 lines" },
-				isStreaming: false,
-				message: { content: [{ type: "thinking", thinking: text }] },
-			});
-			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
-			expect(region).toBeDefined();
-			expect(region!.child).toBeInstanceOf(MockText);
-			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\n3\n4\n5\n6\n7`);
-		});
-
-		it("displays all available lines when thinking text has fewer lines than compact limit", async () => {
-			const text = "Alpha\nBeta";
-			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
-				config: { compactThinking: "5 lines" },
-				isStreaming: false,
-				message: { content: [{ type: "thinking", thinking: text }] },
-			});
-			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
-			expect(region).toBeDefined();
-			expect(region!.child).toBeInstanceOf(MockText);
-			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nAlpha\nBeta`);
-		});
-
-		it("collapses to hidden Text once streaming concludes when both compactThinking and autoCollapseThinking are active", async () => {
-			// While streaming: renders compact
+		it("collapses to hidden Text once streaming concludes when both thinkingStyle 'Compact' and autoCollapseThinking are active", async () => {
+			// While streaming: renders compact (one line)
 			const streamResult = await renderThinkingComponent({
-				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				config: { thinkingStyle: "Compact", autoCollapseThinking: true },
 				isStreaming: true,
 				message: { content: [{ type: "thinking", thinking: "A\nB\nC\nD" }] },
 			});
 			const streamRegion = streamResult.addedChildren.find((c) => c instanceof streamResult.MockMouseRegion);
-			expect(streamRegion!.child).toBeInstanceOf(streamResult.MockText);
-			expect((streamRegion!.child as any).text).toBe(`${THINKING_LABEL}\nB\nC\nD`);
+			expect(streamRegion!.child).toBeInstanceOf(streamResult.MockTruncatedText);
+			expect((streamRegion!.child as any).text).toBe(`${THINKING_LABEL} D`);
 
 			// Finished streaming: collapses to hidden label
 			const finishedResult = await renderThinkingComponent({
-				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				config: { thinkingStyle: "Compact", autoCollapseThinking: true },
 				isStreaming: false,
 				message: { content: [{ type: "thinking", thinking: "A\nB\nC\nD" }] },
 			});
@@ -757,14 +729,15 @@ describe("patchThinkingRenderer", () => {
 		});
 
 		it("transitions state properly on click with compact active: compact -> full -> compact", async () => {
-			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText } =
+			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockTruncatedText } =
 				await renderThinkingComponent({
-					config: { compactThinking: "3 lines" },
+					config: { thinkingStyle: "Compact" },
 					message: { content: [{ type: "thinking", thinking: "A\nB\nC" }] },
 				});
 
 			const mouseRegion = addedChildren.find((c) => c instanceof MockMouseRegion);
-			expect(mouseRegion!.child).toBeInstanceOf(MockText);
+			expect(mouseRegion!.child).toBeInstanceOf(MockTruncatedText);
+			expect((mouseRegion!.child as any).text).toBe(`${THINKING_LABEL} C`);
 
 			// First click: compact -> full
 			mouseRegion!.onMouse({ type: "click", button: "left" });
@@ -788,14 +761,14 @@ describe("patchThinkingRenderer", () => {
 			instance.updateContent(instance.lastMessage, false);
 
 			const region2 = childrenAfterClick2.find((c) => c instanceof MockMouseRegion);
-			expect(region2!.child).toBeInstanceOf(MockText);
-			expect((region2!.child as any).text).toBe(`${THINKING_LABEL}\nA\nB\nC`);
+			expect(region2!.child).toBeInstanceOf(MockTruncatedText);
+			expect((region2!.child as any).text).toBe(`${THINKING_LABEL} C`);
 		});
 
 		it("transitions from hidden to full, and subsequent click returns to compact", async () => {
-			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText } =
+			const { instance, addedChildren, MockMouseRegion, MockMarkdown, MockText, MockTruncatedText } =
 				await renderThinkingComponent({
-					config: { compactThinking: "3 lines", autoCollapseThinking: true },
+					config: { thinkingStyle: "Compact", autoCollapseThinking: true },
 					isStreaming: false,
 					message: { content: [{ type: "thinking", thinking: "A\nB\nC" }] },
 				});
@@ -826,13 +799,13 @@ describe("patchThinkingRenderer", () => {
 			instance.updateContent(instance.lastMessage, false);
 
 			const region2 = childrenAfterClick2.find((c) => c instanceof MockMouseRegion);
-			expect(region2!.child).toBeInstanceOf(MockText);
-			expect((region2!.child as any).text).toBe(`${THINKING_LABEL}\nA\nB\nC`);
+			expect(region2!.child).toBeInstanceOf(MockTruncatedText);
+			expect((region2!.child as any).text).toBe(`${THINKING_LABEL} C`);
 		});
 
 		it("synchronizes thinkingVisibilityOverrides (false for compact/full, true for hidden)", async () => {
 			const { instance, addedChildren, MockMouseRegion } = await renderThinkingComponent({
-				config: { compactThinking: "3 lines", autoCollapseThinking: true },
+				config: { thinkingStyle: "Compact", autoCollapseThinking: true },
 				isStreaming: false, // will resolve to hidden initially
 				message: { content: [{ type: "thinking", thinking: "Thought" }] },
 			});
@@ -861,7 +834,7 @@ describe("patchThinkingRenderer", () => {
 
 		it("renders no MouseRegion child for whitespace-only thinking content", async () => {
 			const { addedChildren, MockMouseRegion } = await renderThinkingComponent({
-				config: { compactThinking: "3 lines" },
+				config: { thinkingStyle: "Compact" },
 				isStreaming: false,
 				message: { content: [{ type: "thinking", thinking: "   " }] },
 			});
@@ -870,15 +843,15 @@ describe("patchThinkingRenderer", () => {
 		});
 
 		it("normalizes CRLF line endings in compact mode", async () => {
-			const { addedChildren, MockMouseRegion, MockText } = await renderThinkingComponent({
-				config: { compactThinking: "3 lines" },
+			const { addedChildren, MockMouseRegion, MockTruncatedText } = await renderThinkingComponent({
+				config: { thinkingStyle: "Compact" },
 				message: {
 					content: [{ type: "thinking", thinking: "Line 1\r\nLine 2\r\nLine 3\r\nLine 4" }],
 				},
 			});
 			const region = addedChildren.find((c) => c instanceof MockMouseRegion);
-			expect(region!.child).toBeInstanceOf(MockText);
-			expect((region!.child as any).text).toBe(`${THINKING_LABEL}\nLine 2\nLine 3\nLine 4`);
+			expect(region!.child).toBeInstanceOf(MockTruncatedText);
+			expect((region!.child as any).text).toBe(`${THINKING_LABEL} Line 4`);
 		});
 	});
 });
