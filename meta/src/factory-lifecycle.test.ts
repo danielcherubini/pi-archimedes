@@ -88,6 +88,7 @@ vi.mock("@pi-archimedes/subagent", () => ({
 vi.mock("./config.js", () => ({ loadDiffConfig: vi.fn(() => ({})) }));
 vi.mock("./settings.js", () => ({ openSettings: vi.fn() }));
 vi.mock("./plugin-manager.js", () => ({ registerPluginsCommand: vi.fn() }));
+vi.mock("./onboarding/index.js", () => ({ registerOnboarding: vi.fn() }));
 
 // The real plugins.ts gate semantics are what these tests exercise
 // (read via the mocked settings-io on each call → mutable mid-session).

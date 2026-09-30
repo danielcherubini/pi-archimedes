@@ -19,6 +19,7 @@ import { registerSudo } from "@pi-archimedes/sudo";
 // gates are self-contained, so it is statically imported and runs in its
 // own top-level session_start handler, independent of the lazy-load.
 import { offerKeybindingFix } from "@pi-archimedes/image-paste/keybinding-offer";
+import { registerOnboarding } from "./onboarding/index.js";
 import { loadDiffConfig } from "./config.js";
 import { openSettings } from "./settings.js"
 import { registerPluginsCommand } from "./plugin-manager.js"
@@ -109,6 +110,15 @@ export default function (pi: ExtensionAPI): void {
       console.error("[archimedes] keybinding offer failed:", e);
     }
   });
+
+  // First-run onboarding (meta/src/onboarding/index.ts). Registered at top
+  // level (AGENTS.md), placed AFTER the keybinding-offer handler above and
+  // BEFORE the lazy-load handler below, mirroring that offer's precedent:
+  // a top-level session_start handler, fire-and-forget, and deliberately
+  // NOT gated with isPluginEnabled — the module's own gates (TUI mode →
+  // marker unset) make it a no-op when not applicable.
+  registerOnboarding(pi);
+  archTime("registerOnboarding");
 
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     archTime(`session_start (factory was ${Date.now() - _moduleEvalAt}ms ago)`);
