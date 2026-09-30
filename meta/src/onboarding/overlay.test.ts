@@ -292,6 +292,19 @@ describe("createOnboardingOverlay", () => {
     expect(result.spinnerValue).toBe(""); // empty list → empty value, no crash
   });
 
+  // (n) The header area carries a static next-session note on every step —
+  // the style choices are written to archimedes.ui but the renderer patches
+  // are configured at session start, so the note sets expectations up front.
+  it("renders the next-session note on all three steps", () => {
+    for (let step = 0; step < 3; step++) {
+      const { comp } = makeOverlay();
+      for (let i = 0; i < step; i++) comp.handleInput(ENTER);
+      const lines = comp.render(80);
+      const note = lines.find((l) => l.includes("Choices apply from your next session."));
+      expect(note).toBeDefined();
+    }
+  });
+
   // (m) The spinner-step footer makes the esc skip/discard semantics explicit —
   // esc finalizes and reports ONLY the confirmed steps (the unconfirmed ones
   // are skipped, not applied), so the hint must not read like "keep my changes".

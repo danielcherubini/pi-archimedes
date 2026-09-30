@@ -149,6 +149,7 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
     const lines: string[] = [];
     lines.push(renderHeader(" Welcome to pi-archimedes ", width - 2, theme));
     lines.push(padEnd(`Set up your preferences · ${activeStep + 1}/3`, width - 2));
+    lines.push(padEnd("Choices apply from your next session.", width - 2));
     lines.push("");
 
     if (activeStep === 0) {
