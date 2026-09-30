@@ -15,6 +15,7 @@ import { renderHeader, patchStartupListing, type ListingRef } from "./startup/in
 import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
+import { patchToolRenderer } from "./tools/patch.js";
 import {
   loadUIConfig,
   saveUIConfig,
@@ -201,6 +202,7 @@ export function registerUI(pi: ExtensionAPI): void {
         autoCollapseThinking: config.autoCollapseThinking,
         thinkingStyle: normalizeOutputStyle(config.thinkingStyle),
       });
+      patchToolRenderer({ toolStyle: normalizeOutputStyle(config.toolStyle) });
     }
   });
 }
