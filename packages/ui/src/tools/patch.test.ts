@@ -247,14 +247,17 @@ describe("patchToolRenderer", () => {
     const { MockClass, origUpdateDisplay } = mockToolComponent();
     const patch1 = await importPatch();
     patch1({ toolStyle: "Full" });
+    const w1 = MockClass.prototype.updateDisplay; // the first wrapper
     // /reload: the extension module is re-evaluated (fresh module state) but
     // ToolExecutionComponent (pi's shared host module) keeps its prototype.
     const patch2 = await importPatch();
     patch2({ toolStyle: "Full" });
 
+    expect(MockClass.prototype.updateDisplay).not.toBe(w1); // REPLACED on re-apply (the new design re-assigns, it doesn't chain)
+
     const instance = makeInstance();
     MockClass.prototype.updateDisplay.call(instance);
-    expect(origUpdateDisplay).toHaveBeenCalledTimes(1); // NOT twice — no chained wrapper
+    expect(origUpdateDisplay).toHaveBeenCalledTimes(1); // call-count alone doesn't prove no-chaining; the identity assertion above + the Full→Compact reload test do
     expect(instance.expanded).toBe(true); // the fresh wrapper still auto-expands
   });
 

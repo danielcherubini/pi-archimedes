@@ -18,7 +18,7 @@ TUI enhancements for the Pi Archimedes monorepo.
 - **Spin Quips**: Enjoyable messages while waiting for processes.
 
 ### Thinking
-- **Compact Thinking**: Minimized footprint for thought blocks.
+- **Full/Compact Output Style**: Full or one-line thinking (`thinkingStyle`) and expanded or collapsed tool results (`toolStyle`).
 - **Collapsible Thinking**: Expandable for deeper inspection.
 - **Theme**: Unified styling for thinking blocks.
 
