@@ -5,6 +5,8 @@ done-when: A fresh install shows the modal on first TUI session; the three answe
 
 # First-Run Onboarding + Full/Compact Style — Plan
 
+> **Superseded (2026-09-30):** the single "style" question was split into **TWO independent questions** (thinking style + tool style), making the wizard a **4-step flow** (thinking → tool → plugins → spinner). The "seeds both to the same value" write was removed — `thinkingStyle` and `toolStyle` are now written independently (answered-only). The `styleAnswered`/`styleValue`, `styleDefault`/`STYLE_OPTIONS`, 3-element `cursorByStep`/`confirmed`, and shared-seeding descriptions below are stale.
+
 > **Superseded wiring note (2026-09-15):** the Task 4 order `[keybinding-offer, onboarding, lazy-load]` (two separate first-run `session_start` handlers) was replaced by a **single merged first-run handler** that awaits `offerKeybindingFix` (now `Promise<boolean>`) and only then runs `runOnboarding` fire-and-forget — so the keybinding confirm never stacks with the onboarding overlay, and a triggered reload skips the onboarding on the stale ctx. `registerOnboarding` was removed; the lazy-load handler remains the LAST `session_start` handler.
 
 **Goal:** Add a first-run onboarding modal (style / plugins / spinner) in `meta`, and introduce a `Full`/`Compact` output style that collapses the `compactThinking` setting and adds a `toolStyle` setting honored by a new native-tool patch.

@@ -257,26 +257,63 @@ describe("runOnboarding write logic (onDone)", () => {
     expect(mockStore["archimedes.meta"]?.onboarded).toBe(true);
   });
 
-  it("writes thinking and tool independently when only one is answered", async () => {
+  it("leaves an UNANSWERED style untouched when only the other is answered (strict: pre-seeded, not default-merged)", async () => {
+    // Pre-seed the store with values that DIFFER from the mocked defaults
+    // (defaults: thinkingStyle "Full", toolStyle "Compact", editorSpinStyle
+    // "pendulum"), so the assertions can distinguish "the user's existing
+    // value was left untouched" from "the default was written" — updateConfig
+    // merges the defaults into the stored state, so an empty store would
+    // materialize the defaults either way.
+    mockStore["archimedes.ui"] = {
+      thinkingStyle: "Compact", // non-default (default is "Full")
+      toolStyle: "Compact",
+      editorSpinStyle: "pulse", // non-default
+    };
     const { ctx } = makeCtx("tui");
     await runOnboarding(ctx);
     captured.onDone!({
       thinkingAnswered: false,
-      thinkingValue: "Compact", // differs from the default — must NOT be seeded in
+      thinkingValue: "Full", // differs from the pre-seeded "Compact" — must NOT be seeded in
       toolAnswered: true,
-      toolValue: "Full", // differs from the default — must be written
+      toolValue: "Full", // differs from the pre-seeded "Compact" — must be written
       pluginsAnswered: false,
       pluginSelections: {},
       spinnerAnswered: false,
       spinnerValue: "",
     });
 
-    // Only the answered (tool) value is written; the unanswered thinking
-    // value is NOT seeded in.
     const ui = mockStore["archimedes.ui"] ?? {};
-    expect(ui.toolStyle).toBe("Full"); // the payload value, not the default "Compact"
-    expect(ui.thinkingStyle).toBe("Full"); // the DEFAULT, not the payload value "Compact" (unanswered → untouched)
-    expect(ui.editorSpinStyle).toBe("pendulum"); // default, untouched
+    expect(ui.toolStyle).toBe("Full"); // the payload value — the ANSWERED step was written (updated, not left at the pre-seeded "Compact")
+    expect(ui.thinkingStyle).toBe("Compact"); // the PRE-SEEDED value, untouched (not the default "Full", not the payload "Full")
+    expect(ui.editorSpinStyle).toBe("pulse"); // pre-seeded, untouched
+  });
+
+  it("writes the answered thinking style and leaves an UNANSWERED tool style untouched (mirror of the above)", async () => {
+    // Mirror of the test above: only the THINKING step is answered. Pre-seed
+    // with non-default values so an unanswered step is provably left untouched
+    // rather than clobbered with the default.
+    mockStore["archimedes.ui"] = {
+      thinkingStyle: "Full",
+      toolStyle: "Full", // non-default (default is "Compact")
+      editorSpinStyle: "pulse", // non-default
+    };
+    const { ctx } = makeCtx("tui");
+    await runOnboarding(ctx);
+    captured.onDone!({
+      thinkingAnswered: true,
+      thinkingValue: "Compact", // differs from the pre-seeded "Full" — must be written
+      toolAnswered: false,
+      toolValue: "Compact", // differs from the pre-seeded "Full" — must NOT be seeded in
+      pluginsAnswered: false,
+      pluginSelections: {},
+      spinnerAnswered: false,
+      spinnerValue: "",
+    });
+
+    const ui = mockStore["archimedes.ui"] ?? {};
+    expect(ui.thinkingStyle).toBe("Compact"); // the payload value — the ANSWERED step was written (updated, not left at the pre-seeded "Full")
+    expect(ui.toolStyle).toBe("Full"); // the PRE-SEEDED value, untouched (not the default "Compact", not the payload "Compact")
+    expect(ui.editorSpinStyle).toBe("pulse"); // pre-seeded, untouched
   });
 
   it("skips all settings/plugin writes but still sets the marker when nothing is answered", async () => {
