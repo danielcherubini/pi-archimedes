@@ -12,14 +12,16 @@ import { spinFrame } from "@pi-archimedes/ui/editor";
 /**
  * The onboarding modal's result. Each `*Answered` flag tells the orchestrator
  * (Task 4) whether the user actually committed that step — an unanswered step
- * is left untouched on the write side. `styleValue`/`spinnerValue` are only
+ * is left untouched on the write side. `thinkingValue`/`toolValue` are only
  * meaningful when their step was answered; `pluginSelections` maps every plugin
  * id to its final on/off state (present regardless, so the orchestrator can
  * diff against the current flags).
  */
 export interface OnboardingResult {
-  styleAnswered: boolean;
-  styleValue: OutputStyle;
+  thinkingAnswered: boolean;
+  thinkingValue: OutputStyle;
+  toolAnswered: boolean;
+  toolValue: OutputStyle;
   pluginsAnswered: boolean;
   pluginSelections: Record<string, boolean>;
   spinnerAnswered: boolean;
@@ -28,7 +30,8 @@ export interface OnboardingResult {
 
 export interface OnboardingOverlayOptions {
   theme: OverlayTheme;
-  styleDefault: OutputStyle;
+  thinkingDefault: OutputStyle;
+  toolDefault: OutputStyle;
   plugins: { id: string; label: string; description: string; selected: boolean }[];
   spinners: readonly string[];
   spinnerDefault: string;
@@ -37,17 +40,24 @@ export interface OnboardingOverlayOptions {
   onDone: (result: OnboardingResult) => void;
 }
 
-const STYLE_OPTIONS: { label: OutputStyle; description: string }[] = [
-  { label: "Full", description: "Full thinking blocks, tools expanded" },
-  { label: "Compact", description: "One-line thinking, collapsed tools" },
+// The single "style" question was split into two INDEPENDENT ones (thinking +
+// tool) so the user can mix, e.g. "Full thinking" + "Compact tools".
+const THINKING_OPTIONS: { label: OutputStyle; description: string }[] = [
+  { label: "Full", description: "Show all of the model's reasoning" },
+  { label: "Compact", description: "One line of reasoning (click to expand)" },
+];
+const TOOL_OPTIONS: { label: OutputStyle; description: string }[] = [
+  { label: "Full", description: "Show all tool output (expanded)" },
+  { label: "Compact", description: "Collapse tool output (click to expand)" },
 ];
 
 /**
  * Build the onboarding wizard as a single pure TUI component: one `ui.custom`
- * overlay with an internal `step` state (0 → 1 → 2) and no open/close flicker
- * between steps. It is deliberately NOT a reuse of the `ask` package's
- * `askQuestionsWithTabs` (whose "Other" option, cancel-discards-everything
- * semantics, and blocked empty-multi-select don't fit a setup wizard).
+ * overlay with an internal `step` state (0 → 1 → 2 → 3) and no open/close
+ * flicker between steps. It is deliberately NOT a reuse of the `ask`
+ * package's `askQuestionsWithTabs` (whose "Other" option,
+ * cancel-discards-everything semantics, and blocked empty-multi-select don't
+ * fit a setup wizard).
  *
  * It is a pure function: it takes the pre-selected values + an `onDone`
  * callback and returns a TUI component; it knows nothing about settings or
@@ -60,21 +70,22 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
   let activeStep = 0;
   // Clamp the pre-selected indices (a corrupt/unknown value → index 0, never -1).
   const cursorByStep: number[] = [
-    Math.max(0, STYLE_OPTIONS.findIndex((o) => o.label === opts.styleDefault)),
+    Math.max(0, THINKING_OPTIONS.findIndex((o) => o.label === opts.thinkingDefault)),
+    Math.max(0, TOOL_OPTIONS.findIndex((o) => o.label === opts.toolDefault)),
     0,
     Math.max(0, opts.spinners.indexOf(opts.spinnerDefault)),
   ];
   const pluginToggles: boolean[] = opts.plugins.map((p) => p.selected);
-  const confirmed: boolean[] = [false, false, false];
+  const confirmed: boolean[] = [false, false, false, false];
   let finalized = false;
   // The live spinner-preview tick (the spinner step renders `spinFrame(name, tick)` next to each name); only advances when a repaint hook is provided.
   let tick = 0;
   const onTick = opts.requestRender;
-  // Only the spinner step (2) renders a live frame — don't advance the tick or
-  // request a repaint while the user is on the style/plugin steps.
+  // Only the spinner step (3) renders a live frame — don't advance the tick or
+  // request a repaint while the user is on the thinking/tool/plugin steps.
   const timer = onTick
     ? setInterval(() => {
-        if (activeStep === 2) {
+        if (activeStep === 3) {
           tick += 1;
           onTick();
         }
@@ -82,8 +93,9 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
     : undefined;
 
   function optionsCountForStep(step: number): number {
-    if (step === 0) return STYLE_OPTIONS.length;
-    if (step === 1) return opts.plugins.length;
+    if (step === 0) return THINKING_OPTIONS.length;
+    if (step === 1) return TOOL_OPTIONS.length;
+    if (step === 2) return opts.plugins.length;
     return opts.spinners.length;
   }
 
@@ -93,8 +105,9 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
     // Belt-and-braces: stop the interval the moment the wizard is done (in case
     // the TUI tears down without calling dispose()).
     if (timer) clearInterval(timer);
-    const styleIdx = cursorByStep[0] ?? 0;
-    const spinnerIdx = cursorByStep[2] ?? 0;
+    const thinkingIdx = cursorByStep[0] ?? 0;
+    const toolIdx = cursorByStep[1] ?? 0;
+    const spinnerIdx = cursorByStep[3] ?? 0;
     const pluginSelections: Record<string, boolean> = {};
     for (let i = 0; i < opts.plugins.length; i++) {
       const p = opts.plugins[i];
@@ -102,11 +115,13 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       pluginSelections[p.id] = pluginToggles[i] ?? false;
     }
     opts.onDone({
-      styleAnswered: confirmed[0] ?? false,
-      styleValue: STYLE_OPTIONS[styleIdx]?.label ?? "Full",
-      pluginsAnswered: confirmed[1] ?? false,
+      thinkingAnswered: confirmed[0] ?? false,
+      thinkingValue: THINKING_OPTIONS[thinkingIdx]?.label ?? "Full",
+      toolAnswered: confirmed[1] ?? false,
+      toolValue: TOOL_OPTIONS[toolIdx]?.label ?? "Full",
+      pluginsAnswered: confirmed[2] ?? false,
       pluginSelections,
-      spinnerAnswered: confirmed[2] ?? false,
+      spinnerAnswered: confirmed[3] ?? false,
       spinnerValue: opts.spinners[spinnerIdx] ?? "",
     });
   }
@@ -128,14 +143,14 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       );
       return;
     }
-    if (matchesKey(data, Key.space) && activeStep === 1) {
-      const cur = cursorByStep[1] ?? 0;
+    if (matchesKey(data, Key.space) && activeStep === 2) {
+      const cur = cursorByStep[2] ?? 0;
       pluginToggles[cur] = !(pluginToggles[cur] ?? false);
       return;
     }
     if (matchesKey(data, Key.enter)) {
       confirmed[activeStep] = true;
-      if (activeStep === 2) finalize();
+      if (activeStep === 3) finalize();
       else activeStep += 1;
       return;
     }
@@ -148,15 +163,15 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
   function render(width: number): string[] {
     const lines: string[] = [];
     lines.push(renderHeader(" Welcome to pi-archimedes ", width - 2, theme));
-    lines.push(padEnd(`Set up your preferences · ${activeStep + 1}/3`, width - 2));
+    lines.push(padEnd(`Set up your preferences · ${activeStep + 1}/4`, width - 2));
     lines.push(padEnd("Choices apply from your next session.", width - 2));
     lines.push("");
 
     if (activeStep === 0) {
-      lines.push(padEnd("How should the output look?", width - 2));
+      lines.push(padEnd("Thinking style", width - 2));
       lines.push("");
-      for (let i = 0; i < STYLE_OPTIONS.length; i++) {
-        const opt = STYLE_OPTIONS[i];
+      for (let i = 0; i < THINKING_OPTIONS.length; i++) {
+        const opt = THINKING_OPTIONS[i];
         if (!opt) continue;
         const marker = i === (cursorByStep[0] ?? 0) ? "> " : "  ";
         lines.push(
@@ -169,6 +184,22 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       lines.push("");
       lines.push(renderFooter(" [↑↓] move  [enter] next  [esc] finish ", width - 2, theme));
     } else if (activeStep === 1) {
+      lines.push(padEnd("Tool output style", width - 2));
+      lines.push("");
+      for (let i = 0; i < TOOL_OPTIONS.length; i++) {
+        const opt = TOOL_OPTIONS[i];
+        if (!opt) continue;
+        const marker = i === (cursorByStep[1] ?? 0) ? "> " : "  ";
+        lines.push(
+          padEnd(
+            `${marker}${opt.label.padEnd(9)}${truncateToWidth(opt.description, width - 14, "")}`,
+            width - 2,
+          ),
+        );
+      }
+      lines.push("");
+      lines.push(renderFooter(" [↑↓] move  [enter] next  [esc] finish ", width - 2, theme));
+    } else if (activeStep === 2) {
       lines.push(padEnd("Which plugins do you want?", width - 2));
       lines.push("");
       for (let i = 0; i < opts.plugins.length; i++) {
@@ -190,9 +221,11 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       lines.push("");
       for (let i = 0; i < opts.spinners.length; i++) {
         const name = opts.spinners[i] ?? "";
-        const marker = i === (cursorByStep[2] ?? 0) ? "> " : "  ";
+        const marker = i === (cursorByStep[3] ?? 0) ? "> " : "  ";
         const preview = spinFrame(name, tick);
         lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
+        // Slight vertical spacing between the spinner options.
+        lines.push("");
       }
       lines.push("");
       lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish (skip rest) ", width - 2, theme));

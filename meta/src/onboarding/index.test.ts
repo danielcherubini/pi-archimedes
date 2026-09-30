@@ -97,12 +97,20 @@ const { setPluginEnabled } = await import("../plugins.js");
 
 const captured = vi.hoisted(() => ({
   onDone: undefined as ((r: OnboardingResult) => void) | undefined,
+  thinkingDefault: undefined as string | undefined,
+  toolDefault: undefined as string | undefined,
 }));
 
 vi.mock("./overlay.js", () => ({
   createOnboardingOverlay: vi.fn(
-    (opts: { onDone: (r: OnboardingResult) => void }) => {
+    (opts: {
+      thinkingDefault?: string;
+      toolDefault?: string;
+      onDone: (r: OnboardingResult) => void;
+    }) => {
       captured.onDone = opts.onDone;
+      captured.thinkingDefault = opts.thinkingDefault;
+      captured.toolDefault = opts.toolDefault;
       return {
         render: () => [] as string[],
         handleInput: () => {},
@@ -148,6 +156,8 @@ beforeEach(() => {
   pluginState.footer = true;
   pluginState.todo = false;
   captured.onDone = undefined;
+  captured.thinkingDefault = undefined;
+  captured.toolDefault = undefined;
 });
 
 // ── Gates ─────────────────────────────────────────────────────────────────
@@ -158,6 +168,15 @@ describe("runOnboarding gates", () => {
     await runOnboarding(ctx);
     expect(custom).toHaveBeenCalledTimes(1);
     expect(captured.onDone).toBeDefined();
+  });
+
+  it("passes the normalized thinking + tool defaults independently to the overlay", async () => {
+    // The mocked loadUIConfig returns thinkingStyle "Full" / toolStyle "Compact";
+    // normalizeOutputStyle maps "Compact" → "Compact" and anything else → "Full".
+    const { ctx } = makeCtx("tui");
+    await runOnboarding(ctx);
+    expect(captured.thinkingDefault).toBe("Full");
+    expect(captured.toolDefault).toBe("Compact");
   });
 
   it("does not open the overlay in non-TUI modes (marker not consumed)", async () => {
@@ -208,19 +227,22 @@ describe("runOnboarding write logic (onDone)", () => {
     const onDone = captured.onDone;
     expect(onDone).toBeDefined();
     onDone!({
-      styleAnswered: true,
-      styleValue: "Compact",
+      thinkingAnswered: true,
+      thinkingValue: "Compact",
+      toolAnswered: true,
+      toolValue: "Full", // independent of thinkingValue
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: false, todo: true },
       spinnerAnswered: true,
       spinnerValue: "pulse",
     });
 
-    // ui namespace: the style seeds BOTH thinkingStyle and toolStyle,
-    // plus the spinner choice.
+    // ui namespace: thinkingStyle and toolStyle are written INDEPENDENTLY
+    // (different values here prove there is no shared seeding), plus the
+    // spinner choice.
     const ui = mockStore["archimedes.ui"] ?? {};
     expect(ui.thinkingStyle).toBe("Compact");
-    expect(ui.toolStyle).toBe("Compact");
+    expect(ui.toolStyle).toBe("Full");
     expect(ui.editorSpinStyle).toBe("pulse");
 
     // plugins: only CHANGED flags written (footer on→off, todo off→on; ui unchanged)
@@ -235,12 +257,36 @@ describe("runOnboarding write logic (onDone)", () => {
     expect(mockStore["archimedes.meta"]?.onboarded).toBe(true);
   });
 
+  it("writes thinking and tool independently when only one is answered", async () => {
+    const { ctx } = makeCtx("tui");
+    await runOnboarding(ctx);
+    captured.onDone!({
+      thinkingAnswered: false,
+      thinkingValue: "Compact", // differs from the default — must NOT be seeded in
+      toolAnswered: true,
+      toolValue: "Full", // differs from the default — must be written
+      pluginsAnswered: false,
+      pluginSelections: {},
+      spinnerAnswered: false,
+      spinnerValue: "",
+    });
+
+    // Only the answered (tool) value is written; the unanswered thinking
+    // value is NOT seeded in.
+    const ui = mockStore["archimedes.ui"] ?? {};
+    expect(ui.toolStyle).toBe("Full"); // the payload value, not the default "Compact"
+    expect(ui.thinkingStyle).toBe("Full"); // the DEFAULT, not the payload value "Compact" (unanswered → untouched)
+    expect(ui.editorSpinStyle).toBe("pendulum"); // default, untouched
+  });
+
   it("skips all settings/plugin writes but still sets the marker when nothing is answered", async () => {
     const { ctx } = makeCtx("tui");
     await runOnboarding(ctx);
     captured.onDone!({
-      styleAnswered: false,
-      styleValue: "Full",
+      thinkingAnswered: false,
+      thinkingValue: "Full",
+      toolAnswered: false,
+      toolValue: "Full",
       pluginsAnswered: false,
       pluginSelections: {},
       spinnerAnswered: false,
@@ -265,8 +311,10 @@ describe("runOnboarding write logic (onDone)", () => {
     const { ctx } = makeCtx("tui");
     await runOnboarding(ctx);
     captured.onDone!({
-      styleAnswered: true,
-      styleValue: "Compact",
+      thinkingAnswered: true,
+      thinkingValue: "Compact",
+      toolAnswered: true,
+      toolValue: "Compact",
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: true, todo: false },
       spinnerAnswered: true,
@@ -283,8 +331,10 @@ describe("runOnboarding write logic (onDone)", () => {
     const { ctx } = makeCtx("tui");
     await runOnboarding(ctx);
     const result: OnboardingResult = {
-      styleAnswered: true,
-      styleValue: "Compact",
+      thinkingAnswered: true,
+      thinkingValue: "Compact",
+      toolAnswered: true,
+      toolValue: "Full",
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: true, todo: false },
       spinnerAnswered: true,

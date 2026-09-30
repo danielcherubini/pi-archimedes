@@ -31,9 +31,11 @@ const SPACE = " ";
 const ESC = "\x1b";
 
 type PluginSeed = { id: string; label: string; description: string; selected: boolean };
+type Style = "Full" | "Compact";
 
 function makeOverlay(opts: {
-  styleDefault?: "Full" | "Compact";
+  thinkingDefault?: Style;
+  toolDefault?: Style;
   plugins?: PluginSeed[];
   spinners?: readonly string[];
   spinnerDefault?: string;
@@ -42,7 +44,8 @@ function makeOverlay(opts: {
   const onDone = vi.fn<(result: OnboardingResult) => void>();
   const comp = createOnboardingOverlay({
     theme,
-    styleDefault: opts.styleDefault ?? "Full",
+    thinkingDefault: opts.thinkingDefault ?? "Full",
+    toolDefault: opts.toolDefault ?? "Full",
     plugins:
       opts.plugins ?? [
         { id: "ui", label: "UI", description: "TUI enhancements", selected: true },
@@ -65,6 +68,11 @@ function resultOf(onDone: ReturnType<typeof vi.fn>): OnboardingResult {
   return call?.[0] as OnboardingResult;
 }
 
+// Advance to a given step (0..3) via Enter presses (the last one finalizes).
+function toStep(comp: { handleInput: (d: string) => void }, step: number): void {
+  for (let i = 0; i < step; i++) comp.handleInput(ENTER);
+}
+
 describe("createOnboardingOverlay", () => {
   it("returns a TUI component with the expected shape", () => {
     const { comp } = makeOverlay();
@@ -75,9 +83,9 @@ describe("createOnboardingOverlay", () => {
     expect(typeof comp.dispose).toBe("function");
   });
 
-  // (a) step 0 renders both style options; the default carries the "> " cursor.
-  it("step 0 shows both style options with the default carrying the cursor", () => {
-    const { comp } = makeOverlay({ styleDefault: "Compact" });
+  // (a) step 0 renders both thinking options + description; the default carries the "> " cursor.
+  it("step 0 shows both thinking options with the default carrying the cursor", () => {
+    const { comp } = makeOverlay({ thinkingDefault: "Compact" });
     const lines = comp.render(80);
     const text = lines.join("\n");
     expect(text).toContain("Full");
@@ -89,41 +97,86 @@ describe("createOnboardingOverlay", () => {
     // The pre-selected (Compact) carries the cursor; the other does not.
     expect(compactLine).toContain("> Compact");
     expect(fullLine).not.toContain("> Full");
+    // The explanatory description is rendered next to the label.
+    expect(fullLine).toContain("Show all of the model's reasoning");
+    expect(compactLine).toContain("One line of reasoning (click to expand)");
     // A corrupt/unknown default clamps to index 0 (Full), never -1.
-    const { comp: corrupt } = makeOverlay({ styleDefault: "Bogus" as "Full" | "Compact" });
+    const { comp: corrupt } = makeOverlay({ thinkingDefault: "Bogus" as Style });
     expect(corrupt.render(80).join("\n")).toContain("> Full");
   });
 
-  // (b) down then enter advances to step 1 (plugins header) and confirms style.
-  it("down + enter advances to step 1 and a later finalize reports styleAnswered", () => {
-    const { comp, onDone } = makeOverlay({ styleDefault: "Full" });
-    comp.handleInput(DOWN); // move the style cursor Full → Compact
-    comp.handleInput(ENTER); // confirm style, advance to step 1
-    expect(comp.render(80).join("\n")).toContain("Which plugins do you want?");
+  // (a2) step 1 renders both tool options + description; the default carries the cursor.
+  it("step 1 shows both tool options with the default carrying the cursor", () => {
+    const { comp } = makeOverlay({ toolDefault: "Compact" });
+    toStep(comp, 1);
+    const lines = comp.render(80);
+    const text = lines.join("\n");
+    expect(text).toContain("Full");
+    expect(text).toContain("Compact");
+    const fullLine = lines.find((l) => l.includes("Full"));
+    const compactLine = lines.find((l) => l.includes("Compact"));
+    expect(fullLine).toBeDefined();
+    expect(compactLine).toBeDefined();
+    // The pre-selected (Compact) carries the cursor; the other does not.
+    expect(compactLine).toContain("> Compact");
+    expect(fullLine).not.toContain("> Full");
+    expect(fullLine).toContain("Show all tool output (expanded)");
+    expect(compactLine).toContain("Collapse tool output (click to expand)");
+  });
+
+  // (b) down then enter advances to step 1 (tool) and confirms thinking; the
+  // later finalize reports thinkingAnswered with the down-arrow selection.
+  it("down + enter advances to step 1 and a later finalize reports thinkingAnswered", () => {
+    const { comp, onDone } = makeOverlay({ thinkingDefault: "Full" });
+    comp.handleInput(DOWN); // move the thinking cursor Full → Compact
+    comp.handleInput(ENTER); // confirm thinking, advance to step 1
+    expect(comp.render(80).join("\n")).toContain("Tool output style");
     comp.handleInput(ESC); // finalize
     expect(onDone).toHaveBeenCalledTimes(1);
     const result = resultOf(onDone);
-    expect(result.styleAnswered).toBe(true);
-    expect(result.styleValue).toBe("Compact"); // the down-arrow selection
+    expect(result.thinkingAnswered).toBe(true);
+    expect(result.thinkingValue).toBe("Compact"); // the down-arrow selection
+    expect(result.toolAnswered).toBe(false);
     expect(result.pluginsAnswered).toBe(false);
     expect(result.spinnerAnswered).toBe(false);
   });
 
-  // (c) space on step 1 toggles the selected plugin; finalize reports it.
-  it("space on step 1 toggles the selected plugin", () => {
+  // (c) space on step 2 (plugins) toggles the selected plugin; finalize reports it.
+  it("space on step 2 toggles the selected plugin", () => {
     const { comp, onDone } = makeOverlay({
-      styleDefault: "Full",
+      thinkingDefault: "Full",
+      toolDefault: "Full",
       plugins: [
         { id: "ui", label: "UI", description: "TUI", selected: true },
         { id: "diff", label: "Diff", description: "Diff", selected: false },
       ],
     });
-    comp.handleInput(ENTER); // confirm step 0 → step 1 (cursor at index 0 = ui)
+    comp.handleInput(ENTER); // confirm step 0 → step 1
+    comp.handleInput(ENTER); // confirm step 1 → step 2 (plugins, cursor at index 0 = ui)
     comp.handleInput(SPACE); // toggle ui: true → false
     comp.handleInput(ESC); // finalize
     expect(onDone).toHaveBeenCalledTimes(1);
     const result = resultOf(onDone);
     expect(result.pluginSelections).toEqual({ ui: false, diff: false });
+  });
+
+  // (c2) space on the non-plugin steps does NOT toggle anything.
+  it("space on the thinking/tool/spinner steps is a no-op", () => {
+    const { comp, onDone } = makeOverlay({
+      plugins: [
+        { id: "ui", label: "UI", description: "TUI", selected: true },
+        { id: "diff", label: "Diff", description: "Diff", selected: false },
+      ],
+    });
+    comp.handleInput(SPACE); // step 0: no-op
+    comp.handleInput(ENTER); // step 0 → 1
+    comp.handleInput(SPACE); // step 1: no-op
+    comp.handleInput(ENTER); // step 1 → 2
+    comp.handleInput(ENTER); // step 2 → 3 (plugins cursor at 0 = ui, still selected)
+    comp.handleInput(SPACE); // step 3: no-op
+    comp.handleInput(ESC); // finalize
+    const result = resultOf(onDone);
+    expect(result.pluginSelections).toEqual({ ui: true, diff: false });
   });
 
   // (d) escape on step 0 finalizes with nothing answered, exactly once.
@@ -132,15 +185,17 @@ describe("createOnboardingOverlay", () => {
     comp.handleInput(ESC);
     expect(onDone).toHaveBeenCalledTimes(1);
     const result = resultOf(onDone);
-    expect(result.styleAnswered).toBe(false);
+    expect(result.thinkingAnswered).toBe(false);
+    expect(result.toolAnswered).toBe(false);
     expect(result.pluginsAnswered).toBe(false);
     expect(result.spinnerAnswered).toBe(false);
   });
 
-  // (e) completing all three steps reports everything answered + selected values.
-  it("completing all three steps reports all answered with the selected values", () => {
+  // (e) completing all four steps reports everything answered + selected values.
+  it("completing all four steps reports all answered with the selected values", () => {
     const { comp, onDone } = makeOverlay({
-      styleDefault: "Full",
+      thinkingDefault: "Full",
+      toolDefault: "Compact",
       plugins: [
         { id: "ui", label: "UI", description: "TUI", selected: true },
         { id: "diff", label: "Diff", description: "Diff", selected: false },
@@ -150,15 +205,36 @@ describe("createOnboardingOverlay", () => {
     });
     comp.handleInput(ENTER); // step 0 → 1
     comp.handleInput(ENTER); // step 1 → 2
-    comp.handleInput(ENTER); // step 2 → finalize
+    comp.handleInput(ENTER); // step 2 → 3
+    comp.handleInput(ENTER); // step 3 → finalize
     expect(onDone).toHaveBeenCalledTimes(1);
     const result = resultOf(onDone);
-    expect(result.styleAnswered).toBe(true);
+    expect(result.thinkingAnswered).toBe(true);
+    expect(result.toolAnswered).toBe(true);
     expect(result.pluginsAnswered).toBe(true);
     expect(result.spinnerAnswered).toBe(true);
-    expect(result.styleValue).toBe("Full");
+    expect(result.thinkingValue).toBe("Full");
+    expect(result.toolValue).toBe("Compact");
     expect(result.pluginSelections).toEqual({ ui: true, diff: false });
     expect(result.spinnerValue).toBe("pulse");
+  });
+
+  // (e2) the user can pick DIFFERENT thinking vs tool styles (Full thinking +
+  // Compact tool) — the payload carries both independently.
+  it("supports different thinking vs tool styles (Full thinking + Compact tool)", () => {
+    const { comp, onDone } = makeOverlay({
+      thinkingDefault: "Full",
+      toolDefault: "Full",
+    });
+    comp.handleInput(ENTER); // step 0: confirm Full thinking
+    comp.handleInput(DOWN); // step 1: move the tool cursor Full → Compact
+    comp.handleInput(ENTER); // step 1 → 2 (confirm Compact tool)
+    comp.handleInput(ENTER); // step 2 → 3
+    comp.handleInput(ENTER); // step 3 → finalize
+    expect(onDone).toHaveBeenCalledTimes(1);
+    const result = resultOf(onDone);
+    expect(result.thinkingValue).toBe("Full");
+    expect(result.toolValue).toBe("Compact");
   });
 
   // (f) onDone is called at most once — a second finalize/escape is a no-op.
@@ -166,7 +242,8 @@ describe("createOnboardingOverlay", () => {
     const { comp, onDone } = makeOverlay();
     comp.handleInput(ENTER); // step 0 → 1
     comp.handleInput(ENTER); // step 1 → 2
-    comp.handleInput(ENTER); // step 2 → finalize (first onDone)
+    comp.handleInput(ENTER); // step 2 → 3
+    comp.handleInput(ENTER); // step 3 → finalize (first onDone)
     comp.handleInput(ESC); // second finalize attempt → no-op
     comp.handleInput(ENTER); // enter after finalize → no-op
     comp.handleInput(DOWN); // cursor moves are still safe no-ops
@@ -175,22 +252,22 @@ describe("createOnboardingOverlay", () => {
 
   // Up-arrow clamps at the top (never a negative index).
   it("up-arrow clamps the cursor at index 0", () => {
-    const { comp, onDone } = makeOverlay({ styleDefault: "Full" });
+    const { comp, onDone } = makeOverlay({ thinkingDefault: "Full" });
     comp.handleInput(UP); // already at 0 → stays 0
     comp.handleInput(UP);
     comp.handleInput(ENTER); // confirm
     comp.handleInput(ENTER);
+    comp.handleInput(ENTER);
     comp.handleInput(ENTER); // finalize
     const result = resultOf(onDone);
-    expect(result.styleValue).toBe("Full"); // never wrapped to a negative index
+    expect(result.thinkingValue).toBe("Full"); // never wrapped to a negative index
   });
 
   // (g) The spinner step renders a live 4-char preview next to each name
   // (tick 0 — no requestRender means no timer, so the frame is static).
   it("spinner step renders a 4-char preview next to each name", () => {
     const { comp } = makeOverlay({ spinners: ["typing", "pulse", "rain"] });
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2
+    toStep(comp, 3); // steps 0 → 1 → 2 → 3
     const lines = comp.render(80);
     expect(lines.join("\n")).toContain("Which spinner for the editor border?");
     for (const name of ["typing", "pulse", "rain"]) {
@@ -200,14 +277,32 @@ describe("createOnboardingOverlay", () => {
     }
   });
 
+  // (g2) The spinner step adds vertical spacing — a blank line after each
+  // spinner option row (slight separation between the options). A blank line
+  // renders as border + padding only (no text): `│ │` after trimming.
+  it("spinner step renders a blank line after each option (vertical spacing)", () => {
+    const { comp } = makeOverlay({ spinners: ["typing", "pulse", "rain"] });
+    toStep(comp, 3);
+    const lines = comp.render(80);
+    const content = lines.map((l) => l.trim());
+    for (const name of ["typing", "pulse", "rain"]) {
+      const i = content.findIndex((l) => l.includes(name));
+      expect(i).toBeGreaterThanOrEqual(0);
+      const below = content[i + 1];
+      expect(below).toBeDefined();
+      // The line directly below each option row is a border-only spacer
+      // (borders on both edges, whitespace in between — no text).
+      expect((below ?? "").replace(/\s/g, "")).toBe("││");
+    }
+  });
+
   // (h) When requestRender is provided, the 40 ms interval fires it and the
   // rendered preview advances (tick increments).
   it("with requestRender: the interval fires it and the preview advances", () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const { comp } = makeOverlay({ requestRender });
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2 (spinner step)
+    toStep(comp, 3); // (spinner step)
     const beforeLines = comp.render(80);
     expect(beforeLines.join("\n")).toContain(previewAt("typing", 0));
     vi.advanceTimersByTime(40);
@@ -229,8 +324,7 @@ describe("createOnboardingOverlay", () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const { comp } = makeOverlay({ requestRender });
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2 (the interval only ticks here)
+    toStep(comp, 3); // (the interval only ticks here)
     vi.advanceTimersByTime(40);
     expect(requestRender).toHaveBeenCalledTimes(1);
     comp.dispose();
@@ -238,9 +332,9 @@ describe("createOnboardingOverlay", () => {
     expect(requestRender).toHaveBeenCalledTimes(1); // no further calls
   });
 
-  // (j) The interval only ticks on the spinner step — the style/plugin steps
-  // render no live frame, so no repaint is requested (and no tick advances)
-  // while the user is off the spinner step.
+  // (j) The interval only ticks on the spinner step (step 3) — the
+  // thinking/tool/plugin steps render no live frame, so no repaint is
+  // requested (and no tick advances) while the user is off the spinner step.
   it("the interval only ticks on the spinner step (no repaint on the other steps)", () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
@@ -251,6 +345,9 @@ describe("createOnboardingOverlay", () => {
     vi.advanceTimersByTime(400);
     expect(requestRender).not.toHaveBeenCalled(); // step 1: no repaint
     comp.handleInput(ENTER); // step 1 → 2
+    vi.advanceTimersByTime(400);
+    expect(requestRender).not.toHaveBeenCalled(); // step 2: no repaint
+    comp.handleInput(ENTER); // step 2 → 3
     vi.advanceTimersByTime(40);
     expect(requestRender).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(40);
@@ -265,11 +362,10 @@ describe("createOnboardingOverlay", () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();
     const { comp, onDone } = makeOverlay({ requestRender });
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2
+    toStep(comp, 3);
     vi.advanceTimersByTime(40);
     expect(requestRender).toHaveBeenCalledTimes(1);
-    comp.handleInput(ENTER); // step 2 → finalize
+    comp.handleInput(ENTER); // step 3 → finalize
     expect(onDone).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(400);
     expect(requestRender).toHaveBeenCalledTimes(1); // the interval was cleared in finalize
@@ -280,8 +376,7 @@ describe("createOnboardingOverlay", () => {
   // non-negative (finalize then yields a valid empty value, not a crash).
   it("down-arrow with an empty options list keeps the cursor non-negative", () => {
     const { comp, onDone } = makeOverlay({ spinners: [] });
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2 (empty spinner list)
+    toStep(comp, 3); // (empty spinner list)
     comp.handleInput(DOWN); // must stay at 0, never -1
     comp.handleInput(DOWN);
     comp.handleInput(UP);
@@ -295,13 +390,23 @@ describe("createOnboardingOverlay", () => {
   // (n) The header area carries a static next-session note on every step —
   // the style choices are written to archimedes.ui but the renderer patches
   // are configured at session start, so the note sets expectations up front.
-  it("renders the next-session note on all three steps", () => {
-    for (let step = 0; step < 3; step++) {
+  it("renders the next-session note on all four steps", () => {
+    for (let step = 0; step < 4; step++) {
       const { comp } = makeOverlay();
-      for (let i = 0; i < step; i++) comp.handleInput(ENTER);
+      toStep(comp, step);
       const lines = comp.render(80);
       const note = lines.find((l) => l.includes("Choices apply from your next session."));
       expect(note).toBeDefined();
+    }
+  });
+
+  // (n2) The step counter reads N/4 (four steps, not three).
+  it("the step counter reads N/4 on every step", () => {
+    for (let step = 0; step < 4; step++) {
+      const { comp } = makeOverlay();
+      toStep(comp, step);
+      const counter = comp.render(80).find((l) => l.includes(`· ${step + 1}/4`));
+      expect(counter).toBeDefined();
     }
   });
 
@@ -310,8 +415,7 @@ describe("createOnboardingOverlay", () => {
   // are skipped, not applied), so the hint must not read like "keep my changes".
   it("spinner step footer makes the esc skip/discard semantics explicit", () => {
     const { comp } = makeOverlay();
-    comp.handleInput(ENTER); // step 0 → 1
-    comp.handleInput(ENTER); // step 1 → 2
+    toStep(comp, 3);
     const footer = comp.render(80).find((l) => l.includes("esc"));
     expect(footer).toBeDefined();
     expect(footer).toContain("finish (skip rest)");

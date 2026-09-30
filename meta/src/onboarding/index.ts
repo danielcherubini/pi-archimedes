@@ -39,13 +39,9 @@ export async function runOnboarding(ctx: ExtensionContext): Promise<void> {
     if (finished) return;
     finished = true;
     const uiMutations: Partial<typeof DEFAULT_UI_CONFIG> = {};
-    if (result.styleAnswered) {
-      uiMutations.thinkingStyle = result.styleValue;
-      uiMutations.toolStyle = result.styleValue; // seeds both to the same value
-    }
-    if (result.spinnerAnswered) {
-      uiMutations.editorSpinStyle = result.spinnerValue as typeof DEFAULT_UI_CONFIG["editorSpinStyle"];
-    }
+    if (result.thinkingAnswered) uiMutations.thinkingStyle = result.thinkingValue;
+    if (result.toolAnswered) uiMutations.toolStyle = result.toolValue;
+    if (result.spinnerAnswered) uiMutations.editorSpinStyle = result.spinnerValue as typeof DEFAULT_UI_CONFIG["editorSpinStyle"];
     try {
       if (Object.keys(uiMutations).length > 0) {
         updateConfig("archimedes.ui", DEFAULT_UI_CONFIG, (c) => ({ ...c, ...uiMutations }));
@@ -67,7 +63,8 @@ export async function runOnboarding(ctx: ExtensionContext): Promise<void> {
   await ctx.ui.custom((tui, theme, _keybindings, done) => {
     return createOnboardingOverlay({
       theme,
-      styleDefault: normalizeOutputStyle(ui.thinkingStyle),
+      thinkingDefault: normalizeOutputStyle(ui.thinkingStyle),
+      toolDefault: normalizeOutputStyle(ui.toolStyle),
       plugins,
       spinners: SPINNER_STYLES,
       spinnerDefault: ui.editorSpinStyle,
