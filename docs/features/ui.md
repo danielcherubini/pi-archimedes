@@ -23,7 +23,7 @@ verified-by: pnpm test
 
 3. **Thinking Presentation**:
    - Patches assistant message rendering for collapsible thinking blocks (`autoCollapseThinking`).
-   - Supports compact thinking line limits (`compactThinking`) and code unindentation (`codeUnindent`).
+   - Supports a Full/Compact output style — `thinkingStyle` (Full = full thinking text, Compact = one-line thinking, click to expand) and `toolStyle` (Full = expanded tool results, Compact = collapsed, click to expand) — plus code unindentation (`codeUnindent`).
 
 4. **Startup Splash Animation**:
    - Terminal logo reveal and animation sequences (`animationStyle`).

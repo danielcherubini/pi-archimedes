@@ -32,7 +32,8 @@ TUI enhancements for the Pi Archimedes monorepo.
 | `bashToolStyling` | boolean | `true` | Custom styled bash tool rendering |
 | `mutedTheme` | boolean | `false` | Muted theme for thinking blocks |
 | `autoCollapseThinking` | boolean | `false` | Automatically collapse thinking blocks |
-| `compactThinking` | "Off" \| "1 line" \| "3 lines" \| "5 lines" | `"Off"` | Compact thinking block mode |
+| `thinkingStyle` | "Full" \| "Compact" | `"Full"` | Thinking block display (Full = full text, Compact = one line, click to expand) |
+| `toolStyle` | "Full" \| "Compact" | `"Compact"` | Tool result display (Full = expanded, Compact = collapsed, click to expand) |
 | `codeUnindent` | boolean | `true` | Strip common indentation from code blocks |
 | `labelText` | string | `"Thinking..."` | Text shown before thinking blocks |
 | `labelColor` | string | `"255,215,0"` | RGB color for the thinking label (e.g. `255,215,0`) |
