@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
 
-import { getUISettingsItems, saveUIConfig, normalizeOutputStyle, type UIConfig } from "@pi-archimedes/ui";
+import { getUISettingsItems, saveUIConfig, normalizeThinkingStyle, normalizeToolStyle, type UIConfig } from "@pi-archimedes/ui";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
@@ -94,8 +94,8 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           case "bashToolStyling": uiConfig.bashToolStyling = newValue === "On"; break;
           case "mutedTheme": uiConfig.mutedTheme = newValue === "On"; break;
           case "autoCollapseThinking": uiConfig.autoCollapseThinking = newValue === "On"; break;
-          case "thinkingStyle": uiConfig.thinkingStyle = normalizeOutputStyle(newValue); break;
-          case "toolStyle": uiConfig.toolStyle = normalizeOutputStyle(newValue); break;
+          case "thinkingStyle": uiConfig.thinkingStyle = normalizeThinkingStyle(newValue); break;
+          case "toolStyle": uiConfig.toolStyle = normalizeToolStyle(newValue); break;
           case "codeUnindent": uiConfig.codeUnindent = newValue === "On"; break;
           case "editorSpinBorder": uiConfig.editorSpinBorder = newValue === "On"; break;
           case "editorSpinSpeed": uiConfig.editorSpinSpeed = newValue.toLowerCase() as UIConfig["editorSpinSpeed"]; break;

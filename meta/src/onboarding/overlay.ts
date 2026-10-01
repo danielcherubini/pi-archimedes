@@ -6,7 +6,7 @@ import {
   wrapWithBorder,
   type OverlayTheme,
 } from "@pi-archimedes/core/overlay";
-import type { OutputStyle } from "@pi-archimedes/ui/config";
+import type { ThinkingStyle, ToolStyle } from "@pi-archimedes/ui/config";
 import { spinFrame } from "@pi-archimedes/ui/editor";
 
 /**
@@ -19,9 +19,9 @@ import { spinFrame } from "@pi-archimedes/ui/editor";
  */
 export interface OnboardingResult {
   thinkingAnswered: boolean;
-  thinkingValue: OutputStyle;
+  thinkingValue: ThinkingStyle;
   toolAnswered: boolean;
-  toolValue: OutputStyle;
+  toolValue: ToolStyle;
   pluginsAnswered: boolean;
   pluginSelections: Record<string, boolean>;
   spinnerAnswered: boolean;
@@ -30,8 +30,8 @@ export interface OnboardingResult {
 
 export interface OnboardingOverlayOptions {
   theme: OverlayTheme;
-  thinkingDefault: OutputStyle;
-  toolDefault: OutputStyle;
+  thinkingDefault: ThinkingStyle;
+  toolDefault: ToolStyle;
   plugins: { id: string; label: string; description: string; selected: boolean }[];
   spinners: readonly string[];
   spinnerDefault: string;
@@ -41,14 +41,16 @@ export interface OnboardingOverlayOptions {
 }
 
 // The single "style" question was split into two INDEPENDENT ones (thinking +
-// tool) so the user can mix, e.g. "Full thinking" + "Compact tools".
-const THINKING_OPTIONS: { label: OutputStyle; description: string }[] = [
+// tool) so the user can mix, e.g. "Full thinking" + "Minimal tools". The tool
+// question is the styling master switch: Minimal = archimedes-styled tools,
+// Native = no archimedes tool styling at all.
+const THINKING_OPTIONS: { label: ThinkingStyle; description: string }[] = [
   { label: "Full", description: "Show all of the model's reasoning" },
   { label: "Compact", description: "One line of reasoning (click to expand)" },
 ];
-const TOOL_OPTIONS: { label: OutputStyle; description: string }[] = [
-  { label: "Full", description: "Show all tool output (expanded)" },
-  { label: "Compact", description: "Collapse tool output (click to expand)" },
+const TOOL_OPTIONS: { label: ToolStyle; description: string }[] = [
+  { label: "Minimal", description: "Archimedes-styled tools (minimal view)" },
+  { label: "Native", description: "Pi's native tool rendering (no styling)" },
 ];
 
 /**
@@ -118,7 +120,7 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       thinkingAnswered: confirmed[0] ?? false,
       thinkingValue: THINKING_OPTIONS[thinkingIdx]?.label ?? "Full",
       toolAnswered: confirmed[1] ?? false,
-      toolValue: TOOL_OPTIONS[toolIdx]?.label ?? "Full",
+      toolValue: TOOL_OPTIONS[toolIdx]?.label ?? "Minimal",
       pluginsAnswered: confirmed[2] ?? false,
       pluginSelections,
       spinnerAnswered: confirmed[3] ?? false,

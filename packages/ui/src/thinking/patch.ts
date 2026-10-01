@@ -1,7 +1,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { AssistantMessageComponent, VERSION } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownOptions, type MarkdownTheme, MouseRegion, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
-import type { OutputStyle } from "../config.js";
+import type { ThinkingStyle } from "../config.js";
 import { buildMutedMarkdownTheme } from "./theme.js";
 
 // Track which pi version we patched against to detect incompatibility
@@ -28,7 +28,7 @@ export function patchThinkingRenderer(
     labelText?: string;
     labelColor?: string;
     autoCollapseThinking?: boolean;
-    thinkingStyle?: OutputStyle;
+    thinkingStyle?: ThinkingStyle;
   },
 ): void {
   if (!AssistantMessageComponent) return;

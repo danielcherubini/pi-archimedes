@@ -1,8 +1,8 @@
 import type { SettingItem } from "@earendil-works/pi-tui";
 import {
   ANIMATION_STYLES,
-  normalizeOutputStyle,
-  OUTPUT_STYLE_VALUES,
+  normalizeThinkingStyle,
+  normalizeToolStyle,
   type UIConfig,
 } from "./config.js";
 
@@ -11,14 +11,14 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
     {
       id: "bashToolStyling",
       label: "Bash Tool Styling",
-      description: "Custom styling for bash tool execution with collapsible output and duration",
+      description: "Archimedes styling for bash tool execution (applies when Tool Style is Minimal)",
       currentValue: config.bashToolStyling ? "On" : "Off",
       values: ["On", "Off"],
     },
     {
       id: "codemodeToolStyling",
       label: "Codemode Tool Styling",
-      description: "Custom styling for the codemode tool (script preview, nested call list, output) while keeping the native executor",
+      description: "Archimedes styling for the codemode tool (applies when Tool Style is Minimal)",
       currentValue: config.codemodeToolStyling ? "On" : "Off",
       values: ["On", "Off"],
     },
@@ -40,15 +40,15 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
       id: "thinkingStyle",
       label: "Thinking Style",
       description: "How thinking blocks display (Full = full text, Compact = one line, click to expand)",
-      currentValue: normalizeOutputStyle(config.thinkingStyle),
+      currentValue: normalizeThinkingStyle(config.thinkingStyle),
       values: ["Full", "Compact"],
     },
     {
       id: "toolStyle",
       label: "Tool Style",
-      description: "How tool results display (Full = expanded, Compact = native collapsed, Minimal = most compact; click to expand)",
-      currentValue: normalizeOutputStyle(config.toolStyle),
-      values: [...OUTPUT_STYLE_VALUES],
+      description: "Tool rendering (Minimal = archimedes styled, Native = pi native, no archimedes styling)",
+      currentValue: normalizeToolStyle(config.toolStyle),
+      values: ["Native", "Minimal"],
     },
     {
       id: "codeUnindent",

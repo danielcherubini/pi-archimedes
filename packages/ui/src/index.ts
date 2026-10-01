@@ -15,20 +15,20 @@ import { renderHeader, patchStartupListing, type ListingRef } from "./startup/in
 import { patchConsoleLog, unpatchConsoleLog } from "./startup/capture.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
-import { patchToolRenderer } from "./tools/patch.js";
 import {
   loadUIConfig,
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
-  normalizeOutputStyle,
+  normalizeThinkingStyle,
+  normalizeToolStyle,
   type UIConfig,
   type CoreConfig,
 } from "./config.js";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals, setCodemodeOutputStyle } from "./codemode/index.js";
+import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 
 // Re-exports
 export { unpatchConsoleLog } from "./startup/capture.js";
@@ -38,11 +38,14 @@ export {
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
-  normalizeOutputStyle,
-  OUTPUT_STYLE_VALUES,
+  normalizeThinkingStyle,
+  normalizeToolStyle,
+  THINKING_STYLE_VALUES,
+  TOOL_STYLE_VALUES,
   type UIConfig,
   type CoreConfig,
-  type OutputStyle,
+  type ThinkingStyle,
+  type ToolStyle,
 } from "./config.js";
 
 // Module-level state for session lifecycle
@@ -144,22 +147,25 @@ export function registerUI(pi: ExtensionAPI): void {
     uiCtx = ctx;
 
     const config = loadUIConfig();
+    const toolStyle = normalizeToolStyle(config.toolStyle);
 
-    if (config.bashToolStyling !== false) {
-      registerBashToolOverride(pi, ctx.cwd);
-    }
+    // Master gate: `Minimal` = archimedes tool styling (the per-tool
+    // toggles fine-tune it); `Native` = no archimedes tool styling at all
+    // — the overrides are not registered, so pi's native tool rendering
+    // stands (and no built-in-takeover startup notice).
+    if (toolStyle === "Minimal") {
+      if (config.bashToolStyling !== false) {
+        registerBashToolOverride(pi, ctx.cwd);
+      }
 
-    // The codemode override replaces pi's built-in codemode extension (the
-    // same take-over the bash override does for the core bash tool). It
-    // loads the native definition from the running CLI and swaps in the
-    // Archimedes renderers; it is a no-op on pi versions without the
-    // codemode extension.
-    if (config.codemodeToolStyling !== false) {
-      // The renderer reads the style live: refreshing it here means a
-      // toolStyle change sticks across /reload without re-registering the
-      // tool (same pattern as patchToolComponentDisplay).
-      setCodemodeOutputStyle(normalizeOutputStyle(config.toolStyle));
-      void registerCodemodeToolOverride(pi);
+      // The codemode override replaces pi's built-in codemode extension
+      // (the same take-over the bash override does for the core bash
+      // tool). It loads the native definition from the running CLI and
+      // swaps in the Archimedes renderers; it is a no-op on pi versions
+      // without the codemode extension.
+      if (config.codemodeToolStyling !== false) {
+        void registerCodemodeToolOverride(pi);
+      }
     }
 
     if (ctx.hasUI) {
@@ -215,9 +221,8 @@ export function registerUI(pi: ExtensionAPI): void {
         labelText: config.labelText,
         labelColor: config.labelColor,
         autoCollapseThinking: config.autoCollapseThinking,
-        thinkingStyle: normalizeOutputStyle(config.thinkingStyle),
+        thinkingStyle: normalizeThinkingStyle(config.thinkingStyle),
       });
-      patchToolRenderer({ toolStyle: normalizeOutputStyle(config.toolStyle) });
     }
   });
 }

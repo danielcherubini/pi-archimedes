@@ -36,10 +36,6 @@ vi.mock("./thinking/patch.js", () => ({
   patchThinkingRenderer: vi.fn(),
 }));
 
-vi.mock("./tools/patch.js", () => ({
-  patchToolRenderer: vi.fn(),
-}));
-
 vi.mock("./thinking/transform.js", () => ({
   transformThinkingContent: vi.fn(),
 }));
@@ -67,7 +63,6 @@ vi.mock("./bash/index.js", () => ({
 vi.mock("./codemode/index.js", () => ({
   registerCodemodeToolOverride: vi.fn(async () => true),
   clearActiveCodemodeIntervals: vi.fn(),
-  setCodemodeOutputStyle: vi.fn(),
 }));
 
 import defaultExport, {
@@ -82,9 +77,8 @@ import defaultExport, {
 import { patchConsoleLog } from "./startup/capture.js";
 import { migrateCoreToUIConfig } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals, setCodemodeOutputStyle } from "./codemode/index.js";
+import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
-import { patchToolRenderer } from "./tools/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
 import { renderHeader, patchStartupListing } from "./startup/index.js";
 
@@ -231,10 +225,28 @@ describe("packages/ui lifecycle and registration", () => {
         }),
       );
 
-      // Tool renderer (default toolStyle is Minimal)
-      expect(patchToolRenderer).toHaveBeenCalledWith({ toolStyle: "Minimal" });
-      // The codemode renderer's live style is refreshed from the config
-      expect(setCodemodeOutputStyle).toHaveBeenCalledWith("Minimal");
+      // Master gate (default toolStyle is Minimal): both overrides registered
+      expect(registerBashToolOverride).toHaveBeenCalled();
+      expect(registerCodemodeToolOverride).toHaveBeenCalled();
+    });
+
+    it("skips the tool overrides entirely when toolStyle is Native", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        toolStyle: "Native",
+      });
+
+      const { triggerStart } = setupHarness();
+      const { ctx, ui } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      // Native = no archimedes tool styling: neither override is registered
+      // (pi's native rendering stands, no built-in-takeover notice).
+      expect(registerBashToolOverride).not.toHaveBeenCalled();
+      expect(registerCodemodeToolOverride).not.toHaveBeenCalled();
+      // The rest of the UI still comes up.
+      expect(ui.setHeader).toHaveBeenCalledTimes(1);
     });
 
     it("respects editorSpinBorder: false by leaving workingVisible=true and not installing editor component", () => {
@@ -327,7 +339,6 @@ describe("packages/ui lifecycle and registration", () => {
       expect(ui.setHeader).not.toHaveBeenCalled();
       expect(ui.setEditorComponent).not.toHaveBeenCalled();
       expect(patchThinkingRenderer).not.toHaveBeenCalled();
-      expect(patchToolRenderer).not.toHaveBeenCalled();
     });
   });
 

@@ -13,10 +13,21 @@ export const ANIMATION_STYLES = [
 ] as const;
 export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 
-export type OutputStyle = "Full" | "Compact" | "Minimal";
-export const OUTPUT_STYLE_VALUES: readonly OutputStyle[] = [
+export type ThinkingStyle = "Full" | "Compact";
+export const THINKING_STYLE_VALUES: readonly ThinkingStyle[] = [
   "Full",
   "Compact",
+] as const;
+
+/**
+ * How tool rendering is handled. `Minimal` = the archimedes-styled tools
+ * (bash/codemode overrides, minimal collapsed view); `Native` = no archimedes
+ * styling at all — the overrides are not registered, so pi's native tool
+ * rendering stands (and no built-in-takeover startup notice).
+ */
+export type ToolStyle = "Native" | "Minimal";
+export const TOOL_STYLE_VALUES: readonly ToolStyle[] = [
+  "Native",
   "Minimal",
 ] as const;
 
@@ -33,11 +44,23 @@ export const SPINNER_STYLES: readonly SpinnerStyle[] = [
   "marquee",
 ];
 
-export function normalizeOutputStyle(value: unknown): OutputStyle {
-  if (value === "Full" || value === "Compact" || value === "Minimal") return value;
+export function normalizeThinkingStyle(value: unknown): ThinkingStyle {
+  if (value === "Full" || value === "Compact") return value;
   if (value === "Off") return "Full";
   if (value === "1 line" || value === "3 lines" || value === "5 lines") return "Compact";
   return "Full";
+}
+
+/**
+ * Legacy mappings: `Full` (auto-expand, dropped) → `Minimal` (the user opted
+ * into archimedes styling); `Compact` (the old native-collapsed label) →
+ * `Native` (its new name).
+ */
+export function normalizeToolStyle(value: unknown): ToolStyle {
+  if (value === "Native" || value === "Minimal") return value;
+  if (value === "Full") return "Minimal";
+  if (value === "Compact") return "Native";
+  return "Minimal";
 }
 
 export type SpinnerStyle =
@@ -57,8 +80,8 @@ export interface UIConfig {
   codemodeToolStyling: boolean;
   mutedTheme: boolean;
   autoCollapseThinking: boolean;
-  thinkingStyle: OutputStyle;
-  toolStyle: OutputStyle;
+  thinkingStyle: ThinkingStyle;
+  toolStyle: ToolStyle;
   codeUnindent: boolean;
   labelText: string;
   labelColor: string;

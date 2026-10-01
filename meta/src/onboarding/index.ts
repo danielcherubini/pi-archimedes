@@ -4,7 +4,8 @@ import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import {
   DEFAULT_UI_CONFIG,
   loadUIConfig,
-  normalizeOutputStyle,
+  normalizeThinkingStyle,
+  normalizeToolStyle,
   SPINNER_STYLES,
 } from "@pi-archimedes/ui/config";
 import { isPluginEnabled, PLUGINS, setPluginEnabled } from "../plugins.js";
@@ -63,8 +64,8 @@ export async function runOnboarding(ctx: ExtensionContext): Promise<void> {
   await ctx.ui.custom((tui, theme, _keybindings, done) => {
     return createOnboardingOverlay({
       theme,
-      thinkingDefault: normalizeOutputStyle(ui.thinkingStyle),
-      toolDefault: normalizeOutputStyle(ui.toolStyle),
+      thinkingDefault: normalizeThinkingStyle(ui.thinkingStyle),
+      toolDefault: normalizeToolStyle(ui.toolStyle),
       plugins,
       spinners: SPINNER_STYLES,
       spinnerDefault: ui.editorSpinStyle,

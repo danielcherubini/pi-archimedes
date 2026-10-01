@@ -33,10 +33,11 @@ const ESC = "\x1b";
 
 type PluginSeed = { id: string; label: string; description: string; selected: boolean };
 type Style = "Full" | "Compact";
+type ToolOpt = "Native" | "Minimal";
 
 function makeOverlay(opts: {
   thinkingDefault?: Style;
-  toolDefault?: Style;
+  toolDefault?: ToolOpt;
   plugins?: PluginSeed[];
   spinners?: readonly string[];
   spinnerDefault?: string;
@@ -46,7 +47,7 @@ function makeOverlay(opts: {
   const comp = createOnboardingOverlay({
     theme,
     thinkingDefault: opts.thinkingDefault ?? "Full",
-    toolDefault: opts.toolDefault ?? "Full",
+    toolDefault: opts.toolDefault ?? "Minimal",
     plugins:
       opts.plugins ?? [
         { id: "ui", label: "UI", description: "TUI enhancements", selected: true },
@@ -108,21 +109,21 @@ describe("createOnboardingOverlay", () => {
 
   // (a2) step 1 renders both tool options + description; the default carries the cursor.
   it("step 1 shows both tool options with the default carrying the cursor", () => {
-    const { comp } = makeOverlay({ toolDefault: "Compact" });
+    const { comp } = makeOverlay({ toolDefault: "Native" });
     toStep(comp, 1);
     const lines = comp.render(80);
     const text = lines.join("\n");
-    expect(text).toContain("Full");
-    expect(text).toContain("Compact");
-    const fullLine = lines.find((l) => l.includes("Full"));
-    const compactLine = lines.find((l) => l.includes("Compact"));
-    expect(fullLine).toBeDefined();
-    expect(compactLine).toBeDefined();
-    // The pre-selected (Compact) carries the cursor; the other does not.
-    expect(compactLine).toContain("> Compact");
-    expect(fullLine).not.toContain("> Full");
-    expect(fullLine).toContain("Show all tool output (expanded)");
-    expect(compactLine).toContain("Collapse tool output (click to expand)");
+    expect(text).toContain("Minimal");
+    expect(text).toContain("Native");
+    const minimalLine = lines.find((l) => l.includes("Minimal"));
+    const nativeLine = lines.find((l) => l.includes("Native"));
+    expect(minimalLine).toBeDefined();
+    expect(nativeLine).toBeDefined();
+    // The pre-selected (Native) carries the cursor; the other does not.
+    expect(nativeLine).toContain("> Native");
+    expect(minimalLine).not.toContain("> Minimal");
+    expect(minimalLine).toContain("Archimedes-styled tools (minimal view)");
+    expect(nativeLine).toContain("Pi's native tool rendering (no styling)");
   });
 
   // (b) down then enter advances to step 1 (tool) and confirms thinking; the
@@ -146,7 +147,7 @@ describe("createOnboardingOverlay", () => {
   it("space on step 2 toggles the selected plugin", () => {
     const { comp, onDone } = makeOverlay({
       thinkingDefault: "Full",
-      toolDefault: "Full",
+      toolDefault: "Minimal",
       plugins: [
         { id: "ui", label: "UI", description: "TUI", selected: true },
         { id: "diff", label: "Diff", description: "Diff", selected: false },
@@ -196,7 +197,7 @@ describe("createOnboardingOverlay", () => {
   it("completing all four steps reports all answered with the selected values", () => {
     const { comp, onDone } = makeOverlay({
       thinkingDefault: "Full",
-      toolDefault: "Compact",
+      toolDefault: "Native",
       plugins: [
         { id: "ui", label: "UI", description: "TUI", selected: true },
         { id: "diff", label: "Diff", description: "Diff", selected: false },
@@ -215,27 +216,27 @@ describe("createOnboardingOverlay", () => {
     expect(result.pluginsAnswered).toBe(true);
     expect(result.spinnerAnswered).toBe(true);
     expect(result.thinkingValue).toBe("Full");
-    expect(result.toolValue).toBe("Compact");
+    expect(result.toolValue).toBe("Native");
     expect(result.pluginSelections).toEqual({ ui: true, diff: false });
     expect(result.spinnerValue).toBe("pulse");
   });
 
   // (e2) the user can pick DIFFERENT thinking vs tool styles (Full thinking +
-  // Compact tool) — the payload carries both independently.
-  it("supports different thinking vs tool styles (Full thinking + Compact tool)", () => {
+  // Native tool) — the payload carries both independently.
+  it("supports different thinking vs tool styles (Full thinking + Native tool)", () => {
     const { comp, onDone } = makeOverlay({
       thinkingDefault: "Full",
-      toolDefault: "Full",
+      toolDefault: "Minimal",
     });
     comp.handleInput(ENTER); // step 0: confirm Full thinking
-    comp.handleInput(DOWN); // step 1: move the tool cursor Full → Compact
-    comp.handleInput(ENTER); // step 1 → 2 (confirm Compact tool)
+    comp.handleInput(DOWN); // step 1: move the tool cursor Minimal → Native
+    comp.handleInput(ENTER); // step 1 → 2 (confirm Native tool)
     comp.handleInput(ENTER); // step 2 → 3
     comp.handleInput(ENTER); // step 3 → finalize
     expect(onDone).toHaveBeenCalledTimes(1);
     const result = resultOf(onDone);
     expect(result.thinkingValue).toBe("Full");
-    expect(result.toolValue).toBe("Compact");
+    expect(result.toolValue).toBe("Native");
   });
 
   // (f) onDone is called at most once — a second finalize/escape is a no-op.

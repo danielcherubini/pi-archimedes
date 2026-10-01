@@ -10,9 +10,11 @@ import {
   saveUIConfig,
   DEFAULT_UI_CONFIG,
   ANIMATION_STYLES,
-  OUTPUT_STYLE_VALUES,
+  THINKING_STYLE_VALUES,
+  TOOL_STYLE_VALUES,
   SPINNER_STYLES,
-  normalizeOutputStyle,
+  normalizeThinkingStyle,
+  normalizeToolStyle,
   SPIN_SPEED_MULT,
 } from "./config.js";
 import { loadConfig, saveConfig } from "@pi-archimedes/core/settings-io";
@@ -115,16 +117,17 @@ describe("ANIMATION_STYLES", () => {
   });
 });
 
-describe("DEFAULT_UI_CONFIG output styles", () => {
+describe("DEFAULT_UI_CONFIG styles", () => {
   it("defaults thinkingStyle to Full and toolStyle to Minimal", () => {
     expect(DEFAULT_UI_CONFIG.thinkingStyle).toBe("Full");
     expect(DEFAULT_UI_CONFIG.toolStyle).toBe("Minimal");
   });
 });
 
-describe("OUTPUT_STYLE_VALUES", () => {
-  it("exports [Full, Compact]", () => {
-    expect(OUTPUT_STYLE_VALUES).toEqual(["Full", "Compact", "Minimal"]);
+describe("style value lists", () => {
+  it("exports the thinking and tool style values", () => {
+    expect(THINKING_STYLE_VALUES).toEqual(["Full", "Compact"]);
+    expect(TOOL_STYLE_VALUES).toEqual(["Native", "Minimal"]);
   });
 });
 
@@ -145,30 +148,52 @@ describe("SPINNER_STYLES", () => {
   });
 });
 
-describe("normalizeOutputStyle", () => {
+describe("normalizeThinkingStyle", () => {
   it("normalizes current values as-is", () => {
-    expect(normalizeOutputStyle("Full")).toBe("Full");
-    expect(normalizeOutputStyle("Compact")).toBe("Compact");
-    expect(normalizeOutputStyle("Minimal")).toBe("Minimal");
+    expect(normalizeThinkingStyle("Full")).toBe("Full");
+    expect(normalizeThinkingStyle("Compact")).toBe("Compact");
   });
 
   it("maps legacy Off to Full", () => {
-    expect(normalizeOutputStyle("Off")).toBe("Full");
+    expect(normalizeThinkingStyle("Off")).toBe("Full");
   });
 
   it("maps legacy N-lines values to Compact", () => {
-    expect(normalizeOutputStyle("1 line")).toBe("Compact");
-    expect(normalizeOutputStyle("3 lines")).toBe("Compact");
-    expect(normalizeOutputStyle("5 lines")).toBe("Compact");
+    expect(normalizeThinkingStyle("1 line")).toBe("Compact");
+    expect(normalizeThinkingStyle("3 lines")).toBe("Compact");
+    expect(normalizeThinkingStyle("5 lines")).toBe("Compact");
   });
 
   it("normalizes invalid / unknown / non-string values to Full", () => {
-    expect(normalizeOutputStyle(undefined)).toBe("Full");
-    expect(normalizeOutputStyle(null)).toBe("Full");
-    expect(normalizeOutputStyle("")).toBe("Full");
-    expect(normalizeOutputStyle(123)).toBe("Full");
-    expect(normalizeOutputStyle(true)).toBe("Full");
-    expect(normalizeOutputStyle("off")).toBe("Full");
-    expect(normalizeOutputStyle("2 lines")).toBe("Full");
+    expect(normalizeThinkingStyle(undefined)).toBe("Full");
+    expect(normalizeThinkingStyle(null)).toBe("Full");
+    expect(normalizeThinkingStyle("")).toBe("Full");
+    expect(normalizeThinkingStyle(123)).toBe("Full");
+    expect(normalizeThinkingStyle(true)).toBe("Full");
+    expect(normalizeThinkingStyle("off")).toBe("Full");
+    expect(normalizeThinkingStyle("2 lines")).toBe("Full");
+  });
+});
+
+describe("normalizeToolStyle", () => {
+  it("normalizes current values as-is", () => {
+    expect(normalizeToolStyle("Native")).toBe("Native");
+    expect(normalizeToolStyle("Minimal")).toBe("Minimal");
+  });
+
+  it("maps legacy Full (dropped auto-expand) to Minimal", () => {
+    expect(normalizeToolStyle("Full")).toBe("Minimal");
+  });
+
+  it("maps legacy Compact to Native (the rename)", () => {
+    expect(normalizeToolStyle("Compact")).toBe("Native");
+  });
+
+  it("normalizes invalid / unknown / non-string values to Minimal", () => {
+    expect(normalizeToolStyle(undefined)).toBe("Minimal");
+    expect(normalizeToolStyle(null)).toBe("Minimal");
+    expect(normalizeToolStyle("")).toBe("Minimal");
+    expect(normalizeToolStyle(123)).toBe("Minimal");
+    expect(normalizeToolStyle(true)).toBe("Minimal");
   });
 });

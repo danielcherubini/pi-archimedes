@@ -67,7 +67,18 @@ describe("getUISettingsItems", () => {
     const toolItem = items.find((i) => i.id === "toolStyle");
     expect(toolItem).toBeDefined();
     expect(toolItem!.currentValue).toBe("Minimal");
-    expect(toolItem!.values).toEqual(["Full", "Compact", "Minimal"]);
+    expect(toolItem!.values).toEqual(["Native", "Minimal"]);
+  });
+
+  it("normalizes legacy toolStyle values (Full → Minimal, Compact → Native)", () => {
+    expect(
+      getUISettingsItems({ ...DEFAULT_UI_CONFIG, toolStyle: "Full" as never })
+        .find((i) => i.id === "toolStyle")?.currentValue,
+    ).toBe("Minimal");
+    expect(
+      getUISettingsItems({ ...DEFAULT_UI_CONFIG, toolStyle: "Compact" as never })
+        .find((i) => i.id === "toolStyle")?.currentValue,
+    ).toBe("Native");
   });
 
   it("exposes animationStyle with ANIMATION_STYLES values", () => {

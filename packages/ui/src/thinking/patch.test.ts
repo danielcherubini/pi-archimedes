@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import type { OutputStyle } from "../config.js";
+import type { ThinkingStyle } from "../config.js";
 
 // Symbols used by patch.ts to mark patched prototypes
 const PATCHED_KEY = Symbol.for("archimedes:thinkingPatched");
@@ -410,7 +410,7 @@ describe("patchThinkingRenderer", () => {
 			labelText?: string;
 			labelColor?: string;
 			autoCollapseThinking?: boolean;
-			thinkingStyle?: OutputStyle;
+			thinkingStyle?: ThinkingStyle;
 		};
 	}) {
 		const MockClass = function AssistantMessageComponent() {};

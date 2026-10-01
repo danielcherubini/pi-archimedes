@@ -56,15 +56,16 @@ const { loadConfig, updateConfig } = settingsIo;
 vi.mock("@pi-archimedes/ui/config", () => ({
   DEFAULT_UI_CONFIG: {
     thinkingStyle: "Full",
-    toolStyle: "Compact",
+    toolStyle: "Native",
     editorSpinStyle: "pendulum",
   },
   loadUIConfig: vi.fn(() => ({
     thinkingStyle: "Full",
-    toolStyle: "Compact",
+    toolStyle: "Native",
     editorSpinStyle: "pendulum",
   })),
-  normalizeOutputStyle: vi.fn((v: unknown) => (v === "Compact" ? "Compact" : "Full")),
+  normalizeThinkingStyle: vi.fn((v: unknown) => (v === "Compact" ? "Compact" : "Full")),
+  normalizeToolStyle: vi.fn((v: unknown) => (v === "Native" ? "Native" : "Minimal")),
   SPINNER_STYLES: ["typing", "pulse", "rain"],
 }));
 
@@ -171,12 +172,12 @@ describe("runOnboarding gates", () => {
   });
 
   it("passes the normalized thinking + tool defaults independently to the overlay", async () => {
-    // The mocked loadUIConfig returns thinkingStyle "Full" / toolStyle "Compact";
-    // normalizeOutputStyle maps "Compact" → "Compact" and anything else → "Full".
+    // The mocked loadUIConfig returns thinkingStyle "Full" / toolStyle "Native";
+    // normalizeToolStyle maps "Native" → "Native" and anything else → "Minimal".
     const { ctx } = makeCtx("tui");
     await runOnboarding(ctx);
     expect(captured.thinkingDefault).toBe("Full");
-    expect(captured.toolDefault).toBe("Compact");
+    expect(captured.toolDefault).toBe("Native");
   });
 
   it("does not open the overlay in non-TUI modes (marker not consumed)", async () => {
@@ -230,7 +231,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: true,
       thinkingValue: "Compact",
       toolAnswered: true,
-      toolValue: "Full", // independent of thinkingValue
+      toolValue: "Minimal", // independent of thinkingValue
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: false, todo: true },
       spinnerAnswered: true,
@@ -242,7 +243,7 @@ describe("runOnboarding write logic (onDone)", () => {
     // spinner choice.
     const ui = mockStore["archimedes.ui"] ?? {};
     expect(ui.thinkingStyle).toBe("Compact");
-    expect(ui.toolStyle).toBe("Full");
+    expect(ui.toolStyle).toBe("Minimal");
     expect(ui.editorSpinStyle).toBe("pulse");
 
     // plugins: only CHANGED flags written (footer on→off, todo off→on; ui unchanged)
@@ -259,14 +260,14 @@ describe("runOnboarding write logic (onDone)", () => {
 
   it("leaves an UNANSWERED style untouched when only the other is answered (strict: pre-seeded, not default-merged)", async () => {
     // Pre-seed the store with values that DIFFER from the mocked defaults
-    // (defaults: thinkingStyle "Full", toolStyle "Compact", editorSpinStyle
+    // (defaults: thinkingStyle "Full", toolStyle "Native", editorSpinStyle
     // "pendulum"), so the assertions can distinguish "the user's existing
     // value was left untouched" from "the default was written" — updateConfig
     // merges the defaults into the stored state, so an empty store would
     // materialize the defaults either way.
     mockStore["archimedes.ui"] = {
       thinkingStyle: "Compact", // non-default (default is "Full")
-      toolStyle: "Compact",
+      toolStyle: "Native",
       editorSpinStyle: "pulse", // non-default
     };
     const { ctx } = makeCtx("tui");
@@ -275,7 +276,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: false,
       thinkingValue: "Full", // differs from the pre-seeded "Compact" — must NOT be seeded in
       toolAnswered: true,
-      toolValue: "Full", // differs from the pre-seeded "Compact" — must be written
+      toolValue: "Minimal", // differs from the pre-seeded "Native" — must be written
       pluginsAnswered: false,
       pluginSelections: {},
       spinnerAnswered: false,
@@ -283,7 +284,7 @@ describe("runOnboarding write logic (onDone)", () => {
     });
 
     const ui = mockStore["archimedes.ui"] ?? {};
-    expect(ui.toolStyle).toBe("Full"); // the payload value — the ANSWERED step was written (updated, not left at the pre-seeded "Compact")
+    expect(ui.toolStyle).toBe("Minimal"); // the payload value — the ANSWERED step was written (updated, not left at the pre-seeded "Native")
     expect(ui.thinkingStyle).toBe("Compact"); // the PRE-SEEDED value, untouched (not the default "Full", not the payload "Full")
     expect(ui.editorSpinStyle).toBe("pulse"); // pre-seeded, untouched
   });
@@ -294,7 +295,7 @@ describe("runOnboarding write logic (onDone)", () => {
     // rather than clobbered with the default.
     mockStore["archimedes.ui"] = {
       thinkingStyle: "Full",
-      toolStyle: "Full", // non-default (default is "Compact")
+      toolStyle: "Native", // non-default (default is "Minimal")
       editorSpinStyle: "pulse", // non-default
     };
     const { ctx } = makeCtx("tui");
@@ -303,7 +304,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: true,
       thinkingValue: "Compact", // differs from the pre-seeded "Full" — must be written
       toolAnswered: false,
-      toolValue: "Compact", // differs from the pre-seeded "Full" — must NOT be seeded in
+      toolValue: "Native", // differs from the pre-seeded "Minimal" — must NOT be seeded in
       pluginsAnswered: false,
       pluginSelections: {},
       spinnerAnswered: false,
@@ -312,7 +313,7 @@ describe("runOnboarding write logic (onDone)", () => {
 
     const ui = mockStore["archimedes.ui"] ?? {};
     expect(ui.thinkingStyle).toBe("Compact"); // the payload value — the ANSWERED step was written (updated, not left at the pre-seeded "Full")
-    expect(ui.toolStyle).toBe("Full"); // the PRE-SEEDED value, untouched (not the default "Compact", not the payload "Compact")
+    expect(ui.toolStyle).toBe("Native"); // the PRE-SEEDED value, untouched (not the default "Minimal", not the payload "Native")
     expect(ui.editorSpinStyle).toBe("pulse"); // pre-seeded, untouched
   });
 
@@ -323,7 +324,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: false,
       thinkingValue: "Full",
       toolAnswered: false,
-      toolValue: "Full",
+      toolValue: "Minimal",
       pluginsAnswered: false,
       pluginSelections: {},
       spinnerAnswered: false,
@@ -351,7 +352,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: true,
       thinkingValue: "Compact",
       toolAnswered: true,
-      toolValue: "Compact",
+      toolValue: "Native",
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: true, todo: false },
       spinnerAnswered: true,
@@ -371,7 +372,7 @@ describe("runOnboarding write logic (onDone)", () => {
       thinkingAnswered: true,
       thinkingValue: "Compact",
       toolAnswered: true,
-      toolValue: "Full",
+      toolValue: "Minimal",
       pluginsAnswered: true,
       pluginSelections: { ui: true, footer: true, todo: false },
       spinnerAnswered: true,

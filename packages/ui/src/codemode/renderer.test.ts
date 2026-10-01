@@ -9,8 +9,6 @@ import {
   renderCodemodeCall,
   renderCodemodeResult,
   clearActiveCodemodeIntervals,
-  setCodemodeOutputStyle,
-  PreviewTextComponent,
 } from "./renderer.js";
 
 // Mock Text from @earendil-works/pi-tui while preserving real utility
@@ -79,12 +77,6 @@ const theme = {
     text === undefined ? `[${token}]` : `[${token}:${text}]`,
   bold: (t: string) => `**${t}**`,
 } as unknown as Theme;
-
-// The renderer reads the style from module state; every test starts from
-// the default (Minimal).
-beforeEach(() => {
-  setCodemodeOutputStyle("Minimal");
-});
 
 describe("formatCodemodeDuration", () => {
   it("formats milliseconds for under a second", () => {
@@ -277,43 +269,15 @@ describe("renderCodemodeCall", () => {
     expect(text(out)).toBe("[toolTitle:**codemode**]\n<hl:line1>\n<hl:line2>");
   });
 
-  it("shows the header alone when collapsed in Minimal style", () => {
+  it("shows the header alone when collapsed", () => {
     const code = Array.from({ length: 15 }, (_, i) => `l${i}`).join("\n");
     const out = renderCodemodeCall({ code }, theme, {});
     expect(text(out)).toBe("[toolTitle:**codemode**]");
   });
 
-  it("shows the header alone when collapsed in Minimal style, even for short scripts", () => {
+  it("shows the header alone when collapsed, even for short scripts", () => {
     const out = renderCodemodeCall({ code: "a\nb" }, theme, {});
     expect(text(out)).toBe("[toolTitle:**codemode**]");
-  });
-
-  it("previews the script to 10 visual lines with a hint when collapsed in Compact style", () => {
-    setCodemodeOutputStyle("Compact");
-    const code = Array.from({ length: 15 }, (_, i) => `l${i}`).join("\n");
-    const out = renderCodemodeCall({ code }, theme, {});
-    const outLines = lines(out);
-    // header + 10 preview lines + 1 hint line
-    expect(outLines).toHaveLength(12);
-    expect(outLines[0]).toBe("[toolTitle:**codemode**]");
-    expect(outLines[1]!.trim()).toBe("<hl:l0>");
-    expect(outLines[10]!.trim()).toBe("<hl:l9>");
-    expect(outLines[11]!.trim()).toBe("[muted:... (5 more lines, ctrl+o to expand)]");
-  });
-
-  it("shows the full short script when collapsed in Compact style (no hint)", () => {
-    setCodemodeOutputStyle("Compact");
-    const out = renderCodemodeCall({ code: "a\nb" }, theme, {});
-    expect(lines(out).map((line) => line.trim())).toEqual(["[toolTitle:**codemode**]", "<hl:a>", "<hl:b>"]);
-  });
-
-  it("expansion wins over the style (expanded shows the full script)", () => {
-    setCodemodeOutputStyle("Compact");
-    const code = Array.from({ length: 15 }, (_, i) => `l${i}`).join("\n");
-    const out = renderCodemodeCall({ code }, theme, { expanded: true });
-    const outLines = lines(out);
-    expect(outLines).toHaveLength(16);
-    expect(outLines[15]).toBe("<hl:l14>");
   });
 
   it("normalizes tabs and carriage returns in the script (expanded)", () => {
@@ -473,187 +437,6 @@ describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
   });
 });
 
-describe("renderCodemodeResult - Collapsed view (Compact)", () => {
-  beforeEach(() => {
-    setCodemodeOutputStyle("Compact");
-  });
-
-  it("previews the last 8 calls with a hint when more were made", () => {
-    const calls = Array.from({ length: 12 }, (_, i) => ({
-      id: `1/${i + 1}`,
-      name: `t${i}`,
-      args: "",
-      status: "ok" as const,
-    }));
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 1.0 seconds\nOutput:\n",
-          },
-        ],
-        details: { calls },
-      },
-      { expanded: false },
-      theme,
-      {},
-    );
-    const outLines = lines(out);
-    // hint + last 8 calls
-    expect(outLines).toHaveLength(9);
-    expect(outLines[0]).toBe("[muted:... (4 earlier calls, ctrl+o to expand)]");
-    expect(outLines[1]).toBe("[success:✓] [toolTitle:t4]");
-    expect(outLines[8]).toBe("[success:✓] [toolTitle:t11]");
-  });
-
-  it("previews the output to 5 visual lines with a hint and the full-output path", () => {
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 1.0 seconds\nOutput:\n",
-          },
-          { type: "text", text: Array.from({ length: 20 }, (_, i) => `o${i}`).join("\n") },
-        ],
-        details: {
-          calls: [],
-          fullOutputPath: "/tmp/pi-codemode-out-123.txt",
-        },
-      },
-      { expanded: false },
-      theme,
-      {},
-    );
-    const outLines = lines(out);
-    // 5 output preview lines + 1 hint line + the path line
-    expect(outLines).toHaveLength(7);
-    expect(outLines[0]!.trim()).toBe("[toolOutput:o0]");
-    expect(outLines[4]!.trim()).toBe("[toolOutput:o4]");
-    expect(outLines[5]!.trim()).toBe("[muted:... (15 more lines, ctrl+o to expand)]");
-    expect(outLines[6]!.trim()).toBe("[muted:Full output: /tmp/pi-codemode-out-123.txt]");
-  });
-
-  it("caps a single long line at 5 visual lines (wrapped-line budget)", () => {
-    const longLine = "x".repeat(500);
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 1.0 seconds\nOutput:\n",
-          },
-          { type: "text", text: longLine },
-        ],
-      },
-      { expanded: false },
-      theme,
-      {},
-    );
-    const outLines = lines(out);
-    // 500 chars at width 80 wrap to 7 visual lines: 5 kept + hint
-    expect(outLines).toHaveLength(6);
-    // The final line carries the hint.
-    expect(outLines[5]).toContain("[muted:... (2 more lines");
-    expect(outLines[5]).toContain("ctrl+o to expand)");
-  });
-
-  it("shows the full short output without a hint", () => {
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 1.0 seconds\nOutput:\n",
-          },
-          { type: "text", text: "a\nb" },
-        ],
-      },
-      { expanded: false },
-      theme,
-      {},
-    );
-    const outLines = lines(out);
-    expect(outLines).toHaveLength(2);
-    expect(outLines[0]!.trim()).toBe("[toolOutput:a]");
-    expect(outLines[1]!.trim()).toBe("[toolOutput:b]");
-  });
-
-  it("shows nothing but in-flight calls while isPartial (no output preview yet)", () => {
-    const out = renderCodemodeResult(
-      {
-        details: {
-          calls: [{ id: "1/1", name: "slow_tool", args: "", status: "running" }],
-        },
-        content: [
-          { type: "text", text: "Script completed\nWall time 1.0 seconds\nOutput:\n" },
-          { type: "text", text: "early output" },
-        ],
-      },
-      { expanded: false, isPartial: true },
-      theme,
-      {},
-    );
-    expect(text(out)).toBe("[warning:…] [toolTitle:slow_tool]");
-  });
-
-  it("shows no status line when calls were made (the calls carry the outcome)", () => {
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 1.0 seconds\nOutput:\n",
-          },
-        ],
-        details: {
-          calls: [{ id: "1/1", name: "a", args: "", status: "ok" }],
-        },
-      },
-      { expanded: false },
-      theme,
-      {},
-    );
-    expect(text(out)).not.toContain("Done");
-    expect(text(out)).toBe("[success:✓] [toolTitle:a]");
-  });
-});
-
-describe("PreviewTextComponent", () => {
-  it("renders the full text when it fits the budget", () => {
-    const comp = new PreviewTextComponent("a\nb", 5, () => "H");
-    expect(comp.render(80).map((line) => line.trim())).toEqual(["a", "b"]);
-  });
-
-  it("caps the text at the budget with a hint line", () => {
-    const comp = new PreviewTextComponent(
-      Array.from({ length: 10 }, (_, i) => `l${i}`).join("\n"),
-      5,
-      (hidden) => `H(${hidden})`,
-    );
-    const out = comp.render(80);
-    expect(out).toHaveLength(6);
-    expect(out[0]!.trim()).toBe("l0");
-    expect(out[4]!.trim()).toBe("l4");
-    // 5 kept lines, 5 hidden (l5..l9)
-    expect(out[5]!.trim()).toBe("H(5)");
-  });
-
-  it("truncates the hint line to the terminal width", () => {
-    const comp = new PreviewTextComponent("x".repeat(500), 3, () => "HINT");
-    const out = comp.render(20);
-    expect(out).toHaveLength(4);
-    expect(out[3]!.trim()).toBe("HINT");
-    expect(out[3]!.length).toBeLessThanOrEqual(20);
-  });
-
-  it("renders a padded blank line for empty text", () => {
-    const comp = new PreviewTextComponent("", 5, () => "H");
-    expect(comp.render(10)).toEqual([" ".repeat(10)]);
-  });
-});
-
 describe("renderCodemodeResult - Live timer lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -755,30 +538,6 @@ describe("renderCodemodeResult - Expanded view", () => {
     expect(outText).toContain("[toolOutput:line2]");
     expect(outText).toContain("[muted:Took 300ms]");
     expect(outText).toContain("[success:✓ Done]");
-  });
-
-  it("is not affected by the style (Compact expanded shows the full output)", () => {
-    setCodemodeOutputStyle("Compact");
-    const out = renderCodemodeResult(
-      {
-        content: [
-          {
-            type: "text",
-            text: "Script completed\nWall time 0.3 seconds\nOutput:\n",
-          },
-          { type: "text", text: Array.from({ length: 30 }, (_, i) => `o${i}`).join("\n") },
-        ],
-      },
-      { expanded: true },
-      theme,
-      {},
-    );
-    const outLines = lines(out);
-    // 30 output lines + blank + Took + blank + Done (parts joined with \n\n)
-    expect(outLines).toHaveLength(34);
-    expect(outLines[29]).toBe("[toolOutput:o29]");
-    expect(outLines[31]).toBe("[muted:Took 300ms]");
-    expect(outLines[33]).toBe("[success:✓ Done]");
   });
 
   it("renders output lines with error styling and ✗ Script failed on failure", () => {

@@ -13,10 +13,9 @@ TUI enhancements for the Pi Archimedes monorepo.
   - `✗` Error (Red)
 
 ### Codemode Tool Styling
-- **Three Presentation Modes** (follow the `toolStyle` setting):
-  - **Minimal** (default): the collapsed row is the `codemode` header plus the nested tool calls the script made (last five, with an expand hint when there are more) — no script dump, no summary line. A script that made no calls shows a single `<glyph> <duration>` line instead.
-  - **Compact**: the native-style collapsed layout — a 10-visual-line script preview, the last eight nested calls, a 5-visual-line output preview (so a single long JSON line can't wrap across the screen), and the full-output path when truncated.
-  - **Full**: the expanded view, auto-expanded like the other tools.
+- **Styling follows the `toolStyle` master switch**:
+  - **Minimal** (default): the override is registered — the collapsed row is the `codemode` header plus the nested tool calls the script made (last five, with an expand hint when there are more) — no script dump, no summary line. A script that made no calls shows a single `<glyph> <duration>` line instead.
+  - **Native**: the override is not registered at all — pi's native codemode rendering stands (and no built-in-takeover startup notice).
 - **Expanded View**: The syntax-highlighted script, every nested call (status glyph, args, duration, and cost for `models.*` calls, with a `Model calls: $total` line when several were priced), the script output without the executor's `Script completed/failed` header, the full-output path when truncated, and the timing + final status.
 - **Live Timer**: In-flight calls show the `…` running glyph and update every second.
 - **Native Behaviour Preserved**: The override re-registers pi's own `codemode` tool (executor, dynamic description, activation semantics all intact) and replaces only the presentation — so it takes over pi's replaceable built-in `codemode` extension (pi prints a one-line startup notice, as it does for any extension that replaces a built-in).
@@ -28,7 +27,7 @@ TUI enhancements for the Pi Archimedes monorepo.
 - **Spin Quips**: Enjoyable messages while waiting for processes.
 
 ### Thinking
-- **Full/Compact/Minimal Output Style**: Full or one-line thinking (`thinkingStyle`) and expanded, native-collapsed, or minimal-collapsed tool results (`toolStyle`).
+- **Full/Compact Output Style**: Full or one-line thinking (`thinkingStyle`). The tool-side master switch is `toolStyle` (Minimal = archimedes styled, Native = no archimedes tool styling).
 - **Collapsible Thinking**: Expandable for deeper inspection.
 - **Theme**: Unified styling for thinking blocks.
 
@@ -39,12 +38,12 @@ TUI enhancements for the Pi Archimedes monorepo.
 
 | Setting | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `bashToolStyling` | boolean | `true` | Custom styled bash tool rendering |
-| `codemodeToolStyling` | boolean | `true` | Custom styled codemode tool rendering (presentation follows `toolStyle`) while keeping the native executor |
+| `bashToolStyling` | boolean | `true` | Custom styled bash tool rendering (applies when `toolStyle` is Minimal) |
+| `codemodeToolStyling` | boolean | `true` | Custom styled codemode tool rendering (applies when `toolStyle` is Minimal) while keeping the native executor |
 | `mutedTheme` | boolean | `false` | Muted theme for thinking blocks |
 | `autoCollapseThinking` | boolean | `false` | Automatically collapse thinking blocks |
 | `thinkingStyle` | "Full" \| "Compact" | `"Full"` | Thinking block display (Full = full text, Compact = one line, click to expand) |
-| `toolStyle` | "Full" \| "Compact" \| "Minimal" | `"Minimal"` | Tool result display (Full = expanded, Compact = native collapsed, Minimal = most compact, click to expand) |
+| `toolStyle` | "Native" \| "Minimal" | `"Minimal"` | Tool rendering master switch (Minimal = archimedes styled, Native = pi native, no archimedes styling) |
 | `codeUnindent` | boolean | `true` | Strip common indentation from code blocks |
 | `labelText` | string | `"Thinking..."` | Text shown before thinking blocks |
 | `labelColor` | string | `"255,215,0"` | RGB color for the thinking label (e.g. `255,215,0`) |
