@@ -67,6 +67,7 @@ vi.mock("./bash/index.js", () => ({
 vi.mock("./codemode/index.js", () => ({
   registerCodemodeToolOverride: vi.fn(async () => true),
   clearActiveCodemodeIntervals: vi.fn(),
+  setCodemodeOutputStyle: vi.fn(),
 }));
 
 import defaultExport, {
@@ -81,7 +82,7 @@ import defaultExport, {
 import { patchConsoleLog } from "./startup/capture.js";
 import { migrateCoreToUIConfig } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
+import { registerCodemodeToolOverride, clearActiveCodemodeIntervals, setCodemodeOutputStyle } from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { patchToolRenderer } from "./tools/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
@@ -230,8 +231,10 @@ describe("packages/ui lifecycle and registration", () => {
         }),
       );
 
-      // Tool renderer (default toolStyle is Compact)
-      expect(patchToolRenderer).toHaveBeenCalledWith({ toolStyle: "Compact" });
+      // Tool renderer (default toolStyle is Minimal)
+      expect(patchToolRenderer).toHaveBeenCalledWith({ toolStyle: "Minimal" });
+      // The codemode renderer's live style is refreshed from the config
+      expect(setCodemodeOutputStyle).toHaveBeenCalledWith("Minimal");
     });
 
     it("respects editorSpinBorder: false by leaving workingVisible=true and not installing editor component", () => {

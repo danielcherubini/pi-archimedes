@@ -21,8 +21,9 @@ const TOOL_ORIG_SET_EXPANDED = Symbol.for("archimedes:toolOrigSetExpanded");
 let liveConfig: { toolStyle?: OutputStyle } = {};
 
 /**
- * Make `toolStyle: "Full"` start every native tool expanded; `Compact` (the
- * default) leaves the native collapsed behavior untouched.
+ * Make `toolStyle: "Full"` start every native tool expanded; `Compact` and
+ * `Minimal` leave the native collapsed behavior untouched (Minimal only
+ * affects the Archimedes-styled tools, e.g. codemode).
  *
  * The tricky part: pi calls `component.setExpanded(this.toolOutputExpanded)`
  * (default `false`) immediately after constructing each `ToolExecutionComponent`

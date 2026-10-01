@@ -13,8 +13,12 @@ export const ANIMATION_STYLES = [
 ] as const;
 export type AnimationStyle = (typeof ANIMATION_STYLES)[number];
 
-export type OutputStyle = "Full" | "Compact";
-export const OUTPUT_STYLE_VALUES: readonly OutputStyle[] = ["Full", "Compact"] as const;
+export type OutputStyle = "Full" | "Compact" | "Minimal";
+export const OUTPUT_STYLE_VALUES: readonly OutputStyle[] = [
+  "Full",
+  "Compact",
+  "Minimal",
+] as const;
 
 export const SPINNER_STYLES: readonly SpinnerStyle[] = [
   "typing",
@@ -30,7 +34,7 @@ export const SPINNER_STYLES: readonly SpinnerStyle[] = [
 ];
 
 export function normalizeOutputStyle(value: unknown): OutputStyle {
-  if (value === "Full" || value === "Compact") return value;
+  if (value === "Full" || value === "Compact" || value === "Minimal") return value;
   if (value === "Off") return "Full";
   if (value === "1 line" || value === "3 lines" || value === "5 lines") return "Compact";
   return "Full";
@@ -73,7 +77,7 @@ export const DEFAULT_UI_CONFIG: UIConfig = {
   mutedTheme: false,
   autoCollapseThinking: false,
   thinkingStyle: "Full",
-  toolStyle: "Compact",
+  toolStyle: "Minimal",
   codeUnindent: true,
   labelText: "Thinking...",
   labelColor: "255,215,0",

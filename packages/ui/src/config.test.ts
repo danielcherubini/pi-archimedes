@@ -37,7 +37,7 @@ describe("loadUIConfig", () => {
       mutedTheme: false,
       autoCollapseThinking: false,
       thinkingStyle: "Full",
-      toolStyle: "Compact",
+      toolStyle: "Minimal",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -82,7 +82,7 @@ describe("DEFAULT_UI_CONFIG", () => {
       mutedTheme: false,
       autoCollapseThinking: false,
       thinkingStyle: "Full",
-      toolStyle: "Compact",
+      toolStyle: "Minimal",
       codeUnindent: true,
       labelText: "Thinking...",
       labelColor: "255,215,0",
@@ -116,15 +116,15 @@ describe("ANIMATION_STYLES", () => {
 });
 
 describe("DEFAULT_UI_CONFIG output styles", () => {
-  it("defaults thinkingStyle to Full and toolStyle to Compact", () => {
+  it("defaults thinkingStyle to Full and toolStyle to Minimal", () => {
     expect(DEFAULT_UI_CONFIG.thinkingStyle).toBe("Full");
-    expect(DEFAULT_UI_CONFIG.toolStyle).toBe("Compact");
+    expect(DEFAULT_UI_CONFIG.toolStyle).toBe("Minimal");
   });
 });
 
 describe("OUTPUT_STYLE_VALUES", () => {
   it("exports [Full, Compact]", () => {
-    expect(OUTPUT_STYLE_VALUES).toEqual(["Full", "Compact"]);
+    expect(OUTPUT_STYLE_VALUES).toEqual(["Full", "Compact", "Minimal"]);
   });
 });
 
@@ -149,6 +149,7 @@ describe("normalizeOutputStyle", () => {
   it("normalizes current values as-is", () => {
     expect(normalizeOutputStyle("Full")).toBe("Full");
     expect(normalizeOutputStyle("Compact")).toBe("Compact");
+    expect(normalizeOutputStyle("Minimal")).toBe("Minimal");
   });
 
   it("maps legacy Off to Full", () => {

@@ -30,7 +30,7 @@ describe("getUISettingsItems", () => {
     expect(items.find((i) => i.id === "mutedTheme")?.currentValue).toBe("Off");
     expect(items.find((i) => i.id === "autoCollapseThinking")?.currentValue).toBe("Off");
     expect(items.find((i) => i.id === "thinkingStyle")?.currentValue).toBe("Full");
-    expect(items.find((i) => i.id === "toolStyle")?.currentValue).toBe("Compact");
+    expect(items.find((i) => i.id === "toolStyle")?.currentValue).toBe("Minimal");
     expect(items.find((i) => i.id === "codeUnindent")?.currentValue).toBe("On");
     expect(items.find((i) => i.id === "labelText")?.currentValue).toBe("Thinking...");
     expect(items.find((i) => i.id === "labelColor")?.currentValue).toBe("255,215,0");
@@ -57,7 +57,7 @@ describe("getUISettingsItems", () => {
     expect(item!.values).toEqual(["On", "Off"]);
   });
 
-  it("exposes thinkingStyle and toolStyle with Full/Compact values and normalizes invalid values", () => {
+  it("exposes thinkingStyle and toolStyle with their values and normalizes invalid values", () => {
     const items = getUISettingsItems({ ...DEFAULT_UI_CONFIG, thinkingStyle: "invalid" as never });
     const thinkingItem = items.find((i) => i.id === "thinkingStyle");
     expect(thinkingItem).toBeDefined();
@@ -66,8 +66,8 @@ describe("getUISettingsItems", () => {
 
     const toolItem = items.find((i) => i.id === "toolStyle");
     expect(toolItem).toBeDefined();
-    expect(toolItem!.currentValue).toBe("Compact");
-    expect(toolItem!.values).toEqual(["Full", "Compact"]);
+    expect(toolItem!.currentValue).toBe("Minimal");
+    expect(toolItem!.values).toEqual(["Full", "Compact", "Minimal"]);
   });
 
   it("exposes animationStyle with ANIMATION_STYLES values", () => {

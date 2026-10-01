@@ -1,16 +1,40 @@
 import { highlightCode } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
+  Container,
   getCapabilities,
   getImageDimensions,
   imageFallback,
   Text,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
   type Component,
 } from "@earendil-works/pi-tui";
 import { renderToolHeader } from "@pi-archimedes/core/tool-render";
+import type { OutputStyle } from "../config.js";
+
+/**
+ * Live output style, refreshed from the config on every session_start
+ * (same pattern as tools/patch.ts: the renderers read it per call, so a
+ * Full→Compact→Minimal change sticks across /reload without re-registering
+ * the tool). `Minimal` is the default collapsed presentation; `Compact`
+ * falls back to the native-style collapsed view (script preview + call
+ * list + output preview); `Full` auto-expands (via the toolStyle patch),
+ * so its collapsed branch is only reached on a manual collapse and shows
+ * the Compact presentation.
+ */
+let liveStyle: OutputStyle = "Minimal";
+
+export function setCodemodeOutputStyle(style: OutputStyle): void {
+  liveStyle = style;
+}
 
 /** Nested-call args preview budget, collapsed (the native renderer uses 80). */
 const COLLAPSED_CALL_ARGS_CHARS = 80;
+/** Collapsed call-list budget: Minimal shows the last 5, Compact the last 8. */
+const COLLAPSED_CALL_COUNT_MINIMAL = 5;
+const COLLAPSED_CALL_COUNT_COMPACT = 8;
 
 /** The executor's result header, stripped before the output is displayed. */
 const SCRIPT_HEADER = /^Script (completed|failed)\nWall time [\d.]+ seconds\nOutput:\n$/;
@@ -153,12 +177,47 @@ export function getCodemodeOutput(
   return text;
 }
 
-function getComponent(context: unknown): Text {
-  const ctx = context as { lastComponent?: unknown } | undefined;
-  if (ctx?.lastComponent instanceof Text) {
-    return ctx.lastComponent;
+/**
+ * Component that renders text limited to a number of VISUAL lines (wrapped
+ * lines, not logical ones — script output is often one long JSON line):
+ * the first `maxVisualLines - 1` wrapped lines, then a final line truncated
+ * to make room for a `... (N more, hint)` suffix. Re-renders per width, so
+ * the preview stays honest when the terminal resizes.
+ */
+export class PreviewTextComponent implements Component {
+  private text: string;
+
+  constructor(
+    text: string = "",
+    private maxVisualLines: number = 5,
+    private hint: (hidden: number) => string = () => "",
+  ) {
+    this.text = text;
   }
-  return new Text("", 0, 0);
+
+  setText(text: string): void {
+    this.text = text;
+  }
+
+  getContent(): string {
+    return this.text;
+  }
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    if (!this.text) return [" ".repeat(Math.max(0, width))];
+    const lines = wrapTextWithAnsi(this.text, width);
+    if (lines.length <= this.maxVisualLines) {
+      return lines.map((line) => line + " ".repeat(Math.max(0, width - visibleWidth(line))));
+    }
+    const hidden = lines.length - this.maxVisualLines;
+    const hint = truncateToWidth(this.hint(hidden), width, "…", false);
+    return [
+      ...lines.slice(0, this.maxVisualLines).map((line) => line + " ".repeat(Math.max(0, width - visibleWidth(line)))),
+      hint,
+    ];
+  }
 }
 
 /**
@@ -217,8 +276,10 @@ export function parseWallTimeMs(
 }
 
 /**
- * Render the codemode tool call: the bold `codemode` header. Collapsed, the
- * header stands alone — the script (syntax-highlighted) shows when expanded.
+ * Render the codemode tool call: the bold `codemode` header. Collapsed,
+ * `Minimal` shows the header alone (the script is the expandable detail);
+ * `Compact` previews the syntax-highlighted script to 10 visual lines with
+ * an expand hint (the native renderer's layout).
  */
 export function renderCodemodeCall(
   args: unknown,
@@ -246,48 +307,54 @@ export function renderCodemodeCall(
     code = null;
   }
 
-  const component = getComponent(context);
+  const container = new Container();
   const title = renderToolHeader("codemode", undefined, theme);
 
   if (code === null) {
-    component.setText(`${title} ${theme.fg("error", "[invalid arg]")}`);
-    return component;
+    container.addChild(new Text(`${title} ${theme.fg("error", "[invalid arg]")}`, 0, 0));
+    return container;
   }
+
+  container.addChild(new Text(title, 0, 0));
 
   // Empty script: header alone (the native renderer's behavior).
-  if (code.length === 0) {
-    component.setText(title);
-    return component;
-  }
-
-  // Collapsed: header alone — the script is the expandable detail.
-  if (!(context as { expanded?: boolean }).expanded) {
-    component.setText(title);
-    return component;
-  }
+  if (code.length === 0) return container;
 
   // The `// @options:` line is part of the script, so options show as-is.
   const highlighted = highlightCode(
     code.replace(/\t/g, "   ").replace(/\r/g, "").trimEnd(),
     "javascript",
-  );
-  component.setText(`${title}\n${highlighted.join("\n")}`);
-  return component;
-}
+  ).join("\n");
 
-/** Preview budget for the collapsed result view's nested-call list. */
-const COLLAPSED_CALL_COUNT = 5;
+  const expanded = (context as { expanded?: boolean }).expanded;
+  if (expanded) {
+    container.addChild(new Text(highlighted, 0, 0));
+    return container;
+  }
+  if (liveStyle === "Minimal") return container;
+
+  // Compact: preview the script to 10 visual lines, with an expand hint.
+  container.addChild(
+    new PreviewTextComponent(
+      highlighted,
+      10,
+      (hidden) => theme.fg("muted", `... (${hidden} more lines, ctrl+o to expand)`),
+    ),
+  );
+  return container;
+}
 
 /**
  * Render the codemode tool result.
  *
- * Collapsed: the nested tool calls (last COLLAPSED_CALL_COUNT, args
- * truncated) — the script's activity at a glance, no summary line. A
- * script that made no calls falls back to one `<glyph> <duration>` line so
- * its outcome is still visible. Expanded: every nested call (with
- * per-call status, duration, and model cost), the script output without
- * the executor's header, the full-output path when truncated, and the
- * timing + status.
+ * Collapsed, `Minimal`: the nested tool calls (last 5, args truncated) —
+ * the script's activity at a glance, no summary line. A script that made
+ * no calls falls back to one `<glyph> <duration>` line so its outcome is
+ * still visible. Collapsed, `Compact` (the native renderer's layout): the
+ * last 8 calls, a 5-visual-line output preview, and the full-output path
+ * when truncated. Expanded: every nested call (with per-call status,
+ * duration, and model cost), the script output without the executor's
+ * header, the full-output path when truncated, and the timing + status.
  */
 export function renderCodemodeResult(
   result: unknown,
@@ -313,7 +380,6 @@ export function renderCodemodeResult(
   const calls = res?.details?.calls ?? [];
   const isError = Boolean(ctx?.isError);
 
-  const component = getComponent(context);
   const state: CodemodeRendererState = ctx?.state ?? {};
   const now = Date.now();
   const wallTime = parseWallTimeMs(content);
@@ -323,9 +389,13 @@ export function renderCodemodeResult(
       : undefined;
   const durationMs = wallTime ?? timerMs;
 
+  const container = new Container();
+
+  // Collapsed view, by style.
   if (!options.expanded) {
+    const budget = liveStyle === "Minimal" ? COLLAPSED_CALL_COUNT_MINIMAL : COLLAPSED_CALL_COUNT_COMPACT;
     if (calls.length > 0) {
-      const shown = calls.slice(-COLLAPSED_CALL_COUNT);
+      const shown = calls.slice(-budget);
       const lines = shown.map((call) => formatNestedCall(call, theme, false));
       if (shown.length < calls.length) {
         lines.unshift(
@@ -335,18 +405,42 @@ export function renderCodemodeResult(
           ),
         );
       }
-      component.setText(lines.join("\n"));
-      return component;
+      container.addChild(new Text(lines.join("\n"), 0, 0));
+    } else if (liveStyle === "Minimal") {
+      // No calls: a single status line so the script's outcome is visible.
+      const glyph = options.isPartial
+        ? theme.fg("warning", "▸")
+        : isError
+          ? theme.fg("error", "✗")
+          : theme.fg("success", "✓");
+      const duration = formatCodemodeDuration(durationMs);
+      container.addChild(new Text(`${glyph} ${theme.fg("muted", duration)}`, 0, 0));
     }
-    // No calls: a single status line so the script's outcome is visible.
-    const glyph = options.isPartial
-      ? theme.fg("warning", "▸")
-      : isError
-        ? theme.fg("error", "✗")
-        : theme.fg("success", "✓");
-    const duration = formatCodemodeDuration(durationMs);
-    component.setText(`${glyph} ${theme.fg("muted", duration)}`);
-    return component;
+
+    // Compact: a short output preview (Minimal keeps the row minimal).
+    if (liveStyle !== "Minimal" && !options.isPartial) {
+      const output = getCodemodeOutput(content, ctx?.showImages ?? true).trim();
+      if (output.length > 0) {
+        const color = isError ? "error" : "toolOutput";
+        const styled = output
+          .split("\n")
+          .map((line) => theme.fg(color, line))
+          .join("\n");
+        container.addChild(
+          new PreviewTextComponent(
+            styled,
+            5,
+            (hidden) => theme.fg("muted", `... (${hidden} more lines, ctrl+o to expand)`),
+          ),
+        );
+        if (res?.details?.fullOutputPath) {
+          container.addChild(
+            new Text(theme.fg("muted", `Full output: ${res.details.fullOutputPath}`), 0, 0),
+          );
+        }
+      }
+    }
+    return container;
   }
 
   // Expanded view.
@@ -390,6 +484,8 @@ export function renderCodemodeResult(
     );
   }
 
-  component.setText(parts.join("\n\n"));
-  return component;
+  if (parts.length > 0) {
+    container.addChild(new Text(parts.join("\n\n"), 0, 0));
+  }
+  return container;
 }

@@ -28,7 +28,7 @@ import {
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
+import { registerCodemodeToolOverride, clearActiveCodemodeIntervals, setCodemodeOutputStyle } from "./codemode/index.js";
 
 // Re-exports
 export { unpatchConsoleLog } from "./startup/capture.js";
@@ -155,6 +155,10 @@ export function registerUI(pi: ExtensionAPI): void {
     // Archimedes renderers; it is a no-op on pi versions without the
     // codemode extension.
     if (config.codemodeToolStyling !== false) {
+      // The renderer reads the style live: refreshing it here means a
+      // toolStyle change sticks across /reload without re-registering the
+      // tool (same pattern as patchToolComponentDisplay).
+      setCodemodeOutputStyle(normalizeOutputStyle(config.toolStyle));
       void registerCodemodeToolOverride(pi);
     }
 
