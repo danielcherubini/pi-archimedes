@@ -165,7 +165,6 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
     lines.push(renderHeader(" Welcome to pi-archimedes ", width - 2, theme));
     lines.push(padEnd(`Set up your preferences · ${activeStep + 1}/4`, width - 2));
     lines.push(padEnd("Choices apply from your next session.", width - 2));
-    lines.push("");
 
     if (activeStep === 0) {
       lines.push(padEnd("Thinking style", width - 2));
@@ -205,11 +204,15 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
       for (let i = 0; i < opts.plugins.length; i++) {
         const p = opts.plugins[i];
         if (!p) continue;
-        const marker = (pluginToggles[i] ?? false) ? "✓ " : "· ";
-        const label = truncateToWidth(p.label, 18, "");
+        // The cursor (>) marks the row Space will toggle; the ✓/· marker shows
+        // the row's enabled state — both, so the user sees what they're about
+        // to change and what it currently is.
+        const cursor = i === (cursorByStep[2] ?? 0) ? "> " : "  ";
+        const marker = (pluginToggles[i] ?? false) ? "✓" : "·";
+        const label = truncateToWidth(p.label, 15, "");
         lines.push(
           padEnd(
-            `${marker}${label.padEnd(19)}${truncateToWidth(p.description, width - 22, "")}`,
+            `${cursor} ${marker} ${label.padEnd(16)}${truncateToWidth(p.description, width - 26, "")}`,
             width - 2,
           ),
         );
@@ -223,13 +226,10 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions) {
         const name = opts.spinners[i] ?? "";
         const marker = i === (cursorByStep[3] ?? 0) ? "> " : "  ";
         const preview = spinFrame(name, tick);
+        // Options render consecutively (no blank line between them): the 10
+        // options must fit the overlay's 80% max height on a small terminal
+        // (24 rows → ~19), so the per-option vertical spacing was dropped.
         lines.push(padEnd(`${marker}${name.padEnd(15)}${preview}`, width - 2));
-        // Slight vertical spacing between the spinner options — one blank line
-        // after each option (the single explicit push below the loop covers the
-        // last option, so no in-loop blank after it: that would double it).
-        if (i < opts.spinners.length - 1) {
-          lines.push("");
-        }
       }
       lines.push("");
       lines.push(renderFooter(" [↑↓] move  [enter] done  [esc] finish (skip rest) ", width - 2, theme));

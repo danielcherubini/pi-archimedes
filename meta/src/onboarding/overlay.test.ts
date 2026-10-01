@@ -278,36 +278,41 @@ describe("createOnboardingOverlay", () => {
     }
   });
 
-  // (g2) The spinner step adds vertical spacing — a blank line after each
-  // spinner option row (slight separation between the options). A blank line
-  // renders as border + padding only (no text): `│ │` after trimming.
-  it("spinner step renders a blank line after each option (vertical spacing)", () => {
+  // (g2) The spinner options render consecutively — NO blank line between
+  // them: the 10-option list must fit the overlay's 80% max height on a small
+  // terminal, so the per-option vertical spacing was dropped. A border-only
+  // line renders as `││` after trimming whitespace.
+  it("spinner step renders options consecutively (no blank line between them)", () => {
     const { comp } = makeOverlay({ spinners: ["typing", "pulse", "rain"] });
     toStep(comp, 3);
-    const lines = comp.render(80);
-    const content = lines.map((l) => l.trim());
-    for (const name of ["typing", "pulse", "rain"]) {
-      const i = content.findIndex((l) => l.includes(name));
-      expect(i).toBeGreaterThanOrEqual(0);
-      const below = content[i + 1];
+    const content = comp.render(80).map((l) => l.trim());
+    const names = ["typing", "pulse", "rain"];
+    for (let i = 0; i < names.length - 1; i++) {
+      const name = names[i];
+      if (name === undefined) continue;
+      const line = content.findIndex((l) => l.includes(name));
+      expect(line).toBeGreaterThanOrEqual(0);
+      const below = content[line + 1];
       expect(below).toBeDefined();
-      // The line directly below each option row is a border-only spacer
-      // (borders on both edges, whitespace in between — no text).
-      expect((below ?? "").replace(/\s/g, "")).toBe("││");
+      // The line directly below an option is the NEXT option (has text), not
+      // a border-only spacer.
+      expect((below ?? "").replace(/\s/g, "")).not.toBe("││");
     }
   });
 
   // (g3) The 10-option spinner step renders a specific total height (border +
-  // content) — documents the ~30-line height so a future change that adds or
-  // removes lines (e.g. the per-option spacing) is caught. Content: 4 header
-  // lines + question + blank + 10 options + 9 in-between blanks + separator
-  // blank + footer = 27; the border adds top + bottom = 29 total.
-  it("spinner step with the 10 real SPINNER_STYLES renders exactly 29 lines", () => {
+  // content) so a future change that adds or removes lines is caught. The
+  // compact layout (no per-option spacing, no blank after the header note)
+  // keeps the tallest step at 19 lines: 3 header lines + question + blank +
+  // 10 options + separator blank + footer = 17 content; the border adds top
+  // + bottom = 19 total — fits an 80%-max-height overlay on a 24-row terminal
+  // (~19.2 rows).
+  it("spinner step with the 10 real SPINNER_STYLES renders exactly 19 lines", () => {
     const { comp } = makeOverlay({ spinners: SPINNER_STYLES });
     toStep(comp, 3);
     const lines = comp.render(80);
     expect(SPINNER_STYLES).toHaveLength(10);
-    expect(lines).toHaveLength(29);
+    expect(lines).toHaveLength(19);
     // Every one of the 10 names is rendered.
     for (const name of SPINNER_STYLES) {
       expect(lines.find((l) => l.includes(name))).toBeDefined();
@@ -414,6 +419,28 @@ describe("createOnboardingOverlay", () => {
     const lines = comp.render(80);
     expect(lines.find((l) => l.includes("Compact"))).toContain("> Compact");
     expect(lines.find((l) => l.includes("Full"))).not.toContain("> Full");
+  });
+
+  // (p) The plugin step shows the CURSOR on the active row alongside each
+  // row's enabled state (✓/·) — without the cursor, the user can't tell which
+  // plugin Space is about to toggle.
+  it("plugin step shows the cursor on the active row alongside its enabled state", () => {
+    const { comp } = makeOverlay({
+      plugins: [
+        { id: "footer", label: "Footer", description: "Status bar", selected: true },
+        { id: "diff", label: "Diff", description: "Diff rendering", selected: false },
+      ],
+    });
+    toStep(comp, 2);
+    let lines = comp.render(80);
+    expect(lines.find((l) => l.includes("Footer"))).toContain(">"); // cursor: the active row
+    expect(lines.find((l) => l.includes("Footer"))).toContain("✓"); // ...and its enabled state
+    expect(lines.find((l) => l.includes("Diff"))).not.toContain(">");
+    expect(lines.find((l) => l.includes("Diff"))).toContain("·");
+    comp.handleInput(DOWN); // move the cursor to diff
+    lines = comp.render(80);
+    expect(lines.find((l) => l.includes("Diff"))).toContain(">");
+    expect(lines.find((l) => l.includes("Footer"))).not.toContain(">");
   });
 
   // (c3) space toggles the plugin at the MOVED cursor (not always index 0).
