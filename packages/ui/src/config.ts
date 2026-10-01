@@ -53,13 +53,14 @@ export function normalizeThinkingStyle(value: unknown): ThinkingStyle {
 
 /**
  * Legacy mappings: `Full` (auto-expand, dropped) → `Minimal` (the user opted
- * into archimedes styling); `Compact` (the old native-collapsed label) →
- * `Native` (its new name).
+ * into archimedes styling, which is preserved); `Compact` (styled tools,
+ * native-collapsed presentation) → `Minimal` (styled tools — the upgrade
+ * must not silently strip styling from existing users).
  */
 export function normalizeToolStyle(value: unknown): ToolStyle {
   if (value === "Native" || value === "Minimal") return value;
   if (value === "Full") return "Minimal";
-  if (value === "Compact") return "Native";
+  if (value === "Compact") return "Minimal";
   return "Minimal";
 }
 

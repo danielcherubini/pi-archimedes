@@ -185,8 +185,8 @@ describe("normalizeToolStyle", () => {
     expect(normalizeToolStyle("Full")).toBe("Minimal");
   });
 
-  it("maps legacy Compact to Native (the rename)", () => {
-    expect(normalizeToolStyle("Compact")).toBe("Native");
+  it("maps legacy Compact to Minimal (the upgrade keeps styling)", () => {
+    expect(normalizeToolStyle("Compact")).toBe("Minimal");
   });
 
   it("normalizes invalid / unknown / non-string values to Minimal", () => {

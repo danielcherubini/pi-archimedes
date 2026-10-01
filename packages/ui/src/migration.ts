@@ -1,4 +1,5 @@
 import { loadConfig, saveConfig, removeConfig } from "@pi-archimedes/core/settings-io";
+import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { UIConfig } from "./config.js";
 
 export const UI_CONFIG_KEYS: readonly (keyof UIConfig | "compactThinking")[] = [
@@ -42,6 +43,32 @@ export function migrateCoreToUIConfig(): void {
     removeConfig("archimedes.core");
   } else {
     saveConfig("archimedes.core", core);
+  }
+}
+
+/**
+ * One-time migration: removes the `toolStyle: "Full"` auto-expand patch from
+ * `ToolExecutionComponent`'s prototype, if an older version installed it in
+ * this process. The old patch saved the TRUE originals on the prototype under
+ * `Symbol.for` markers (which survive a jiti re-evaluation); since the patch
+ * is gone from the codebase, the wrappers would otherwise survive a `/reload`
+ * in the same process and keep auto-expanding tools even when the reloaded
+ * setting is Native/Minimal. Restoring the originals (and dropping the
+ * markers) makes the removal stick. Idempotent: a no-op when the markers are
+ * absent (fresh process, or never patched).
+ */
+export function migrateRemovedToolPatch(): void {
+  const proto: any = ToolExecutionComponent?.prototype;
+  if (!proto) return;
+  const ORIG_UPDATE = Symbol.for("archimedes:toolOrigUpdate");
+  const ORIG_SET_EXPANDED = Symbol.for("archimedes:toolOrigSetExpanded");
+  if (proto[ORIG_UPDATE]) {
+    proto.updateDisplay = proto[ORIG_UPDATE];
+    delete proto[ORIG_UPDATE];
+  }
+  if (proto[ORIG_SET_EXPANDED]) {
+    proto.setExpanded = proto[ORIG_SET_EXPANDED];
+    delete proto[ORIG_SET_EXPANDED];
   }
 }
 

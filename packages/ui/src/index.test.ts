@@ -52,6 +52,7 @@ vi.mock("./startup/index.js", async (importOriginal) => {
 vi.mock("./migration.js", () => ({
   migrateCoreToUIConfig: vi.fn(),
   migrateCompactThinkingToStyle: vi.fn(),
+  migrateRemovedToolPatch: vi.fn(),
   UI_CONFIG_KEYS: [],
 }));
 

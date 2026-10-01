@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
@@ -8,8 +7,15 @@ export interface CodemodeToolModule {
 }
 
 const AGENT_PACKAGE_NAME = "@earendil-works/pi-coding-agent";
-const CODEMODE_MODULE_RELATIVE = path.join(
+/** Candidate 1: relative to the package ROOT (the CLI-install walk-up). */
+const CODEMODE_MODULE_FROM_ROOT = path.join(
   "dist",
+  "extensions",
+  "codemode",
+  "tool.js",
+);
+/** Candidate 2: relative to the `dist/` directory the package entry lives in. */
+const CODEMODE_MODULE_FROM_DIST = path.join(
   "extensions",
   "codemode",
   "tool.js",
@@ -52,10 +58,10 @@ export function findAgentPackageRoot(startDir: string): string | undefined {
  *    files, so when the CLI runs unbundled this is the very same module the
  *    CLI's built-in codemode extension loaded — same schema object, same
  *    executor.
- * 2. Our own node_modules copy (resolved via `createRequire`). A fallback for
- *    launchers whose argv[1] is not inside a pi-coding-agent install. Older
- *    pi versions have no `dist/extensions/codemode` at all, in which case the
- *    file does not exist and the candidate is skipped.
+ * 2. Our own node_modules copy (resolved via `import.meta.resolve`). A
+ *    fallback for launchers whose argv[1] is not inside a pi-coding-agent
+ *    install. Older pi versions have no `dist/extensions/codemode` at all,
+ *    in which case the file does not exist and the candidate is skipped.
  */
 export function resolveCodemodeModuleFiles(argv1?: string): string[] {
   const candidates: string[] = [];
@@ -68,14 +74,17 @@ export function resolveCodemodeModuleFiles(argv1?: string): string[] {
       root = undefined;
     }
     if (root) {
-      candidates.push(path.join(root, CODEMODE_MODULE_RELATIVE));
+      candidates.push(path.join(root, CODEMODE_MODULE_FROM_ROOT));
     }
   }
   try {
-    const require = createRequire(import.meta.url);
-    const agentEntry = require.resolve(AGENT_PACKAGE_NAME);
-    // `agentEntry` is `…/pi-coding-agent/dist/index.js`.
-    candidates.push(path.join(path.dirname(agentEntry), CODEMODE_MODULE_RELATIVE));
+    // `import.meta.resolve` (the `import` condition) — the agent package's
+    // exports map has no `require` condition, so a CJS `require.resolve`
+    // would fail on newer pi versions.
+    const agentEntry = new URL(import.meta.resolve(AGENT_PACKAGE_NAME)).pathname;
+    // `agentEntry` is `…/pi-coding-agent/dist/index.js` — its directory IS the
+    // `dist` dir, so join the module path WITHOUT another `dist` segment.
+    candidates.push(path.join(path.dirname(agentEntry), CODEMODE_MODULE_FROM_DIST));
   } catch {
     // No local copy of the agent package — nothing else to try.
   }

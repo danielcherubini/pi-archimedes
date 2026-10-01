@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@pi-archimedes/core/settings-io", () => ({
   loadConfig: vi.fn(),
@@ -6,8 +6,9 @@ vi.mock("@pi-archimedes/core/settings-io", () => ({
   removeConfig: vi.fn(),
 }));
 
-import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, UI_CONFIG_KEYS } from "./migration.js";
+import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch, UI_CONFIG_KEYS } from "./migration.js";
 import { loadConfig, saveConfig, removeConfig } from "@pi-archimedes/core/settings-io";
+import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 
 describe("migrateCoreToUIConfig", () => {
   beforeEach(() => {
@@ -192,5 +193,64 @@ describe("migrateCompactThinkingToStyle", () => {
       thinkingStyle: "Full",
       toolStyle: "Compact",
     });
+  });
+});
+
+describe("migrateRemovedToolPatch", () => {
+  // The old patch saved the TRUE originals on the shared prototype under
+  // Symbol.for markers; the migration restores them and drops the markers.
+  // The prototype is process-global, so save/restore the real methods.
+  const proto: any = ToolExecutionComponent.prototype;
+  const ORIG_UPDATE = Symbol.for("archimedes:toolOrigUpdate");
+  const ORIG_SET_EXPANDED = Symbol.for("archimedes:toolOrigSetExpanded");
+  const realUpdateDisplay = proto.updateDisplay;
+  const realSetExpanded = proto.setExpanded;
+
+  afterEach(() => {
+    proto.updateDisplay = realUpdateDisplay;
+    proto.setExpanded = realSetExpanded;
+    delete proto[ORIG_UPDATE];
+    delete proto[ORIG_SET_EXPANDED];
+  });
+
+  it("restores the true originals and drops the markers when the old patch is present", () => {
+    const sentinelUpdate = function (this: unknown): unknown {
+      return "orig";
+    };
+    const sentinelSetExpanded = function (this: unknown): void {};
+    proto[ORIG_UPDATE] = sentinelUpdate;
+    proto[ORIG_SET_EXPANDED] = sentinelSetExpanded;
+    proto.updateDisplay = function (this: unknown): unknown {
+      return "wrapper";
+    };
+    proto.setExpanded = function (this: unknown): void {};
+
+    migrateRemovedToolPatch();
+
+    expect(proto.updateDisplay).toBe(sentinelUpdate);
+    expect(proto.setExpanded).toBe(sentinelSetExpanded);
+    expect(proto[ORIG_UPDATE]).toBeUndefined();
+    expect(proto[ORIG_SET_EXPANDED]).toBeUndefined();
+  });
+
+  it("is a no-op when the markers are absent (fresh process)", () => {
+    migrateRemovedToolPatch();
+    expect(proto.updateDisplay).toBe(realUpdateDisplay);
+    expect(proto.setExpanded).toBe(realSetExpanded);
+  });
+
+  it("is idempotent (a second run is a no-op)", () => {
+    const sentinelUpdate = function (this: unknown): unknown {
+      return "orig";
+    };
+    proto[ORIG_UPDATE] = sentinelUpdate;
+    proto.updateDisplay = function (this: unknown): unknown {
+      return "wrapper";
+    };
+
+    migrateRemovedToolPatch();
+    const restored = proto.updateDisplay;
+    migrateRemovedToolPatch();
+    expect(proto.updateDisplay).toBe(restored);
   });
 });

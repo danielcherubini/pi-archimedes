@@ -70,7 +70,7 @@ describe("getUISettingsItems", () => {
     expect(toolItem!.values).toEqual(["Native", "Minimal"]);
   });
 
-  it("normalizes legacy toolStyle values (Full → Minimal, Compact → Native)", () => {
+  it("normalizes legacy toolStyle values (Full → Minimal, Compact → Minimal)", () => {
     expect(
       getUISettingsItems({ ...DEFAULT_UI_CONFIG, toolStyle: "Full" as never })
         .find((i) => i.id === "toolStyle")?.currentValue,
@@ -78,7 +78,7 @@ describe("getUISettingsItems", () => {
     expect(
       getUISettingsItems({ ...DEFAULT_UI_CONFIG, toolStyle: "Compact" as never })
         .find((i) => i.id === "toolStyle")?.currentValue,
-    ).toBe("Native");
+    ).toBe("Minimal");
   });
 
   it("exposes animationStyle with ANIMATION_STYLES values", () => {

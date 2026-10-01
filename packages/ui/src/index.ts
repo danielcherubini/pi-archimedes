@@ -26,7 +26,7 @@ import {
   type CoreConfig,
 } from "./config.js";
 import { getUISettingsItems } from "./settings.js";
-import { migrateCoreToUIConfig, migrateCompactThinkingToStyle } from "./migration.js";
+import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
 import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 
@@ -67,6 +67,9 @@ export function registerUI(pi: ExtensionAPI): void {
   // One-time migration of any legacy core config to UI config
   migrateCoreToUIConfig();
   migrateCompactThinkingToStyle();
+  // The toolStyle "Full" auto-expand patch was removed: drop any wrapper a
+  // previous version left on the shared prototype (upgrade + /reload case).
+  migrateRemovedToolPatch();
 
   // Patch console.log for model scope capture
   patchConsoleLog();

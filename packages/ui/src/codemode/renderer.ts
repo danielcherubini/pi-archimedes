@@ -2,7 +2,6 @@ import { highlightCode } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   Container,
-  getCapabilities,
   getImageDimensions,
   imageFallback,
   Text,
@@ -130,7 +129,6 @@ export function formatNestedCall(
  */
 export function getCodemodeOutput(
   content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>,
-  showImages: boolean,
 ): string {
   const textBlocks = content.filter(
     (b) => b.type === "text" && typeof b.text === "string",
@@ -138,9 +136,11 @@ export function getCodemodeOutput(
   const [first, ...rest] = textBlocks;
   const hasHeader = first !== undefined && SCRIPT_HEADER.test(first.text!);
   const text = (hasHeader ? rest : textBlocks).map((b) => b.text!).join("\n");
+  // The renderer is text-only: image blocks are never rendered as images,
+  // so they ALWAYS get a fallback indicator (mime + dimensions when known),
+  // regardless of the terminal's inline-image support.
   const imageBlocks = content.filter((b) => b.type === "image");
-  const caps = getCapabilities();
-  if (imageBlocks.length > 0 && (!caps.images || !showImages)) {
+  if (imageBlocks.length > 0) {
     const indicators = imageBlocks
       .map((img) => {
         const mimeType = img.mimeType ?? "image/unknown";
@@ -160,6 +160,13 @@ export function getCodemodeOutput(
  * Track the script's wall clock for the collapsed row: start on the first
  * render after execution began, end when the result settles (or errors).
  * Mirrors the bash renderer's timer lifecycle.
+ *
+ * `isPartial` means "still in flight": the CALL renderer passes `true`
+ * (a call is in flight until its result settles) — passing `false` there
+ * would record `endedAt` at call-render time and freeze the elapsed timer
+ * for the rest of the script. The interval is (re)created only while the
+ * result has not settled yet (`endedAt === undefined`), so a re-render of a
+ * settled call never spawns a permanent interval.
  */
 function updateTiming(
   ctx: {
@@ -176,7 +183,7 @@ function updateTiming(
   if ((ctx?.executionStarted || isPartial) && state.startedAt === undefined) {
     state.startedAt = Date.now();
   }
-  if (isPartial && !state.interval) {
+  if (isPartial && !state.interval && state.endedAt === undefined) {
     if (ctx?.invalidate) {
       state.interval = setInterval(() => {
         ctx.invalidate?.();
@@ -226,7 +233,9 @@ export function renderCodemodeCall(
     args?: { code?: string };
   } | undefined;
 
-  updateTiming(ctx, false);
+  // The call is in flight until its result settles — pass `true` so the
+  // timer is not finalized at call-render time (see updateTiming).
+  updateTiming(ctx, true);
 
   // Native semantics: a missing or empty `code` renders the header alone;
   // a present-but-non-string `code` renders the invalid-arg marker.
@@ -286,7 +295,6 @@ export function renderCodemodeResult(
     executionStarted?: boolean;
     isError?: boolean;
     state?: CodemodeRendererState;
-    showImages?: boolean;
     invalidate?: () => void;
   } | undefined;
 
@@ -324,6 +332,11 @@ export function renderCodemodeResult(
           ),
         );
       }
+      // A failure must never be hidden behind success glyphs: when the
+      // script failed after successful calls, append the failure marker.
+      if (!options.isPartial && isError) {
+        callLines.push(theme.fg("error", "✗ Script failed"));
+      }
       container.addChild(new Text(callLines.join("\n"), 0, 0));
     } else {
       // No calls: a single status line so the script's outcome is visible.
@@ -352,7 +365,7 @@ export function renderCodemodeResult(
   }
 
   if (!options.isPartial) {
-    const output = getCodemodeOutput(content, ctx?.showImages ?? true).trim();
+    const output = getCodemodeOutput(content).trim();
     if (output.length > 0) {
       const color = isError ? "error" : "toolOutput";
       parts.push(

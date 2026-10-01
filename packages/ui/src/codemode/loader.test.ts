@@ -87,6 +87,17 @@ describe("resolveCodemodeModuleFiles", () => {
     // itself must not throw.
     expect(() => resolveCodemodeModuleFiles(undefined)).not.toThrow();
   });
+
+  it("never builds a dist/dist path for the local-copy candidate", () => {
+    // require.resolve() returns …/pi-coding-agent/dist/index.js — its
+    // directory IS the dist dir, so joining another `dist` segment would
+    // produce a nonexistent …/dist/dist/… path and silently disable the
+    // override for launcher entries outside the agent package.
+    const files = resolveCodemodeModuleFiles(undefined);
+    for (const file of files) {
+      expect(file).not.toContain(path.join("dist", "dist"));
+    }
+  });
 });
 
 describe("loadCodemodeModule", () => {

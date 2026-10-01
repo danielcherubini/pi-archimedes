@@ -12,10 +12,7 @@ import {
 } from "./renderer.js";
 
 // Mock Text from @earendil-works/pi-tui while preserving real utility
-// functions (imageFallback, …). getCapabilities is mocked too: the real one
-// sniffs the terminal from env vars (kitty/iTerm2), so the image-fallback
-// behavior — and the tests around it — would differ between a dev terminal
-// and CI. Pinning it to "kitty" makes the suite deterministic.
+// functions (imageFallback, getImageDimensions, …).
 vi.mock("@earendil-works/pi-tui", async () => {
   const actual =
     await vi.importActual<typeof import("@earendil-works/pi-tui")>(
@@ -45,11 +42,6 @@ vi.mock("@earendil-works/pi-tui", async () => {
   return {
     ...actual,
     Text: MockText,
-    getCapabilities: () => ({
-      images: "kitty" as const,
-      trueColor: true,
-      hyperlinks: true,
-    }),
   };
 });
 
@@ -206,37 +198,40 @@ describe("parseWallTimeMs", () => {
 
 describe("getCodemodeOutput", () => {
   it("drops the script header when present", () => {
-    const out = getCodemodeOutput(
-      [
-        {
-          type: "text",
-          text: "Script completed\nWall time 0.1 seconds\nOutput:\n",
-        },
-        { type: "text", text: "line1\nline2" },
-      ],
-      true,
-    );
+    const out = getCodemodeOutput([
+      {
+        type: "text",
+        text: "Script completed\nWall time 0.1 seconds\nOutput:\n",
+      },
+      { type: "text", text: "line1\nline2" },
+    ]);
     expect(out).toBe("line1\nline2");
   });
 
   it("keeps the first block when it has no header", () => {
-    const out = getCodemodeOutput(
-      [{ type: "text", text: "just output" }],
-      true,
-    );
+    const out = getCodemodeOutput([{ type: "text", text: "just output" }]);
     expect(out).toBe("just output");
   });
 
-  it("joins text blocks and ignores non-text blocks", () => {
-    const out = getCodemodeOutput(
-      [
-        { type: "text", text: "a" },
-        { type: "image", data: "x", mimeType: "image/png" },
-        { type: "text", text: "b" },
-      ],
-      true,
-    );
-    expect(out).toBe("a\nb");
+  it("joins text blocks and appends a fallback indicator for image blocks", () => {
+    // The renderer is text-only, so image blocks ALWAYS get the fallback
+    // indicator (mime type + dimensions when known), regardless of the
+    // terminal's inline-image support.
+    const out = getCodemodeOutput([
+      { type: "text", text: "a" },
+      { type: "image", data: "x", mimeType: "image/png" },
+      { type: "text", text: "b" },
+    ]);
+    expect(out).toContain("a\nb");
+    expect(out).toContain("image/png");
+  });
+
+  it("returns only the indicators when there is no text output", () => {
+    const out = getCodemodeOutput([
+      { type: "image", data: "x", mimeType: "image/jpeg" },
+    ]);
+    expect(out).toContain("image/jpeg");
+    expect(out).not.toContain("undefined");
   });
 });
 
@@ -416,6 +411,47 @@ describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
     expect(text(out)).toBe("[error:✗] [muted:200ms]");
   });
 
+  it("appends the failure marker when the script failed after successful calls", () => {
+    // A failed script whose nested calls succeeded must not look like a
+    // success in the collapsed view: the failure marker is appended after
+    // the call list.
+    const out = renderCodemodeResult(
+      {
+        content: [
+          {
+            type: "text",
+            text: "Script failed\nWall time 0.2 seconds\nOutput:\n",
+          },
+        ],
+        details: {
+          calls: [
+            { id: "1/1", name: "a", args: "", status: "ok", durationMs: 30 },
+            { id: "1/2", name: "b", args: "", status: "ok", durationMs: 40 },
+          ],
+        },
+      },
+      { expanded: false },
+      theme,
+      { isError: true },
+    );
+    const outLines = lines(out);
+    expect(outLines[outLines.length - 1]).toBe("[error:✗ Script failed]");
+  });
+
+  it("does not append the failure marker while the script is still running", () => {
+    const out = renderCodemodeResult(
+      {
+        details: {
+          calls: [{ id: "1/1", name: "a", args: "", status: "ok", durationMs: 30 }],
+        },
+      },
+      { expanded: false, isPartial: true },
+      theme,
+      { isError: true },
+    );
+    expect(text(out)).not.toContain("Script failed");
+  });
+
   it("falls back to the timer when the header is missing", () => {
     const out = renderCodemodeResult(
       { content: [{ type: "text", text: "partial" }] },
@@ -496,6 +532,59 @@ describe("renderCodemodeResult - Live timer lifecycle", () => {
     expect(context.state.interval).toBeDefined();
 
     clearActiveCodemodeIntervals();
+    expect(context.state.interval).toBeUndefined();
+    vi.advanceTimersByTime(1000);
+    expect(context.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("does not finalize the timer at call-render time (the call is in flight)", () => {
+    const invalidate = vi.fn();
+    const context = {
+      executionStarted: true,
+      invalidate,
+      state: {} as any,
+    };
+
+    // The call renderer runs while the script is running: it must NOT record
+    // endedAt (a fixed end time would freeze the elapsed timer).
+    renderCodemodeCall({ code: "await slow()" }, theme, context);
+    expect(context.state.endedAt).toBeUndefined();
+    expect(context.state.interval).toBeDefined();
+
+    // Partial results keep the timer advancing.
+    renderCodemodeResult({}, { isPartial: true }, theme, context);
+    vi.advanceTimersByTime(2000);
+    expect(invalidate).toHaveBeenCalledTimes(2);
+
+    // The final result settles the timer.
+    renderCodemodeResult(
+      { content: [{ type: "text", text: "Script completed\nWall time 0.1 seconds\nOutput:\n" }] },
+      { isPartial: false },
+      theme,
+      context,
+    );
+    expect(context.state.interval).toBeUndefined();
+    expect(context.state.endedAt).toBeDefined();
+  });
+
+  it("does not recreate the timer interval for a settled call re-render", () => {
+    const context = {
+      executionStarted: true,
+      invalidate: vi.fn(),
+      state: {} as any,
+    };
+
+    renderCodemodeResult(
+      { content: [{ type: "text", text: "Script completed\nWall time 0.1 seconds\nOutput:\n" }] },
+      { isPartial: false },
+      theme,
+      context,
+    );
+    expect(context.state.interval).toBeUndefined();
+
+    // Re-rendering the call after the result settled must not spawn a
+    // permanent interval (endedAt is already set).
+    renderCodemodeCall({ code: "x" }, theme, context);
     expect(context.state.interval).toBeUndefined();
     vi.advanceTimersByTime(1000);
     expect(context.invalidate).not.toHaveBeenCalled();
