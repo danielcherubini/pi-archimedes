@@ -14,8 +14,10 @@ import {
 } from "./renderer.js";
 
 // Mock Text from @earendil-works/pi-tui while preserving real utility
-// functions (getCapabilities, imageFallback, …). The mock's render()
-// returns the raw lines (no padding), so assertions stay exact.
+// functions (imageFallback, …). getCapabilities is mocked too: the real one
+// sniffs the terminal from env vars (kitty/iTerm2), so the image-fallback
+// behavior — and the tests around it — would differ between a dev terminal
+// and CI. Pinning it to "kitty" makes the suite deterministic.
 vi.mock("@earendil-works/pi-tui", async () => {
   const actual =
     await vi.importActual<typeof import("@earendil-works/pi-tui")>(
@@ -45,6 +47,11 @@ vi.mock("@earendil-works/pi-tui", async () => {
   return {
     ...actual,
     Text: MockText,
+    getCapabilities: () => ({
+      images: "kitty" as const,
+      trueColor: true,
+      hyperlinks: true,
+    }),
   };
 });
 
