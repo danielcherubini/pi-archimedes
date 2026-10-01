@@ -16,6 +16,13 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
       values: ["On", "Off"],
     },
     {
+      id: "codemodeToolStyling",
+      label: "Codemode Tool Styling",
+      description: "Custom styling for the codemode tool (script preview, nested call list, output) while keeping the native executor",
+      currentValue: config.codemodeToolStyling ? "On" : "Off",
+      values: ["On", "Off"],
+    },
+    {
       id: "mutedTheme",
       label: "Muted Theme",
       description: "Use muted colors for thinking blocks",

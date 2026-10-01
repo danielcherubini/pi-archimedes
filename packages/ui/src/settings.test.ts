@@ -3,13 +3,14 @@ import { getUISettingsItems } from "./settings.js";
 import { DEFAULT_UI_CONFIG, ANIMATION_STYLES, type UIConfig } from "./config.js";
 
 describe("getUISettingsItems", () => {
-  it("exposes all 13 UI setting items with correct defaults", () => {
+  it("exposes all 14 UI setting items with correct defaults", () => {
     const items = getUISettingsItems(DEFAULT_UI_CONFIG);
-    expect(items).toHaveLength(13);
+    expect(items).toHaveLength(14);
 
     const ids = items.map((i) => i.id);
     expect(ids).toEqual([
       "bashToolStyling",
+      "codemodeToolStyling",
       "mutedTheme",
       "autoCollapseThinking",
       "thinkingStyle",
@@ -25,6 +26,7 @@ describe("getUISettingsItems", () => {
     ]);
 
     expect(items.find((i) => i.id === "bashToolStyling")?.currentValue).toBe("On");
+    expect(items.find((i) => i.id === "codemodeToolStyling")?.currentValue).toBe("On");
     expect(items.find((i) => i.id === "mutedTheme")?.currentValue).toBe("Off");
     expect(items.find((i) => i.id === "autoCollapseThinking")?.currentValue).toBe("Off");
     expect(items.find((i) => i.id === "thinkingStyle")?.currentValue).toBe("Full");
@@ -42,6 +44,14 @@ describe("getUISettingsItems", () => {
   it("exposes bashToolStyling correctly when toggled off", () => {
     const items = getUISettingsItems({ ...DEFAULT_UI_CONFIG, bashToolStyling: false });
     const item = items.find((i) => i.id === "bashToolStyling");
+    expect(item).toBeDefined();
+    expect(item!.currentValue).toBe("Off");
+    expect(item!.values).toEqual(["On", "Off"]);
+  });
+
+  it("exposes codemodeToolStyling correctly when toggled off", () => {
+    const items = getUISettingsItems({ ...DEFAULT_UI_CONFIG, codemodeToolStyling: false });
+    const item = items.find((i) => i.id === "codemodeToolStyling");
     expect(item).toBeDefined();
     expect(item!.currentValue).toBe("Off");
     expect(item!.values).toEqual(["On", "Off"]);

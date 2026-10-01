@@ -12,6 +12,12 @@ TUI enhancements for the Pi Archimedes monorepo.
   - `✓` Success (Green)
   - `✗` Error (Red)
 
+### Codemode Tool Styling
+- **Minimal Collapsed View**: The collapsed row is the `codemode` header plus the nested tool calls the script made (last five, with an expand hint when there are more) — no script dump, no summary line. A script that made no calls shows a single `<glyph> <duration>` line instead.
+- **Expanded View**: The syntax-highlighted script, every nested call (status glyph, args, duration, and cost for `models.*` calls, with a `Model calls: $total` line when several were priced), the script output without the executor's `Script completed/failed` header, the full-output path when truncated, and the timing + final status.
+- **Native Behaviour Preserved**: The override re-registers pi's own `codemode` tool (executor, dynamic description, activation semantics all intact) and replaces only the presentation — so it takes over pi's replaceable built-in `codemode` extension (pi prints a one-line startup notice, as it does for any extension that replaces a built-in).
+- **Graceful Fallback**: On pi versions without the `codemode` extension the override is a no-op and pi's native rendering stands in.
+
 ### Editor
 - **HephaestusEditor**: Advanced text editing capabilities.
 - **Border Spinner Animations**: Visual feedback during operations.
@@ -30,6 +36,7 @@ TUI enhancements for the Pi Archimedes monorepo.
 | Setting | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `bashToolStyling` | boolean | `true` | Custom styled bash tool rendering |
+| `codemodeToolStyling` | boolean | `true` | Custom styled codemode tool rendering (script preview, nested call list, output) while keeping the native executor |
 | `mutedTheme` | boolean | `false` | Muted theme for thinking blocks |
 | `autoCollapseThinking` | boolean | `false` | Automatically collapse thinking blocks |
 | `thinkingStyle` | "Full" \| "Compact" | `"Full"` | Thinking block display (Full = full text, Compact = one line, click to expand) |

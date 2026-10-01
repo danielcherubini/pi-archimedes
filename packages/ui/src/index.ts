@@ -28,6 +28,7 @@ import {
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle } from "./migration.js";
 import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
+import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 
 // Re-exports
 export { unpatchConsoleLog } from "./startup/capture.js";
@@ -77,6 +78,7 @@ export function registerUI(pi: ExtensionAPI): void {
   pi.on("session_shutdown", (_event, ctx) => {
     unpatchConsoleLog();
     clearActiveBashIntervals();
+    clearActiveCodemodeIntervals();
 
     const targetCtx = ctx?.hasUI ? ctx : uiCtx;
     if (targetCtx?.hasUI) {
@@ -145,6 +147,15 @@ export function registerUI(pi: ExtensionAPI): void {
 
     if (config.bashToolStyling !== false) {
       registerBashToolOverride(pi, ctx.cwd);
+    }
+
+    // The codemode override replaces pi's built-in codemode extension (the
+    // same take-over the bash override does for the core bash tool). It
+    // loads the native definition from the running CLI and swaps in the
+    // Archimedes renderers; it is a no-op on pi versions without the
+    // codemode extension.
+    if (config.codemodeToolStyling !== false) {
+      void registerCodemodeToolOverride(pi);
     }
 
     if (ctx.hasUI) {

@@ -50,6 +50,7 @@ export type SpinnerStyle =
 
 export interface UIConfig {
   bashToolStyling: boolean;
+  codemodeToolStyling: boolean;
   mutedTheme: boolean;
   autoCollapseThinking: boolean;
   thinkingStyle: OutputStyle;
@@ -68,6 +69,7 @@ export type CoreConfig = UIConfig;
 
 export const DEFAULT_UI_CONFIG: UIConfig = {
   bashToolStyling: true,
+  codemodeToolStyling: true,
   mutedTheme: false,
   autoCollapseThinking: false,
   thinkingStyle: "Full",

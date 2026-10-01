@@ -33,6 +33,7 @@ describe("loadUIConfig", () => {
     const result = loadUIConfig();
     expect(result).toEqual({
       bashToolStyling: true,
+      codemodeToolStyling: true,
       mutedTheme: false,
       autoCollapseThinking: false,
       thinkingStyle: "Full",
@@ -74,9 +75,10 @@ describe("saveUIConfig", () => {
 });
 
 describe("DEFAULT_UI_CONFIG", () => {
-  it("has bashToolStyling enabled by default along with core defaults", () => {
+  it("has bashToolStyling and codemodeToolStyling enabled by default along with core defaults", () => {
     expect(DEFAULT_UI_CONFIG).toEqual({
       bashToolStyling: true,
+      codemodeToolStyling: true,
       mutedTheme: false,
       autoCollapseThinking: false,
       thinkingStyle: "Full",
