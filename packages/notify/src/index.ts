@@ -66,7 +66,7 @@ export function notifyOSC9(message: string): void {
 /** OSC 99 — Kitty terminal */
 export function notifyOSC99(title: string, body: string): void {
   const seq1 = `\x1b]99;i=1:d=0;${title}\x1b\\`;
-  const seq2 = `\x1b]99;i=1:p=${body}\x1b\\`;
+  const seq2 = `\x1b]99;i=1:p=body;${body}\x1b\\`;
   process.stderr.write(wrapForTmux(seq1));
   process.stderr.write(wrapForTmux(seq2));
 }
