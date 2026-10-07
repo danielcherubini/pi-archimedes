@@ -10,7 +10,8 @@ export interface GitStatus {
 }
 
 const STAGED_INDEX_STATES = ["A", "M", "D", "R", "C", "U", "T"] as const;
-const UNSTAGED_WORKTREE_STATES = ["M", "D", "U"] as const;
+// "A" = intent-to-add (`git add -N`); jj marks every new file this way in colocated repos
+const UNSTAGED_WORKTREE_STATES = ["M", "D", "U", "A"] as const;
 
 const GIT_STATUS_CMD = "git status --porcelain=v2 --branch -uall";
 

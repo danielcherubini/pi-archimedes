@@ -71,6 +71,12 @@ describe("getGitStatus", () => {
     expect(result.unstaged).toBe(0);
   });
 
+  it("counts intent-to-add files (jj's new files) as unstaged", async () => {
+    const mockExecSync = vi.fn(() => "1 .A N... 000000 000000 100644 0000 0000 new.txt\n");
+    await loadModule(mockExecSync);
+    expect(getGitStatus()).toMatchObject({ staged: 0, unstaged: 1, untracked: 0 });
+  });
+
   it("parse untracked lines", async () => {
     const mockExecSync = vi.fn(() => "?  untracked1.txt\n?  untracked2.txt\n");
     await loadModule(mockExecSync);
