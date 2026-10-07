@@ -2,7 +2,7 @@ import { execFile, execFileSync } from "child_process";
 import { existsSync } from "fs";
 import { dirname, join } from "path";
 
-// Same TTL as git status: bookmarks don't change on every render
+// Same TTL as git status: bookmarks (and repo markers) don't change on every render
 const JJ_CACHE_TTL_MS = 2_000;
 
 // Nearest bookmarked commit at or below @, plus @ itself as a change-id fallback.
@@ -16,12 +16,13 @@ const JJ_ARGS = [
   "-T", 'if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(","), "@" ++ change_id.shortest(8)) ++ "\\n"',
 ];
 
-let jjRepoCache: { cwd: string; isJj: boolean } | undefined;
+let jjRepoCache: { cwd: string; isJj: boolean; timestamp: number } | undefined;
 let bookmarkCache: { cwd: string; value: string | null; timestamp: number } | undefined;
 let refreshInFlight = false;
 
 function isJjRepo(cwd: string): boolean {
-  if (jjRepoCache?.cwd === cwd) return jjRepoCache.isJj;
+  // Expires so a mid-session `jj git init` (or a removed .jj) is picked up
+  if (jjRepoCache?.cwd === cwd && Date.now() - jjRepoCache.timestamp < JJ_CACHE_TTL_MS) return jjRepoCache.isJj;
   let dir = cwd;
   let isJj = false;
   while (true) {
@@ -33,7 +34,7 @@ function isJjRepo(cwd: string): boolean {
     if (parent === dir) break;
     dir = parent;
   }
-  jjRepoCache = { cwd, isJj };
+  jjRepoCache = { cwd, isJj, timestamp: Date.now() };
   return isJj;
 }
 

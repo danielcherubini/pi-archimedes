@@ -5,6 +5,7 @@ describe("getJjBookmark", () => {
   let getJjBookmark: () => string | null;
   let execFileSync: ReturnType<typeof vi.fn>;
   let execFile: ReturnType<typeof vi.fn>;
+  let existing: Set<string>;
 
   // `paths` = repo markers that exist, relative to cwd. Default is a colocated jj repo.
   async function load(opts: { paths?: string[]; output?: string; throws?: boolean } = {}) {
@@ -15,7 +16,7 @@ describe("getJjBookmark", () => {
     });
     execFile = vi.fn();
     vi.doMock("child_process", () => ({ execFileSync, execFile }));
-    const existing = new Set((opts.paths ?? [".jj", ".git"]).map((p) => resolve(process.cwd(), p)));
+    existing = new Set((opts.paths ?? [".jj", ".git"]).map((p) => resolve(process.cwd(), p)));
     vi.doMock("fs", () => ({ existsSync: vi.fn((p: string) => existing.has(p)) }));
     getJjBookmark = (await import("./jj.js")).getJjBookmark;
   }
@@ -28,6 +29,16 @@ describe("getJjBookmark", () => {
     await load({ paths: [".git"] });
     expect(getJjBookmark()).toBeNull();
     expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it("detects a jj repo initialised after a cached negative result", async () => {
+    await load({ paths: [".git"], output: "main\n" });
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    expect(getJjBookmark()).toBeNull();
+
+    existing.add(resolve(process.cwd(), ".jj")); // `jj git init --colocate`
+    now.mockReturnValue(5_000);
+    expect(getJjBookmark()).toBe("main");
   });
 
   it("leaves a git repo nested inside a jj tree to git", async () => {
