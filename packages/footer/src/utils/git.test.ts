@@ -146,3 +146,114 @@ describe("getGitStatus", () => {
     );
   });
 });
+
+// ── getGitBranch (jj-aware) ───────────────────────────────────────────────
+//
+// In a jj workspace, git reports "detached" (colocated: .git/HEAD points at a
+// raw SHA; non-colocated: no .git at all). The branch section must fall back
+// to the jj working-copy bookmark (or short change id when not on a bookmark).
+
+describe("getGitBranch (jj-aware)", () => {
+  let getGitBranch: () => string | null;
+  let isJjWorkspace: (dir?: string) => boolean;
+
+  interface SpawnResult { status: number; stdout: string; stderr: string }
+
+  async function loadModuleJj(
+    opts: {
+      execSync?: ReturnType<typeof vi.fn>;
+      spawnSync?: ReturnType<typeof vi.fn>;
+      existsSync?: ReturnType<typeof vi.fn>;
+    },
+  ) {
+    vi.resetModules();
+
+    const execSync = opts.execSync ?? vi.fn(() => { throw new Error("git not found"); });
+    const spawnSync = opts.spawnSync ?? vi.fn(() => ({ status: 1, stdout: "", stderr: "" } as SpawnResult));
+    const existsSync = opts.existsSync ?? vi.fn(() => false);
+
+    vi.doMock("child_process", () => ({ execSync, spawnSync }));
+    vi.doMock("fs", () => ({ realpathSync: vi.fn((p: string) => p), existsSync }));
+
+    const mod = await import("./git.js");
+    getGitBranch = mod.getGitBranch;
+    isJjWorkspace = mod.isJjWorkspace;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Mock helper: spawnSync keyed by argv ("git --no-..." vs "jj log ...")
+  function gitSpawn(git: SpawnResult, jj?: SpawnResult): ReturnType<typeof vi.fn> {
+    return vi.fn((cmd: string, args: string[]) => {
+      if (cmd === "git") return git;
+      if (cmd === "jj") return jj ?? { status: 1, stdout: "", stderr: "error: not a workspace" };
+      return { status: 1, stdout: "", stderr: "" };
+    });
+  }
+
+  it("returns the jj bookmark in a jj workspace (git reports detached)", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 1, stdout: "", stderr: "" }, { status: 0, stdout: "my-feature\n", stderr: "" }),
+      existsSync: vi.fn((p: string) => p.endsWith("/.jj")),
+    });
+    expect(getGitBranch()).toBe("my-feature");
+  });
+
+  it("returns the short change id when the working copy is not on a bookmark", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 128, stdout: "", stderr: "fatal: not a git repository" }, { status: 0, stdout: "abc12345\n", stderr: "" }),
+      existsSync: vi.fn((p: string) => p.endsWith("/.jj")),
+    });
+    expect(getGitBranch()).toBe("abc12345");
+  });
+
+  it("prefers the git branch in a plain git repo (no .jj)", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 0, stdout: "main\n", stderr: "" }),
+      existsSync: vi.fn(() => false),
+    });
+    expect(getGitBranch()).toBe("main");
+  });
+
+  it("returns 'detached' for a plain git repo on a detached HEAD", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 1, stdout: "", stderr: "" }),
+      existsSync: vi.fn(() => false),
+    });
+    expect(getGitBranch()).toBe("detached");
+  });
+
+  it("returns null when neither git nor jj is available", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 128, stdout: "", stderr: "fatal: not a git repository" }),
+      existsSync: vi.fn(() => false),
+    });
+    expect(getGitBranch()).toBeNull();
+  });
+
+  it("falls back to git ('detached') when the jj workspace exists but the jj command fails", async () => {
+    await loadModuleJj({
+      spawnSync: gitSpawn({ status: 1, stdout: "", stderr: "" }, { status: 1, stdout: "", stderr: "error: not a jj workspace" }),
+      existsSync: vi.fn((p: string) => p.endsWith("/.jj")),
+    });
+    expect(getGitBranch()).toBe("detached");
+  });
+
+  it("isJjWorkspace is true when .jj exists in cwd, false otherwise", async () => {
+    const cwdJj = `${process.cwd()}/.jj`;
+    await loadModuleJj({ existsSync: vi.fn((p: string) => p === cwdJj) });
+    expect(isJjWorkspace(process.cwd())).toBe(true);
+    expect(isJjWorkspace("/nope/repo")).toBe(false);
+  });
+
+  it("property: getGitBranch never throws (catches process errors gracefully)", async () => {
+    await loadModuleJj({
+      spawnSync: vi.fn(() => { throw new Error("spawnSync boom"); }),
+      existsSync: vi.fn(() => { throw new Error("fs boom"); }),
+    });
+    expect(() => getGitBranch()).not.toThrow();
+    expect(getGitBranch()).toBeNull();
+  });
+});

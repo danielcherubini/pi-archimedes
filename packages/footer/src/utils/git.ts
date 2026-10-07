@@ -1,5 +1,6 @@
-import { execSync } from "child_process";
-import { realpathSync } from "fs";
+import { execSync, spawnSync } from "child_process";
+import { existsSync, realpathSync } from "fs";
+import { dirname } from "path";
 
 export interface GitStatus {
   staged: number;
@@ -25,8 +26,14 @@ interface WorktreeCacheEntry {
   timestamp: number;
 }
 
+interface BranchCacheEntry {
+  value: string | null;
+  timestamp: number;
+}
+
 let gitStatusCache: GitCacheEntry | undefined;
 let worktreeCache: WorktreeCacheEntry | undefined;
+let gitBranchCache: BranchCacheEntry | undefined;
 let gitRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 interface FileStates {
@@ -178,4 +185,97 @@ export function isInsideLinkedWorktree(): boolean {
     worktreeCache = { value: false, timestamp: Date.now() };
     return false;
   }
+}
+
+// ── Branch resolution (git, with jj fallback) ────────────────────────────
+
+/**
+ * True when `dir` is inside a jj workspace (a `.jj` directory sits at the
+ * workspace root). jj's workspaces are what show as `detached` in git: a
+ * colocated workspace's `.git/HEAD` points at a raw commit (the working-copy
+ * commit's parent) rather than a `ref:`, and a non-colocated workspace has
+ * no `.git` at all. The authoritative branch name is a jj bookmark.
+ */
+export function isJjWorkspace(dir: string = process.cwd()): boolean {
+  try {
+    // Walk up to the nearest ancestor containing a `.jj` directory, matching
+    // jj's own workspace-root resolution (the closest ancestor with `.jj`).
+    let current = dir;
+    while (true) {
+      if (existsSync(`${current}/.jj`)) return true;
+      const parent = dirname(current);
+      if (parent === current) return false; // reached filesystem root
+      current = parent;
+    }
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ask git for the current branch. Mirrors pi's FooterDataProvider semantics:
+ * a symbolic branch name, `"detached"` for a detached HEAD, or `null` when
+ * the cwd is not inside a git repository (or git is unavailable).
+ */
+function getGitBranchNative(): string | null {
+  const result = spawnSync(
+    "git",
+    ["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"],
+    { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+  );
+  if (result.status === 0) {
+    const branch = result.stdout.trim();
+    if (branch) return branch;
+    // git exited 0 but printed nothing — treat as not-a-repo (null)
+    return null;
+  }
+  const err = (result.stderr ?? "").trim();
+  if (/not a (git )?repository|fatal/i.test(err)) {
+    // Not a git repo at all (e.g. a non-colocated jj workspace).
+    return null;
+  }
+  // A repo exists but HEAD is detached (raw commit).
+  return "detached";
+}
+
+/**
+ * Ask jj for the working-copy bookmark. Returns the local bookmark name,
+ * or the short change id when the working copy is not on any bookmark.
+ * `null` when the cwd is not a jj workspace or jj is unavailable.
+ */
+function getJjBranch(): string | null {
+  if (!isJjWorkspace()) return null;
+  const result = spawnSync(
+    "jj",
+    ["log", "--no-color", "-r", "@", "-T", "try(local_bookmarks.first().name(), change_id.shortest(8))"],
+    { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+  );
+  const bookmark = result.status === 0 ? result.stdout.trim() : "";
+  return bookmark || null;
+}
+
+/**
+ * The branch to show in the footer. In a jj workspace, git reports the
+ * working copy as `detached` (colocated) or as no repo at all (non-colocated);
+ * the jj bookmark is the authoritative branch name, so it wins. In a plain git
+ * repo the git result is returned unchanged.
+ */
+export function getGitBranch(): string | null {
+  // Return cached result if still fresh
+  if (gitBranchCache && Date.now() - gitBranchCache.timestamp < GIT_CACHE_TTL_MS) {
+    return gitBranchCache.value;
+  }
+
+  let value: string | null;
+  try {
+    if (isJjWorkspace()) {
+      value = getJjBranch() ?? getGitBranchNative();
+    } else {
+      value = getGitBranchNative();
+    }
+  } catch {
+    value = null;
+  }
+  gitBranchCache = { value, timestamp: Date.now() };
+  return value;
 }
