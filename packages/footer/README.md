@@ -28,7 +28,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 
 ## What you get
 
-- **Session line** — working directory, active git branch with clean/dirty indicator, worktree badge, active model, and thinking level.
+- **Session line** — working directory, active git branch (or nearest jj bookmark in a jj repo) with clean/dirty indicator, worktree badge, active model, and thinking level.
 - **Token ledger** — input (↑) and output (↓) tokens, cache read/write, and the live accumulated dollar cost of the session.
 - **Context bar** — colour-coded (green → yellow → red). It shows **consumption**: how much of the context window is used, not how much headroom is left.
 - **Adaptive layout** — one compact line on wide viewports; it wraps to the lines it needs as the terminal narrows instead of truncating essential data.
