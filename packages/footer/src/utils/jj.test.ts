@@ -1,98 +1,70 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { resolve } from "path";
 
+// `paths` = repo markers that exist, relative to cwd. Default: colocated jj repo.
+async function load({ paths = [".jj", ".git"], output = "main\n", throws = false } = {}) {
+  vi.resetModules();
+  const existing = new Set(paths.map((p) => resolve(process.cwd(), p)));
+  const execFileSync = vi.fn((_cmd: string, _args: string[]) => {
+    if (throws) throw new Error("ENOENT");
+    return output;
+  });
+  const execFile = vi.fn();
+  vi.doMock("child_process", () => ({ execFileSync, execFile }));
+  vi.doMock("fs", () => ({ existsSync: (p: string) => existing.has(p) }));
+  const { getJjBookmark } = await import("./jj.js");
+  return { getJjBookmark, execFileSync, execFile, existing };
+}
+
 describe("getJjBookmark", () => {
-  let getJjBookmark: () => string | null;
-  let execFileSync: ReturnType<typeof vi.fn>;
-  let execFile: ReturnType<typeof vi.fn>;
-  let existing: Set<string>;
-
-  // `paths` = repo markers that exist, relative to cwd. Default is a colocated jj repo.
-  async function load(opts: { paths?: string[]; output?: string; throws?: boolean } = {}) {
-    vi.resetModules();
-    execFileSync = vi.fn(() => {
-      if (opts.throws) throw new Error("ENOENT");
-      return opts.output ?? "";
-    });
-    execFile = vi.fn();
-    vi.doMock("child_process", () => ({ execFileSync, execFile }));
-    existing = new Set((opts.paths ?? [".jj", ".git"]).map((p) => resolve(process.cwd(), p)));
-    vi.doMock("fs", () => ({ existsSync: vi.fn((p: string) => existing.has(p)) }));
-    getJjBookmark = (await import("./jj.js")).getJjBookmark;
-  }
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it.each([
+    { name: "plain git repo", paths: [".git"], expected: null },
+    { name: "git repo nested in a jj tree", paths: [".git", "../.jj"], expected: null },
+    { name: "colocated jj repo", paths: [".jj", ".git"], expected: "main" },
+    { name: "subdirectory of a jj repo", paths: ["../.jj"], expected: "main" },
+  ])("detects $name", async ({ paths, expected }) => {
+    const { getJjBookmark, execFileSync } = await load({ paths });
+    expect(getJjBookmark()).toBe(expected);
+    if (!expected) expect(execFileSync).not.toHaveBeenCalled(); // git-only users never spawn jj
   });
 
-  it("returns null without spawning jj outside a jj repo", async () => {
-    await load({ paths: [".git"] });
-    expect(getJjBookmark()).toBeNull();
-    expect(execFileSync).not.toHaveBeenCalled();
-  });
-
-  it("detects a jj repo initialised after a cached negative result", async () => {
-    await load({ paths: [".git"], output: "main\n" });
-    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-    expect(getJjBookmark()).toBeNull();
-
-    existing.add(resolve(process.cwd(), ".jj")); // `jj git init --colocate`
-    now.mockReturnValue(5_000);
-    expect(getJjBookmark()).toBe("main");
-  });
-
-  it("leaves a git repo nested inside a jj tree to git", async () => {
-    await load({ paths: [".git", "../.jj"] });
-    expect(getJjBookmark()).toBeNull();
-    expect(execFileSync).not.toHaveBeenCalled();
-  });
-
-  it("finds a jj repo from a subdirectory", async () => {
-    await load({ paths: ["../.jj"], output: "main\n" });
-    expect(getJjBookmark()).toBe("main");
-  });
-
-  it("prefers the first bookmark line over the @ change-id line", async () => {
-    await load({ output: "@mooqvmmx\nmain\nother\n" });
-    expect(getJjBookmark()).toBe("main");
-  });
-
-  it("returns the bookmark when @ itself is bookmarked", async () => {
-    await load({ output: "feature-x\n" });
-    expect(getJjBookmark()).toBe("feature-x");
-  });
-
-  it("falls back to the change id when no ancestor is bookmarked", async () => {
-    await load({ output: "@mooqvmmx\n" });
-    expect(getJjBookmark()).toBe("mooqvmmx");
+  it.each([
+    { output: "@mooqvmmx\nmain\nother\n", expected: "main" }, // first bookmark line beats @
+    { output: "feature-x\n", expected: "feature-x" }, // @ itself bookmarked
+    { output: "main release v2\n", expected: "main +2" }, // capped for layout width
+    { output: "@mooqvmmx\n", expected: "mooqvmmx" }, // no bookmark → change id
+  ])("parses $output", async ({ output, expected }) => {
+    const { getJjBookmark } = await load({ output });
+    expect(getJjBookmark()).toBe(expected);
   });
 
   it("returns null when jj fails", async () => {
-    await load({ throws: true });
+    const { getJjBookmark } = await load({ throws: true });
     expect(getJjBookmark()).toBeNull();
   });
 
-  it("serves the cache within the TTL and refreshes in the background after", async () => {
-    await load({ output: "main\n" });
+  it("caches, refreshes in the background, and notices a late `jj git init`", async () => {
+    const { getJjBookmark, execFileSync, execFile, existing } = await load({ paths: [".git"] });
     const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-    expect(getJjBookmark()).toBe("main");
-    expect(getJjBookmark()).toBe("main");
-    expect(execFileSync).toHaveBeenCalledTimes(1);
-    // Never snapshot the working copy from a render (op-log writes, repo lock)
-    expect(execFileSync.mock.calls[0]![1]).toContain("--ignore-working-copy");
-    expect(execFile).not.toHaveBeenCalled();
+    expect(getJjBookmark()).toBeNull();
 
+    existing.add(resolve(process.cwd(), ".jj")); // negative detection expires
     now.mockReturnValue(5_000);
-    expect(getJjBookmark()).toBe("main"); // stale value while refreshing
-    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(getJjBookmark()).toBe("main");
+    expect(getJjBookmark()).toBe("main"); // within TTL: no second spawn
+    expect(execFileSync).toHaveBeenCalledTimes(1);
+    expect(execFileSync.mock.calls[0]![1]).toContain("--ignore-working-copy"); // never snapshot from a render
 
-    const done = execFile.mock.calls[0]![3] as (e: Error | null, out: string) => void;
-    done(new Error("lock timeout"), "");
+    type Done = (e: Error | null, out: string) => void;
+    now.mockReturnValue(10_000);
+    expect(getJjBookmark()).toBe("main"); // stale while refreshing
+    (execFile.mock.calls[0]![3] as Done)(new Error("lock timeout"), "");
     expect(getJjBookmark()).toBe("main"); // failed refresh keeps stale value
 
-    now.mockReturnValue(10_000);
+    now.mockReturnValue(15_000);
     getJjBookmark();
-    (execFile.mock.calls[1]![3] as typeof done)(null, "feature-x\n");
+    (execFile.mock.calls[1]![3] as Done)(null, "feature-x\n");
     expect(getJjBookmark()).toBe("feature-x");
+    now.mockRestore();
   });
 });

@@ -13,7 +13,7 @@ const JJ_ARGS = [
   "--no-graph",
   "--ignore-working-copy",
   "--color", "never",
-  "-T", 'if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(","), "@" ++ change_id.shortest(8)) ++ "\\n"',
+  "-T", 'if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(" "), "@" ++ change_id.shortest(8)) ++ "\\n"',
 ];
 
 let jjRepoCache: { cwd: string; isJj: boolean; timestamp: number } | undefined;
@@ -38,10 +38,18 @@ function isJjRepo(cwd: string): boolean {
   return isJj;
 }
 
-/** First bookmark line wins; otherwise the `@<change-id>` line without its marker. */
+/**
+ * First bookmark line wins; otherwise the `@<change-id>` line without its marker.
+ * Several bookmarks on one commit collapse to `first +N` — footer chunks are
+ * atomic, so an unbounded list could push other sections onto their own lines.
+ */
 function parseJjOutput(output: string): string | null {
   const lines = output.split("\n").filter(Boolean);
-  return lines.find((l) => !l.startsWith("@")) ?? (lines[0]?.slice(1) || null);
+  const bookmarks = lines.find((l) => !l.startsWith("@"));
+  if (!bookmarks) return lines[0]?.slice(1) || null;
+  // Space-joined by the template: git ref names can't contain spaces
+  const [first, ...rest] = bookmarks.split(" ");
+  return rest.length ? `${first} +${rest.length}` : first!;
 }
 
 function refreshInBackground(cwd: string): void {
