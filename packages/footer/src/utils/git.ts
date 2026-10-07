@@ -12,6 +12,8 @@ export interface GitStatus {
 const STAGED_INDEX_STATES = ["A", "M", "D", "R", "C", "U", "T"] as const;
 const UNSTAGED_WORKTREE_STATES = ["M", "D", "U"] as const;
 
+const GIT_STATUS_CMD = "git status --porcelain=v2 --branch -uall";
+
 // Cache TTL: 2 seconds — git status doesn't change on every render
 const GIT_CACHE_TTL_MS = 2_000;
 
@@ -53,16 +55,12 @@ function parseGitOutput(output: string): GitStatus {
   const status: GitStatus = { staged: 0, unstaged: 0, untracked: 0, ahead: 0, behind: 0 };
 
   for (const line of output.trim().split("\n")) {
-    // Branch summary: "## branch_name ... upstream ahead behind"
-    if (/^## /.test(line)) {
-      const branchParts = line.slice(3).trim().split(/\s+/);
-      if (branchParts.length >= 3) {
-        const commitsAhead = Number(branchParts[branchParts.length - 2]);
-        const commitsBehind = Number(branchParts[branchParts.length - 1]);
-        if (!isNaN(commitsAhead) && !isNaN(commitsBehind) && branchParts[branchParts.length - 3]) {
-          status.ahead = Math.max(0, commitsAhead);
-          status.behind = Math.max(0, commitsBehind);
-        }
+    // Branch headers: "# branch.ab +<ahead> -<behind>" (only when an upstream is set)
+    if (line.startsWith("# ")) {
+      const ab = line.match(/^# branch\.ab \+(\d+) -(\d+)/);
+      if (ab) {
+        status.ahead = Number(ab[1]);
+        status.behind = Number(ab[2]);
       }
       continue;
     }
@@ -88,7 +86,7 @@ function scheduleGitRefresh(): void {
   gitRefreshTimer = setTimeout(() => {
     gitRefreshTimer = undefined;
     try {
-      const output = execSync("git status --porcelain=v2 -uall", {
+      const output = execSync(GIT_STATUS_CMD, {
         cwd: process.cwd(),
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
@@ -116,7 +114,7 @@ export function getGitStatus(): GitStatus {
   // First call — sync fetch + schedule background refresh
   const emptyStatus: GitStatus = { staged: 0, unstaged: 0, untracked: 0, ahead: 0, behind: 0 };
   try {
-    const output = execSync("git status --porcelain=v2 -uall", {
+    const output = execSync(GIT_STATUS_CMD, {
       cwd: process.cwd(),
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
