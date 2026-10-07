@@ -15,7 +15,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { clampLine } from "@pi-archimedes/core/text";
 import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
-import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
+import { getGitBranch, getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, wrapStatusToChunks } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
@@ -51,7 +51,7 @@ export function registerFooter(pi: ExtensionAPI): void {
           try {
             const colorize = (token: string, s: string) => theme.fg(token as any, s);
             const activeModel = ctx.model?.id || "no-model";
-            const currentBranch = footerData.getGitBranch();
+            const currentBranch = getGitBranch();
             const currentDirectory = process.cwd().split("/").pop() || process.cwd();
             const gitStatus = getGitStatus();
             const inWorktree = isInsideLinkedWorktree();
