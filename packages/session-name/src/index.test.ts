@@ -120,6 +120,26 @@ describe("generateTitle", () => {
     expect(onFailure).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["This extension ctx is stale after session replacement or reload.", 0],
+    ["Unexpected lookup failure", 1],
+  ] as const)("handles lookup errors: %s", async (message, failures) => {
+    const pi = createMockPi();
+    pi.getSessionName.mockImplementation(() => { throw new Error(message); });
+    const onSuccess = vi.fn();
+    const onFailure = vi.fn();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await generateTitle(pi as any, createMockCtx({}) as any, onSuccess, onFailure);
+      expect(onFailure).toHaveBeenCalledTimes(failures);
+      expect(log).toHaveBeenCalledTimes(failures);
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(pi.setSessionName).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("does not call onFailure when streamSimple returns stopReason === 'aborted'", async () => {
     const pi = createMockPi();
     const ctx = createMockCtx({

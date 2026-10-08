@@ -204,6 +204,8 @@ export async function generateTitle(
     pi.setSessionName(title);
     onSuccess();
   } catch (e) {
+    // Session replacement or print-mode teardown makes an in-flight title irrelevant.
+    if (e instanceof Error && e.message.includes("stale after session replacement")) return;
     console.error("[archimedes] session-name failed:", e);
     onFailure();
   }
