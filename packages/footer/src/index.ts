@@ -18,7 +18,7 @@ import { CostAccumulator } from "./cost-accumulator.js";
 import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getJjBookmark } from "./utils/jj.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
-import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, wrapStatusToChunks } from "./utils/format.js";
+import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, truncateBranch, wrapStatusToChunks } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
 import { packFooterLines, SEP_W, SEPARATOR } from "./utils/layout.js";
 
@@ -36,7 +36,7 @@ export function registerFooter(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
-    const splitThreshold = loadFooterConfig().splitThreshold;
+    const { splitThreshold, branchMaxLength } = loadFooterConfig();
 
     // Create cost accumulator for subagent costs
     footerAccumulator = new CostAccumulator();
@@ -87,7 +87,7 @@ export function registerFooter(pi: ExtensionAPI): void {
             // System info sections: dir | branch [+status] | model | thinking | ext-statuses
             const leftSections = [
               colorize("syntaxFunction", " " + footerIcons.directory + currentDirectory),
-              currentBranch ? colorize("success", branchIcon + " " + currentBranch + (gitStatusStr ? " " + gitStatusStr : "")) : "",
+              currentBranch ? colorize("success", branchIcon + " " + truncateBranch(currentBranch, branchMaxLength) + (gitStatusStr ? " " + gitStatusStr : "")) : "",
               colorize("syntaxType", footerIcons.model + " " + activeModel),
               thinkingIndicatorStr,
               ...extensionStatusChunks,

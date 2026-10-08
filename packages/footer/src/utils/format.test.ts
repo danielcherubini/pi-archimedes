@@ -6,6 +6,7 @@ import {
   formatContextBar,
   formatGitStatusIndicators,
   formatThinkingIndicator,
+  truncateBranch,
   wrapStatusToChunks,
 } from "./format.js";
 import { thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.js";
@@ -13,6 +14,29 @@ import { thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.j
 // ── Mock ColorFn ────────────────────────────────────────────────────────────
 // Passthrough — we test structure, not actual coloring.
 const mockColor: ColorFn = (_token, text) => text;
+
+// ── truncateBranch ──────────────────────────────────────────────────────────
+
+describe("truncateBranch", () => {
+  it("returns the name unchanged when max is 0 (unlimited)", () => {
+    const name = "feature/a-very-long-branch-name";
+    expect(truncateBranch(name, 0)).toBe(name);
+  });
+
+  it("returns the name unchanged when it is shorter than max", () => {
+    expect(truncateBranch("main", 10)).toBe("main");
+  });
+
+  it.each([
+    ["feature/a-very-long-branch-name", 10],
+    ["feature/x", 1], // smallest limit: ellipsis only
+    ["機能ブランチ名前", 5], // wide chars: odd limit can't split a 2-column char
+  ])("truncates %s to %i columns ending with an ellipsis", (name, max) => {
+    const result = truncateBranch(name, max);
+    expect(visibleWidth(result)).toBeLessThanOrEqual(max);
+    expect(stripAnsi(result).endsWith("…")).toBe(true);
+  });
+});
 
 // ── formatTokenCount ────────────────────────────────────────────────────────
 

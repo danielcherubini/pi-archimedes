@@ -3,10 +3,12 @@ import type { SettingItem } from "@earendil-works/pi-tui";
 
 export interface FooterConfig {
   splitThreshold: number;
+  branchMaxLength: number;
 }
 
 export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
   splitThreshold: 150,
+  branchMaxLength: 0,
 };
 
 const NAMESPACE = "archimedes.footer";
@@ -26,6 +28,12 @@ export function getFooterSettingsItems(): SettingItem[] {
       label: "Split Threshold",
       description: "Terminal width threshold for two-line footer split",
       currentValue: String(loadFooterConfig().splitThreshold),
+    },
+    {
+      id: "branchMaxLength",
+      label: "Branch Max Length",
+      description: "Max columns for the branch/bookmark name (0 = unlimited)",
+      currentValue: String(loadFooterConfig().branchMaxLength),
     },
   ];
 }

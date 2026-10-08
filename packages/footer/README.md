@@ -43,6 +43,7 @@ Two honest caveats: the ledger reflects usage and pricing **as reported to the s
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `splitThreshold` | number | `150` | Minimum terminal columns for the single-line layout. Below it, the footer uses the structured multi-line layout; above it, it stays single-line and wraps only if content overflows. |
+| `branchMaxLength` | number | `0` | Max columns for the branch or jj bookmark name, truncated with `…`. `0` = unlimited. Git status indicators are never truncated. Applies on next session or `/reload`. |
 
 In the suite the setting also appears in `/archimedes` (when the panel has a control for it); `/reload` applies it. On/off is managed by the suite: toggle via `/plugins` (`archimedes.footer.enabled`, default on).
 

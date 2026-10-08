@@ -27,6 +27,7 @@ const PROMPTS: Record<string, PromptDescriptor> = {
   diffSplitMinWidth: { kind: "number", label: "Diff split min width", min: 100 },
   diffSplitMinCodeWidth: { kind: "number", label: "Diff split min code width", min: 30 },
   splitThreshold: { kind: "number", label: "Footer split threshold", min: 80 },
+  branchMaxLength: { kind: "number", label: "Branch max length", min: 0 },
   delayMs: { kind: "number", label: "Notify delay (seconds)", min: 1 },
 };
 
@@ -109,6 +110,11 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           case "splitThreshold": {
             const v = parseInt(newValue, 10);
             if (Number.isFinite(v)) footerConfig.splitThreshold = v;
+            break;
+          }
+          case "branchMaxLength": {
+            const v = parseInt(newValue, 10);
+            if (Number.isFinite(v)) footerConfig.branchMaxLength = v;
             break;
           }
 

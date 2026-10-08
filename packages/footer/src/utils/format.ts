@@ -1,4 +1,4 @@
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { footerIcons, gitDisplayIcons, gitStatusColors, thinkingLevelColors, thinkingLevelIcons, type ColorFn } from "./icons.js";
 
 // Token counts use binary units (1K = 1024)
@@ -48,6 +48,10 @@ export function formatGitStatusIndicators(
   if (gitStatus.ahead > 0) statusParts.push(colorize(gitStatusColors.ahead, gitDisplayIcons.ahead + gitStatus.ahead));
   if (gitStatus.behind > 0) statusParts.push(colorize(gitStatusColors.behind, gitDisplayIcons.behind + gitStatus.behind));
   return statusParts.join("");
+}
+
+export function truncateBranch(name: string, max: number): string {
+  return max > 0 ? truncateToWidth(name, max, "…") : name;
 }
 
 export function formatThinkingIndicator(thinkingLevel: string, colorize: ColorFn): string {
