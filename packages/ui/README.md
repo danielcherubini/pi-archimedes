@@ -48,6 +48,7 @@ TUI enhancements for the Pi Archimedes monorepo.
 | `labelText` | string | `"Thinking..."` | Text shown before thinking blocks |
 | `labelColor` | string | `"255,215,0"` | RGB color for the thinking label (e.g. `255,215,0`) |
 | `animationStyle` | "diagonal" \| "top-right" \| "bottom-left" \| "bottom-right" \| "center-out" \| "wave" \| "horizontal" \| "vertical" \| "vertical-up" | `"vertical-up"` | Startup logo animation |
+| `colorfulLogo` | boolean | `false` | Use pi's brand colors for the splash logo |
 | `editorSpinBorder` | boolean | `true` | Animated spinner border on editor |
 | `editorSpinSpeed` | "slow" \| "normal" \| "fast" | `"normal"` | Editor border spinner speed |
 | `editorSpinStyle` | "typing" \| "pulse" \| "rain" \| "cascade" \| "columns" \| "wave-rows" \| "diagonal-swipe" \| "sparkle" \| "pendulum" \| "marquee" | `"pendulum"` | Editor spinner style |

@@ -23,6 +23,17 @@ export const LOGO = [
   "████        ████",
 ];
 
+// Pi brand colors per logo pixel (4x4). Copied from pi-coding-agent's pi-logo.js, which is not exported.
+const CORAL: [number, number, number] = [228, 138, 122];
+const BLUE: [number, number, number] = [79, 142, 179];
+const YELLOW: [number, number, number] = [234, 182, 93];
+const PI_COLORS: ([number, number, number] | null)[][] = [
+  [CORAL, CORAL, CORAL, null],
+  [BLUE, null, CORAL, null],
+  [BLUE, BLUE, null, YELLOW],
+  [BLUE, null, null, YELLOW],
+];
+
 export const CHAR_FADE_FRAMES = 22;
 export const LOGO_SETTLE_FRAME = 90;
 export const LOGO_PAD = 0;
@@ -61,7 +72,7 @@ function computeRevealAt(x: number, y: number, style: AnimationStyle): number {
   }
 }
 
-export function getShinedLogo(frame: number, style: AnimationStyle = "wave"): string[] {
+export function getShinedLogo(frame: number, style: AnimationStyle = "wave", colorful = false): string[] {
   if (!TRUECOLOR) return LOGO;
 
   return LOGO.map((line, y) => {
@@ -77,6 +88,12 @@ export function getShinedLogo(frame: number, style: AnimationStyle = "wave"): st
 
       const t = Math.min(1, age / CHAR_FADE_FRAMES);
       const eased = 1 - (1 - t) * (1 - t);
+      const pi = colorful ? PI_COLORS[Math.floor(y / 2)]![Math.floor(x / 4)] : null;
+      if (pi) {
+        result += rgb(lerp(50, pi[0], eased), lerp(50, pi[1], eased), lerp(50, pi[2], eased), char);
+        continue;
+      }
+
       const brightness = Math.floor(lerp(50, 255, eased));
       result += gray(brightness, char);
     }

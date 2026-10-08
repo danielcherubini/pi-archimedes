@@ -77,6 +77,13 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
       values: [...ANIMATION_STYLES],
     },
     {
+      id: "colorfulLogo",
+      label: "Colorful Logo",
+      description: "Use pi's brand colors for the splash logo",
+      currentValue: config.colorfulLogo ? "On" : "Off",
+      values: ["On", "Off"],
+    },
+    {
       id: "editorSpinBorder",
       label: "Editor Spin Border",
       description: "Type across the editor's top border while the agent is working (hides the “Working” line)",

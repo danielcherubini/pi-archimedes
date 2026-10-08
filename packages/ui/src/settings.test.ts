@@ -3,9 +3,9 @@ import { getUISettingsItems } from "./settings.js";
 import { DEFAULT_UI_CONFIG, ANIMATION_STYLES, type UIConfig } from "./config.js";
 
 describe("getUISettingsItems", () => {
-  it("exposes all 14 UI setting items with correct defaults", () => {
+  it("exposes all 15 UI setting items with correct defaults", () => {
     const items = getUISettingsItems(DEFAULT_UI_CONFIG);
-    expect(items).toHaveLength(14);
+    expect(items).toHaveLength(15);
 
     const ids = items.map((i) => i.id);
     expect(ids).toEqual([
@@ -19,6 +19,7 @@ describe("getUISettingsItems", () => {
       "labelText",
       "labelColor",
       "animationStyle",
+      "colorfulLogo",
       "editorSpinBorder",
       "editorSpinSpeed",
       "editorSpinStyle",

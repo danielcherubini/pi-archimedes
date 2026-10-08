@@ -180,6 +180,26 @@ describe("getShinedLogo (truecolor)", () => {
 		const result2 = mod.getShinedLogo(50, "wave");
 		expect(result1).toEqual(result2);
 	});
+
+	it("colorful logo paints every pixel with its pi brand color", () => {
+		const C = "228;138;122", B = "79;142;179", Y = "234;182;93", W = "255;255;255";
+		const pixels = [
+			[C, C, C, null],
+			[B, null, C, null],
+			[B, B, null, Y],
+			[B, null, null, Y],
+		];
+		const cellColors = (row: string) =>
+			[...row.matchAll(/\x1b\[38;2;(\d+;\d+;\d+)m.\x1b\[0m| /g)].map((m) => m[1] ?? null);
+
+		const colorful = mod.getShinedLogo(500, "wave", true);
+		const plain = mod.getShinedLogo(500, "wave", false);
+		for (let y = 0; y < 8; y++) {
+			const expected = Array.from({ length: 16 }, (_, x) => pixels[Math.floor(y / 2)]![Math.floor(x / 4)]);
+			expect(cellColors(colorful[y]!)).toEqual(expected);
+			expect(cellColors(plain[y]!)).toEqual(expected.map((c) => (c ? W : null)));
+		}
+	});
 });
 
 // ── All animation styles ─────────────────────────────────────────────────────

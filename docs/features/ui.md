@@ -1,6 +1,6 @@
 ---
 status: live
-last-verified: 2026-10-01
+last-verified: 2026-10-08
 verified-by: pnpm test
 ---
 
@@ -33,7 +33,7 @@ verified-by: pnpm test
    - `toolStyle` is the **master switch for all Archimedes tool styling**: `Minimal` (default) registers the styled bash/codemode overrides (per-tool `bashToolStyling`/`codemodeToolStyling` toggles fine-tune under it); `Native` registers no overrides at all — pi's native tool rendering stands and no takeover notice is printed. The former `Full` value (auto-expand every tool via a `ToolExecutionComponent` prototype patch) was dropped; `migrateRemovedToolPatch()` restores the true prototype methods if an older version left the patch behind in the same process (upgrade + `/reload`). Legacy `Full`/`Compact` settings normalize to `Minimal` so an upgrade never silently strips styling.
 
 5. **Startup Splash Animation**:
-   - Terminal logo reveal and animation sequences (`animationStyle`).
+   - Terminal logo reveal and animation sequences (`animationStyle`), optionally in pi's brand colors (`colorfulLogo`).
    - Safe console log interception and restoration (`unpatchConsoleLog`).
 
 ## Settings Namespace

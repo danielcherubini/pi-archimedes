@@ -92,6 +92,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
         switch (id) {
           // ── UI settings ──
           case "bashToolStyling": uiConfig.bashToolStyling = newValue === "On"; break;
+          case "codemodeToolStyling": uiConfig.codemodeToolStyling = newValue === "On"; break;
           case "mutedTheme": uiConfig.mutedTheme = newValue === "On"; break;
           case "autoCollapseThinking": uiConfig.autoCollapseThinking = newValue === "On"; break;
           case "thinkingStyle": uiConfig.thinkingStyle = normalizeThinkingStyle(newValue); break;
@@ -104,6 +105,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           case "labelText": uiConfig.labelText = newValue; break;
           case "labelColor": uiConfig.labelColor = newValue; break;
           case "animationStyle": uiConfig.animationStyle = newValue as UIConfig["animationStyle"]; break;
+          case "colorfulLogo": uiConfig.colorfulLogo = newValue === "On"; break;
 
           // ── Footer settings ──
           case "splitThreshold": {

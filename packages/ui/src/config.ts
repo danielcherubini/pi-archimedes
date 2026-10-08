@@ -87,6 +87,7 @@ export interface UIConfig {
   labelText: string;
   labelColor: string;
   animationStyle: AnimationStyle;
+  colorfulLogo: boolean;
   editorSpinBorder: boolean;
   editorSpinSpeed: "slow" | "normal" | "fast";
   editorSpinLabel: string;
@@ -106,6 +107,7 @@ export const DEFAULT_UI_CONFIG: UIConfig = {
   labelText: "Thinking...",
   labelColor: "255,215,0",
   animationStyle: "vertical-up",
+  colorfulLogo: false,
   editorSpinBorder: true,
   editorSpinSpeed: "normal",
   editorSpinLabel: "Working",

@@ -42,7 +42,8 @@ export interface ListingRef {
 export function renderHeader(theme: Theme, ref: ListingRef, width: number, height: number): string[] {
   const dim = (t: string) => theme.fg("dim", t);
   const accent = (t: string) => theme.fg("accent", t);
-  const logoLines = getShinedLogo(ref.frame, loadUIConfig().animationStyle);
+  const cfg = loadUIConfig();
+  const logoLines = getShinedLogo(ref.frame, cfg.animationStyle, cfg.colorfulLogo);
 
   // Use cached text lines if settled (no more animations)
   let listingLines: string[];
