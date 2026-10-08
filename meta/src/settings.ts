@@ -4,7 +4,7 @@ import type { SettingItem } from "@earendil-works/pi-tui";
 import { getUISettingsItems, saveUIConfig, normalizeThinkingStyle, normalizeToolStyle, type UIConfig } from "@pi-archimedes/ui";
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
-import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
+import { getSessionNameSettingsItems, normalizeReasoning, REASONING_DEFAULT_LABEL } from "@pi-archimedes/session-name";
 import {
   loadAllConfig,
   saveFooterConfig,
@@ -145,6 +145,12 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
 
           // ── Session name settings ──
           case "sessionNameModel": sessionNameConfig.model = newValue === "(current model)" ? undefined : newValue; break;
+          // "(none)" (and any unrecognised label) clears the key, which is the
+          // default: no reasoning level requested. See resolveReasoningOption.
+          case "sessionNameReasoning":
+            sessionNameConfig.reasoning =
+              newValue === REASONING_DEFAULT_LABEL ? undefined : normalizeReasoning(newValue);
+            break;
         }
       },
       onSave: () => {

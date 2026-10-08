@@ -107,6 +107,7 @@ export type { SessionNameSettings } from "@pi-archimedes/session-name";
 
 export const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
   model: undefined,
+  reasoning: undefined,
 };
 
 export function loadSessionNameConfigWrapper(): SessionNameSettings {
