@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateTitle } from "./index.js";
+import { generateTitle, registerSessionName } from "./index.js";
 
 function createMockPi(sessionName: string | undefined = undefined) {
   let currentName = sessionName;
@@ -183,5 +183,40 @@ describe("generateTitle", () => {
     expect(pi.setSessionName).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onFailure).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerSessionName", () => {
+  it.each(["UI", "no UI", "named", "stale", "stale UI", "broken UI"])("reports exhaustion safely: %s", async (scenario) => {
+    const pi = createMockPi();
+    registerSessionName(pi as any);
+    const agentEnd = pi.on.mock.calls.find(([event]) => event === "agent_end")![1];
+    const error = { stopReason: "error", content: [], errorMessage: "400 boom" };
+    const notify = vi.fn();
+    const ctx = { ...createMockCtx({ streamSimpleResult: error }), hasUI: scenario !== "no UI", ui: { notify } };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await agentEnd({}, ctx);
+      await agentEnd({}, ctx);
+      let finish!: (response: any) => void;
+      const pending = new Promise((resolve) => { finish = resolve; });
+      ctx.modelRegistry.streamSimple.mockReturnValueOnce({ result: vi.fn(() => pending) });
+      await agentEnd({}, ctx);
+      // Change the session/UI while the third request is still pending.
+      if (scenario === "named") pi.setSessionName("Manual name");
+      if (scenario === "stale") pi.getSessionName.mockImplementation(() => { throw new Error("stale context"); });
+      if (scenario === "stale UI") Object.defineProperty(ctx, "hasUI", { get: () => { throw new Error("stale UI"); } });
+      if (scenario === "broken UI") notify.mockImplementation(() => { throw new Error("UI failed"); });
+      finish(error);
+      await pending;
+      await agentEnd({}, ctx);
+      expect(ctx.modelRegistry.streamSimple).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledWith("[archimedes] session-name failed:", "400 boom");
+      expect(notify).toHaveBeenCalledTimes(scenario === "UI" || scenario === "broken UI" ? 1 : 0);
+      if (scenario === "UI") expect(notify).toHaveBeenCalledWith(expect.stringContaining("/name"), "warning");
+    } finally {
+      log.mockRestore();
+    }
   });
 });

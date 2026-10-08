@@ -177,6 +177,7 @@ export async function generateTitle(
       return;
     }
     if (response.stopReason === "error") {
+      console.error("[archimedes] session-name failed:", response.errorMessage ?? "title request failed");
       onFailure();
       return;
     }
@@ -234,7 +235,15 @@ export function registerSessionName(pi: ExtensionAPI) {
 
     // Fire-and-forget: spawn title generation in background so handler
     // returns immediately and the UI becomes responsive.
-    void generateTitle(pi, ctx, () => { hasNamed = true; }, () => { failCount++; });
+    void generateTitle(pi, ctx, () => { hasNamed = true; }, () => {
+      failCount++;
+      if (failCount !== 3) return;
+      try {
+        if (ctx.hasUI && !pi.getSessionName()) {
+          ctx.ui.notify("Session naming failed 3 times. Check the model configuration or use /name.", "warning");
+        }
+      } catch { /* Reporting must not count as another naming failure. */ }
+    });
   });
 }
 
