@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import { loadConfig } from "@pi-archimedes/core/settings-io";
 import type { SettingItem } from "@earendil-works/pi-tui";
 
@@ -8,10 +9,12 @@ export interface SessionNameSettings {
   // suite-managed by meta's plugin gate (archimedes.sessionName.enabled — see ADR 0012); session-name never reads this
   enabled?: boolean | undefined;
   model?: string | undefined;
+  reasoning?: ThinkingLevel | null | undefined;
 }
 
 const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
   model: undefined,
+  reasoning: "minimal",
 };
 
 const NAMESPACE = "archimedes.sessionName";
@@ -165,7 +168,7 @@ export async function generateTitle(
         ],
       },
       {
-        reasoning: "minimal",
+        ...(settings.reasoning != null ? { reasoning: settings.reasoning } : {}),
         cacheRetention: "none",
         sessionId: crypto.randomUUID(),
       },

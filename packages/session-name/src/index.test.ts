@@ -1,3 +1,4 @@
+import { loadConfig } from "@pi-archimedes/core/settings-io";
 import { describe, expect, it, vi } from "vitest";
 import { generateTitle, registerSessionName } from "./index.js";
 
@@ -60,6 +61,10 @@ function createMockCtx(options: {
   };
 }
 
+vi.mock("@pi-archimedes/core/settings-io", () => ({
+  loadConfig: vi.fn((_namespace, defaults) => defaults),
+}));
+
 describe("generateTitle", () => {
   it("generates title, trims quotes and whitespace, and calls pi.setSessionName", async () => {
     const pi = createMockPi();
@@ -99,6 +104,16 @@ describe("generateTitle", () => {
     expect(pi.setSessionName).toHaveBeenCalledWith("Fixing the Login Bug");
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onFailure).not.toHaveBeenCalled();
+  });
+
+  it.each(["low", null])("uses configured reasoning %s", async (reasoning) => {
+    vi.mocked(loadConfig).mockReturnValueOnce({ reasoning });
+    const ctx = createMockCtx({});
+    await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+
+    const options = (ctx.modelRegistry.streamSimple as any).mock.calls[0][2];
+    if (reasoning === null) expect(options).not.toHaveProperty("reasoning");
+    else expect(options.reasoning).toBe(reasoning);
   });
 
   it("triggers onFailure when streamSimple returns stopReason === 'error'", async () => {

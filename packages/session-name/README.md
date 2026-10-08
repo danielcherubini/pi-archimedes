@@ -40,6 +40,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `model` | string | _(current model)_ | Model used for title generation (e.g. `openai/gpt-4o-mini`). Canonical `provider/id`, bare IDs, and thinking-suffix forms are all resolved. Empty = current model. |
+| `reasoning` | string \| null | `minimal` | Thinking level for title requests. Set `null` to omit the reasoning option. |
 
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
 
