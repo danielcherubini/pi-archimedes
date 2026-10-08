@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync, lstatSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -45,19 +45,56 @@ export function loadConfig<T>(
 }
 
 /**
- * Save a config section to settings.json (atomic: write to .tmp then rename).
+ * Atomic write that preserves symlinks: if `path` is a symlink to an
+ * existing file, the temp file is created beside the resolved destination
+ * and the rename targets the destination — leaving the link intact.
+ * Regular files and missing files behave exactly as a plain tmp-then-rename
+ * would (temp beside `path`, rename onto `path`).
+ *
+ * Dangling symlink: `realpathSync` throws (ENOENT) — the fallback writes
+ * directly through the link, recreating the destination so the link is
+ * live again.
+ *
+ * Failure-mode note (deliberate, differs from the old clobber behavior):
+ * a symlink loop (ELOOP) or an unwritable destination directory (EACCES)
+ * now throw out of this function, where the old code would have
+ * "succeeded" by replacing the link with a regular file in the writable
+ * agent dir.
+ *
+ * The rename-failure fallback also writes through a live symlink, since
+ * writeFileSync follows links — even the non-atomic path never clobbers a
+ * link to an existing file.
+ */
+export function writeAtomicPreservingSymlinks(path: string, data: string): void {
+  let isLink = false;
+  try { isLink = lstatSync(path).isSymbolicLink(); } catch { /* missing → plain path */ }
+  let target = path;
+  if (isLink) {
+    try {
+      target = realpathSync(path);
+    } catch {
+      // Dangling symlink: write through the link, recreating the destination.
+      writeFileSync(path, data, "utf-8");
+      return;
+    }
+  }
+  const tmpPath = target + ".tmp";
+  try {
+    writeFileSync(tmpPath, data, "utf-8");
+    renameSync(tmpPath, target);
+  } catch {
+    try { unlinkSync(tmpPath); } catch { /* ignore */ }
+    writeFileSync(target, data, "utf-8");
+  }
+}
+
+/**
+ * Save a config section to settings.json (atomic, symlink-preserving — delegates to writeAtomicPreservingSymlinks).
  */
 export function saveConfig(namespace: string, config: object): void {
   const full = readSettings();
   full[namespace] = config;
-  const tmpPath = SETTINGS_PATH + ".tmp";
-  writeFileSync(tmpPath, JSON.stringify(full, null, 2), "utf-8");
-  try {
-    renameSync(tmpPath, SETTINGS_PATH);
-  } catch {
-    try { unlinkSync(tmpPath); } catch { /* ignore */ }
-    writeFileSync(SETTINGS_PATH, JSON.stringify(full, null, 2), "utf-8");
-  }
+  writeAtomicPreservingSymlinks(SETTINGS_PATH, JSON.stringify(full, null, 2));
 }
 
 /**
@@ -72,14 +109,7 @@ export function removeConfig(namespace: string): void {
   if (!existsSync(SETTINGS_PATH)) return;
   if (!(namespace in full)) return;
   delete full[namespace];
-  const tmpPath = SETTINGS_PATH + ".tmp";
-  writeFileSync(tmpPath, JSON.stringify(full, null, 2), "utf-8");
-  try {
-    renameSync(tmpPath, SETTINGS_PATH);
-  } catch {
-    try { unlinkSync(tmpPath); } catch { /* ignore */ }
-    writeFileSync(SETTINGS_PATH, JSON.stringify(full, null, 2), "utf-8");
-  }
+  writeAtomicPreservingSymlinks(SETTINGS_PATH, JSON.stringify(full, null, 2));
 }
 
 /**
