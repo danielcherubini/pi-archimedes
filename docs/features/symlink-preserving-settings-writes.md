@@ -14,7 +14,7 @@ Settings writes — `saveConfig` / `removeConfig` in `packages/core/src/settings
 - **Symlinked file:** the link is resolved to its real destination; the temp file is created beside the destination and the rename targets it. The link is never replaced.
 - **Dangling symlink:** a `saveConfig` writes through the link, recreating the destination so the link is live again. A `removeConfig` on a dangling link is a no-op — the link is left untouched.
 - **Failed temp write (e.g. ENOSPC):** the temp file is cleaned up and the error re-throws — the live file survives untouched, so a disk-full failure cannot truncate previously-valid settings.
-- **Failed rename:** falls back to a direct write-through (which follows symlinks), safe because the temp already holds the full content.
+- **Failed rename:** falls back to a direct write-through (which follows symlinks) — best-effort and **non-atomic**: the temp file is removed before the direct write, so if that final write fails mid-way (e.g. disk full) the destination can be truncated. The atomic guarantee (temp write + rename, including the protected failed-temp-write path that leaves the live file untouched) covers the normal path.
 - **Symlink loop (ELOOP) / unwritable destination (EACCES):** throw out of the write; nothing is clobbered.
 
 ## Implementation
