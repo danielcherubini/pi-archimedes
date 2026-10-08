@@ -441,6 +441,25 @@ describe("symlink preservation", () => {
     expect(fs.existsSync(t)).toBe(false);
   });
 
+  it("temp-write failure leaves the original file untouched", () => {
+    const t = setupSymlink();
+    const beforeRaw = fs.readFileSync(t, "utf-8");
+    // The temp file is written beside the target (inside tempDir), so make the
+    // parent directory read-only: the temp write fails (EACCES), the rename is
+    // never attempted, and the live file must survive untouched.
+    const mode = fs.statSync(tempDir).mode;
+    fs.chmodSync(tempDir, 0o555);
+    try {
+      expect(() => saveConfig("archimedes.test", { e: 5 })).toThrow();
+      expect(fs.readFileSync(t, "utf-8")).toBe(beforeRaw);
+      expect(fs.existsSync(t + ".tmp")).toBe(false);
+      expect(fs.existsSync(settingsLink() + ".tmp")).toBe(false);
+      expect(fs.lstatSync(settingsLink()).isSymbolicLink()).toBe(true);
+    } finally {
+      fs.chmodSync(tempDir, mode);
+    }
+  });
+
   it("sibling namespaces survive a save", () => {
     const t = setupSymlink(undefined, { "archimedes.other": { keep: true } });
     saveConfig("archimedes.test", { d: 4 });

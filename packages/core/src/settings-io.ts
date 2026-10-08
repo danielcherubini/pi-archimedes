@@ -56,14 +56,14 @@ export function loadConfig<T>(
  * live again.
  *
  * Failure-mode note (deliberate, differs from the old clobber behavior):
- * a symlink loop (ELOOP) or an unwritable destination directory (EACCES)
- * now throw out of this function, where the old code would have
- * "succeeded" by replacing the link with a regular file in the writable
- * agent dir.
- *
- * The rename-failure fallback also writes through a live symlink, since
- * writeFileSync follows links — even the non-atomic path never clobbers a
- * link to an existing file.
+ * a failed temp write (e.g. ENOSPC) cleans up the temp file and re-throws —
+ * the live file is left untouched, so no data loss. A failed rename falls
+ * back to a direct write-through, since the temp already holds the full
+ * content; writeFileSync follows links, so even that non-atomic path never
+ * clobbers a link to an existing file. A symlink loop (ELOOP) or an
+ * unwritable destination (EACCES) still throw out of this function, where
+ * the old code would have "succeeded" by replacing the link with a regular
+ * file in the writable agent dir.
  */
 export function writeAtomicPreservingSymlinks(path: string, data: string): void {
   let isLink = false;
@@ -81,8 +81,16 @@ export function writeAtomicPreservingSymlinks(path: string, data: string): void 
   const tmpPath = target + ".tmp";
   try {
     writeFileSync(tmpPath, data, "utf-8");
+  } catch (err) {
+    // Temp write failed (e.g. ENOSPC) — the live file must survive untouched.
+    try { unlinkSync(tmpPath); } catch { /* ignore */ }
+    throw err;
+  }
+  try {
     renameSync(tmpPath, target);
   } catch {
+    // Rename failed — the temp already holds the full content, so a direct
+    // write-through (which follows symlinks) is the fallback.
     try { unlinkSync(tmpPath); } catch { /* ignore */ }
     writeFileSync(target, data, "utf-8");
   }
