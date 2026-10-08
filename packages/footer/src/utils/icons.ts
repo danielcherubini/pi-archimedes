@@ -16,11 +16,11 @@ export const gitDisplayIcons = {
   behind: "↓",
 } as const;
 
-export const gitStatusColors: Record<keyof typeof gitDisplayIcons, "success" | "warning" | "dim" | "info"> = {
+export const gitStatusColors: Record<keyof typeof gitDisplayIcons, "success" | "warning" | "dim" | "accent"> = {
   staged: "success",
   unstaged: "warning",
   untracked: "dim",
-  ahead: "info",
+  ahead: "accent",
   behind: "warning",
 };
 
