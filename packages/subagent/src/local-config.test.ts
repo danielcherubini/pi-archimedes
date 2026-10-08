@@ -5,6 +5,9 @@ import {
   existsSync,
   readdirSync,
   writeFileSync,
+  readFileSync,
+  lstatSync,
+  symlinkSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -15,6 +18,9 @@ import {
   writeLocalThinking,
   deleteLocalThinking,
   deleteLocalAgent,
+  writeLocalField,
+  deleteLocalField,
+  setLocalConfig,
 } from "./local-config.js";
 
 // Redirect getAgentDir() to a temp directory via PI_CODING_AGENT_DIR.
@@ -203,5 +209,54 @@ describe("local-config", () => {
     const files = readdirSync(testDir);
     expect(files).not.toContain("agents.local.json.tmp");
     expect(existsSync(join(testDir, "agents.local.json"))).toBe(true);
+  });
+
+  describe("symlink preservation", () => {
+    const linkPath = join(testDir, "agents.local.json");
+    const targetPath = join(testDir, "agents.local.json.target");
+
+    // Fresh per-test setup: a target file pre-seeded with { "preexisting":
+    // "keep-me" } and a symlink agents.local.json → target.
+    beforeEach(() => {
+      rmSync(linkPath, { force: true });
+      rmSync(join(testDir, "agents.local.json.tmp"), { force: true });
+      rmSync(targetPath, { force: true });
+      writeFileSync(targetPath, JSON.stringify({ preexisting: "keep-me" }), "utf-8");
+      symlinkSync(targetPath, linkPath);
+    });
+
+    it("writeLocalField preserves the symlink and updates the target", () => {
+      writeLocalField("general", "model", "test-model");
+      expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      const data = JSON.parse(readFileSync(targetPath, "utf-8"));
+      expect(data.general.model).toBe("test-model");
+      expect(data.preexisting).toBe("keep-me");
+    });
+
+    it("deleteLocalField preserves the symlink and removes the entry", () => {
+      writeLocalField("general", "model", "test-model");
+      deleteLocalField("general", "model");
+      expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      const data = JSON.parse(readFileSync(targetPath, "utf-8"));
+      expect(data.general).toBeUndefined();
+      expect(data.preexisting).toBe("keep-me");
+    });
+
+    it("regular file still works (no symlink regression) and leaves no .tmp", () => {
+      rmSync(linkPath);
+      writeFileSync(linkPath, JSON.stringify({ preexisting: "keep-me" }), "utf-8");
+      writeLocalField("general", "thinking", "high");
+      expect(lstatSync(linkPath).isSymbolicLink()).toBe(false);
+      const data = JSON.parse(readFileSync(linkPath, "utf-8"));
+      expect(data.general.thinking).toBe("high");
+      expect(readdirSync(testDir)).not.toContain("agents.local.json.tmp");
+    });
+
+    it("setLocalConfig is a full replace through the symlink", () => {
+      setLocalConfig({ alpha: { model: "m" } });
+      expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      const data = JSON.parse(readFileSync(targetPath, "utf-8"));
+      expect(data).toEqual({ alpha: { model: "m" } });
+    });
   });
 });

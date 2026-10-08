@@ -1,12 +1,7 @@
-import {
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  renameSync,
-  unlinkSync,
-} from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { writeAtomicPreservingSymlinks } from "@pi-archimedes/core/settings-io";
 
 /** Fields that can be overridden per agent in agents.local.json. */
 export type LocalField = "model" | "thinking";
@@ -35,25 +30,12 @@ export function readLocalConfig(): LocalConfig {
   return readLocalConfigRaw();
 }
 
-/**
- * Write the full config atomically: write to .tmp then rename.
- * Falls back to a direct write if rename fails; cleans up .tmp on failure.
- * Follows the pattern in packages/core/src/settings-io.ts.
- */
+/** Write the full config atomically (backup+restore safe). Delegates to the shared core helper, which preserves symlinked config files. */
 function writeConfigAtomic(config: LocalConfig): void {
-  const path = getLocalConfigPath();
-  const tmpPath = path + ".tmp";
-  writeFileSync(tmpPath, JSON.stringify(config, null, 2), "utf-8");
-  try {
-    renameSync(tmpPath, path);
-  } catch {
-    try {
-      unlinkSync(tmpPath);
-    } catch {
-      // ignore — tmp file may not exist
-    }
-    writeFileSync(path, JSON.stringify(config, null, 2), "utf-8");
-  }
+  writeAtomicPreservingSymlinks(
+    getLocalConfigPath(),
+    JSON.stringify(config, null, 2),
+  );
 }
 
 /** Set the local override for a field on a given agent, preserving existing entries. */
