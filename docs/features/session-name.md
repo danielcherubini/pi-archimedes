@@ -1,0 +1,35 @@
+---
+status: live
+last-verified: 2026-10-08
+---
+
+# Session naming
+
+## What it is
+
+`@pi-archimedes/session-name` names a session after its first user + assistant exchange, so `pi -r` lists sessions by topic instead of by timestamp or hash. The title comes from a separate `streamSimple` call outside the main agent run.
+
+## Durable semantics
+
+- **Manual names always win.** Naming is skipped if the session already has a name (`--name`, `/name`), and the name is re-checked immediately before `setSessionName` because the title request is fire-and-forget and could land after the user named the session by hand.
+- **One title per session.** A `hasNamed` flag stops further attempts once a name is set; `session_start` clears it.
+- **Three attempts per session.** Failures are counted and naming stops after three; the budget resets on `session_start`, so `/reload` gives it another go.
+- **Exactly one user-visible warning per session**, emitted on the third failure: *"Session naming failed 3 times. Check the model configuration or use /name."* A provider error or thrown exception additionally logs `[archimedes] session-name failed: <reason>` through `console.error`, matching how the rest of the suite reports (footer, diff, bus). The warning is suppressed when `ctx.hasUI` is false (`pi -p`, JSON mode) or when the session has since been named manually.
+- **Non-events do not burn attempts.** A cancelled request (`stopReason: "aborted"`) returns without a failure. So does a **stale extension context**: print-mode teardown or a session replacement can invalidate the ctx while the title request is in flight, and pi's every-accessor `assertActive()` guard then throws from the post-stream re-check. That is detected by message substring and returns silently — the session is gone, so naming is moot, and charging it to the budget would be a category error.
+- **Reporting never becomes another failure.** The third-strike notification is wrapped in its own `try/catch`: `ctx.hasUI` is a proxied getter and `ctx.ui.notify` can both throw once the ctx is stale, which would otherwise re-enter the `generateTitle` catch, log a misleading fourth strike, and reject the `void` promise.
+- **Skips that are not failures:** ephemeral sessions (no session file) and a model with no configured auth.
+
+## Settings
+
+`archimedes.sessionName`: `model` (defaults to the current model; canonical `provider/id`, bare IDs, and thinking-suffix forms all resolve) and `reasoning` (defaults to `minimal`; `null` omits the option for providers that reject thinking levels). Both are JSON-only — neither has a `/archimedes` panel row.
+
+## Implementation notes
+
+- `generateTitle()` builds the prompt from the first exchange only (500 characters per side), caps the result at 80 characters, and strips surrounding quotes.
+- The stale-context check matches on `"stale after session replacement"` because pi exports no error code, class, or `isStale()` probe — `ExtensionRunner.assertActive()` throws a bare `new Error(this.staleMessage)`. If pi rewords that message the guard stops matching and stale ctx becomes a logged strike again, which is loud enough to find this line from the log text.
+- The title request passes `cacheRetention: "none"` and a fresh `sessionId`, so it neither pollutes nor reuses the main conversation's prompt cache.
+
+## Known gaps
+
+- When the model returns no usable text (no text blocks, or text that collapses to empty after quote-stripping), `onFailure()` records a strike with neither a log line nor a reason — unlike the provider-error and exception paths. Harmless, but it is the one failure mode that leaves nothing in the log.
+- An unrecognised `reasoning` value is forwarded unvalidated, which is unsafe on Anthropic/Bedrock: see issue #86.

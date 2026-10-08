@@ -31,7 +31,8 @@ After installing Pi, choose one installation command above, then `cd` into your 
 - After the first user + assistant exchange settles, it takes the first exchange (500 characters per side), asks a model to write a 3–8-word title, caps it at 80 characters, and sets the session name — with a final re-check so a name you set yourself can never be overwritten.
 - **Manual names win.** If you named the session (`--name` or `/name`), naming is skipped, and it re-checks before writing.
 - **It uses your current model unless you configure another.** The title is a separate model call outside the main run — with its own cost, **not reflected in the footer's totals**. A `model` setting (e.g. a cheap model) avoids spending your main model on titles.
-- **Skips and retries** — Ephemeral sessions (no session file) are skipped; if the model has no configured auth, the call is skipped. Transient failures print to the console and re-try on later `agent_end` events, giving up for the session after three. It is non-blocking and unobtrusive, but "silent" is too strong: failures are logged.
+- **Failures tell you.** A failed title request is retried on a later turn, and the provider's error is logged as `[archimedes] session-name failed: <provider error>`. After three failures in one session it stops trying and shows a single warning: *Session naming failed 3 times. Check the model configuration or use /name.* The warning is skipped when there's no UI to show it in (`pi -p`) or if you named the session in the meantime. Cancelling a request doesn't count as a failure, and neither does a session that's replaced or torn down while a title is in flight.
+- **Skips** — Ephemeral sessions (no session file) are skipped, and so is a model with no configured auth. Neither counts against the three attempts.
 
 ## Settings
 
@@ -40,7 +41,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `model` | string | _(current model)_ | Model used for title generation (e.g. `openai/gpt-4o-mini`). Canonical `provider/id`, bare IDs, and thinking-suffix forms are all resolved. Empty = current model. |
-| `reasoning` | string \| null | `minimal` | Thinking level for title requests. Set `null` to omit the reasoning option. |
+| `reasoning` | string \| null | `minimal` | Thinking level for the title request: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Set `null` to omit the option entirely — that's the fix for a provider that rejects thinking levels outright, which shows up as the naming warning plus a `400 Invalid request parameters` line in the log. Spell it exactly: an unrecognised value isn't validated, and on some providers it means *more* thinking rather than none. |
 
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
 
