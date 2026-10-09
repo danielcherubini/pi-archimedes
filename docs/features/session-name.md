@@ -23,7 +23,7 @@ last-verified: 2026-10-09
 
 `archimedes.sessionName`: `model` (defaults to the current model; canonical `provider/id`, bare IDs, and thinking-suffix forms all resolve) and `reasoning` (defaults to `minimal`; `null` omits the option for providers that reject thinking levels). `model` has a "Model for naming" row in `/archimedes`, opened with Enter as free text — blank or `(current model)` stores it as unset. `reasoning` is JSON-only.
 
-`reasoning` is validated at the point of use, not at parse time: casing and surrounding whitespace are tolerated, `null` means "omit the option", and any other unrecognised value is ignored in favour of the default with a `[archimedes] session-name: ignoring unrecognized reasoning <value>` line. Invalid config therefore behaves exactly like absent config. `"off"` is deliberately not accepted — pi already treats an omitted option as no-effort on every adapter, so it would be a fourth spelling of "unset" for no gain.
+`reasoning` is validated at the point of use, not at parse time: casing and surrounding whitespace are tolerated, `null` means "omit the option", and any other unrecognised value is ignored in favour of the default with a `[archimedes] session-name: ignoring unrecognized reasoning <value>` line. Invalid config therefore behaves exactly like absent config. `"off"` is deliberately not accepted — it would be a fourth spelling of "unset" next to `null` and an absent key, and pi accepts `off` as no-effort anyway wherever it maps one.
 
 ## Implementation notes
 

@@ -48,8 +48,9 @@ const REASONING_LEVELS: readonly ThinkingLevel[] = [
  * Outcomes: a real level (casing/padding tolerated) is forwarded; `null` means
  * omit the option entirely; anything else — including absent — is treated like
  * an absent setting and gets the default, with a log line so the user can find
- * the typo. `"off"` is deliberately not accepted: pi skips thinking entirely
- * when the option is omitted, so it would be a fourth spelling of "unset".
+ * the typo. `"off"` is deliberately not accepted: it would be a fourth
+ * spelling of "unset" next to `null` and an absent key, and pi accepts `off` as
+ * no-effort anyway wherever it maps one.
  */
 export function resolveTitleReasoning(raw: unknown): ThinkingLevel | null {
   if (raw === null) return null;
