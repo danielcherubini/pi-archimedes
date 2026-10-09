@@ -21,7 +21,7 @@ last-verified: 2026-10-08
 
 ## Settings
 
-`archimedes.sessionName`: `model` (defaults to the current model; canonical `provider/id`, bare IDs, and thinking-suffix forms all resolve) and `reasoning` (defaults to `minimal`; `null` omits the option for providers that reject thinking levels). Both are JSON-only — neither has a `/archimedes` panel row.
+`archimedes.sessionName`: `model` (defaults to the current model; canonical `provider/id`, bare IDs, and thinking-suffix forms all resolve) and `reasoning` (defaults to `minimal`; `null` omits the option for providers that reject thinking levels). `model` has a "Model for naming" row in `/archimedes`, opened with Enter as free text — blank or `(current model)` stores it as unset. `reasoning` is JSON-only.
 
 ## Implementation notes
 

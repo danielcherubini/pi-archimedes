@@ -19,7 +19,8 @@ import { createSettingsManager, type PromptDescriptor } from "./settings-manager
 
 // ── Free-input prompt descriptors (keyed by item.id) ───────────────────────
 
-const PROMPTS: Record<string, PromptDescriptor> = {
+// Exported for the panel-wiring test: every item must be reachable through PROMPTS or values.
+export const PROMPTS: Record<string, PromptDescriptor> = {
   labelText: { kind: "text", label: "Label text" },
   editorSpinLabel: { kind: "text", label: "Spinner label" },
   labelColor: { kind: "text", label: "RGB color (e.g. 255,215,0)" },
@@ -29,6 +30,11 @@ const PROMPTS: Record<string, PromptDescriptor> = {
   splitThreshold: { kind: "number", label: "Footer split threshold", min: 80 },
   branchMaxLength: { kind: "number", label: "Branch max length", min: 0 },
   delayMs: { kind: "number", label: "Notify delay (seconds)", min: 1 },
+  // A model reference, so free text: the catalogue is only known at runtime and
+  // resolveModel() tolerates canonical provider/id, bare id, and thinking-suffix
+  // forms. Without this entry the row renders but swallows every key — inert
+  // ever since a2bd4d6 added it alongside an onChange case that could never fire.
+  sessionNameModel: { kind: "text", label: "Model for naming (blank = current model)" },
 };
 
 // ── Settings UI ─────────────────────────────────────────────────────────────
@@ -83,6 +89,14 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
   const sessionNameConfig = { ...allConfig.sessionName };
 
   const items = await buildSettingsItems(allConfig);
+
+  // The row displays "(current model)" when unset, but Enter seeds the prompt
+  // from item.currentValue, so a typed reference would be appended to the
+  // placeholder — the same pitfall buildSettingsItems works around for delayMs.
+  // Show an empty field instead, which is what the row's own description and
+  // PROMPTS label both promise ("blank = current model").
+  const modelItem = items.find((i) => i.id === "sessionNameModel");
+  if (modelItem && modelItem.currentValue === "(current model)") modelItem.currentValue = "";
 
   ctx.ui.custom((_tui, theme, _keybindings, done) => {
     const settingsManager = createSettingsManager({
@@ -144,7 +158,13 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
           }
 
           // ── Session name settings ──
-          case "sessionNameModel": sessionNameConfig.model = newValue === "(current model)" ? undefined : newValue; break;
+          // Blank and the displayed placeholder both mean "use the current
+          // model", and are stored as unset rather than "" so the key disappears.
+          case "sessionNameModel": {
+            const ref = newValue.trim();
+            sessionNameConfig.model = !ref || ref === "(current model)" ? undefined : ref;
+            break;
+          }
         }
       },
       onSave: () => {
