@@ -42,12 +42,13 @@ import { loadAllConfig } from "./config.js";
 const managerCalls: Array<{
   onChange: (id: string, value: string) => void;
   onSave: () => void;
+  items: Array<{ id: string; currentValue: string }>;
 }> = [];
 
 vi.mock("./settings-manager.js", async (importOriginal) => ({
   ...(await importOriginal as object),
   createSettingsManager: vi.fn((opts: any) => {
-    managerCalls.push({ onChange: opts.onChange, onSave: opts.onSave });
+    managerCalls.push({ onChange: opts.onChange, onSave: opts.onSave, items: opts.items });
     return { render: () => [], handleInput: () => {}, invalidate: () => {}, dispose: () => {} };
   }),
 }));
@@ -124,6 +125,22 @@ describe("sessionNameModel editing", () => {
     panel.onChange("sessionNameModel", "(current model)");
     panel.onSave();
     expect(savedModel()).toBeUndefined();
+  });
+
+  it("seeds the prompt with an empty field, not the '(current model)' placeholder", async () => {
+    // Enter seeds from item.currentValue; leaving the placeholder there would
+    // prepend it to whatever the user types (the delayMs pitfall).
+    const panel = await openPanel();
+    const item = panel.items.find((i) => i.id === "sessionNameModel");
+    expect(item?.currentValue).toBe("");
+  });
+
+  it("seeds the prompt with the configured model when one is set", async () => {
+    store["archimedes.sessionName"] = { model: "openai/gpt-4o-mini" };
+    const panel = await openPanel();
+    const item = panel.items.find((i) => i.id === "sessionNameModel");
+    expect(item?.currentValue).toBe("openai/gpt-4o-mini");
+    delete store["archimedes.sessionName"];
   });
 
   it("trims whitespace around a reference", async () => {

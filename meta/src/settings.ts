@@ -90,6 +90,14 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
 
   const items = await buildSettingsItems(allConfig);
 
+  // The row displays "(current model)" when unset, but Enter seeds the prompt
+  // from item.currentValue, so a typed reference would be appended to the
+  // placeholder — the same pitfall buildSettingsItems works around for delayMs.
+  // Show an empty field instead, which is what the row's own description and
+  // PROMPTS label both promise ("blank = current model").
+  const modelItem = items.find((i) => i.id === "sessionNameModel");
+  if (modelItem && modelItem.currentValue === "(current model)") modelItem.currentValue = "";
+
   ctx.ui.custom((_tui, theme, _keybindings, done) => {
     const settingsManager = createSettingsManager({
       items,
