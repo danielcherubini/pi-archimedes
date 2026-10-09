@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/ui",
-  "version": "2.10.3",
+  "version": "2.10.4",
   "description": "Terminal UI enhancements, styled bash tool rendering, and visual presentation components for Pi",
   "type": "module",
   "main": "./src/index.ts",

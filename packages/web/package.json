@@ -1,6 +1,6 @@
 {
   "name": "@pi-archimedes/web",
-  "version": "2.10.3",
+  "version": "2.10.4",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
