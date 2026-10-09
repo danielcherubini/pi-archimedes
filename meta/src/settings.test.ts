@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 
 // ── Panel wiring guard ──────────────────────────────────────────────────────
@@ -54,6 +54,14 @@ vi.mock("./settings-manager.js", async (importOriginal) => ({
 }));
 
 const store = (vi.mocked(await import("@pi-archimedes/core/settings-io")) as any).__store;
+
+// The mocked settings-io store is module-level, so every test in this file
+// shares it: without this reset a test that saves a model leaks it into
+// whichever test runs next, making the suite order-dependent.
+beforeEach(() => {
+  for (const key of Object.keys(store)) delete store[key];
+  managerCalls.length = 0;
+});
 
 const SOURCE = readFileSync(new URL("./settings.ts", import.meta.url), "utf8");
 
@@ -140,7 +148,6 @@ describe("sessionNameModel editing", () => {
     const panel = await openPanel();
     const item = panel.items.find((i) => i.id === "sessionNameModel");
     expect(item?.currentValue).toBe("openai/gpt-4o-mini");
-    delete store["archimedes.sessionName"];
   });
 
   it("trims whitespace around a reference", async () => {
