@@ -1,6 +1,7 @@
 import { loadConfig } from "@pi-archimedes/core/settings-io";
 import { describe, expect, it, vi } from "vitest";
-import { generateTitle, registerSessionName } from "./index.js";
+import { thinkingBudgetForLevel } from "@earendil-works/pi-ai/api/simple-options";
+import { generateTitle, registerSessionName, resolveTitleReasoning } from "./index.js";
 
 function createMockPi(sessionName: string | undefined = undefined) {
   let currentName = sessionName;
@@ -114,6 +115,132 @@ describe("generateTitle", () => {
     const options = (ctx.modelRegistry.streamSimple as any).mock.calls[0][2];
     if (reasoning === null) expect(options).not.toHaveProperty("reasoning");
     else expect(options.reasoning).toBe(reasoning);
+  });
+
+  // Issue #86: settings.json is hand-edited strict JSON, so the value can be
+  // anything. A non-level must never reach the provider — see the pin at the
+  // end of this block for what that costs.
+  describe("reasoning validation", () => {
+    it("passes every real thinking level through untouched", async () => {
+      for (const reasoning of ["minimal", "low", "medium", "high", "xhigh", "max"]) {
+        vi.mocked(loadConfig).mockReturnValueOnce({ reasoning });
+        const ctx = createMockCtx({});
+        await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+
+        const options = (ctx.modelRegistry.streamSimple as any).mock.calls[0][2];
+        expect(options.reasoning).toBe(reasoning);
+      }
+    });
+
+    it.each(["Minimal", "  high  ", "MAX"])("tolerates casing and padding: %s", async (raw) => {
+      vi.mocked(loadConfig).mockReturnValueOnce({ reasoning: raw });
+      const ctx = createMockCtx({});
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+        expect((ctx.modelRegistry.streamSimple as any).mock.calls[0][2].reasoning).toBe(
+          raw.trim().toLowerCase(),
+        );
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it.each([["ultra"], ["off"], [""], [42], [true], [{}], [[]]])(
+      "never forwards a non-level: %s",
+      async (raw) => {
+        vi.mocked(loadConfig).mockReturnValueOnce({ reasoning: raw });
+        const ctx = createMockCtx({});
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+          await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+
+          const sent = (ctx.modelRegistry.streamSimple as any).mock.calls[0][2].reasoning;
+          // Invalid config behaves like absent config: the documented default.
+          expect(sent).toBe("minimal");
+          expect(log).toHaveBeenCalledWith(
+            "[archimedes] session-name: ignoring unrecognized reasoning",
+            JSON.stringify(raw),
+          );
+        } finally {
+          log.mockRestore();
+        }
+      },
+    );
+
+    it("sends no reasoning key when the value is null, and says nothing", async () => {
+      vi.mocked(loadConfig).mockReturnValueOnce({ reasoning: null });
+      const ctx = createMockCtx({});
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+        expect((ctx.modelRegistry.streamSimple as any).mock.calls[0][2]).not.toHaveProperty("reasoning");
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it("keeps the default when the setting is absent entirely, and says nothing", async () => {
+      // loadConfig merges the package default, so an absent key arrives as
+      // "minimal" — the common path must stay silent. A regression that warned
+      // on every default-configured session would otherwise pass the suite.
+      const ctx = createMockCtx({});
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+        expect((ctx.modelRegistry.streamSimple as any).mock.calls[0][2].reasoning).toBe("minimal");
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it("treats undefined like absent config, without warning", () => {
+      // Direct call: the generateTitle path can't produce this, since
+      // loadConfig fills the default in, but the helper is exported.
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(resolveTitleReasoning(undefined)).toBe("minimal");
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    // Pin the invariant against the arithmetic that makes this dangerous. Of
+    // pi-ai's adapters that export a streamSimple, three never call
+    // `clampThinkingLevel` — anthropic-messages, bedrock-converse-stream, and
+    // pi-messages (Radius) — so a forwarded non-level reaches their level
+    // tables verbatim:
+    //   - adaptive-thinking models: mapThinkingLevelToEffort has no `off` case
+    //     and its `default:` returns "high" — a typo silently buys maximum
+    //     effort on a one-line title. This is the real damage: nothing fails.
+    //   - budget-based models: thinkingBudgetForLevel's table has four keys, so
+    //     a non-level yields undefined, which propagates into max_tokens as NaN
+    //     (serialized `null`) and the provider rejects it. Silly, but loud.
+    // We can't fix pi's tables, so guarantee we never hand it a non-level:
+    // whatever we send must be a level the budget table recognises.
+    it("resolved reasoning is always a level the Anthropic budget table knows", () => {
+      // The hazard, read from pi-ai itself: these levels have a budget, junk doesn't.
+      const levels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+      for (const level of levels) {
+        expect(thinkingBudgetForLevel(level)).toBeTypeOf("number");
+      }
+      const junk: unknown[] = ["ultra", "MINIMAL", "off", "", "Max ", 42, true, {}, []];
+      for (const value of junk) {
+        expect(thinkingBudgetForLevel(value as never)).toBeUndefined();
+      }
+
+      // Whatever the setting holds, the value we forward is always safe to send.
+      for (const raw of [...levels, ...junk, null, undefined]) {
+        const resolved = resolveTitleReasoning(raw);
+        if (resolved === null) continue; // omitted → no level requested
+        expect(levels).toContain(resolved);
+        expect(thinkingBudgetForLevel(resolved)).toBeTypeOf("number");
+      }
+    });
   });
 
   it("triggers onFailure when streamSimple returns stopReason === 'error'", async () => {

@@ -41,7 +41,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `model` | string | _(current model)_ | Model used for title generation (e.g. `openai/gpt-4o-mini`). Canonical `provider/id`, bare IDs, and thinking-suffix forms are all resolved. Empty = current model. |
-| `reasoning` | string \| null | `minimal` | Thinking level for the title request: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Set `null` to omit the option entirely — that's the fix for a provider that rejects thinking levels outright, which shows up as the naming warning plus a `400 Invalid request parameters` line in the log. Spell it exactly: an unrecognised value isn't validated, and on some providers it means *more* thinking rather than none. |
+| `reasoning` | string \| null | `minimal` | Thinking level for the title request: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Set `null` to omit the option entirely — that's the fix for a provider that rejects thinking levels outright, which shows up as the naming warning plus a `400 Invalid request parameters` line in the log. Case and stray spaces are tolerated (`" Minimal "` works). Anything unrecognised is ignored in favour of the default and logged as `[archimedes] session-name: ignoring unrecognized reasoning <value>` — it is never sent to the provider, because what an unknown level *means* is provider-dependent: some read it as more thinking, some reject the request, and we'd rather not depend on which. |
 
 `model` is also editable in the `/archimedes` panel (**Model for naming** — Enter to type, blank to go back to the current model); `reasoning` is JSON-only.
 

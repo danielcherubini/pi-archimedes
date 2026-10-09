@@ -1,6 +1,6 @@
 ---
 status: live
-last-verified: 2026-10-08
+last-verified: 2026-10-09
 ---
 
 # Session naming
@@ -23,13 +23,15 @@ last-verified: 2026-10-08
 
 `archimedes.sessionName`: `model` (defaults to the current model; canonical `provider/id`, bare IDs, and thinking-suffix forms all resolve) and `reasoning` (defaults to `minimal`; `null` omits the option for providers that reject thinking levels). `model` has a "Model for naming" row in `/archimedes`, opened with Enter as free text — blank or `(current model)` stores it as unset. `reasoning` is JSON-only.
 
+`reasoning` is validated at the point of use, not at parse time: casing and surrounding whitespace are tolerated, `null` means "omit the option", and any other unrecognised value is ignored in favour of the default with a `[archimedes] session-name: ignoring unrecognized reasoning <value>` line. Invalid config therefore behaves exactly like absent config. `"off"` is deliberately not accepted — it would be a fourth spelling of "unset" next to `null` and an absent key, and pi accepts `off` as no-effort anyway wherever it maps one.
+
 ## Implementation notes
 
 - `generateTitle()` builds the prompt from the first exchange only (500 characters per side), caps the result at 80 characters, and strips surrounding quotes.
 - The stale-context check matches on `"stale after session replacement"` because pi exports no error code, class, or `isStale()` probe — `ExtensionRunner.assertActive()` throws a bare `new Error(this.staleMessage)`. If pi rewords that message the guard stops matching and stale ctx becomes a logged strike again, which is loud enough to find this line from the log text.
 - The title request passes `cacheRetention: "none"` and a fresh `sessionId`, so it neither pollutes nor reuses the main conversation's prompt cache.
+- `resolveTitleReasoning()` guards the value handed to `streamSimple` because most of pi's adapters cannot rescue a bad one. Of the ten adapters in pi-ai 0.87.0 that export a `streamSimple`, three never call `clampThinkingLevel` (`grep -c`, zero occurrences each): `anthropic-messages`, `bedrock-converse-stream`, and `pi-messages` — the Radius adapter, which forwards the level verbatim to its backend. On the Anthropic pair a forwarded non-level reaches their level tables verbatim. On adaptive-thinking models `mapThinkingLevelToEffort` has no `off` case and its `default:` returns `"high"` — a typo silently buys maximum effort on a one-line title. On budget-based models the four-key budget table yields `undefined`, which propagates into `max_tokens` as `NaN` and is rejected by the provider. Omitting the option is well-defined on the Anthropic pair, which request no thinking when `reasoning` is absent; on `pi-messages` an absent level is dropped by `JSON.stringify`, so the Radius backend's own default applies — the same "don't ask, get the provider default" trade-off ADR 0025 weighs.
 
 ## Known gaps
 
 - When the model returns no usable text (no text blocks, or text that collapses to empty after quote-stripping), `onFailure()` records a strike with neither a log line nor a reason — unlike the provider-error and exception paths. Harmless, but it is the one failure mode that leaves nothing in the log.
-- An unrecognised `reasoning` value is forwarded unvalidated, which is unsafe on Anthropic/Bedrock: see issue #86.
