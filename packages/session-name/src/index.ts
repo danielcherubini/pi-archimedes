@@ -19,6 +19,53 @@ const DEFAULT_SESSION_NAME_CONFIG: SessionNameSettings = {
 
 const NAMESPACE = "archimedes.sessionName";
 
+/** The thinking levels we accept — pi-ai's set, minus `off` (see below). */
+const REASONING_LEVELS: readonly ThinkingLevel[] = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+/**
+ * Decide what reasoning level the title request asks for, given whatever was
+ * found in settings.json.
+ *
+ * `settings.json` is hand-edited strict JSON and `loadConfig` returns untyped
+ * JSON, so the declared `ThinkingLevel` type narrows nothing at runtime: a
+ * wrong case, a stray space, or a typo all get through. Junk must not be
+ * forwarded, because pi cannot rescue it everywhere — `anthropic-messages` and
+ * `bedrock-converse-stream` are the two adapters that never call
+ * `clampThinkingLevel`, so on those an unknown value hits
+ * `mapThinkingLevelToEffort`, whose `default:` returns `"high"`: a typo
+ * silently buys maximum effort on a one-line title. On budget-based Claude it
+ * instead misses the four-key budget table, and the resulting `undefined`
+ * reaches the provider as an invalid `max_tokens`.
+ *
+ * Outcomes: a real level (casing/padding tolerated) is forwarded; `null` means
+ * omit the option entirely; anything else — including absent — is treated like
+ * an absent setting and gets the default, with a log line so the user can find
+ * the typo. `"off"` is deliberately not accepted: both adapters skip thinking
+ * when the option is omitted, so it would be a fourth spelling of "unset".
+ */
+export function resolveTitleReasoning(raw: unknown): ThinkingLevel | null {
+  if (raw === null) return null;
+  if (typeof raw === "string") {
+    const value = raw.trim().toLowerCase();
+    const match = REASONING_LEVELS.find((level) => level === value);
+    if (match) return match;
+  }
+  if (raw !== undefined) {
+    console.error(
+      "[archimedes] session-name: ignoring unrecognized reasoning",
+      JSON.stringify(raw),
+    );
+  }
+  return DEFAULT_SESSION_NAME_CONFIG.reasoning ?? null;
+}
+
 export function loadSessionNameConfig(): SessionNameSettings {
   return loadConfig(NAMESPACE, DEFAULT_SESSION_NAME_CONFIG);
 }
@@ -155,7 +202,9 @@ export async function generateTitle(
     // 4. Check auth — skip without incrementing failCount if not configured
     if (!ctx.modelRegistry.hasConfiguredAuth(model)) return;
 
-    // 5. Stream simple with built-in auth resolution
+    // 5. Stream simple with built-in auth resolution.
+    // Reasoning is resolved, not forwarded raw: see resolveTitleReasoning().
+    const reasoning = resolveTitleReasoning(settings.reasoning);
     const stream = ctx.modelRegistry.streamSimple(
       model,
       {
@@ -168,7 +217,7 @@ export async function generateTitle(
         ],
       },
       {
-        ...(settings.reasoning != null ? { reasoning: settings.reasoning } : {}),
+        ...(reasoning !== null ? { reasoning } : {}),
         cacheRetention: "none",
         sessionId: crypto.randomUUID(),
       },
