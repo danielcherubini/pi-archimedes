@@ -43,6 +43,8 @@ After installing Pi, choose one installation command above, then `cd` into your 
 | `model` | string | _(current model)_ | Model used for title generation (e.g. `openai/gpt-4o-mini`). Canonical `provider/id`, bare IDs, and thinking-suffix forms are all resolved. Empty = current model. |
 | `reasoning` | string \| null | `minimal` | Thinking level for the title request: `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Set `null` to omit the option entirely — that's the fix for a provider that rejects thinking levels outright, which shows up as the naming warning plus a `400 Invalid request parameters` line in the log. Spell it exactly: an unrecognised value isn't validated, and on some providers it means *more* thinking rather than none. |
 
+`model` is also editable in the `/archimedes` panel (**Model for naming** — Enter to type, blank to go back to the current model); `reasoning` is JSON-only.
+
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.sessionName.enabled`, default on).
 
 ← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
