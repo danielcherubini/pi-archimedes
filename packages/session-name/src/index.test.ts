@@ -182,16 +182,38 @@ describe("generateTitle", () => {
       }
     });
 
-    it("keeps the default when the setting is absent entirely", async () => {
+    it("keeps the default when the setting is absent entirely, and says nothing", async () => {
+      // loadConfig merges the package default, so an absent key arrives as
+      // "minimal" — the common path must stay silent. A regression that warned
+      // on every default-configured session would otherwise pass the suite.
       const ctx = createMockCtx({});
-      await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
-      expect((ctx.modelRegistry.streamSimple as any).mock.calls[0][2].reasoning).toBe("minimal");
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await generateTitle(createMockPi() as any, ctx as any, vi.fn(), vi.fn());
+        expect((ctx.modelRegistry.streamSimple as any).mock.calls[0][2].reasoning).toBe("minimal");
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it("treats undefined like absent config, without warning", () => {
+      // Direct call: the generateTitle path can't produce this, since
+      // loadConfig fills the default in, but the helper is exported.
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(resolveTitleReasoning(undefined)).toBe("minimal");
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
     });
 
     // Pin the invariant against the arithmetic that makes this dangerous. Of
-    // every adapter, only `anthropic-messages` and `bedrock-converse-stream`
-    // never call `clampThinkingLevel` (grepped: zero occurrences), so a
-    // forwarded non-level reaches their level tables verbatim:
+    // pi-ai's adapters that export a streamSimple, three never call
+    // `clampThinkingLevel` — anthropic-messages, bedrock-converse-stream, and
+    // pi-messages (Radius) — so a forwarded non-level reaches their level
+    // tables verbatim:
     //   - adaptive-thinking models: mapThinkingLevelToEffort has no `off` case
     //     and its `default:` returns "high" — a typo silently buys maximum
     //     effort on a one-line title. This is the real damage: nothing fails.
@@ -214,7 +236,7 @@ describe("generateTitle", () => {
       // Whatever the setting holds, the value we forward is always safe to send.
       for (const raw of [...levels, ...junk, null, undefined]) {
         const resolved = resolveTitleReasoning(raw);
-        if (resolved === null) continue; // omitted → the adapter skips thinking entirely
+        if (resolved === null) continue; // omitted → no level requested
         expect(levels).toContain(resolved);
         expect(thinkingBudgetForLevel(resolved)).toBeTypeOf("number");
       }
