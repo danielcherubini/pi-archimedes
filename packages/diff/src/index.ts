@@ -109,13 +109,18 @@ try {
 /**
  * Install the diff-drawing `edit` and `write` rows.
  *
- * Idempotent, and it has to be: the resolver and the event handlers are
- * registered once per extension load, because pi keeps a list of each per
- * extension and re-registering from `session_start` stacks a duplicate on every
- * `/reload`. The theme and config readers are per-session, so those are
+ * Idempotent per `pi` handle, and it has to be: pi keeps a LIST of resolvers and
+ * of event handlers per extension, so registering twice on the same extension
+ * stacks a duplicate. It is keyed to the handle rather than to this module
+ * because the two lifetimes differ — pi caches the compiled extension MODULE
+ * across sessions while every session replacement (`/new`, `/fork`, `/resume`)
+ * builds a fresh extension and hands registration a new handle. A module-wide
+ * flag would then install for the first session only, and every session after
+ * it would get pi's native `edit`/`write` rows and none of the result details
+ * the rows read. The theme and config readers are per-session, so those are
  * refreshed on every call.
  */
-let _toolsInstalled = false;
+const _installedExtensions = new WeakSet<object>();
 
 export function registerDiffTools(
 	pi: ExtensionAPI,
@@ -139,9 +144,10 @@ export function registerDiffTools(
 	setShikiConfig(() => getConfig());
 	setRenderConfig(() => getConfig());
 
-	// Already installed for this extension load: re-registering would stack a
-	// duplicate resolver and handler set on every `/reload`.
-	if (_toolsInstalled) return;
+	// Already installed on this extension: re-registering would stack a duplicate
+	// resolver and handler set. A different handle is a different extension, so
+	// it installs even when this module instance is a reused one.
+	if (_installedExtensions.has(pi)) return;
 
 	if (!_TextComponent) {
 		diag("diff", "[diff] SDK not available, skipping diff tool registration");
@@ -164,7 +170,7 @@ export function registerDiffTools(
 	// tool, so pi's own `edit` and `write` stay in place.
 	installEditTool(pi, cwd, home);
 	installWriteTool(pi, cwd, home, _TextComponent);
-	_toolsInstalled = true;
+	_installedExtensions.add(pi);
 }
 
 // ── Default export (for standalone pi.extensions loading) ─────────────────
