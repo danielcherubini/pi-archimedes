@@ -111,19 +111,19 @@ Add to the existing `on:` block:
 Add a second job `pi-latest` that mirrors the checkout/setup-node/pnpm-setup steps of `typecheck`, then instead of `pnpm install --frozen-lockfile`:
 ```yaml
       - run: pnpm install --config.minimum-release-age=0
-      - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"
+      - run: pnpm update -r --config.minimum-release-age=0 "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"
       - run: pnpm -r exec -- tsc --noEmit
 ```
-The `--config.minimum-release-age=0` is load-bearing, not decoration: pnpm's default 24-hour supply-chain gate rejects a pi release for its first day (`… was published …, within the minimumReleaseAge cutoff`), so a job that floats to `@latest` would be red for 24 hours after every pi release — the exact window in which it is most worth running. The flag is the only way to express this for a *floating* version, because `minimumReleaseAgeExclude` pins exact versions. The floor job keeps the policy untouched; only the float job relaxes it, and only in CI.
+The `--config.minimum-release-age=0` is load-bearing, not decoration, and it has to be on **both** commands. pnpm's default 24-hour supply-chain gate applies to `pnpm update` just as it does to `pnpm install` — but on an update it does not announce itself: a flagless `pnpm update` **silently resolves the previous release** (verified on this checkout: flagless `pnpm update` selected `pi-tui@1.1.0` while `1.2.0` was still inside the window; with the flag the same command selected `1.2.0`). A job that passes the flag only to the install therefore goes green while type-checking *yesterday's* pi — exactly the drift it exists to detect — and it does so during the one day after a release when running it matters most. The same gate also rejects a fresh pi release outright on a frozen or cold install (`… was published …, within the minimumReleaseAge cutoff`), which would leave a job that floats to `@latest` red for 24 hours after every pi release. The flag is the only way to express this for a *floating* version, because `minimumReleaseAgeExclude` pins exact versions. The floor job keeps the policy untouched; only the float job relaxes it, and only in CI.
 `pnpm update -r` prints "ignored update" for packages that do not declare a given specifier and still exits 0 — that is fine. **Do not** substitute `pnpm -r add`: it writes into `dependencies`, which is the wrong section for a compile-time-only host package and would corrupt the manifests Task 1 just pinned. Do not run `pnpm test` in this job — its purpose is the compile surface, and test failures against an unreleased pi would be noise on the main branch's green check.
 
 Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm test`): it is now the floor job and its failure means "our supported floor no longer compiles", which is actionable.
 
 **Steps:**
 - [ ] Edit `.github/workflows/ci.yml`.
-- [ ] Validate locally: `pnpm install && pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest" && pnpm -r exec -- tsc --noEmit`
+- [ ] Validate locally: `pnpm install --config.minimum-release-age=0 && pnpm update -r --config.minimum-release-age=0 "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest" && pnpm -r exec -- tsc --noEmit` — the flag on **both** commands, exactly as the job has it, or the local run resolves an older pi than the job will and proves nothing.
   - Green? If `pnpm update -r` errors out entirely (rather than printing "ignored update"), report BLOCKED with its output — do not switch to `pnpm -r add`.
-  - Then `git checkout -- . && git checkout -- pnpm-lock.yaml` to discard the float bump (this job must not commit bumped versions).
+  - Then discard the float bump with a **path-scoped** checkout: `git checkout -- package.json 'packages/*/package.json' 'meta/package.json' pnpm-lock.yaml` (this job must not commit bumped versions). It is path-scoped because the float bump rewrites the 13 manifests as well as the lockfile, and `git checkout -- .` would throw away the `ci.yml` edit this same task just made — the `ci.yml` change must survive.
 - [ ] Validate the workflow parses: `npx --yes js-yaml .github/workflows/ci.yml >/dev/null`
   - Non-zero exit means bad YAML; fix indentation and re-run.
 - [ ] Push and trigger `pi-latest` with `gh workflow run ci.yml`, then confirm from `gh run view --log` that both jobs exist.
@@ -132,7 +132,7 @@ Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm tes
 
 **Acceptance criteria:**
 - [ ] `ci.yml` has a `schedule` trigger and a `workflow_dispatch` trigger.
-- [ ] `pi-latest` runs `pnpm update -r` (or the `add` fallback) then `tsc --noEmit`, does not use `--frozen-lockfile`, and passes `--config.minimum-release-age=0` to the install so a same-day pi release is not rejected by the supply-chain policy.
+- [ ] `pi-latest` runs `pnpm update -r` (or the `add` fallback) then `tsc --noEmit`, does not use `--frozen-lockfile`, and passes `--config.minimum-release-age=0` to **both** the install and the update — otherwise a same-day pi release is either rejected by the supply-chain policy or silently passed over in favour of the previous release.
 - [ ] `typecheck` still uses `--frozen-lockfile` and still runs the tests.
 - [ ] No commit in this task contains bumped dependency versions.
 
@@ -259,7 +259,7 @@ In `diff/src/ansi/colors.ts`, **extend the existing local parser** so `38;5;n`/`
 - [ ] Commit: `fix(core,diff): derive panel and diff colour from theme tokens, not ANSI parsing`
 
 **Acceptance criteria:**
-- [ ] No escape-sequence matching used to **decide** a colour in `chrome.ts` or `diff/src/ansi/` (producers are exempt: `codes.ts:15-21,46-51` and `colors.ts:26` legitimately *emit* `38;2;`/`48;2;` palette codes — the rule is about parsing input, not building output).
+- [ ] In `chrome.ts`, no tint, edge or panel decision comes from parsing a `getBgAnsi()` string: the theme token plus `theme.appearance` decide, and a terminal-default token means *no colour* (producers are exempt: `codes.ts:15-21,46-51` and `colors.ts:26` legitimately *emit* `38;2;`/`48;2;` palette codes — the rule is about parsing input, not building output). `diff/src/ansi/` is **not** covered by that prohibition: it keeps its escape-sequence decoder and this task extends it, so parsing there is expected — what changes is what a parse *yields* (`38;5;n`/`48;5;n` resolve through the xterm table, a reset means no colour), not whether strings are decoded.
 - [ ] `setThemeBg` is gone and nothing references it.
 - [ ] `38;5;`/`48;5;` and terminal-default resets are handled by the shared parser.
 - [ ] Light-terminal + non-truecolour manual checks pass on both screen modes.
@@ -404,7 +404,9 @@ Nothing in this task touches tool rendering (Task 10) or the thinking patch's pr
 5. Peer floors to `>=1.2.0` and `reportPiSupport("subagent", "1.2.0")` (Task 7).
 
 **Steps:**
-- [ ] Failing spawn tests: with a non-empty allowlist, `--no-mcp` is present and disappears only when the agent opts in; `+x`/`-x` and unknown names are rejected with the entry named.
+- [ ] Failing allowlist tests: with a non-empty allowlist, `--no-mcp` is present and disappears only when the agent opts in.
+- [ ] Failing **lexical** validation tests (`agents.ts` parse path + `agent-panel.ts` edit): empty/whitespace entries, duplicates and entries starting with `+` or `-` are rejected with the entry named, at both sites, previous value preserved. No tool registry is involved in these tests — they must not assert anything about whether a name is a known tool.
+- [ ] Failing **dispatch membership** test: a lexically valid name absent from `pi.getAllTools()` produces a warning naming the entry and the dispatch proceeds normally (assert on the success path too, not just the message).
 - [ ] Failing stream tests: exit 1 + `stopReason: "length"` → `truncated` with cost preserved; `agent_settled.aborted: true` → `aborted`; clean finish → `completed`.
 - [ ] Failing result/footer tests: the tool result carries `usage`; no `COST_UPDATE` emission; footer still shows the merged total.
 - [ ] Run `npx vitest run packages/subagent packages/footer` — expect failures.
@@ -414,7 +416,8 @@ Nothing in this task touches tool rendering (Task 10) or the thinking patch's pr
 
 **Acceptance criteria:**
 - [ ] A non-empty `tools:` list yields exactly those tools in the child.
-- [ ] `+x`, `-x` and unknown names are rejected at read and at panel edit, previous value preserved.
+- [ ] Empty/whitespace entries, duplicates and leading-`+`/`-` entries are rejected at config read and at panel edit, previous value preserved.
+- [ ] A lexically valid name that is not currently a known tool warns at dispatch and does **not** fail the dispatch (an optional plugin being off must not break `tools: web_search`).
 - [ ] `completed` / `truncated` / `aborted` distinguishable in the result the model and the bridge see; cost correct in all three.
 - [ ] `/session` totals include subagent cost; no `COST_UPDATE` bus traffic.
 - [ ] `packages/subagent/package.json` peer floors are `>=1.2.0`.
