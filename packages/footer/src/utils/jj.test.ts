@@ -12,8 +12,8 @@ async function load({ paths = [".jj", ".git"], output = "main\n", throws = false
   const execFile = vi.fn();
   vi.doMock("child_process", () => ({ execFileSync, execFile }));
   vi.doMock("fs", () => ({ existsSync: (p: string) => existing.has(p) }));
-  const { getJjBookmark } = await import("./jj.js");
-  return { getJjBookmark, execFileSync, execFile, existing };
+  const { getJjBookmark, getJjChangedFiles } = await import("./jj.js");
+  return { getJjBookmark, getJjChangedFiles, execFileSync, execFile, existing };
 }
 
 describe("getJjBookmark", () => {
@@ -36,6 +36,18 @@ describe("getJjBookmark", () => {
   ])("parses $output", async ({ output, expected }) => {
     const { getJjBookmark } = await load({ output });
     expect(getJjBookmark()).toBe(expected);
+  });
+
+  it("parses the jj changed-file count", async () => {
+    const { getJjBookmark, getJjChangedFiles } = await load({ output: "@mooqvmmx\nmain\n\t3\n" });
+    expect(getJjBookmark()).toBe("main");
+    expect(getJjChangedFiles()).toBe(3);
+  });
+
+  it("keeps bookmarks that start with !", async () => {
+    const { getJjBookmark, getJjChangedFiles } = await load({ output: "!feature\n\t3\n" });
+    expect(getJjBookmark()).toBe("!feature");
+    expect(getJjChangedFiles()).toBe(3);
   });
 
   it("returns null when jj fails", async () => {
