@@ -15,6 +15,15 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { formatTokenCount } from "./utils/format.js";
 
+// Load the footer's module graph at COLLECT time, before any test starts: the
+// first dynamic import used to happen inside the first test, charging it ~0.8s
+// alone / 2.1s in a full run / 5.1s on a loaded machine for transforming and
+// instantiating `index.ts` and its dependencies — a budget spent loading code,
+// not testing, which shows up as "Test timed out in 5000ms" under CPU
+// contention. Same reasoning as `src/index.test.ts`; collection has no test
+// timeout, and `vi.resetModules()` still hands each test a fresh instance.
+import "./index.js";
+
 interface FooterInstance {
   render(width: number): string[];
   dispose(): void;

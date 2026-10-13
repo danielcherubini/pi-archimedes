@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -7,6 +7,22 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
  * tests cover the wiring — git.test.ts / jj.test.ts cover when the bus
  * publishes.
  */
+
+// Load the footer's module graph at COLLECT time, before any test starts.
+//
+// Every test below builds a footer from a freshly imported module (`vi.resetModules`
+// + dynamic import), and the first of those imports used to happen inside the
+// first test — so the first test was charged the one-off cost of transforming
+// and instantiating the whole graph (`index.ts` → `pi-tui` → `@pi-archimedes/core`
+// → …): 1.1s when this file runs alone, 2.6s in a full suite run, 8.3s measured
+// on a loaded machine. That is not a test failure, it is a test that spent the
+// 5s default budget loading code, so under CPU contention the run dies with
+// "Test timed out in 5000ms" on whichever test happened to be cold — this one,
+// in practice, and it passed on every re-run, which is what made it look like an
+// ordering race. Collection has no per-test timeout, so paying the cost here
+// removes the race instead of outwaiting it; the tests still get a fresh module
+// instance each time from `vi.resetModules()`, now against a warm graph (~20ms).
+import "./index.js";
 
 interface FooterInstance {
   render(width: number): string[];
@@ -43,6 +59,21 @@ function makeFooterData() {
   };
 }
 
+/**
+ * Footers built by the test that is currently running, so `afterEach` can hand
+ * each one back. The VCS-change bus is a module-level listener set, so a test
+ * that built a footer and never disposed it leaves a subscriber behind; today
+ * that is invisible only because `loadFooter` resets the module registry and
+ * takes a fresh listener set with it. Disposing here keeps each test owning its
+ * own subscriptions rather than relying on the reset to launder them.
+ */
+let builtFooters: FooterInstance[] = [];
+
+afterEach(() => {
+  for (const footer of builtFooters) footer.dispose();
+  builtFooters = [];
+});
+
 async function loadFooter(options: HarnessOptions = {}): Promise<Harness> {
   vi.resetModules();
   vi.doMock("./utils/git.js", () => ({
@@ -77,7 +108,7 @@ async function loadFooter(options: HarnessOptions = {}): Promise<Harness> {
     getThinkingLevel: () => "off",
   } as unknown as ExtensionAPI;
 
-  let factory: FooterFactory | undefined;
+  let installed: FooterFactory | undefined;
   const userNotice = vi.fn(() => {
     if (options.brokenNotify) throw new Error("stale UI");
   });
@@ -86,7 +117,7 @@ async function loadFooter(options: HarnessOptions = {}): Promise<Harness> {
     model: undefined,
     ui: {
       setFooter: (f: FooterFactory) => {
-        factory = f;
+        installed = f;
       },
       notify: userNotice,
     },
@@ -103,7 +134,14 @@ async function loadFooter(options: HarnessOptions = {}): Promise<Harness> {
 
   registerFooter(pi);
   handlers["session_start"]!({}, ctx);
-  if (!factory) throw new Error("footer factory was never installed");
+  if (!installed) throw new Error("footer factory was never installed");
+  // Wrap the installed factory so teardown can dispose whatever a test builds
+  // (see `builtFooters`); the tests themselves are unchanged by the wrapper.
+  const factory: FooterFactory = (tui, theme, footerData) => {
+    const footer = installed!(tui, theme, footerData);
+    builtFooters.push(footer);
+    return footer;
+  };
   return {
     factory,
     notify: notifyVcsChange,
