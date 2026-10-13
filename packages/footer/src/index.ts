@@ -17,6 +17,7 @@ import { loadFooterConfig } from "./config.js";
 import { CostAccumulator } from "./cost-accumulator.js";
 import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getJjBookmark, getJjChangedFiles } from "./utils/jj.js";
+import { onVcsChange } from "./utils/vcs-change-events.js";
 import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, truncateBranch, wrapStatusToChunks } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
@@ -25,6 +26,9 @@ import { packFooterLines, SEP_W, SEPARATOR } from "./utils/layout.js";
 export function registerFooter(pi: ExtensionAPI): void {
   // Module-level state for session lifecycle (shared between session_start and session_shutdown)
   let footerAccumulator: CostAccumulator | undefined;
+  // Subscription for the footer's lifetime; module-level so a footer rebuilt
+  // without an explicit dispose cannot leave a second listener behind.
+  let unsubscribeVcsChange: (() => void) | undefined;
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
@@ -33,6 +37,8 @@ export function registerFooter(pi: ExtensionAPI): void {
       footerAccumulator.reset();
       footerAccumulator = undefined;
     }
+    unsubscribeVcsChange?.();
+    unsubscribeVcsChange = undefined;
   });
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
@@ -45,8 +51,19 @@ export function registerFooter(pi: ExtensionAPI): void {
     ctx.ui.setFooter((tui, theme, footerData) => {
       const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
 
+      // Git/jj facts are refreshed in the background so a render never blocks;
+      // when a reply changes what this footer shows, ask for a frame — pi draws
+      // one only on request, so otherwise the stale value stays on screen.
+      unsubscribeVcsChange?.();
+      const stopVcsChange = onVcsChange(() => tui.requestRender());
+      unsubscribeVcsChange = stopVcsChange;
+
       return {
-        dispose: unsubscribe,
+        dispose: () => {
+          unsubscribe();
+          stopVcsChange();
+          if (unsubscribeVcsChange === stopVcsChange) unsubscribeVcsChange = undefined;
+        },
         invalidate() { },
         render(width: number): string[] {
           try {

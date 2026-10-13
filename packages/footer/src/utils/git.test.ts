@@ -32,6 +32,8 @@ describe("getGitStatus", () => {
     const mod = await import("./git.js");
     getGitStatus = mod.getGitStatus;
     isInsideLinkedWorktree = mod.isInsideLinkedWorktree;
+    // Same module registry generation as git.js, so both see one listener set
+    return await import("./vcs-change-events.js");
   }
 
   afterEach(() => {
@@ -120,6 +122,79 @@ describe("getGitStatus", () => {
     now.mockReturnValue(6_000);
     getGitStatus();
     expect(mockExecFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("publishes a VCS change when a background refresh moves the counts", async () => {
+    const mockExecSync = vi.fn(() => "1 AM file.txt\n");
+    const mockExecFile = vi.fn();
+    const events = await loadModule(mockExecSync, mockExecFile);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const listener = vi.fn();
+    const unsubscribe = events.onVcsChange(listener);
+
+    getGitStatus(); // first call is synchronous, nothing to announce yet
+    expect(listener).not.toHaveBeenCalled();
+
+    now.mockReturnValue(3_000);
+    getGitStatus(); // stale returned, refresh scheduled
+    expect(listener).not.toHaveBeenCalled();
+
+    type Done = (error: Error | null, stdout: string) => void;
+    (mockExecFile.mock.calls[0]![3] as Done)(null, "1 AM file.txt\n1 AM other.txt\n");
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getGitStatus().unstaged).toBe(2);
+
+    unsubscribe();
+    now.mockReturnValue(6_000);
+    getGitStatus();
+    (mockExecFile.mock.calls[1]![3] as Done)(null, "1 AM a\n1 AM b\n1 AM c\n");
+    expect(listener).toHaveBeenCalledTimes(1); // unsubscribed: silent
+  });
+
+  it("stays silent when a refresh returns identical counts or fails", async () => {
+    const mockExecSync = vi.fn(() => "1 AM file.txt\n");
+    const mockExecFile = vi.fn();
+    const events = await loadModule(mockExecSync, mockExecFile);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const listener = vi.fn();
+    events.onVcsChange(listener);
+
+    getGitStatus();
+    now.mockReturnValue(3_000);
+    getGitStatus();
+    type Done = (error: Error | null, stdout: string) => void;
+    (mockExecFile.mock.calls[0]![3] as Done)(null, "1 AM file.txt\n"); // same numbers
+    expect(listener).not.toHaveBeenCalled();
+
+    now.mockReturnValue(6_000);
+    getGitStatus();
+    (mockExecFile.mock.calls[1]![3] as Done)(new Error("git failed"), ""); // keeps stale
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("publishes a VCS change when the worktree answer flips", async () => {
+    const cwd = process.cwd();
+    const mockExecSync = vi.fn(() => "worktree /nope/main\n\n" + `worktree ${cwd}\n`);
+    const mockExecFile = vi.fn();
+    const events = await loadModule(mockExecSync, mockExecFile);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const listener = vi.fn();
+    events.onVcsChange(listener);
+
+    expect(isInsideLinkedWorktree()).toBe(true);
+    expect(listener).not.toHaveBeenCalled();
+
+    now.mockReturnValue(3_000);
+    isInsideLinkedWorktree(); // schedules the refresh
+    type Done = (error: Error | null, stdout: string) => void;
+    (mockExecFile.mock.calls[0]![3] as Done)(null, `worktree ${cwd}\n`); // now the main worktree
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(isInsideLinkedWorktree()).toBe(false);
+
+    now.mockReturnValue(6_000);
+    isInsideLinkedWorktree();
+    (mockExecFile.mock.calls[1]![3] as Done)(null, `worktree ${cwd}\n`); // same answer
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it("malformed lines ignored gracefully", async () => {

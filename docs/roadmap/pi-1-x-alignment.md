@@ -16,6 +16,7 @@ done-when: Every custom surface behaves on both screen modes, 13/13 packages typ
 - **pnpm only.** Root `package.json` has a `preinstall` guard that exits 1 under npm. Never run `npm install`.
 - **Type-check** per package: `cd packages/<name> && npx tsc --noEmit`. Whole workspace: `pnpm -r exec -- tsc --noEmit`. This is the suite's verification command (AGENTS.md "Verification Order") — there is no build.
 - **Tests:** `pnpm test` at the root (`vitest run`). Single file: `npx vitest run packages/core/src/text.test.ts`.
+  - Environment failure mode, not a code failure: if vitest reports `Unknown system error -122 … write` with `Test Files (0)` / `Tests no tests`, the `/tmp` quota is exhausted (workers write their IPC files there). Re-run with a home-directory temp, e.g. `TMPDIR="$HOME/.tmp/vitest" npx vitest run …`.
 - **No formatter or linter is configured.** Match the surrounding file's style; do not reformat untouched lines.
 - **Do not read or write the suite-managed `enabled` boolean** in any `archimedes.*` settings namespace (ADR 0012); only `meta` touches it.
 - **Loop-break:** if a check fails twice with no edit in between, stop and report BLOCKED with the error text.
@@ -356,7 +357,7 @@ Behaviour is **warn and still register** — call `reportPiSupport()` at the top
 **Files:**
 - Modify: `packages/notify/src/index.ts` (`:192`, `:207`), `packages/notify/src/*.test.ts`
 - Modify: `packages/ui/src/index.ts` (`:209` spinner wiring), `packages/ui/src/editor/index.ts` (`:376`)
-- Modify (footer repaint on async refresh): `packages/footer/src/utils/git.ts`, `packages/footer/src/utils/jj.ts`, `packages/footer/src/index.ts` (`:46` is the `onBranchChange` → `requestRender` precedent to follow), `packages/footer/src/utils/git.test.ts`, `packages/footer/src/utils/jj.test.ts`
+- **Already done, outside this plan** (PR #94, squash `fd04ff8`): the footer repaint wiring in `packages/footer/src/utils/git.ts`, `utils/jj.ts`, `index.ts` + tests, including the new `utils/vcs-change-events.ts` change bus. Listed here only so nobody re-implements it; nothing to do.
 - Delete: `packages/ui/src/startup/capture.ts` (the `console.log` scrape), `fetchLatestVersion()` in `packages/ui/src/startup/version.ts:4-16`
 - Modify: `packages/ui/src/startup/index.ts` — remove **only** the section-scrape half of `patchStartupListing`: `capture.ts`'s `console.log` patch, `findLoadedResourcesContainer()` (`:185-203`) and the `addChild` interception it feeds (`:340-355`, whose error paths are the `console.error` calls at `:349`/`:352`). **The function itself stays**, along with `renderHeader()`, the logo rows, the reveal/stagger frames and the animation timer (`:225-262`) — that machinery is our splash, not pi's listing, and it is what `ui/src/index.ts:195` hands to `setHeader()`. This is the removal Task 3 gated behind.
 - Test: `packages/ui/src/startup/*.test.ts` — including `index.test.ts`'s `patchStartupListing animation timer` block, added in #92 (`stops redrawing once the logo settles when no sections arrive (quietStartup)`, `restarts the timer when sections are revealed after the logo settled`). Those two are the contract the trimmed function must keep satisfying; they are why this is a trim and not a deletion.
@@ -371,18 +372,17 @@ Nothing in this task touches tool rendering (Task 10) or the thinking patch's pr
 **Steps:**
 - [ ] Failing notify tests: a forwarded DA1 reply (`\x1b[?62;1;9c`) and a cell-size reply (`\x1b[6;24;80t`) do **not** cancel a pending notification; a plain keystroke does; `before_agent_start` with `messageType: "custom"` still cancels.
 - [ ] Failing startup tests: scoped models render from `ctx.scopedModels` with `console.log` untouched; `quietStartup: "header"` yields header without sections; no network call at startup; `patchStartupListing` is no longer installed and the `console.log`/`addChild` patch allow-list entries from Task 6 are gone.
-- [ ] Footer staleness (new since #90/#91, and the one place screen mode bites the footer): `utils/git.ts` and `utils/jj.ts` now refresh their caches with `execFile` in the background and **nothing requests a frame when the reply lands** — pi draws only on host-driven events, so a `~N`/branch value that changed between frames stays stale until unrelated activity repaints it. Wire the refresh completion to a render request (a callback or subscriber the footer connects to `tui.requestRender()`, the way `footerData.onBranchChange` already does at `footer/src/index.ts:46`), with a test that a background refresh triggers exactly one repaint and that a refresh for a moved `cwd` does not.
+- [ ] Nothing to do for footer staleness — shipped in PR #94. For the record: `utils/git.ts` and `utils/jj.ts` refreshed caches with `execFile` and never requested a frame when the reply landed, so a value that changed between frames sat stale until unrelated activity repainted it; the fix is a change-only bus (`utils/vcs-change-events.ts`) the footer subscribes to and connects to `tui.requestRender()`.
 - [ ] Run `npx vitest run packages/notify packages/ui` — expect failures.
 - [ ] Implement; `cd packages/notify && npx tsc --noEmit`; `cd packages/ui && npx tsc --noEmit`; `pnpm test`.
 - [ ] Manual: `grep` the process's outbound traffic is not needed — instead assert `console.log` is not patched by checking `console.log.name === "log"` from a scratch extension, and confirm startup makes no HTTP request to `registry.npmjs.org`.
 - [ ] Commit: `fix(notify,ui): align with pi 1.x events, quietStartup and scoped models`
-- [ ] Commit the footer repaint wiring **separately**: `fix(footer): repaint after background git/jj cache refresh` — unrelated to the pi 1.x event alignment, and #90/#91 are recent enough that a clean revert boundary matters.
 
 **Acceptance criteria:**
 - [ ] Terminal replies cannot cancel a notification; real keys still can.
 - [ ] No `console.log` patch anywhere; no registry fetch at startup.
 - [ ] `quietStartup` (`true`/`"header"`/`false`) all render correctly on both screen modes, and #92's two animation-timer tests still pass against the trimmed `patchStartupListing`.
-- [ ] A background git/jj refresh repaints the footer without waiting for unrelated activity.
+- [ ] A background git/jj refresh repaints the footer without waiting for unrelated activity — shipped in PR #94, covered by `footer/src/index.test.ts` and the notify tests in `git.test.ts`/`jj.test.ts`.
 - [ ] ADR 0013's `ui_prompt_end` scoping behaviour unchanged.
 
 ---
