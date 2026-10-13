@@ -1,4 +1,9 @@
-/** Tool registration — barrel re-export. */
+/** Tool presentation — barrel re-export. */
 
-export { registerWriteTool } from "./write.js";
-export { registerEditTool } from "./edit.js";
+export { installEditTool, createEditRenderers, editResultDetails } from "./edit.js";
+export {
+  installWriteTool,
+  createWriteRenderers,
+  writeResultDetails,
+  readDisplacedContent,
+} from "./write.js";

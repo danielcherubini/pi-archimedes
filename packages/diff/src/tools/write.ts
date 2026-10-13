@@ -1,7 +1,7 @@
-/** Write tool override with diff rendering. */
+/** Write tool presentation: a diff-drawing row plus the result details it reads. */
 
 import { existsSync, readFileSync } from "node:fs";
-import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolRenderers } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { parseDiff } from "../core/diff.js";
 import * as Ansi from "../ansi/index.js";
@@ -10,51 +10,67 @@ import { lang, hlBlock } from "../shiki.js";
 import { DiffComponent } from "../diff-component.js";
 import { MAX_RENDER_LINES } from "../render/index.js";
 
-/** Register the write tool override. */
-export function registerWriteTool(
-	pi: ExtensionAPI,
+/**
+ * The content a `write` call displaces, read while the call is still about to
+ * run. `null` means there was no file — which is what separates "new file" from
+ * "replaced file" on the row.
+ */
+export function readDisplacedContent(input: Record<string, unknown>): string | null {
+	const fp = String((input as any).path ?? (input as any).file_path ?? "");
+	try {
+		return fp && existsSync(fp) ? readFileSync(fp, "utf-8") : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * What the `write` row needs from a settled result. The content being written
+ * is in the call's arguments; the content it replaced had to be read before the
+ * write happened, so it comes from {@link readDisplacedContent}. Returned as
+ * `{ details }` for pi's `tool_result` event — the same values the row read
+ * when this package re-registered the tool and wrapped its `execute`.
+ */
+export function writeResultDetails(
+	old: string | null,
+	input: Record<string, unknown>,
+): { details: unknown } {
+	const fp = String((input as any).path ?? (input as any).file_path ?? "");
+	const content = typeof (input as any).content === "string" ? ((input as any).content as string) : "";
+
+	if (old !== null && old !== content) {
+		const diff = parseDiff(old, content);
+		return {
+			details: {
+				_type: "diff",
+				summary: Ansi.summarize(diff.added, diff.removed),
+				diff,
+				language: lang(fp),
+			},
+		};
+	}
+	if (old === null) {
+		return {
+			details: {
+				_type: "new",
+				lines: content ? content.split("\n").length : 0,
+				content,
+				filePath: fp,
+			},
+		};
+	}
+	return { details: { _type: "noChange" } };
+}
+
+/** The Archimedes `write` renderers, closed over the paths they shorten against. */
+export function createWriteRenderers(
 	cwd: string,
 	home: string,
-	createWriteTool: (cwd: string) => any,
 	TextComponent: new (text?: string, paddingX?: number, paddingY?: number) => Component,
-): void {
+): ToolRenderers {
 	const sp = (p: string) => Ansi.shortPath(cwd, home, p);
-	const origWrite = createWriteTool(cwd);
 
-	pi.registerTool({
-		...origWrite,
-		name: "write",
-
-		async execute(tid: string, params: any, sig: any, upd: any, ctx: any) {
-			const fp = params.path ?? params.file_path ?? "";
-			let old: string | null = null;
-			try {
-				if (fp && existsSync(fp)) old = readFileSync(fp, "utf-8");
-			} catch {
-				old = null;
-			}
-
-			const result = await origWrite.execute(tid, params, sig, upd, ctx);
-			const content = params.content ?? "";
-
-			if (old !== null && old !== content) {
-				const diff = parseDiff(old, content);
-				const lg = lang(fp);
-				(result as any).details = {
-					_type: "diff",
-					summary: Ansi.summarize(diff.added, diff.removed),
-					diff,
-					language: lg,
-				};
-			} else if (old === null) {
-				const lineCount = content ? content.split("\n").length : 0;
-				(result as any).details = { _type: "new", lines: lineCount, content, filePath: fp };
-			} else if (old === content) {
-				(result as any).details = { _type: "noChange" };
-			}
-			return result;
-		},
-
+	return {
 		renderCall(args: any, theme: any, ctx: any) {
 			const fp = args?.path ?? args?.file_path ?? "";
 			const isNew = !fp || !existsSync(fp);
@@ -144,5 +160,46 @@ export function registerWriteTool(
 			text.setText(`  ${theme.fg("dim", String(result?.content?.[0]?.text ?? "written").slice(0, 120))}`);
 			return text;
 		},
+	};
+}
+
+/**
+ * Draw `write` through pi's renderer resolution and attach the result details
+ * its row reads (ADR 0029).
+ *
+ * The content a write replaces exists only until it runs, so it is read on
+ * `tool_call` — which fires before execution and hands the same `toolCallId`
+ * `tool_result` does — and paired up when the result lands. A call that never
+ * settles (blocked, or aborted before execution) leaves its entry behind, so
+ * the map is bounded rather than trusted to drain.
+ */
+export function installWriteTool(
+	pi: ExtensionAPI,
+	cwd: string,
+	home: string,
+	TextComponent: new (text?: string, paddingX?: number, paddingY?: number) => Component,
+): void {
+	const renderers = createWriteRenderers(cwd, home, TextComponent);
+	pi.registerToolRenderer((toolName, next) =>
+		toolName === "write" ? { ...next(), ...renderers } : next(),
+	);
+
+	const displaced = new Map<string, string | null>();
+	pi.on("tool_call", (event) => {
+		if (event.toolName !== "write") return undefined;
+		if (displaced.size > 64) displaced.clear();
+		displaced.set(event.toolCallId, readDisplacedContent(event.input));
+		return undefined;
+	});
+
+	pi.on("tool_result", (event) => {
+		if (event.toolName !== "write") return undefined;
+		if (event.isError) {
+			displaced.delete(event.toolCallId);
+			return undefined;
+		}
+		const old = displaced.get(event.toolCallId) ?? null;
+		displaced.delete(event.toolCallId);
+		return writeResultDetails(old, event.input);
 	});
 }

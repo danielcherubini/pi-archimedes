@@ -1,7 +1,7 @@
-/** Edit tool override with diff rendering. */
+/** Edit tool presentation: a diff-drawing row plus the result details it reads. */
 
 import { existsSync, readFileSync } from "node:fs";
-import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
 import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import { parseDiff } from "../core/diff.js";
 import * as Ansi from "../ansi/index.js";
@@ -10,71 +10,76 @@ import { lang } from "../shiki.js";
 import { MAX_PREVIEW_LINES } from "../render/index.js";
 import { DiffComponent } from "../diff-component.js";
 
-/** Register the edit tool override. */
-export function registerEditTool(
-	pi: ExtensionAPI,
-	cwd: string,
-	home: string,
-	createEditTool: (cwd: string) => any,
-): void {
-	const sp = (p: string) => Ansi.shortPath(cwd, home, p);
-	const origEdit = createEditTool(cwd);
+interface EditOperation { oldText: string; newText: string }
 
-	function getEditOperations(input: any): Array<{ oldText: string; newText: string }> {
-		if (Array.isArray(input?.edits)) {
-			return input.edits
-				.map((edit: any) => ({
-					oldText: typeof edit?.oldText === "string" ? edit.oldText : typeof edit?.old_text === "string" ? edit.old_text : "",
-					newText: typeof edit?.newText === "string" ? edit.newText : typeof edit?.new_text === "string" ? edit.new_text : "",
-				}))
-				.filter((edit: { oldText: string; newText: string }) => edit.oldText && edit.oldText !== edit.newText);
-		}
-		const oldText = typeof input?.oldText === "string" ? input.oldText : typeof input?.old_text === "string" ? input.old_text : "";
-		const newText = typeof input?.newText === "string" ? input.newText : typeof input?.new_text === "string" ? input.new_text : "";
-		return oldText && oldText !== newText ? [{ oldText, newText }] : [];
+function getEditOperations(input: any): EditOperation[] {
+	if (Array.isArray(input?.edits)) {
+		return input.edits
+			.map((edit: any) => ({
+				oldText: typeof edit?.oldText === "string" ? edit.oldText : typeof edit?.old_text === "string" ? edit.old_text : "",
+				newText: typeof edit?.newText === "string" ? edit.newText : typeof edit?.new_text === "string" ? edit.new_text : "",
+			}))
+			.filter((edit: EditOperation) => edit.oldText && edit.oldText !== edit.newText);
 	}
+	const oldText = typeof input?.oldText === "string" ? input.oldText : typeof input?.old_text === "string" ? input.old_text : "";
+	const newText = typeof input?.newText === "string" ? input.newText : typeof input?.new_text === "string" ? input.new_text : "";
+	return oldText && oldText !== newText ? [{ oldText, newText }] : [];
+}
 
-	function summarizeEditOperations(operations: Array<{ oldText: string; newText: string }>) {
-		const diffs = operations.map((edit) => parseDiff(edit.oldText, edit.newText));
-		const totalAdded = diffs.reduce((sum, diff) => sum + diff.added, 0);
-		const totalRemoved = diffs.reduce((sum, diff) => sum + diff.removed, 0);
-		return { diffs, totalAdded, totalRemoved, summary: Ansi.summarize(totalAdded, totalRemoved) };
-	}
+function summarizeEditOperations(operations: EditOperation[]) {
+	const diffs = operations.map((edit) => parseDiff(edit.oldText, edit.newText));
+	const totalAdded = diffs.reduce((sum, diff) => sum + diff.added, 0);
+	const totalRemoved = diffs.reduce((sum, diff) => sum + diff.removed, 0);
+	return { diffs, totalAdded, totalRemoved, summary: Ansi.summarize(totalAdded, totalRemoved) };
+}
 
-	pi.registerTool({
-		...origEdit,
-		name: "edit",
-		renderShell: "self",
+/**
+ * What the `edit` row needs from a settled result, computed from the call's
+ * arguments and the file as it is now (the call has run by then). Returned as
+ * `{ details }` for pi's `tool_result` event, which may replace the result's
+ * details — the same values the row read when this package re-registered the
+ * tool and wrapped its `execute`.
+ */
+export function editResultDetails(event: {
+	input: Record<string, unknown>;
+	isError: boolean;
+}): { details: unknown } | undefined {
+	if (event.isError) return undefined;
+	const operations = getEditOperations(event.input);
+	if (operations.length === 0) return undefined;
 
-		async execute(tid: string, params: any, sig: any, upd: any, ctx: any) {
-			const fp = params.path ?? params.file_path ?? "";
-			const operations = getEditOperations(params);
-			const result = await origEdit.execute(tid, params, sig, upd, ctx);
-
-			if (operations.length === 0) return result;
-
-			const { diffs, summary } = summarizeEditOperations(operations);
-			if (operations.length === 1) {
-				let editLine = 0;
-				try {
-					if (fp && existsSync(fp)) {
-						const f = readFileSync(fp, "utf-8");
-						const idx = f.indexOf(operations[0]!.newText);
-						if (idx >= 0) editLine = f.slice(0, idx).split("\n").length;
-					}
-				} catch { editLine = 0; }
-				(result as any).details = { _type: "editInfo", summary, editLine };
-				return result;
+	const { diffs, summary } = summarizeEditOperations(operations);
+	if (operations.length === 1) {
+		const fp = String((event.input as any).path ?? (event.input as any).file_path ?? "");
+		let editLine = 0;
+		try {
+			if (fp && existsSync(fp)) {
+				const f = readFileSync(fp, "utf-8");
+				const idx = f.indexOf(operations[0]!.newText);
+				if (idx >= 0) editLine = f.slice(0, idx).split("\n").length;
 			}
+		} catch {
+			editLine = 0;
+		}
+		return { details: { _type: "editInfo", summary, editLine } };
+	}
 
-			(result as any).details = {
-				_type: "multiEditInfo",
-				summary,
-				editCount: operations.length,
-				diffLineCount: diffs.reduce((sum, diff) => sum + diff.lines.length, 0),
-			};
-			return result;
+	return {
+		details: {
+			_type: "multiEditInfo",
+			summary,
+			editCount: operations.length,
+			diffLineCount: diffs.reduce((sum, diff) => sum + diff.lines.length, 0),
 		},
+	};
+}
+
+/** The Archimedes `edit` renderers, closed over the paths they shorten against. */
+export function createEditRenderers(cwd: string, home: string): ToolRenderers {
+	const sp = (p: string) => Ansi.shortPath(cwd, home, p);
+
+	return {
+		renderShell: "self",
 
 		renderCall(args: any, theme: any, ctx: any) {
 			const fp = args?.path ?? args?.file_path ?? "";
@@ -186,5 +191,27 @@ export function registerEditTool(
 			ctx.state._resKey = key;
 			return box ? empty : t;
 		},
+	};
+}
+
+/**
+ * Draw `edit` through pi's renderer resolution and attach the result details its
+ * row reads (ADR 0029). `next()` is spread first so anything the built-in
+ * definition declares besides the two renderers — its `renderShell` today —
+ * survives resolution instead of being silently dropped by us.
+ *
+ * Called once per extension load: pi keeps a list of resolvers and event
+ * handlers per extension, so calling it from `session_start` would stack a
+ * duplicate on every `/reload`.
+ */
+export function installEditTool(pi: ExtensionAPI, cwd: string, home: string): void {
+	const renderers = createEditRenderers(cwd, home);
+	pi.registerToolRenderer((toolName, next) =>
+		toolName === "edit" ? { ...next(), ...renderers } : next(),
+	);
+	pi.on("tool_result", (event) => {
+		if (event.toolName !== "edit") return undefined;
+		return editResultDetails(event);
 	});
 }
+

@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import defaultExport from "./index.js";
 
 describe("diff default export (standalone factory)", () => {
-	it("is a function that registers diff tools on session_start with a per-session theme", () => {
+	it("installs the diff rows once on session_start, without registering a tool", () => {
 		expect(typeof defaultExport).toBe("function");
 
 		const on = vi.fn();
 		const registerTool = vi.fn();
-		const pi = { on, registerTool } as any;
+		const registerToolRenderer = vi.fn();
+		const pi = { on, registerTool, registerToolRenderer } as any;
 
 		defaultExport(pi);
 
@@ -15,10 +16,19 @@ describe("diff default export (standalone factory)", () => {
 		expect(typeof startHandler).toBe("function");
 
 		// Mirror of meta's wiring: registerDiffTools(pi, getTheme, readConfig)
-		// runs per session with the session's ctx.theme.
+		// runs per session with the session's ctx.theme. Twice, to stand in for a
+		// `/reload` in the same process.
+		startHandler!({}, { ui: { theme: {} } });
 		startHandler!({}, { ui: { theme: {} } });
 
-		// write/edit tool overrides registered when the SDK loaded
-		expect(registerTool).toHaveBeenCalled();
+		// Nothing is taken over: pi's own `edit`/`write` stay registered, and the
+		// Archimedes rows come from renderer resolution (ADR 0029).
+		expect(registerTool).not.toHaveBeenCalled();
+		// One resolver per tool, and no duplicate stacked by the second session:
+		// pi keeps a list of resolvers and handlers per extension.
+		expect(registerToolRenderer).toHaveBeenCalledTimes(2);
+		const events = on.mock.calls.map((c: Array<unknown>) => c[0]);
+		expect(events.filter((e) => e === "tool_result")).toHaveLength(2); // edit + write
+		expect(events.filter((e) => e === "tool_call")).toHaveLength(1); // write only
 	});
 });
