@@ -54,6 +54,12 @@ export function truncLine(text: string, maxLen: number): string {
  * A run that merely completed keeps that header exactly as it was. A truncated
  * or aborted one says so on the row, because a "✓" the calling model has no way
  * to check would be the worse kind of lie.
+ *
+ * The failure check reads `error`, not the exit code, and comes before the
+ * success marker: a `--mode json` child whose last response errored **exits 0**
+ * (`stream.ts` turns that into `error` with no `outcome`), and `index.ts` calls
+ * the same result `isError`. A header keyed off `exitCode` alone told the model
+ * the opposite of the flag on the tool result it was reading.
  */
 export function formatParallelResults(results: SubagentResult[]): string {
   const sections = results.map((r) => {
@@ -62,9 +68,9 @@ export function formatParallelResults(results: SubagentResult[]): string {
         ? "⚠ truncated"
         : r.outcome === "aborted"
           ? "⚠ aborted"
-          : r.exitCode === 0
-            ? "✓"
-            : "✗";
+          : r.error || r.exitCode !== 0
+            ? "✗"
+            : "✓";
     const summary = r.progressSummary
       ? `${r.progressSummary.toolCount} tools · ${Math.round(r.progressSummary.tokens / 1000)}k tok · ${Math.round(r.progressSummary.durationMs / 1000)}s`
       : "";

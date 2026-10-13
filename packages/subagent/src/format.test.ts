@@ -90,9 +90,9 @@ describe("formatParallelResults", () => {
     expect(formatParallelResults([r])).toBe("✗ test-agent 5 tools · 0k tok · 3s\nspawn failed");
   });
 
-  it("prefers finalOutput over error when both are set", () => {
+  it("prefers finalOutput as the body when both are set, and still marks the failure", () => {
     const r = makeResult({ finalOutput: "out", error: "boom" });
-    expect(formatParallelResults([r])).toBe("✓ test-agent 5 tools · 0k tok · 3s\nout");
+    expect(formatParallelResults([r])).toBe("✗ test-agent 5 tools · 0k tok · 3s\nout");
   });
 
   it("keeps internal newlines in a multi-line body and trims only the tail", () => {
@@ -125,6 +125,42 @@ describe("formatParallelResults: run outcomes", () => {
     ]);
     expect(out.split("\n")[0]).toMatch(/truncated/i);
     expect(out).toContain("partial answer");
+  });
+
+  it("marks a run that failed at exit 0 with ✗, because the exit code is not the signal", () => {
+    // `--mode json` — what the child actually runs — never maps `stopReason`
+    // onto the exit code (that mapping is print mode's text branch), so a child
+    // whose last response errored exits **0**. `streamEvents` reports that as
+    // `error` with no `outcome`; a header that read only `exitCode` handed the
+    // calling model a ✓ for a run that produced nothing, while `index.ts` set
+    // `isError` on the very same result.
+    const out = formatParallelResults([
+      makeResult({ exitCode: 0, error: "401 unauthorized" }),
+    ]);
+    expect(out.split("\n")[0]?.startsWith("✗")).toBe(true);
+    expect(out).toContain("401 unauthorized");
+  });
+
+  it("marks a run the parent cancelled through the bridge (exit 0, error set)", () => {
+    // The bridge contract: a local cancel settles as a FAILED result carrying
+    // error "cancelled" and exitCode 0 — same shape, same wrong ✓ without the
+    // error check.
+    const out = formatParallelResults([
+      makeResult({ exitCode: 0, error: "cancelled" }),
+    ]);
+    expect(out.split("\n")[0]?.startsWith("✗")).toBe(true);
+  });
+
+  it("never shows a success marker for a result the tool reports as an error", () => {
+    // The single assertion that ties the two halves together: `index.ts` decides
+    // `isError` from `error`, so the header has to agree with it.
+    const out = formatParallelResults([
+      makeResult({ exitCode: 0, error: "boom" }),
+      makeResult({ agent: "ok", exitCode: 0, finalOutput: "fine" }),
+    ]);
+    const rows = out.split("\n").filter((l) => l.startsWith("✓") || l.startsWith("✗"));
+    expect(rows[0]).toContain("✗");
+    expect(rows[1]).toContain("✓");
   });
 
   it("says aborted on the header row of a cancelled result", () => {
