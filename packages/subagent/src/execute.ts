@@ -48,7 +48,11 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
     // so executeParallel's progress slot updates from the pending placeholder
     // to "failed" instead of a stale "Starting...".
     if (options.signal?.aborted) {
-      const result = buildFailedResult(agentName, options.task, "cancelled", model, Date.now() - startTime);
+      const result = {
+        ...buildFailedResult(agentName, options.task, "cancelled", model, Date.now() - startTime),
+        // Bridge mode: any usage this run ever had belongs to a desktop session.
+        usageAccountedElsewhere: true,
+      };
       options.onUpdate?.(result.progress!);
       return result;
     }
@@ -83,8 +87,11 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
       // return it, with no cost report of its own. The PARENT never reports a
       // child's usage for a run it did not perform: the subagent process emits
       // its OWN usage to its OWN bridge (the core self-usage emitter), which is a
-      // different session's total. The fork path below does report, through the
-      // tool result's native `usage`.
+      // different session's total. Every result `dispatchViaBridge` settles
+      // carries `usageAccountedElsewhere`, which is how the tool knows to leave
+      // it off the tool result — pi folds that `usage` into THIS session's
+      // totals, so copying it across would bill the parent twice. The fork path
+      // below does report, through the tool result's native `usage`.
       return outcome;
     }
     // { fallback: true } — unreachable bridge: fall through to the fork path.

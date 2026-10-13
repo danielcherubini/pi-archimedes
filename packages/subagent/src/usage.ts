@@ -46,10 +46,15 @@ export function toNativeUsage(usage: SubagentUsage): Usage {
 /**
  * Sum the usage of several runs into the one `usage` a single tool result can
  * carry — a parallel batch is one tool call, so it has one toolResult message.
+ *
+ * Runs performed by another runtime (`usageAccountedElsewhere`, i.e. everything
+ * the bridge dispatched) are left out: their session reports its own usage, and
+ * this sum lands in *this* session's totals. A batch of nothing but such runs
+ * reports nothing at all.
  */
 export function sumNativeUsage(results: SubagentResult[]): Usage | undefined {
   const counted = results.filter(
-    (r): r is SubagentResult & { usage: SubagentUsage } => r.usage !== undefined,
+    (r) => r.usage !== undefined && r.usageAccountedElsewhere !== true,
   );
   if (counted.length === 0) return undefined;
   const zero: Usage = {

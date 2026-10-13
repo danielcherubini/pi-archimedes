@@ -363,6 +363,43 @@ describe("dispatch: cost is reported natively, not on the bus", () => {
     expect(result.usage?.cost.total).toBeCloseTo(0.02);
   });
 
+  it("does not republish the usage of a run the desktop performed (bridge mode)", async () => {
+    // A bridge-dispatched child is a session of the desktop's own and books its
+    // usage there. pi folds a tool result's `usage` into THIS session's totals,
+    // so copying it across would bill the parent for a run it did not perform —
+    // the same double-count that deleted the COST_UPDATE route. `executeSubagent`
+    // marks the result; the tool has to honour the mark.
+    discoverAgents.mockReturnValue([]);
+    executeSubagent.mockResolvedValue({ ...okResult, usageAccountedElsewhere: true });
+    const result = (await subagent(register()).execute(
+      "c",
+      { task: "t" },
+      undefined,
+      undefined,
+      makeCtx(),
+    )) as unknown as { usage?: unknown; content: Array<{ text: string }> };
+    expect(result.usage).toBeUndefined();
+    // Only the cost report is withheld — the run's output is untouched.
+    expect(result.content[0]!.text).toBe("all good");
+  });
+
+  it("reports the fork path's usage even when a sibling run was done elsewhere", async () => {
+    discoverAgents.mockReturnValue([]);
+    executeParallel.mockResolvedValue([
+      okResult,
+      { ...okResult, usageAccountedElsewhere: true },
+    ]);
+    const result = (await subagent(register()).execute(
+      "c",
+      { tasks: [{ task: "a" }, { task: "b" }] },
+      undefined,
+      undefined,
+      makeCtx(),
+    )) as unknown as { usage?: { input: number; cost: { total: number } } };
+    expect(result.usage?.input).toBe(10);
+    expect(result.usage?.cost.total).toBeCloseTo(0.01);
+  });
+
   it("publishes nothing on COST_UPDATE while a run reports its cost", async () => {
     const { getBus, Events } = await import("@pi-archimedes/core/bus");
     const seen: unknown[] = [];

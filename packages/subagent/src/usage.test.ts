@@ -71,3 +71,25 @@ describe("sumNativeUsage", () => {
     expect(sumNativeUsage([])).toBeUndefined();
   });
 });
+
+describe("sumNativeUsage: which runs this session is allowed to report", () => {
+  // A bridge-dispatched run is a session of the desktop's own, and that session
+  // reports its usage to its own Client. Folding the same metrics into THIS
+  // session's totals (which is what a toolResult `usage` does) is the
+  // double-count ADR 0028 deleted the `COST_UPDATE` route to avoid — one tool
+  // call performed elsewhere must not cost twice.
+  const elsewhere = (over: Partial<SubagentUsage> = {}): SubagentResult => ({
+    ...result(usage(over)),
+    usageAccountedElsewhere: true,
+  });
+
+  it("leaves out a run whose usage the runtime that performed it already books", () => {
+    const total = sumNativeUsage([result(usage()), elsewhere()])!;
+    expect(total.input).toBe(4000);
+    expect(total.cost.total).toBeCloseTo(0.2);
+  });
+
+  it("reports nothing at all when every run in the batch was performed elsewhere", () => {
+    expect(sumNativeUsage([elsewhere(), elsewhere()])).toBeUndefined();
+  });
+});

@@ -290,3 +290,70 @@ describe("resolveModel", () => {
     expect(resolveModel({ model: undefined, activeModel: undefined, agent: undefined })).toBeUndefined();
   });
 });
+
+// ── Every bridge-settled result belongs to the desktop's session for cost ──
+
+describe("dispatchViaBridge: cost ownership", () => {
+  // The desktop runs the task as a session of its own and books its usage
+  // there. `usage` still rides along for display, but the result has to say it
+  // was accounted for elsewhere, or the parent folds the same money into its own
+  // session totals through the tool result (ADR 0028 counts cost exactly once).
+  // Only the `{ fallback: true }` corner is different — there the fork path
+  // re-runs the task and the tool result IS the cost report.
+  it("marks a successful bridge run", async () => {
+    const sockPath = tempSocketPath();
+    const server = await startFakeDesktop(sockPath, (msg) => ({
+      v: 1,
+      type: "response",
+      id: msg.id,
+      result: { output: "done", metrics: { inputTokens: 1, outputTokens: 2, cost: 0.01, durationMs: 5 } },
+    }));
+    activateBridge(sockPath);
+
+    const result = (await dispatchViaBridge(makeOptions(), undefined, "tc-1")) as SubagentResult;
+    expect(result.usageAccountedElsewhere).toBe(true);
+    // The metrics are still there for the details view.
+    expect(result.usage.cost).toBe(0.01);
+
+    server.close();
+    try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+
+  it("marks a bridge run the desktop reported as failed", async () => {
+    const sockPath = tempSocketPath();
+    const server = await startFakeDesktop(sockPath, (msg) => ({
+      v: 1,
+      type: "response",
+      id: msg.id,
+      error: "worker runtime unavailable",
+    }));
+    activateBridge(sockPath);
+
+    const result = (await dispatchViaBridge(makeOptions(), undefined, "tc-1")) as SubagentResult;
+    expect(result.error).toBe("worker runtime unavailable");
+    expect(result.usageAccountedElsewhere).toBe(true);
+
+    server.close();
+    try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+
+  it("marks a run cancelled locally, and never claims the fork path's ownership", async () => {
+    const sockPath = tempSocketPath();
+    const server = await startFakeDesktop(sockPath, () => {
+      /* accept but never respond */
+    });
+    activateBridge(sockPath);
+
+    const controller = new AbortController();
+    const pending = dispatchViaBridge(makeOptions(), controller.signal, "tc-1");
+    await new Promise((r) => setTimeout(r, 50));
+    controller.abort();
+
+    const result = (await pending) as SubagentResult;
+    expect(result.error).toBe("cancelled");
+    expect(result.usageAccountedElsewhere).toBe(true);
+
+    server.close();
+    try { fs.unlinkSync(sockPath); } catch { /* already gone */ }
+  });
+});

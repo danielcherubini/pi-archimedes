@@ -224,7 +224,12 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
         return {
           content: [{ type: "text", text: formatSingleResult(result) }],
-          usage: toNativeUsage(result.usage),
+          // The cost report — but only for a run this session performed. A
+          // bridge-dispatched run is a session of the desktop's own and books
+          // its usage there; pi folds a tool result's `usage` into THIS
+          // session's totals, so publishing it here would count the money twice
+          // (the same reason the `COST_UPDATE` route was deleted).
+          ...(result.usageAccountedElsewhere ? {} : { usage: toNativeUsage(result.usage) }),
           details: {
             mode: "single",
             results: [result],

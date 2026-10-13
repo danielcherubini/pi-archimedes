@@ -168,6 +168,9 @@ describe("executeSubagent (bridge branch)", () => {
     expect(result.error).toBe("cancelled");
     expect(result.progress!.status).toBe("failed");
     expect(result.progress!.error).toBe("cancelled");
+    // Bridge-mode bookkeeping: whatever the desktop did with the task, its
+    // session owns the usage — the parent must not fold it into its own totals.
+    expect(result.usageAccountedElsewhere).toBe(true);
     expect(spawnSpy).not.toHaveBeenCalled();
     // Exactly ONE update: the final-failure progress (no "dispatched"
     // placeholder — a cancelled task does not claim it was dispatched).

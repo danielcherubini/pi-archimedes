@@ -148,6 +148,9 @@ export function dispatchViaBridge(
           cost: res.metrics.cost,
           turns: 0,
         },
+        // The Client ran this as a session of its own and books its usage there;
+        // this session must not also report it. See `SubagentResult`.
+        usageAccountedElsewhere: true,
         model,
         finalOutput: res.output,
         error: undefined,
@@ -175,7 +178,13 @@ export function dispatchViaBridge(
       const isLocalCancel = err instanceof BridgeCancelledError;
       const errorMessage = isLocalCancel ? "cancelled" : err instanceof Error ? err.message : String(err);
       const durationMs = Date.now() - startTime;
-      return buildFailedResult(agentName, options.task, errorMessage, model, durationMs);
+      // Same ownership rule as the success path above: this settled from a
+      // desktop-side session (or a cancel of one), so its usage is that
+      // session's to report even if it ended badly.
+      return {
+        ...buildFailedResult(agentName, options.task, errorMessage, model, durationMs),
+        usageAccountedElsewhere: true,
+      };
     },
   );
 }

@@ -69,6 +69,23 @@ export interface SubagentResult {
    */
   outcome?: RunOutcome;
   usage: SubagentUsage;
+  /**
+   * The run happened somewhere that already books its usage, so **this** session
+   * must not also report it on the tool result.
+   *
+   * Set for a bridge-dispatched run: the desktop runs it as a session of its own
+   * on its worker runtime, and that session's total is the number its Client
+   * shows. `usage` still carries the metrics for display in `details`, but
+   * `toNativeUsage`/`sumNativeUsage` leave it out, because pi folds a tool
+   * result's `usage` into *this* session's totals — publishing it here would add
+   * the same money to the parent's view of a run the parent did not perform
+   * (ADR 0028: cost is counted once, which is why the `COST_UPDATE` bus route was
+   * deleted rather than left alone).
+   *
+   * Absent on the fork path, where the child is a bare `pi --mode json` process
+   * that reports nothing to anyone: the tool result is the only cost report.
+   */
+  usageAccountedElsewhere?: boolean;
   model: string | undefined;
   finalOutput: string | undefined;
   error: string | undefined;
