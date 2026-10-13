@@ -1,7 +1,7 @@
 ---
 status: live
 last-verified: 2026-10-13
-verified-by: pnpm test + a real pi 1.2.0 TUI session (quietStartup false/"header"/true × tuiMode fullscreen/regular)
+verified-by: pnpm test + a real pi 1.2.0 TUI session (quietStartup false/"header"/true × tuiMode fullscreen/regular); the editor edge rows were then re-verified against real pi 1.2.0 `Theme` objects
 ---
 
 # UI Package (`@pi-archimedes/ui`)
@@ -26,6 +26,7 @@ verified-by: pnpm test + a real pi 1.2.0 TUI session (quietStartup false/"header
 3. **Custom Editor**:
    - `HephaestusEditor` wraps Pi's editor component with an animated border spinner (`editorSpinBorder`).
    - Configurable spinner styles, speeds, and quips.
+   - **Edge rows are the panel's own colour, not a border.** The editor draws two half-block rows — `▁` above and `▔` below the frame — whose job is to extend the panel's tint flush to the frame, so they are painted in the panel's own colour and vanish into it by construction (`panelEdge` is the winning panel token asked for as a foreground: `theme.colors[userMessageBg]` through pi-tui's foreground emitter, since pi takes a token only in its own slot). Painting them in a border token instead draws a visible rule hugging the text area — the regression that made the panel look bordered. When the theme gives the panel no colour at all (a terminal-default `""` token, or a theme that cannot answer its own token as a foreground) there is no edge colour, and the two rows render as blank spaces rather than block glyphs in the terminal's own foreground; they go blank, they do not disappear, because the frame's height is a layout contract. The `┌──┐` frame itself is a real border and keeps `borderMuted`.
 
 4. **Thinking Presentation**:
    - Patches assistant message rendering for collapsible thinking blocks (`autoCollapseThinking`).

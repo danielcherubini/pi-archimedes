@@ -382,13 +382,18 @@ export class HephaestusEditor extends CustomEditor {
         return p.panelBg + pad + patched + pad + RESET;
       };
 
-      // An edge colour paints the slab; no edge colour means the theme said
-      // "the terminal's own colour", and an un-prefixed row of `▁`/`▔` would
-      // then paint those glyphs in the terminal's own FOREGROUND — a hard, bright
-      // bar above and below the editor on a dark terminal (what pi's default
-      // `system` theme on a terminal that reported no background produces).
-      // No colour, no slab: the rows go blank rather than disappearing, because
-      // the frame's height is a layout contract.
+      // The slab rows are the panel's own colour, extending its tint flush to
+      // the frame (see `resolvePalette`: the edge is the panel token asked for
+      // as a foreground, never a border token — a border colour here is a
+      // visible rule hugging the text area).
+      //
+      // No edge colour means the theme declined a panel colour entirely (a
+      // terminal-default token) or cannot answer its own token as a foreground.
+      // Either way an un-prefixed row of `▁`/`▔` would paint those glyphs in the
+      // terminal's own FOREGROUND — a hard, bright bar above and below the
+      // editor (what pi's default `system` theme on a terminal that reported no
+      // background produces). No colour, no slab: the rows go blank rather than
+      // disappearing, because the frame's height is a layout contract.
       const edgeRow = (glyph: string): string =>
         p.panelEdge ? p.panelEdge + glyph.repeat(width) + RESET : " ".repeat(width);
       const topEdge = edgeRow("▁");

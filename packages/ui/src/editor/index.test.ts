@@ -20,7 +20,11 @@ const widthProbe = vi.hoisted(() => ({
   probe: (s: string): number => s.length,
 }));
 
-vi.mock("@earendil-works/pi-tui", () => ({
+// `foregroundAnsi` comes from the real module: `core/chrome.ts` asks the host's
+// own colour emitter to turn a token's `Color` into a foreground escape, so
+// stubbing it here would make the slab-colour assertions below tautological.
+vi.mock("@earendil-works/pi-tui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@earendil-works/pi-tui")>()),
   truncateToWidth: (s: string, _w: number, _pad?: string, _incl?: boolean) => s,
   isKeyRelease: () => false,
   visibleWidth: (s: string) => widthProbe.probe!(s),
@@ -821,9 +825,9 @@ describe("EAW terminal fallback", () => {
   });
 });
 
-// ── 6. Terminal-default chrome: no colour means no slab ────────────────────
+// ── 6. Edge rows: a cushion in the panel's own colour, or nothing at all ───
 
-describe("terminal-default chrome draws no slab rows", () => {
+describe("editor edge rows", () => {
   /**
    * The shape pi 1.2.0's DEFAULT `system` theme answers with on a terminal that
    * did not report a background (`indexedColors` in pi's system-theme.js gives
@@ -840,14 +844,27 @@ describe("terminal-default chrome draws no slab rows", () => {
     getFgAnsi: () => "\x1b[39m\x1b[2m",
   } as unknown as Theme;
 
-  /** A theme that does give a panel tint and an edge colour. */
-  const paintedTheme = {
+  /**
+   * A theme that gives the panel a tint, shaped like the installed dark theme:
+   * `userMessageBg: "#213b49"` — so `theme.colors.userMessageBg` is that rgb —
+   * and a *different* `borderMuted: "#768186"`. Having the two colours far apart
+   * is the point: the slab must pick the panel's own, or the editor grows a grey
+   * rule hugging the text area.
+   */
+  const tintedTheme = {
     appearance: "dark",
     fg: (_key: string, text: string) => text,
-    getBgAnsi: (key: string) => (key === "userMessageBg" ? "\x1b[48;2;33;59;73m" : "\x1b[49m"),
+    getBgAnsi: (key: string) =>
+      key === "userMessageBg" ? "\x1b[48;2;33;59;73m" : "\x1b[49m",
     getFgAnsi: (key: string) =>
       key === "borderMuted" ? "\x1b[38;2;118;129;134m" : "\x1b[39m",
+    colors: { userMessageBg: { kind: "rgb", r: 33, g: 59, b: 73 } },
+    getColorMode: () => "truecolor",
   } as unknown as Theme;
+
+  /** The panel's own tint and the theme's border, as foreground escapes. */
+  const PANEL_TINT = "\x1b[38;2;33;59;73m";
+  const BORDER_MUTED = "\x1b[38;2;118;129;134m";
 
   const SLABS = ["▁", "▔"];
 
@@ -865,21 +882,33 @@ describe("terminal-default chrome draws no slab rows", () => {
     }
   });
 
-  it("still paints the slab when the theme supplies an edge colour", () => {
-    const { editor } = makeEditor({ theme: paintedTheme });
+  it("paints the slab rows in the panel's OWN colour, so they vanish into the panel", () => {
+    const { editor } = makeEditor({ theme: tintedTheme });
     const lines = editor.render(60);
-    expect(lines[0]).toContain("\x1b[38;2;118;129;134m");
+    // The slab sits directly against the panel body, so painted in the panel's
+    // own tint it is invisible by construction — the colour cushion it was
+    // invented for.
+    expect(lines[0]).toContain(PANEL_TINT);
+    expect(lines[lines.length - 1]).toContain(PANEL_TINT);
+    // And NOT in the border token, which is what turned the cushion into a
+    // visible grey rule hugging the text area.
+    expect(lines[0]).not.toContain(BORDER_MUTED);
+    expect(lines[lines.length - 1]).not.toContain(BORDER_MUTED);
+    // The colour source is not allowed to move anything: same glyphs, same run.
     expect(plain(lines[0]!)).toBe("▁".repeat(60));
     expect(plain(lines[lines.length - 1]!)).toBe("▔".repeat(60));
   });
 
   it("keeps the row count identical either way (blank row, not a removed row)", () => {
-    const painted = makeEditor({ theme: paintedTheme }).editor.render(60);
+    const painted = makeEditor({ theme: tintedTheme }).editor.render(60);
     const blank = makeEditor({ theme: terminalDefaultTheme }).editor.render(60);
     // The frame's height is a layout contract: the edge rows go blank, they do
     // not disappear.
     expect(blank).toHaveLength(painted.length);
     expect(plain(blank[0]!)).toBe(" ".repeat(60));
     expect(plain(blank[blank.length - 1]!)).toBe(" ".repeat(60));
+    // Which row carries the frame is part of the same contract.
+    expect(plain(painted[1]!).trim().startsWith("┌")).toBe(true);
+    expect(plain(blank[1]!).trim().startsWith("┌")).toBe(true);
   });
 });

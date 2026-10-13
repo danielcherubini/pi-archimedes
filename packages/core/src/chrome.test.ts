@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Theme as PiTheme, type Theme } from "@earendil-works/pi-coding-agent";
+import { foregroundAnsi, indexedColor, rgbColor, type Color } from "@earendil-works/pi-tui";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isTerminalDefault, resolvePalette } from "./chrome.js";
@@ -64,12 +65,24 @@ describe("resolvePalette spin", () => {
 // panel got black borders on a light terminal. The rule these tests pin: the
 // theme token plus `theme.appearance` decide colour; a terminal-default token
 // means *no colour*; and nothing is inferred by parsing an escape sequence.
+//
+// The edge slab's colour comes from the SAME panel token, asked for as a
+// foreground — `theme.colors[token]`, because pi takes a token only in its own
+// slot. `borderMuted` colours the frame and never the cushion: a border token on
+// the slab is what made a tinted panel look framed by a grey rule.
 
 interface PanelTokens {
   /** Answers for `getBgAnsi`; a missing key makes the accessor throw. */
   bg?: Record<string, string>;
   /** Answers for `getFgAnsi`; a missing key makes the accessor throw. */
   fg?: Record<string, string>;
+  /**
+   * Answers for `theme.colors` — the cross-slot map the panel edge is read from.
+   * Leaving it out stands in for a host old enough not to have it.
+   */
+  colors?: Record<string, Color>;
+  /** `Theme.getColorMode()`: the mode the escapes are emitted in. */
+  mode?: "truecolor" | "256color";
   /** `Theme.appearance`, which only exists from pi 0.99.0 on. */
   appearance?: "light" | "dark";
 }
@@ -77,6 +90,14 @@ interface PanelTokens {
 function makePanelTheme(tokens: PanelTokens): Theme {
   return {
     ...(tokens.appearance === undefined ? {} : { appearance: tokens.appearance }),
+    // `colors` is a property, not a method: absent, it says "this host has no
+    // cross-slot map" — a shape, not a colour.
+    ...(tokens.colors === undefined
+      ? {}
+      : {
+          colors: tokens.colors,
+          getColorMode: () => tokens.mode ?? "truecolor",
+        }),
     fg: (key: string, text: string) => {
       const token = tokens.fg?.[key];
       return token === undefined ? undefined : `${token}${text}\x1b[0m`;
@@ -201,52 +222,95 @@ describe("resolvePalette panel tint and edge", () => {
     expect(p.panelBg).toBe("\x1b[48;2;33;59;73m");
   });
 
-  it("takes the edge from the theme's border token, not from rewriting the bg escape", () => {
-    // The slab seals a tinted panel, so it is a border-ish decoration: the
-    // theme's own border colour is the honest choice. Rewriting the background
-    // escape into a foreground one is exactly the parsing this task removes.
+  it("edges the slab with the panel's own token asked as a foreground, not the border's", () => {
+    // The slab cushions the panel, so it wears the panel's colour. Reaching for
+    // `borderMuted` because it looks like a similar colour is the same class of
+    // mistake as rewriting the background escape: the cushion stops being the
+    // panel and becomes a line. Asking for the panel token in the foreground
+    // slot is `theme.colors[token]` — pi takes a token only in its own slot —
+    // and it stays a question asked of the theme, never a decode.
     const p = resolvePalette(
       makePanelTheme({
         appearance: "dark",
         bg: { userMessageBg: "\x1b[48;2;33;59;73m" },
         fg: { borderMuted: "\x1b[38;2;118;129;134m", border: "\x1b[38;2;95;122;145m" },
+        colors: { userMessageBg: rgbColor(33, 59, 73) },
       }),
     );
-    expect(p.panelEdge).toBe("\x1b[38;2;118;129;134m");
-    expect(p.panelEdge).not.toBe("\x1b[38;2;33;59;73m");
+    expect(p.panelEdge).toBe("\x1b[38;2;33;59;73m");
+    expect(p.panelEdge).not.toBe("\x1b[38;2;118;129;134m");
+    expect(p.panelEdge).not.toBe("\x1b[38;2;95;122;145m");
   });
 
-  it("uses `border` when the theme has no `borderMuted`, and no edge at all when both are default", () => {
+  it("takes no edge when the theme cannot answer its own panel token as a foreground", () => {
     const borderOnly = resolvePalette(
       makePanelTheme({
         bg: { userMessageBg: "\x1b[48;2;33;59;73m" },
+        // No `borderMuted`: the old chain fell through to `border` here. That
+        // fallthrough is gone — the cushion is not a border, so no border token
+        // answers it, `border` included.
         fg: { border: "\x1b[38;2;95;122;145m" },
+        colors: { userMessageBg: rgbColor(33, 59, 73) },
       }),
     );
-    expect(borderOnly.panelEdge).toBe("\x1b[38;2;95;122;145m");
+    expect(borderOnly.panelBg).toBe("\x1b[48;2;33;59;73m");
+    expect(borderOnly.panelEdge).toBe("\x1b[38;2;33;59;73m");
 
-    const defaultBorder = resolvePalette(
+    // A tinted panel whose theme has nothing for *that* token as a foreground:
+    // no edge, and never a substitute token. The editor blanks the rows rather
+    // than painting block glyphs in the terminal's own foreground.
+    const cantAnswer = resolvePalette(
       makePanelTheme({
         bg: { userMessageBg: "\x1b[48;2;33;59;73m" },
-        fg: { borderMuted: "\x1b[39m", border: "\x1b[39m" },
+        fg: { borderMuted: "\x1b[38;2;118;129;134m", border: "\x1b[38;2;95;122;145m" },
+        colors: { customMessageBg: rgbColor(58, 48, 85) },
       }),
     );
-    expect(defaultBorder.panelBg).toBe("\x1b[48;2;33;59;73m");
-    expect(defaultBorder.panelEdge).toBe("");
+    expect(cantAnswer.panelBg).toBe("\x1b[48;2;33;59;73m");
+    expect(cantAnswer.panelEdge).toBe("");
+
+    // The same answer from a host with no cross-slot map at all.
+    const noColors = resolvePalette(
+      makePanelTheme({
+        bg: { userMessageBg: "\x1b[48;2;33;59;73m" },
+        fg: { borderMuted: "\x1b[38;2;118;129;134m" },
+      }),
+    );
+    expect(noColors.panelEdge).toBe("");
   });
 
-  it("tracks a palette terminal: the 48;5; tint pairs with the theme's 38;5; border", () => {
+  it("keeps the frame and the prefix in the border token while the slab wears the panel's", () => {
+    // `frame:` and `prefix:` are real chrome and keep `borderMuted`; only the
+    // cushion moved, so the `┌──┐` the user sees is untouched.
+    const p = resolvePalette(
+      makePanelTheme({
+        bg: { userMessageBg: "\x1b[48;2;33;59;73m" },
+        fg: { borderMuted: "\x1b[38;2;118;129;134m", border: "\x1b[38;2;95;122;145m" },
+        colors: { userMessageBg: rgbColor(33, 59, 73) },
+      }),
+    );
+    expect(p.panelEdge).toBe("\x1b[38;2;33;59;73m");
+    expect(p.frame("┌")).toBe("\x1b[38;2;118;129;134m┌\x1b[0m");
+    expect(p.prefix("> ")).toBe("\x1b[38;2;118;129;134m> \x1b[0m");
+  });
+
+  it("tracks a palette terminal: the slab keeps the panel's own index, in fg form", () => {
     // `"terminal": { "trueColor": false }` makes every token come back as
-    // 38;5;n / 48;5;n (measured: userMessageBg #262626 -> \x1b[48;5;236m).
+    // 38;5;n / 48;5;n (measured: userMessageBg #262626 -> \x1b[48;5;236m). The
+    // cushion is the panel's own colour, so it is the panel's own index — 236,
+    // in the foreground form — and not the border's 240.
     const p = resolvePalette(
       makePanelTheme({
         appearance: "dark",
+        mode: "256color",
         bg: { userMessageBg: "\x1b[48;5;236m" },
         fg: { borderMuted: "\x1b[38;5;240m" },
+        colors: { userMessageBg: indexedColor(236) },
       }),
     );
     expect(p.panelBg).toBe("\x1b[48;5;236m");
-    expect(p.panelEdge).toBe("\x1b[38;5;240m");
+    expect(p.panelEdge).toBe("\x1b[38;5;236m");
+    expect(p.panelEdge).not.toBe("\x1b[38;5;240m");
   });
 
   it("falls back to a LIGHT slab when the theme reports a light appearance and no panel token", () => {
@@ -285,12 +349,40 @@ describe("resolvePalette against a real pi 1.2.0 Theme", () => {
     expect(p.panelEdge).toBe("");
   });
 
-  it("tints with the real theme's own background and edges with its real border", () => {
+  it("edges the slab with the panel's OWN colour asked as a foreground, not with the border", () => {
+    // The regression: the slab rows sit directly against the panel body, so a
+    // cushion painted in the panel's own tint is invisible by construction, and
+    // one painted in `borderMuted` is a visible grey rule hugging the text area.
+    // Asking the theme for the panel token *as a foreground* is the way to get
+    // the tint without decoding anything: pi documents it ("Use
+    // `theme.colors[token]` to use a token's color in the other slot", and a
+    // token is *only* accepted in its own slot — `theme.fg("userMessageBg", …)`
+    // throws). Emitting that color through pi's own foreground emitter is
+    // asking the theme for a value, never parsing an escape string.
     const theme = realPiTheme({}, { appearance: "dark" });
     expect(theme.getBgAnsi("userMessageBg")).toBe("\x1b[48;2;33;59;73m");
+    expect(theme.getFgAnsi("borderMuted")).toBe("\x1b[38;2;118;129;134m");
+    // Measured, so the premise of the rule above cannot rot silently.
+    expect(() => theme.fg("userMessageBg" as never, "x")).toThrow();
+
     const p = resolvePalette(theme);
     expect(p.panelBg).toBe("\x1b[48;2;33;59;73m");
-    expect(p.panelEdge).toBe("\x1b[38;2;118;129;134m");
+    // Identity, asserted as measured bytes: the panel's own tint in the
+    // foreground slot …
+    expect(p.panelEdge).toBe("\x1b[38;2;33;59;73m");
+    // … which is what the theme itself would paint that color as a foreground …
+    expect(p.panelEdge).toBe(
+      foregroundAnsi(theme.colors.userMessageBg, theme.getColorMode()),
+    );
+    // … and NOT the border token, which is what the palette answers today.
+    expect(p.panelEdge).not.toBe("\x1b[38;2;118;129;134m");
+    expect(p.panelEdge).not.toBe(theme.getFgAnsi("borderMuted"));
+  });
+
+  it("still draws the `┌──┐` frame in the border token", () => {
+    // Only the slab changed hands. The frame is a real border and stays a border.
+    const theme = realPiTheme({}, { appearance: "dark" });
+    expect(resolvePalette(theme).frame("┌")).toContain("\x1b[38;2;118;129;134m");
   });
 
   it("follows the palette on a non-truecolour terminal instead of hardcoding anything", () => {
@@ -301,7 +393,10 @@ describe("resolvePalette against a real pi 1.2.0 Theme", () => {
     expect(theme.getBgAnsi("userMessageBg")).toBe("\x1b[48;5;236m");
     const p = resolvePalette(theme);
     expect(p.panelBg).toBe("\x1b[48;5;236m");
-    expect(p.panelEdge).toBe("\x1b[38;5;240m");
+    // The slab keeps the panel's own index, in the foreground form — 236, not
+    // the border's 240.
+    expect(p.panelEdge).toBe("\x1b[38;5;236m");
+    expect(p.panelEdge).not.toBe("\x1b[38;5;240m");
   });
 });
 
