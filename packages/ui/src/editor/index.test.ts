@@ -882,6 +882,28 @@ describe("editor edge rows", () => {
     }
   });
 
+  it("blanks the rows when the panel IS tinted but the edge has no colour", () => {
+    // The realistic degradation, not the empty-theme case: a modern theme (so a
+    // real panel tint) on a host that cannot render a colour as a foreground.
+    // `panelEdge` is "" while `panelBg` is a colour, so what these rows do is
+    // decided by the edge alone — painting on the body's colour instead would
+    // put a truecolour background behind the glyphs, and dropping the rows
+    // outright would break the frame's height.
+    const { colors: _noColors, getColorMode: _noMode, ...noForeground } =
+      tintedTheme as unknown as Record<string, unknown>;
+    const lines = makeEditor({
+      theme: noForeground as unknown as Theme,
+    }).editor.render(60);
+    expect(plain(lines[0]!)).toBe(" ".repeat(60));
+    expect(plain(lines[lines.length - 1]!)).toBe(" ".repeat(60));
+    for (const slab of SLABS) {
+      expect(lines[0]!).not.toContain(slab);
+      expect(lines[lines.length - 1]!).not.toContain(slab);
+    }
+    // The body kept its tint: only the cushion gave up.
+    expect(lines[1]).toContain("\x1b[48;2;33;59;73m");
+  });
+
   it("paints the slab rows in the panel's OWN colour, so they vanish into the panel", () => {
     const { editor } = makeEditor({ theme: tintedTheme });
     const lines = editor.render(60);
