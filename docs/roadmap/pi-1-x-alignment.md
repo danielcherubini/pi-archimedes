@@ -14,6 +14,7 @@ done-when: Every custom surface behaves on both screen modes, 13/13 packages typ
 ## Ground rules for every task
 
 - **pnpm only.** Root `package.json` has a `preinstall` guard that exits 1 under npm. Never run `npm install`.
+- **Check the lockfile for `@pnpm/exe` before staging it.** On machines where pnpm is invoked through the `@pnpm/exe` binary rather than the Corepack-pinned `pnpm`, even `pnpm install --frozen-lockfile` rewrites `pnpm-lock.yaml`, appending `@pnpm/exe` under `importers["."].packageManagerDependencies`, `packages` and `snapshots`. It is a local-binary artifact unrelated to any dependency change: revert it with `git checkout -- pnpm-lock.yaml` and never commit it. Run `git diff pnpm-lock.yaml | grep -c "@pnpm/exe"` before staging — the release workflow's `--frozen-lockfile` install would otherwise be checking a lockfile no CI run produced.
 - **Type-check** per package: `cd packages/<name> && npx tsc --noEmit`. Whole workspace: `pnpm -r exec -- tsc --noEmit`. This is the suite's verification command (AGENTS.md "Verification Order") — there is no build.
 - **Tests:** `pnpm test` at the root (`vitest run`). Single file: `npx vitest run packages/core/src/text.test.ts`.
 - **No formatter or linter is configured.** Match the surrounding file's style; do not reformat untouched lines.
