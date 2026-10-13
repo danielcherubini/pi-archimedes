@@ -5,7 +5,9 @@ import type { AgentConfig } from "./agents.js";
 // Two questions look similar and are not:
 //
 //   **Lexical** — can this string be a tool *name* at all? Empty/whitespace
-//   entries, duplicates, and entries starting with `+` or `-` cannot. pi 1.1.0
+//   entries, duplicates, entries containing a comma (the child re-splits the one
+//   argv string on commas, so a comma means two entries by then), and entries
+//   starting with `+` or `-` cannot. pi 1.1.0
 //   made `+name`/`-name` **modifiers** on the default tool set, and its own CLI
 //   parser rejects a `--tools` list that mixes them with plain names outright —
 //   the flag is dropped with `Error: --tools: tool names cannot be mixed with
@@ -53,6 +55,22 @@ export function splitToolEntries(raw: string): string[] {
   return raw.split(",").map((entry) => entry.trim());
 }
 
+/**
+ * Split one YAML list entry the way the child will.
+ *
+ * `--tools` is a single argv string that the host re-splits on commas
+ * (`pi/dist/cli/args.js`: `args[++i].split(",")`), so a list entry written
+ * `"read,+bash"` is *two* entries by the time anything judges it. Validating the
+ * unsplit form certifies a list the child never runs with — and the resulting
+ * mix of names and modifiers is rejected wholesale by pi, so the child ends up
+ * with no allowlist at all. An entry without a comma is returned as the trimmed
+ * single entry, so a deliberate empty entry (`- ""`) stays visible for the name
+ * rules to report rather than vanishing here.
+ */
+function splitListEntry(item: string): string[] {
+  return item.includes(",") ? splitToolEntries(item) : [item.trim()];
+}
+
 export type ReadToolEntriesResult = { entries: string[] } | { error: string };
 
 /**
@@ -62,7 +80,9 @@ export type ReadToolEntriesResult = { entries: string[] } | { error: string };
  * spellings in the wild: the comma-separated string this suite's writer emits,
  * a hand-written block list (`tools:\n  - read`), and an inline list
  * (`tools: [read]`) — the two list forms both arrive as real arrays. All three
- * mean the same allowlist. Anything else (a number, a mapping, a list holding a
+ * mean the same allowlist, and a list entry is comma-split on the way in so the
+ * entries judged here are the entries the child receives (`splitListEntry`).
+ * Anything else (a number, a mapping, a list holding a
  * mapping) is not a tool list, and must be *said* to be broken rather than
  * skipped: an allowlist this function refuses to read is a child that runs with
  * every tool the host has, which is the whole thing ADR 0028 is about.
@@ -81,7 +101,7 @@ export function readToolEntries(
           error: `${subject} has a tools entry that is not a tool name${where}: ${JSON.stringify(item) ?? String(item)}. Each entry is a tool name on its own line (or one comma-separated list).`,
         };
       }
-      entries.push(item.trim());
+      entries.push(...splitListEntry(item));
     }
     return { entries };
   }
@@ -115,6 +135,20 @@ export function validateToolEntries(
       return {
         ok: false,
         error: `${subject} has a tools entry starting with "${sign}"${where}: "${entry}". pi reads +name/-name entries as modifiers on the default tool set, not as tool names, and a list that mixes them with names is rejected outright — the whole allowlist is dropped. Use the bare name "${entry.slice(1)}" to allow it, or leave it out.`,
+      };
+    }
+    // The comma rule sits *after* the modifier rule deliberately: for an entry
+    // like `+a,b` the modifier is what the child chokes on first, and that
+    // message says more. `readToolEntries` already splits commas on the read
+    // path, so this rule guards every other caller (`applyToolEntries`, and
+    // anything that builds an AgentConfig directly): the list we validate has to
+    // be the list the child runs with, because pi re-splits the one argv string
+    // it is handed and drops a mixed list outright.
+    if (entry.includes(",")) {
+      const parts = entry.split(",").map((part) => part.trim()).filter((part) => part !== "");
+      return {
+        ok: false,
+        error: `${subject} has a tools entry containing a comma${where}: "${entry}". The allowlist reaches the child as one comma-separated list, so this entry becomes ${parts.length} entries by the time pi reads it — write them separately (${parts.map((part) => `"${part}"`).join(", ")}).`,
       };
     }
     if (seen.has(entry)) {

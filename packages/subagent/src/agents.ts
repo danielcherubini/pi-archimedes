@@ -37,10 +37,10 @@ export interface AgentConfig {
   filePath: string;
   /**
    * Set when the `tools:` list was **rejected at config read** — an entry pi
-   * cannot read as a tool name (empty, duplicated, or a `+`/`-` modifier), or a
-   * value that is not a tool list in any spelling pi's YAML parser produces
-   * (comma string, block list, inline list) — a number, a mapping, or a list
-   * holding something that is not a name.
+   * cannot read as a tool name (empty, duplicated, containing a comma, or a
+   * `+`/`-` modifier), or a value that is not a tool list in any spelling pi's
+   * YAML parser produces (comma string, block list, inline list) — a number, a
+   * mapping, or a list holding something that is not a name.
    *
    * The list is never applied in that case: a rejected allowlist that falls back
    * to "no allowlist" would hand the child a *wider* tool set than the config

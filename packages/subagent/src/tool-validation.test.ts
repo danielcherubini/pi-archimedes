@@ -206,4 +206,44 @@ describe("readToolEntries: every YAML spelling of a tools value", () => {
   it("an absent key is the caller's business, not an error here (it never reaches this gate)", () => {
     expect(ok(readToolEntries(""))).toEqual([]);
   });
+
+  it("splits a list entry that carries a comma, because the child splits it too", () => {
+    // `--tools` is ONE argv string the host re-splits on commas
+    // (`pi/dist/cli/args.js`: `args[++i].split(",")`), so an entry written
+    // `"read,+bash"` in a YAML list reaches the child as two entries — the
+    // validator has to look at the same list the child will run with, or it
+    // certifies a shape it never sees.
+    expect(ok(readToolEntries(["read,+bash"]))).toEqual(["read", "+bash"]);
+    expect(ok(readToolEntries([" read , bash "]))).toEqual(["read", "bash"]);
+  });
+
+  it("keeps a hidden modifier visible for the name rules, so the read rejects it", () => {
+    const entries = readToolEntries(["read,+bash"]);
+    if (!("entries" in entries)) throw new Error("expected entries");
+    const check = validateToolEntries(entries.entries, CTX);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.error).toContain("+bash");
+  });
+});
+
+describe("validateToolEntries: a comma inside one entry", () => {
+  it("is refused rather than certified, because the child would split it", () => {
+    // The read path splits, so this rule guards every *other* caller —
+    // `applyToolEntries` and anything that builds an AgentConfig directly. A
+    // list we validated must be the list the child runs with: pi would turn
+    // `["read,+bash"]` into `--tools read,+bash`, reject the whole flag as
+    // mixed names-and-modifiers, and run the child with NO allowlist at all
+    // (verified against a live 1.2.0 child: exit 1, `Error: --tools: tool
+    // names cannot be mixed with +name or -name entries`).
+    const result = validateToolEntries(["read", "read,+bash"], CTX);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("read,+bash");
+      expect(result.error).toContain("reviewer");
+    }
+  });
+
+  it("is refused even when it is the only entry", () => {
+    expect(validateToolEntries(["a,b"], CTX).ok).toBe(false);
+  });
 });

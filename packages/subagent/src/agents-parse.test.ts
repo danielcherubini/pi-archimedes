@@ -221,6 +221,17 @@ describe("agent config read: `tools:` written as a YAML list", () => {
     expect(agent?.toolsError).toContain("read");
   });
 
+  it("rejects a list entry hiding a modifier behind a comma, naming the modifier", () => {
+    // The child re-splits `--tools` on commas, so this config is `--tools
+    // read,+bash` — which pi rejects outright, dropping the allowlist and
+    // leaving the child with the full default set. Read it as the two entries
+    // the child would see and refuse it here instead.
+    writeAgent("commainner", "tools:\n  - read,+web_search\n");
+    const agent = readAgent("commainner");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("+web_search");
+  });
+
   it("rejects a list holding something that is not a name at all", () => {
     writeAgent("mixed", "tools:\n  - read\n  - count: 2\n");
     const agent = readAgent("mixed");
