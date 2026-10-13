@@ -1,5 +1,6 @@
 import { execFile, execSync } from "child_process";
 import { realpathSync } from "fs";
+import { notifyVcsChange } from "./vcs-change-events.js";
 
 export interface GitStatus {
   staged: number;
@@ -82,6 +83,16 @@ function parseGitOutput(output: string): GitStatus {
   return status;
 }
 
+function gitStatusEquals(a: GitStatus, b: GitStatus): boolean {
+  return (
+    a.staged === b.staged &&
+    a.unstaged === b.unstaged &&
+    a.untracked === b.untracked &&
+    a.ahead === b.ahead &&
+    a.behind === b.behind
+  );
+}
+
 /** Refresh git status without blocking the render loop. */
 function scheduleGitRefresh(): void {
   if (gitRefreshInFlight || !gitStatusCache) return;
@@ -93,7 +104,12 @@ function scheduleGitRefresh(): void {
     { cwd: process.cwd(), encoding: "utf8", timeout: 2_000 },
     (error, stdout) => {
       gitRefreshInFlight = false;
-      gitStatusCache = { value: error ? staleValue : parseGitOutput(stdout), timestamp: Date.now() };
+      const next = error ? staleValue : parseGitOutput(stdout);
+      gitStatusCache = { value: next, timestamp: Date.now() };
+      // Ask for a frame only when a displayed count actually moved: the footer
+      // painted the stale value, and pi draws no frame unless one is requested.
+      // An unchanged reply must stay silent, or the TTL drives a render forever.
+      if (!gitStatusEquals(next, staleValue)) notifyVcsChange();
     },
   );
 }
@@ -160,6 +176,8 @@ function scheduleWorktreeRefresh(): void {
         }
       }
       worktreeCache = { value, timestamp: Date.now() };
+      // Same rule as git status: repaint only when the answer changed.
+      if (value !== staleValue) notifyVcsChange();
     },
   );
 }
