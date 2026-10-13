@@ -226,11 +226,18 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
 
   // Tool allowlist from agent config.
   //
-  // pi 1.0.4 made `--tools` *keep* MCP tools unless an entry starts with `mcp__`
-  // (the allowlist only filters MCP when it is empty or names MCP tools), so a
-  // three-tool list no longer means "only these three". `--no-mcp` is the host's
-  // own statement of intent and is what restores the closed reading; a config
-  // that wants MCP asks for it with `mcp: true` (ADR 0028).
+  // pi 1.0.4 changed what a non-empty `--tools` does to MCP tools. It no longer
+  // filters them: unless the list is empty or names an `mcp__` entry, they stay
+  // REGISTERED — reachable through codemode and `tool_search` — even though they
+  // are not *declared* to the model (`agent-session.js`: `_allowlistFiltersMcp`
+  // false → `_isAllowedTool` keeps them, `_isActivatable` withholds the
+  // declaration unless `tool_search` can load them). So the child's tool box is
+  // wider than the three names in the config, which is the hole ADR 0028 closed:
+  // `--no-mcp` stops the servers connecting at all, so there is nothing to reach.
+  // A config that wants the servers asks with `mcp: true` — verified against a
+  // live 1.2.0 child: with `--tools read` it sees exactly `read` either way, so
+  // the opt-in's observable effect today is registration, not a declared list
+  // (see ADR 0028's verification note for the open follow-up).
   const tools = options.agent?.tools ?? [];
   if (tools.length > 0) {
     args.push("--tools", tools.join(","));

@@ -15,14 +15,19 @@ export interface AgentConfig {
   description: string;
   tools?: string[];
   /**
-   * Opt this agent's child back in to MCP tools.
+   * Opt this agent's child back in to connecting its MCP servers.
    *
-   * pi 1.0.4 made `--tools` *retain* MCP tools unless an entry starts with
-   * `mcp__`, so a `tools:` list no longer read as the closed set it looks like
-   * (ADR 0028). The suite therefore passes `--no-mcp` alongside a non-empty
-   * allowlist; `mcp: true` is the one way a config asks for that back.
-   * Absent or false means the closed reading. Parsed in `loadAgentsFromDir`,
-   * written by `serializeAgent`, shown on the `/agents` detail screen.
+   * pi 1.0.4 stopped a non-empty `--tools` filtering MCP tools: they stay
+   * registered (reachable from codemode and `tool_search`) unless the list names
+   * an `mcp__` entry (ADR 0028). The suite therefore passes `--no-mcp` alongside
+   * a non-empty allowlist; `mcp: true` is the one way a config asks for the
+   * servers back. Absent or false means the closed reading. Note the honest
+   * limit, verified against a live 1.2.0 child: pi does not *declare* MCP tools
+   * to a model whose allowlist does not match them, so with a non-empty `tools:`
+   * list the child sees the same declared set with or without this flag — what
+   * the flag changes is whether the servers connect at all (ADR 0028
+   * verification note). Parsed in `loadAgentsFromDir`, written by
+   * `serializeAgent`, shown on the `/agents` detail screen.
    */
   mcp?: boolean;
   model?: string;
