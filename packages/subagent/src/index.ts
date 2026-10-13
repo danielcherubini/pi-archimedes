@@ -9,8 +9,13 @@ import { renderSubagentResult } from "./render.js";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
 import { renderToolHeader } from "@pi-archimedes/core/tool-render";
 import { reportPiSupport } from "@pi-archimedes/core/pi-support";
+import { diag, describeError } from "@pi-archimedes/core/log";
 import { discoverAgents, discoverAgentsAll, findAgent, formatAgentList } from "./agents.js";
 import { validateModel, firstError } from "./model-validation.js";
+import {
+  unknownToolEntries,
+  formatUnknownToolsWarning,
+} from "./tool-validation.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -77,6 +82,9 @@ export function registerSubagent(pi: ExtensionAPI): void {
           // Skip model validation for tasks already caught by unknown-agent check
           if (t.agent && unknownAgentSet.has(t.agent)) continue;
           const taskAgentConfig = t.agent ? findAgent(agents, t.agent) : undefined;
+          // A `tools:` list the config read rejected is never applied, so the task
+          // cannot run as configured — say so before anything spawns.
+          if (taskAgentConfig?.toolsError) errors.push(taskAgentConfig.toolsError);
           const me = firstError(
             validateModel(t.model, ctx.modelRegistry, { agentName: t.agent }),
             validateModel(taskAgentConfig?.model, ctx.modelRegistry, {
@@ -96,6 +104,18 @@ export function registerSubagent(pi: ExtensionAPI): void {
             },
             isError: true,
           };
+        }
+        // Membership only becomes knowable here, with the handle in scope — and
+        // it is a warning, so the batch still runs (see warnUnavailableTools).
+        const warnedTools = new Set<string>();
+        for (const t of params.tasks) {
+          warnUnavailableTools(
+            pi,
+            ctx,
+            warnedTools,
+            t.agent ?? "subagent",
+            t.agent ? findAgent(agents, t.agent)?.tools : undefined,
+          );
         }
         const results: SubagentResult[] = await executeParallel({
           tasks: params.tasks.map((t) => ({
@@ -167,6 +187,17 @@ export function registerSubagent(pi: ExtensionAPI): void {
             isError: true,
           };
         }
+        // A rejected `tools:` list is a config error, not a runtime one: the child
+        // would run with a different tool set than the config asked for, so it
+        // does not run at all.
+        if (agentConfig?.toolsError) {
+          return {
+            content: [{ type: "text", text: agentConfig.toolsError }],
+            details: { mode: "single", results: [], progress: undefined },
+            isError: true,
+          };
+        }
+        warnUnavailableTools(pi, ctx, new Set(), params.agent ?? "subagent", agentConfig?.tools);
         const result: SubagentResult = await executeSubagent({
           agent: params.agent ?? undefined,
           agentConfig,
@@ -264,6 +295,50 @@ export function registerSubagent(pi: ExtensionAPI): void {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Warn (never fail) about allowlist entries no registered tool satisfies right
+ * now, naming each one.
+ *
+ * Membership cannot be checked any earlier: `pi.getAllTools()` needs this
+ * handle, and the config read is pure filesystem. And it must not fail the run:
+ * a legitimate name is missing whenever its plugin is toggled off or its MCP
+ * server is disconnected, so a hard error would make `tools: web_search` unusable
+ * for anyone who disabled `web`. One warning per entry per tool call — a parallel
+ * batch of eight agents sharing a list warns once, not eight times.
+ *
+ * Diagnostics go to `diag()` because a `console.*` write is discarded by a
+ * subagent child and smears the fullscreen frame (see `core/log.ts`); the
+ * on-screen copy only goes out where there is a UI to receive it.
+ */
+function warnUnavailableTools(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  alreadyWarned: Set<string>,
+  agentName: string,
+  tools: string[] | undefined,
+): void {
+  if (!tools || tools.length === 0) return;
+  let unknown: string[];
+  try {
+    const known = pi.getAllTools().map((t) => t.name);
+    unknown = unknownToolEntries(tools, known).filter((entry) => !alreadyWarned.has(entry));
+  } catch (e) {
+    // A handle that cannot answer is not a reason to lose the dispatch.
+    diag("subagent", `tool-membership check skipped for "${agentName}": ${describeError(e)}`);
+    return;
+  }
+  if (unknown.length === 0) return;
+  for (const entry of unknown) alreadyWarned.add(entry);
+  const message = formatUnknownToolsWarning(agentName, unknown);
+  diag("subagent", message);
+  if (!ctx.hasUI) return;
+  try {
+    ctx.ui.notify(message, "warning");
+  } catch {
+    // A context too stale to notify must not fail the run it is only warning about.
+  }
+}
 
 export function registerListAgentsTool(pi: ExtensionAPI): void {
   pi.registerTool({

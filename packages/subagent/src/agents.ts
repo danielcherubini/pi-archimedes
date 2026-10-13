@@ -8,6 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { readLocalConfig } from "./local-config.js";
+import { splitToolEntries, validateToolEntries } from "./tool-validation.js";
 
 export interface AgentConfig {
   name: string;
@@ -29,13 +30,19 @@ export interface AgentConfig {
   systemPrompt: string;
   source: "global" | "user" | "project";
   filePath: string;
+  /**
+   * Set when the `tools:` list was **rejected at config read** — an entry pi
+   * cannot read as a tool name (empty, duplicated, or a `+`/`-` modifier).
+   *
+   * The list is never applied in that case: a rejected allowlist that falls back
+   * to "no allowlist" would hand the child a *wider* tool set than the config
+   * asked for. Dispatch refuses such an agent (naming the entry and the file),
+   * and the `/agents` panel and `list_agents` report it. The raw value stays in
+   * `extraFields.tools` so saving the agent does not silently delete the line.
+   */
+  toolsError?: string;
   // Extra fields preserved from frontmatter but not editable in TUI
   extraFields?: Record<string, unknown>;
-}
-
-/** Split a `tools:` frontmatter string into trimmed entries. */
-function splitToolList(raw: string): string[] {
-  return raw.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
 function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): AgentConfig[] {
@@ -68,8 +75,18 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
 
     // Handle tools specially — preserve non-string values in extraFields
     let parsedTools: string[] | undefined;
+    let toolsError: string | undefined;
     if (typeof frontmatter.tools === "string") {
-      parsedTools = splitToolList(frontmatter.tools);
+      const entries = splitToolEntries(frontmatter.tools);
+      const check = validateToolEntries(entries, {
+        agentName: String(frontmatter.name),
+        agentFilePath: filePath,
+      });
+      if (check.ok) {
+        parsedTools = entries;
+      } else {
+        toolsError = check.error;
+      }
     }
 
     // `mcp: true` opts the child back in to MCP tools (ADR 0028). Quoted YAML
@@ -86,7 +103,9 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
         extraFields[key] = value;
       }
     }
-    // If tools was non-string, store it in extraFields for round-trip preservation
+    // If tools was non-string, store it in extraFields for round-trip preservation.
+    // A rejected string list is preserved for the same reason: the writer must not
+    // quietly delete a line the user typed.
     if (frontmatter.tools !== undefined && !parsedTools && "tools" in frontmatter) {
       extraFields.tools = frontmatter.tools;
     }
@@ -101,6 +120,7 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
     if (frontmatter.model) config.model = frontmatter.model as string;
     if (frontmatter.thinking) config.thinking = frontmatter.thinking as string;
     if (mcpOptIn) config.mcp = true;
+    if (toolsError) config.toolsError = toolsError;
     if (parsedTools && parsedTools.length > 0) config.tools = parsedTools;
     if (Object.keys(extraFields).length > 0) config.extraFields = extraFields;
 
@@ -247,7 +267,13 @@ export function formatAgentList(agents: AgentConfig[]): string {
     let line = `• ${a.name} [${a.source}] — ${a.description}`;
     const extras: string[] = [];
     if (a.model) extras.push(`model: ${a.model}`);
-    if (a.tools && a.tools.length > 0) extras.push(`${a.tools.length} tools`);
+    if (a.toolsError) {
+      // The list was rejected at read, so no allowlist is in force — say so here
+      // rather than letting the agent look like an unconfigured one.
+      extras.push("tools rejected — fix the tools: field");
+    } else if (a.tools && a.tools.length > 0) {
+      extras.push(`${a.tools.length} tools`);
+    }
     if (extras.length > 0) line += ` (${extras.join(", ")})`;
     return line;
   });

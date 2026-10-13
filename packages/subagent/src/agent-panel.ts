@@ -14,6 +14,7 @@ import {
 import type { AgentConfig } from "./agents.js";
 import { discoverAgentsAll } from "./agents.js";
 import { validateAgentName } from "./frontmatter-io.js";
+import { applyToolEntries } from "./tool-validation.js";
 import {
   visibleWidth,
   padEnd,
@@ -310,6 +311,13 @@ function renderDetail(state: ManagerState, width: number, theme: Theme): string[
     lines.push(padEnd(fl, width));
   }
 
+  // The config read rejected this agent's tools list: show why, because the
+  // alternative is an agent that silently runs with no allowlist at all.
+  if (agent.toolsError) {
+    for (const line of wrapText(agent.toolsError, width)) {
+      lines.push(padEnd(theme.fg("error", line), width));
+    }
+  }
   // Extra fields
   if (agent.extraFields && Object.keys(agent.extraFields).length > 0) {
     lines.push(padEnd(theme.fg("dim", "─".repeat(width)), width));
@@ -434,9 +442,13 @@ function renderEdit(state: ManagerState, width: number, theme: Theme): string[] 
   const dirtyMark = state.editDirty ? " *" : "";
   lines.push(renderHeader(` Edit: ${agent.name}${dirtyMark} `, width, theme));
 
-  // Error line
+  // Error line — wrapped, not truncated: the messages this panel can produce
+  // name the offending entry at the END of the sentence, so a single clipped row
+  // would report a problem without saying what it is.
   if (state.editError) {
-    lines.push(padEnd(theme.fg("error", `Error: ${state.editError}`), width));
+    for (const line of wrapText(`Error: ${state.editError}`, width)) {
+      lines.push(padEnd(theme.fg("error", line), width));
+    }
   }
 
   // System prompt edit mode
@@ -745,14 +757,21 @@ function handleEditInput(
       state.toolSearch = "";
       requestRender();
     } else if (matchesKey(data, Key.enter)) {
-      const names = [...state.toolSelected];
-      if (names.length > 0) {
-        state.editAgent.tools = names;
-      } else {
-        delete state.editAgent.tools;
-      }
+      // The picker's commit is the only way the panel writes a tools list, so it
+      // is where the lexical rules apply. A refusal leaves the previous list
+      // untouched (`applyToolEntries`) and does not mark the agent dirty — the
+      // user must not be able to save a list pi would reject.
+      const error = applyToolEntries(state.editAgent, [...state.toolSelected], {
+        agentName: state.editAgent.name,
+        agentFilePath: state.editAgent.filePath,
+      });
       state.toolPickerOpen = false;
       state.toolSearch = "";
+      if (error) {
+        state.editError = error;
+        requestRender();
+        return;
+      }
       state.editDirty = true;
       requestRender();
     } else if (matchesKey(data, Key.up)) {
@@ -1018,6 +1037,11 @@ function setFieldValue(agent: AgentConfig, field: EditField, value: string): voi
       agent.description = value;
       break;
     case "tools": {
+      // A typing buffer, not a commit: the tools field is edited through the
+      // picker (an `enter` on that row opens it), so this path is not reachable
+      // from the keyboard today. It stays permissive on purpose — an unfinished
+      // comma is a keystroke, not a mistake. Everything that leaves the panel
+      // goes through `applyToolEntries`, which is where the lexical rules live.
       const parsed = value
         ? value.split(",").map((t) => t.trim()).filter(Boolean)
         : [];

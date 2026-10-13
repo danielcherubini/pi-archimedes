@@ -73,3 +73,98 @@ describe("agent config read: mcp opt-in", () => {
     expect(readAgent("noallow")?.mcp).toBe(true);
   });
 });
+
+// ── The lexical half of validation (ADR 0028) ───────────────────────────────
+//
+// This read path has no tool registry — `discoverAgents()` touches only the
+// filesystem — so nothing here may depend on whether a name is a real tool.
+// A rejected `tools:` list is never applied (an allowlist that silently becomes
+// a wider one is the failure this exists to prevent); the reason rides on the
+// config so dispatch refuses it and the panel can show it.
+
+describe("agent config read: malformed tools entries are rejected", () => {
+  beforeEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("accepts a well-formed list, unchanged", () => {
+    writeAgent("good", "tools: read, bash\n");
+    const agent = readAgent("good");
+    expect(agent?.tools).toEqual(["read", "bash"]);
+    expect(agent?.toolsError).toBeUndefined();
+  });
+
+  it("rejects an empty entry and names it on the config", () => {
+    writeAgent("empty", "tools: read, , bash\n");
+    const agent = readAgent("empty");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain('""');
+  });
+
+  it("rejects a trailing comma (the empty entry it creates)", () => {
+    writeAgent("trailing", "tools: read, bash,\n");
+    const agent = readAgent("trailing");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toBeTruthy();
+  });
+
+  it("rejects a duplicated entry and names it", () => {
+    writeAgent("dupe", "tools: read, bash, read\n");
+    const agent = readAgent("dupe");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("read");
+  });
+
+  it("rejects a +name entry and names it", () => {
+    writeAgent("mod", "tools: read, +web_search\n");
+    const agent = readAgent("mod");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("+web_search");
+  });
+
+  it("rejects a -name entry and names it", () => {
+    writeAgent("neg", "tools: read, -bash\n");
+    const agent = readAgent("neg");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("-bash");
+  });
+
+  it("still preserves a rejected list in extraFields, so saving the agent does not delete the user's line", () => {
+    writeAgent("mod2", "tools: read, +web_search\n");
+    const agent = readAgent("mod2");
+    // Preserved verbatim for the writer's benefit; nothing downstream reads
+    // extraFields as a tool list, and dispatch refuses the agent outright.
+    expect(agent?.extraFields?.tools).toBe("read, +web_search");
+  });
+
+  it("the rejection message names the agent and the file it came from", () => {
+    writeAgent("dupe2", "tools: read, read\n");
+    const agent = readAgent("dupe2");
+    expect(agent?.toolsError).toContain("dupe2");
+    expect(agent?.toolsError).toContain(join(agentsDir, "dupe2.md"));
+  });
+
+  it("a rejected tools list does not disturb the rest of the config", () => {
+    writeAgent("mixed", "tools: read, read\nmodel: anthropic/claude-opus-4.5\n", "body text");
+    const agent = readAgent("mixed");
+    expect(agent?.model).toBe("anthropic/claude-opus-4.5");
+    expect(agent?.systemPrompt).toContain("body text");
+    expect(agent?.toolsError).toBeTruthy();
+  });
+
+  it("list_agents says which agents have a rejected tools list", async () => {
+    const { formatAgentList } = await import("./agents.js");
+    writeAgent("broken", "tools: read, +bash\n");
+    writeAgent("fine", "tools: read\n");
+    const out = formatAgentList(discoverAgents(testDir));
+    const brokenLine = out.split("\n").find((l) => l.includes("broken"));
+    const fineLine = out.split("\n").find((l) => l.includes("fine "));
+    expect(brokenLine).toMatch(/invalid tools|tools rejected/i);
+    expect(fineLine).not.toMatch(/invalid tools|tools rejected/i);
+  });
+});
