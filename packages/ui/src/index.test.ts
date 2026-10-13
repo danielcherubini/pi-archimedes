@@ -65,7 +65,6 @@ vi.mock("./bash/index.js", async (importOriginal) => {
     await importOriginal<typeof import("./bash/index.js")>();
   return {
     ...actual,
-    registerBashToolOverride: vi.fn(),
     clearActiveBashIntervals: vi.fn(),
   };
 });
@@ -85,7 +84,6 @@ import defaultExport, {
 } from "./index.js";
 import { migrateCoreToUIConfig } from "./migration.js";
 import {
-  registerBashToolOverride,
   clearActiveBashIntervals,
   renderBashCall,
   renderBashResult,
@@ -329,14 +327,11 @@ describe("packages/ui lifecycle and registration", () => {
   });
 
   describe("session_start with interactive UI (hasUI: true)", () => {
-    it("configures bash tool override, codemode tool override, header, editor, and thinking renderer", () => {
+    it("configures the codemode tool override, header, editor, and thinking renderer", () => {
       const { triggerStart } = setupHarness();
       const { ctx, ui } = makeCtx(true);
 
       triggerStart(ctx);
-
-      // Bash tool override
-      expect(registerBashToolOverride).toHaveBeenCalledWith(expect.anything(), "/workspace/test-project");
 
       // Codemode tool override (fire-and-forget)
       expect(registerCodemodeToolOverride).toHaveBeenCalledWith(expect.anything());
@@ -377,8 +372,8 @@ describe("packages/ui lifecycle and registration", () => {
       patchNotify("patch skipped");
       expect(ui.notify).toHaveBeenCalledWith("patch skipped", "warning");
 
-      // Master gate (default toolStyle is Minimal): both overrides registered
-      expect(registerBashToolOverride).toHaveBeenCalled();
+      // Master gate (default toolStyle is Minimal): the codemode override is
+      // registered and the bash row is ours.
       expect(registerCodemodeToolOverride).toHaveBeenCalled();
     });
 
@@ -393,9 +388,9 @@ describe("packages/ui lifecycle and registration", () => {
 
       triggerStart(ctx);
 
-      // Native = no archimedes tool styling: neither override is registered
-      // (pi's native rendering stands, no built-in-takeover notice).
-      expect(registerBashToolOverride).not.toHaveBeenCalled();
+      // Native = no archimedes tool styling: the codemode override is not
+      // registered and the bash resolver defers (pi's native rendering stands,
+      // no built-in-takeover notice).
       expect(registerCodemodeToolOverride).not.toHaveBeenCalled();
       // The rest of the UI still comes up.
       expect(ui.setHeader).toHaveBeenCalledTimes(1);
@@ -416,18 +411,22 @@ describe("packages/ui lifecycle and registration", () => {
       expect(ui.setEditorComponent).not.toHaveBeenCalled();
     });
 
-    it("skips bashToolOverride when bashToolStyling is false", () => {
+    it("registers no bash tool and yields pi's native row when bashToolStyling is false", () => {
       vi.mocked(loadUIConfig).mockReturnValue({
         ...DEFAULT_UI_CONFIG,
         bashToolStyling: false,
       });
 
-      const { triggerStart } = setupHarness();
+      const { pi, renderers, triggerStart } = setupHarness();
       const { ctx } = makeCtx(true);
 
       triggerStart(ctx);
 
-      expect(registerBashToolOverride).not.toHaveBeenCalled();
+      // The take-over is gone: nothing re-registers `bash`, and the resolver
+      // hands the row back through `next()` — the first time this setting can
+      // genuinely give back pi's own rendering.
+      expect(pi.registerTool).not.toHaveBeenCalled();
+      expect(resolve(renderers[0], "bash")).toEqual({ result: NATIVE, nextCalls: 1 });
     });
 
     it("skips the codemode tool override when codemodeToolStyling is false", () => {
@@ -481,13 +480,13 @@ describe("packages/ui lifecycle and registration", () => {
   });
 
   describe("session_start in non-interactive mode (hasUI: false)", () => {
-    it("still registers bashToolOverride but skips UI setup", () => {
-      const { triggerStart } = setupHarness();
+    it("registers no tool and skips UI setup", () => {
+      const { pi, triggerStart } = setupHarness();
       const { ctx, ui } = makeCtx(false);
 
       triggerStart(ctx);
 
-      expect(registerBashToolOverride).toHaveBeenCalledWith(expect.anything(), "/workspace/test-project");
+      expect(pi.registerTool).not.toHaveBeenCalled();
       expect(ui.setHeader).not.toHaveBeenCalled();
       expect(ui.setEditorComponent).not.toHaveBeenCalled();
       expect(patchThinkingRenderer).not.toHaveBeenCalled();

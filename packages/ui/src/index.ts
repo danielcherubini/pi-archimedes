@@ -38,7 +38,7 @@ import { screenCapabilities, screenMode } from "@pi-archimedes/core/screen-mode"
 import { reportPiSupport } from "@pi-archimedes/core/pi-support";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
-import { registerBashToolOverride, clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
+import { clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
 import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 
 // Re-exports
@@ -162,25 +162,17 @@ export function registerUI(pi: ExtensionAPI): void {
     const minimal = toolStyle === "Minimal";
 
     // What the resolver answers with for this session (see `styledTools`).
+    // `Minimal` = archimedes tool styling (the per-tool toggles fine-tune it);
+    // `Native` = none of it, so pi's own rows stand everywhere.
     styledTools = { bash: minimal && config.bashToolStyling !== false };
 
-    // Master gate: `Minimal` = archimedes tool styling (the per-tool
-    // toggles fine-tune it); `Native` = no archimedes tool styling at all
-    // — the overrides are not registered, so pi's native tool rendering
-    // stands (and no built-in-takeover startup notice).
-    if (toolStyle === "Minimal") {
-      if (config.bashToolStyling !== false) {
-        registerBashToolOverride(pi, ctx.cwd);
-      }
-
-      // The codemode override replaces pi's built-in codemode extension
-      // (the same take-over the bash override does for the core bash
-      // tool). It loads the native definition from the running CLI and
-      // swaps in the Archimedes renderers; it is a no-op on pi versions
-      // without the codemode extension.
-      if (config.codemodeToolStyling !== false) {
-        void registerCodemodeToolOverride(pi);
-      }
+    // The codemode override replaces pi's built-in codemode extension
+    // (the same take-over the bash override used to do for the core bash
+    // tool). It loads the native definition from the running CLI and
+    // swaps in the Archimedes renderers; it is a no-op on pi versions
+    // without the codemode extension.
+    if (toolStyle === "Minimal" && config.codemodeToolStyling !== false) {
+      void registerCodemodeToolOverride(pi);
     }
 
     if (ctx.hasUI) {

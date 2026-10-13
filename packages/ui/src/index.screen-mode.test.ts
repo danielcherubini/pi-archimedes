@@ -72,7 +72,8 @@ vi.mock("./migration.js", () => ({
 }));
 
 vi.mock("./bash/index.js", () => ({
-  registerBashToolOverride: vi.fn(),
+  renderBashCall: vi.fn(),
+  renderBashResult: vi.fn(),
   clearActiveBashIntervals: vi.fn(),
 }));
 

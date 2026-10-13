@@ -7,4 +7,3 @@ export {
   TruncatedTextComponent,
   type BashRendererState,
 } from "./renderer.js";
-export { registerBashToolOverride } from "./tool.js";
