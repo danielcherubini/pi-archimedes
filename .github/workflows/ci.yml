@@ -5,11 +5,26 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # pi does not follow semver — its policy is "patch = fixes + additions,
+  # minor = breaking changes, no major releases" — so breakage arrives without
+  # a warning we can encode in a range. Peer ranges are no use either: `pi
+  # install` omits peers and the loader aliases the host packages, so a range is
+  # never installed, solved, or parsed. A scheduled type-check against
+  # pi@latest is the only drift detector available, and it has to be on a
+  # schedule: a float job that only runs on PRs stays green while nobody
+  # touches the repo.
+  schedule:
+    # 06:17 UTC daily — an odd minute avoids the scheduled-run queue pileup.
+    # GitHub only fires `schedule` on the default branch.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # The floor job: our declared dependency versions, frozen lockfile, full
+  # suite. Red here means our own tree stopped compiling or stopped working.
   typecheck:
     runs-on: ubuntu-latest
     steps:
@@ -29,3 +44,35 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # The drift detector: same compile surface against whatever pi publishes
+  # today. Red here means pi changed something under us, not that our tree is
+  # broken — so it runs only on the schedule and on demand, never on a PR,
+  # where an upstream change would turn every open PR red for a reason the
+  # author cannot fix.
+  pi-latest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # pnpm enforces a 24h minimum release age by default, which rejects a pi
+      # release for its first day — exactly the window this job exists to cover.
+      # The floor job keeps the policy; only the float job relaxes it, and a
+      # floating version cannot be exempted via minimumReleaseAgeExclude, which
+      # pins exact versions. The flag must go on `update` as well as `install`:
+      # a flagless update silently resolves the *previous* release and exits 0,
+      # which would leave this job green against yesterday's pi.
+      - run: pnpm install --config.minimum-release-age=0
+
+      - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest" --config.minimum-release-age=0
+
+      - name: Type-check all packages against pi@latest
+        run: pnpm -r exec -- tsc --noEmit
