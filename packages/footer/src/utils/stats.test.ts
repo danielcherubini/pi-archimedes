@@ -85,7 +85,7 @@ function makeCompactionEntry(id: string, usage?: MessageUsage): SessionEntry {
 
 function makeCtx(entries: SessionEntry[], contextUsage?: { contextWindow?: number; percent?: number }, modelContextWindow?: number): any {
   return {
-    sessionManager: { getEntries: () => entries },
+    sessionManager: { getEntries: () => entries, getSessionId: () => "session-1", getLeafId: () => entries.at(-1)?.id ?? null },
     getContextUsage: () => contextUsage,
     model: modelContextWindow ? { contextWindow: modelContextWindow } : undefined,
   };
@@ -366,11 +366,13 @@ describe("getTokenUsageStats", () => {
 
 describe("getContextWindowInfo", () => {
   let getContextWindowInfo: typeof import("./stats.js").getContextWindowInfo;
+  let resetStatsState: typeof import("./stats.js").resetStatsState;
 
   async function loadModule() {
     vi.resetModules();
     const mod = await import("./stats.js");
     getContextWindowInfo = mod.getContextWindowInfo;
+    resetStatsState = mod.resetStatsState;
   }
 
   it("computes percentage correctly", async () => {
@@ -404,5 +406,37 @@ describe("getContextWindowInfo", () => {
     expect(result.percent).toBe("?");
     expect(result.percentValue).toBe(10);
     expect(result.windowSize).toBe(10000);
+  });
+
+  it("reuses context usage until the session moves", async () => {
+    await loadModule();
+    const entries = [makeAssistantEntry({ input: 500, output: 500, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } })];
+    const ctx = makeCtx(entries, { contextWindow: 10000, percent: 10 });
+    const getContextUsageSpy = vi.spyOn(ctx, "getContextUsage");
+
+    getContextWindowInfo(ctx);
+    getContextWindowInfo(ctx);
+    expect(getContextUsageSpy).toHaveBeenCalledTimes(1);
+
+    entries.push(makeAssistantEntry({ input: 100, output: 100, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }));
+    getContextWindowInfo(ctx);
+    expect(getContextUsageSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // Each key alone must invalidate: same entry count, new usage -> new percent
+  it.each([
+    ["session", (ctx: any) => { ctx.sessionManager.getSessionId = () => "session-2"; }],
+    ["leaf (same entry count)", (ctx: any) => { ctx.sessionManager.getLeafId = () => "other-leaf"; }],
+    ["model", (ctx: any) => { ctx.model = { contextWindow: 10000 }; }],
+    ["reset", () => resetStatsState()],
+  ])("recomputes context usage after a %s change", async (_change, applyChange) => {
+    await loadModule();
+    const ctx = makeCtx([makeAssistantEntry({ input: 500, output: 500, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } })], { contextWindow: 10000, percent: 10 });
+    expect(getContextWindowInfo(ctx).percentValue).toBe(10);
+
+    ctx.getContextUsage = () => ({ contextWindow: 10000, percent: 25 });
+    expect(getContextWindowInfo(ctx).percentValue).toBe(10); // cached
+    applyChange(ctx);
+    expect(getContextWindowInfo(ctx).percentValue).toBe(25);
   });
 });
