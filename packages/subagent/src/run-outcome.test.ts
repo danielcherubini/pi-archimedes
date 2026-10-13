@@ -36,6 +36,20 @@ describe("decideRunOutcome", () => {
     expect(decideRunOutcome({ ...killed, signal: "SIGINT" })).toBe("aborted");
   });
 
+  it("aborted: pi's own signal handlers exit 143/129 instead of dying by the signal", () => {
+    // Observed against a real 1.2.0 child SIGTERM'd mid-run: `close` reported
+    // code 143 and NO signal, because print mode catches SIGTERM/SIGHUP and
+    // calls process.exit(143)/process.exit(129) itself
+    // (`dist/modes/print-mode.js`, registerSignalHandlers). Reading only
+    // `signal` would call a cancellation a failure.
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 143 })).toBe("aborted");
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 129 })).toBe("aborted");
+    // A completed last response does not make a cancelled child un-cancelled.
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 143, stopReason: "stop" })).toBe("aborted");
+    // And it outranks the shapes a cancellation can leave behind on the way out.
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 143, stopReason: "error" })).toBe("aborted");
+  });
+
   it("failed: the child's last response errored, whatever the exit code says", () => {
     expect(decideRunOutcome({ ...SETTLED, stopReason: "error", exitCode: 1 })).toBe("failed");
     expect(decideRunOutcome({ ...SETTLED, stopReason: "error", exitCode: 0 })).toBe("failed");
@@ -44,6 +58,10 @@ describe("decideRunOutcome", () => {
   it("failed: a nonzero exit with no run behind it", () => {
     expect(decideRunOutcome({ ...SETTLED, exitCode: 1 })).toBe("failed");
     expect(decideRunOutcome({ ...SETTLED, exitCode: 2 })).toBe("failed");
+    // 130 (SIGINT) is NOT one of pi's handler exits — SIGINT is uncaught, so it
+    // arrives as a signal death above; anything else stays a failure.
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 130 })).toBe("failed");
+    expect(decideRunOutcome({ ...SETTLED, exitCode: 137 })).toBe("failed");
   });
 
   it("failed: a crash on an unexpected signal is not someone cancelling", () => {

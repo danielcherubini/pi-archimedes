@@ -298,6 +298,24 @@ describe("dispatch: the result the model reads carries the run outcome", () => {
     expect(result.content[0]!.text).toContain("boom");
   });
 
+  it("reports a failed run that exited 0 as an error too", async () => {
+    // The exit code cannot be the trigger: `--mode json` — what the child runs —
+    // never maps `stopReason` onto it (that mapping is print mode's text branch),
+    // so a child whose last response errored exits 0. Keying `isError` off the
+    // code reported a provider failure to the model as a success.
+    discoverAgents.mockReturnValue([]);
+    executeSubagent.mockResolvedValue({
+      ...okResult,
+      outcome: undefined,
+      exitCode: 0,
+      finalOutput: undefined,
+      error: '401 unauthorized',
+    });
+    const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain("401");
+  });
+
   it("says nothing extra for a completed run", async () => {
     discoverAgents.mockReturnValue([]);
     const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());

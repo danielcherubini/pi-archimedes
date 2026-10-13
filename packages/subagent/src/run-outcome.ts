@@ -20,7 +20,8 @@ import type { RunOutcome } from "./types.js";
 // |-------------------------------------------------------------|-------------|
 // | `agent_settled.aborted: true`                               | aborted     |
 // | last assistant `stopReason: "aborted"`                      | aborted     |
-// | killed by a cancellation signal (SIGTERM/SIGKILL/SIGHUP/SIGINT) | aborted |
+// | killed by a cancellation signal (SIGKILL/SIGINT — uncaught) | aborted     |
+// | exit 143 / 129 (pi caught SIGTERM / SIGHUP and exited)      | aborted     |
 // | last assistant `stopReason: "error"`                        | failed      |
 // | any other nonzero exit                                      | failed      |
 // | killed by an unexpected signal (SIGSEGV, …)                 | failed      |
@@ -32,6 +33,19 @@ import type { RunOutcome } from "./types.js";
 
 /** Signals that mean "someone cancelled this run", as opposed to "it broke". */
 const CANCELLATION_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGHUP", "SIGINT"]);
+
+/**
+ * The same cancellation, arriving as an exit code instead of a signal.
+ *
+ * print mode catches SIGTERM (and SIGHUP on non-Windows) and exits by itself —
+ * `process.exit(signal === "SIGHUP" ? 129 : 143)`
+ * (`pi-coding-agent/dist/modes/print-mode.js`, `registerSignalHandlers`) — so a
+ * real SIGTERM'd child closes with code 143 and **no** signal, which the table
+ * would otherwise read as an ordinary failure. Verified against a live 1.2.0
+ * child killed mid-run. SIGINT is not caught, so it still arrives as a signal
+ * death; SIGKILL cannot be caught at all. Hence exactly these two codes.
+ */
+const CANCELLATION_EXIT_CODES = new Set([143, 129]);
 
 export interface RunOutcomeInput {
   /** `agent_settled.aborted` seen on the child's event stream. */
@@ -57,6 +71,7 @@ export function decideRunOutcome(input: RunOutcomeInput): RunOutcome | "failed" 
   if (input.exitCode === null) {
     return CANCELLATION_SIGNALS.has(input.signal ?? "") ? "aborted" : "failed";
   }
+  if (CANCELLATION_EXIT_CODES.has(input.exitCode)) return "aborted";
   if (input.stopReason === "error") return "failed";
   if (input.stopReason === "length") return "truncated";
   if (input.exitCode !== 0) return "failed";

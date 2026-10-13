@@ -234,6 +234,13 @@ export function streamEvents(
         const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
         if (stderr) error = stderr;
         else if (code === null) error = `subagent terminated by ${signal ?? "a signal"}`;
+        // A json child that errored leaves nothing behind to read: the exit code
+        // stays 0 (the stopReason→code mapping is print mode's text branch) and
+        // stderr is clean, which used to make a failed run byte-identical to a
+        // successful one at this boundary. A failed run always says why.
+        else if (state.lastStopReason === "error")
+          error = 'subagent failed: the child\u2019s last response ended with stopReason "error"';
+        else error = `subagent failed with exit code ${code ?? "null"}`;
       }
 
       const result: SubagentResult = {

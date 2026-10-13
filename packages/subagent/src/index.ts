@@ -232,8 +232,12 @@ export function registerSubagent(pi: ExtensionAPI): void {
           },
           // Only a *failed* run is a tool error. A truncated answer and a
           // cancelled one both produced something, and `isError` is how the model
-          // and the Client decide to retry or give up (ADR 0028).
-          isError: result.outcome === undefined && result.exitCode !== 0,
+          // and the Client decide to retry or give up (ADR 0028). `error` is the
+          // predicate because the exit code is not one — a json child exits 0 for
+          // an errored run — and `stream.ts` guarantees a failed run always
+          // carries an explanation while a completed/truncated/aborted one never
+          // does.
+          isError: result.error !== undefined,
         };
       }
 

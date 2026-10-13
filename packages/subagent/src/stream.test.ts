@@ -451,6 +451,17 @@ describe("streamEvents run outcomes", () => {
     expect(result.error).toBeUndefined();
   });
 
+  it("a real SIGTERM'd child exits 143 with no signal and no settle event, and is still `aborted`", async () => {
+    // The shape a live 1.2.0 child actually produces when the parent's abort
+    // handler SIGTERMs it: print mode catches the signal and `process.exit(143)`,
+    // so there is no `signal`, and the process dies before it can emit
+    // `agent_settled`. Whatever it had printed to stderr (here, an unrelated
+    // provider warning) must not be promoted to an error.
+    const result = await finishChild([assistantMessage("stop")], [143], "LiteLLM discovery: warning");
+    expect(result.outcome).toBe("aborted");
+    expect(result.error).toBeUndefined();
+  });
+
   it("an assistant message aborted at the provider is `aborted` even with no settle event", async () => {
     const result = await finishChild([assistantMessage("aborted")], [0]);
     expect(result.outcome).toBe("aborted");
@@ -470,6 +481,19 @@ describe("streamEvents run outcomes", () => {
     const result = await finishChild([], [2], "unknown flag --nope");
     expect(result.outcome).toBeUndefined();
     expect(result.error).toContain("unknown flag");
+  });
+
+  it("a failed run always says why, even on a clean exit with empty stderr", async () => {
+    // The shape a json child produces when the provider errors mid-run: the last
+    // assistant message ends `stopReason: "error"`, the exit code stays 0 (the
+    // code mapping is print mode's text branch) and stderr is empty. Without a
+    // synthesised explanation this is indistinguishable from a successful run.
+    const result = await finishChild(
+      [assistantMessage("error"), { type: "agent_settled", aborted: false }],
+      [0],
+    );
+    expect(result.outcome).toBeUndefined();
+    expect(result.error).toMatch(/stopReason|failed/i);
   });
 
   it("a crash on an unexpected signal is a failure, not a cancellation", async () => {
