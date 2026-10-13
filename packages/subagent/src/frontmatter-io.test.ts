@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { validateAgentName, serializeAgent, AGENT_NAME_REGEX } from "./frontmatter-io.js";
+// Imported here rather than inside the tests below: nothing in this file mocks
+// `parseFrontmatter`, so a dynamic `await import()` in a test body only served
+// to charge whichever test ran first with loading the whole pi-coding-agent
+// package — measured at 2.6s alone, 6-7.8s on a loaded machine, against a 5s
+// per-test timeout. That is the "Test timed out in 5000ms" flake, and it lands
+// on collection instead, where no test budget is spent.
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import type { AgentConfig } from "./agents.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -131,8 +138,7 @@ describe("serializeAgent: mcp opt-in", () => {
     expect(serializeAgent(makeAgent({ tools: ["read"], mcp: false }))).not.toContain("mcp:");
   });
 
-  it("survives a write → read round trip as a real boolean, not a string", async () => {
-    const { parseFrontmatter } = await import("@earendil-works/pi-coding-agent");
+  it("survives a write → read round trip as a real boolean, not a string", () => {
     const output = serializeAgent(makeAgent({ tools: ["read", "bash"], mcp: true }));
     const { frontmatter } = parseFrontmatter(output);
     expect(frontmatter.mcp).toBe(true);
@@ -155,8 +161,7 @@ describe("serializeAgent: never writes two tools keys", () => {
   const toolsKeys = (yaml: string): string[] =>
     yaml.split("\n").filter((line) => /^tools:/.test(line));
 
-  it("writes the real field and drops the preserved raw value when both exist", async () => {
-    const { parseFrontmatter } = await import("@earendil-works/pi-coding-agent");
+  it("writes the real field and drops the preserved raw value when both exist", () => {
     const output = serializeAgent(
       makeAgent({ tools: ["read"], extraFields: { tools: "read, +web_search", owner: "x" } }),
     );
