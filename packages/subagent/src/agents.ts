@@ -46,7 +46,9 @@ export interface AgentConfig {
    * to "no allowlist" would hand the child a *wider* tool set than the config
    * asked for. Dispatch refuses such an agent (naming the entry and the file),
    * and the `/agents` panel and `list_agents` report it. The raw value stays in
-   * `extraFields.tools` so saving the agent does not silently delete the line.
+   * `extraFields.tools` so saving the agent does not silently delete the line; a
+   * list committed through `applyToolEntries` retires both the raw value and this
+   * error, so the fix actually reaches the file.
    */
   toolsError?: string;
   // Extra fields preserved from frontmatter but not editable in TUI

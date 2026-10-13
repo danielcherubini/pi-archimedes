@@ -145,6 +145,55 @@ describe("applyToolEntries (the edit-site half: reject leaves the previous value
   });
 });
 
+describe("applyToolEntries: a commit replaces the rejected value it is superseding", () => {
+  // The config read keeps an unreadable `tools:` in `extraFields` so that saving
+  // an agent cannot silently delete the line the user typed (`agents.ts`). That
+  // promise is to the *rejected* value. Once the panel commits a list, the old
+  // raw value has to go with the rejection: `serializeAgent` writes `tools` and
+  // then every extra field, so a surviving `extraFields.tools` puts a SECOND
+  // `tools:` key in the file (or the only one, when the list was cleared) and the
+  // agent comes back broken after a reload.
+  const rejected = () =>
+    makeAgent({
+      toolsError:
+        'Agent "reviewer" has a tools entry starting with "+" (in /tmp/agents/reviewer.md): "+web_search".',
+      extraFields: { tools: "read, +web_search", owner: "someone" },
+    });
+
+  it("drops the preserved raw value when a valid list is committed", () => {
+    const agent = rejected();
+    expect(applyToolEntries(agent, ["read"], CTX)).toBeNull();
+    expect(agent.tools).toEqual(["read"]);
+    expect(agent.extraFields ?? {}).not.toHaveProperty("tools");
+    // Only the superseded value goes; unrelated extras stay.
+    expect(agent.extraFields?.owner).toBe("someone");
+  });
+
+  it("drops the preserved raw value when the allowlist is cleared", () => {
+    // Clearing is the case that used to look like success and change nothing:
+    // `tools` was deleted, the raw value stayed, and the writer put the broken
+    // line straight back.
+    const agent = rejected();
+    expect(applyToolEntries(agent, [], CTX)).toBeNull();
+    expect(agent.tools).toBeUndefined();
+    expect(agent.extraFields ?? {}).not.toHaveProperty("tools");
+  });
+
+  it("clears the stale rejection so the agent dispatches again in this session", () => {
+    const agent = rejected();
+    expect(applyToolEntries(agent, ["read"], CTX)).toBeNull();
+    expect(agent.toolsError).toBeUndefined();
+  });
+
+  it("a REFUSED commit destroys neither the list, the raw value, nor the rejection", () => {
+    const agent = rejected();
+    expect(applyToolEntries(agent, ["read", "+x"], CTX)).toBeTruthy();
+    expect(agent.tools).toBeUndefined();
+    expect(agent.extraFields?.tools).toBe("read, +web_search");
+    expect(agent.toolsError).toBeTruthy();
+  });
+});
+
 describe("unknownToolEntries (membership, asked at dispatch)", () => {
   const KNOWN = ["read", "bash", "mcp__radius__query"];
 

@@ -65,8 +65,12 @@ export function serializeAgent(config: AgentConfig): string {
   lines.push(`description: ${quoteYamlValue(config.description)}`);
 
   // Optional known fields
-  if (config.tools && config.tools.length > 0) {
-    lines.push(`tools: ${quoteYamlValue(config.tools.join(", "))}`);
+  const toolsLine =
+    config.tools && config.tools.length > 0
+      ? `tools: ${quoteYamlValue(config.tools.join(", "))}`
+      : undefined;
+  if (toolsLine !== undefined) {
+    lines.push(toolsLine);
   }
   // Only the opt-in is written: a closed allowlist is the default, so the
   // absence of the key is the meaningful statement (ADR 0028).
@@ -83,6 +87,11 @@ export function serializeAgent(config: AgentConfig): string {
   // Extra fields (sorted alphabetically)
   if (config.extraFields) {
     for (const key of Object.keys(config.extraFields).sort()) {
+      // `extraFields.tools` is the read path's copy of a `tools:` line it could
+      // not read, kept so a save cannot delete it. It only gets to speak for
+      // `tools:` when there is no parsed list to speak for it — otherwise this
+      // loop writes a second `tools:` key and the later one wins on reload.
+      if (key === "tools" && toolsLine !== undefined) continue;
       const value = config.extraFields[key]!;
       if (typeof value === "string") {
         lines.push(`${key}: ${quoteYamlValue(value)}`);

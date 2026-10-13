@@ -169,6 +169,14 @@ export function validateToolEntries(
  * The edit-site half of the rule: a rejected value leaves `agent.tools` exactly
  * as it was — a half-applied list is what a user would otherwise hand to a child
  * without noticing. Returns the error message, or `null` when it applied.
+ *
+ * A commit also settles the two pieces of state that describe the list it is
+ * replacing. The config read keeps an unreadable `tools:` in `extraFields` so a
+ * save cannot delete the user's line, and records `toolsError` so dispatch and
+ * the panel refuse the agent; both are claims about the *old* value, and
+ * `serializeAgent` writes `tools` and every extra field — so leaving them
+ * behind puts a second (or, after a clear, the only) `tools:` key back in the
+ * file and the agent reads as broken again after a reload.
  */
 export function applyToolEntries(
   agent: AgentConfig,
@@ -187,6 +195,11 @@ export function applyToolEntries(
     agent.tools = [...normalized];
   } else {
     delete agent.tools;
+  }
+  delete agent.toolsError;
+  if (agent.extraFields) {
+    delete agent.extraFields.tools;
+    if (Object.keys(agent.extraFields).length === 0) delete agent.extraFields;
   }
   return null;
 }
