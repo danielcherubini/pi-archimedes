@@ -20,6 +20,7 @@ const theme = { fg: (_token: string, text: string) => text, bold: (text: string)
 
 const ENTER = "\r";
 const DOWN = "\x1b[B";
+const ESCAPE = "\x1b";
 const SPACE = " ";
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -119,6 +120,31 @@ describe("/agents tool picker: lexical entries are refused at commit", () => {
     const lines = drawn(panel);
     expect(rowContaining(lines, "Error:")).toBeUndefined();
     expect(rowContaining(lines, "tools: (not set)")).toBeTruthy();
+  });
+
+  it("discarding after a commit leaves the original agent's preserved line intact", () => {
+    // The edit copy is `{ ...agent }`, so `extraFields` is shared with the
+    // original until something copies it. A commit that deleted the preserved
+    // raw `tools` value in place therefore deleted it from the ORIGINAL agent as
+    // well: commit, then discard, and the agent's own record no longer carried
+    // the line the config read promised to keep — so the next save wrote no
+    // `tools:` key and the allowlist vanished from the file.
+    const broken = makeAgent({
+      extraFields: { tools: "read, +web_search" },
+    });
+    delete broken.tools; // the read path leaves no allowlist in force
+    broken.toolsError = 'Agent "reviewer" has a tools entry starting with "+": "+web_search".';
+    const panel = makePanel([broken], [{ name: "read", description: "read" }]);
+    openToolPicker(panel);
+    panel.handleInput(SPACE); // select read on top of the rejected config's empty set
+    panel.handleInput(ENTER); // commit (marks the edit dirty)
+    panel.handleInput(ESCAPE); // escape a dirty edit → discard prompt
+    panel.handleInput("y"); // discard
+    panel.handleInput(ESCAPE); // back to the detail screen
+    const lines = drawn(panel);
+    expect(rowContaining(lines, "tools: read, +web_search")).toBeTruthy();
+    // And the rejection it belongs to, since this agent is unchanged on disk.
+    expect(lines.some((l) => l.includes('"+web_search"'))).toBe(true);
   });
 });
 

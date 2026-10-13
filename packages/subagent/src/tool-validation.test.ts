@@ -192,6 +192,29 @@ describe("applyToolEntries: a commit replaces the rejected value it is supersedi
     expect(agent.extraFields?.tools).toBe("read, +web_search");
     expect(agent.toolsError).toBeTruthy();
   });
+
+  it("never mutates the extraFields object it was handed", () => {
+    // `/agents` builds its edit copy with `{ ...agent }` (`agent-panel.ts`), so
+    // `extraFields` is ONE object shared with `state.editOriginal` and with the
+    // discovered agent. Deleting a key in place therefore discards the preserved
+    // raw value from the *original* too: commit, then discard the edit, and the
+    // next save writes no `tools:` line at all — the allowlist disappears from
+    // the file without the user asking. Copy instead.
+    const shared = { tools: "read, +web_search", owner: "someone" };
+    const agent = makeAgent({ extraFields: shared });
+    expect(applyToolEntries(agent, ["read"], CTX)).toBeNull();
+    expect(shared.tools).toBe("read, +web_search");
+    expect(agent.extraFields).not.toBe(shared);
+    expect(agent.extraFields?.owner).toBe("someone");
+  });
+
+  it("drops the whole extraFields object when tools was the only field", () => {
+    // An empty record would otherwise render as an empty "extra fields" section
+    // and be re-written as nothing at all.
+    const agent = makeAgent({ extraFields: { tools: "read, +x" } });
+    expect(applyToolEntries(agent, ["read"], CTX)).toBeNull();
+    expect(agent.extraFields).toBeUndefined();
+  });
 });
 
 describe("unknownToolEntries (membership, asked at dispatch)", () => {

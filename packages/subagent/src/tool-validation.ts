@@ -197,9 +197,16 @@ export function applyToolEntries(
     delete agent.tools;
   }
   delete agent.toolsError;
-  if (agent.extraFields) {
-    delete agent.extraFields.tools;
-    if (Object.keys(agent.extraFields).length === 0) delete agent.extraFields;
+  // Copy, never mutate in place: `/agents` builds its edit copy with
+  // `{ ...agent }`, so `extraFields` is one object shared with `editOriginal`
+  // and the discovered agent. Deleting the key there would erase the preserved
+  // raw value from the original too, so a commit followed by a discard would
+  // save the agent with no `tools:` line at all.
+  if (agent.extraFields && "tools" in agent.extraFields) {
+    const rest: Record<string, unknown> = { ...agent.extraFields };
+    delete rest.tools;
+    if (Object.keys(rest).length > 0) agent.extraFields = rest;
+    else delete agent.extraFields;
   }
   return null;
 }
