@@ -85,6 +85,7 @@ interface UiSpies {
   setHeader: ReturnType<typeof vi.fn>;
   setEditorComponent: ReturnType<typeof vi.fn>;
   setWorkingVisible: ReturnType<typeof vi.fn>;
+  setWorkingIndicator: ReturnType<typeof vi.fn>;
   notify: ReturnType<typeof vi.fn>;
   setHiddenThinkingLabel: ReturnType<typeof vi.fn>;
 }
@@ -94,6 +95,7 @@ function makeCtx(hasUI = true): { ctx: ExtensionContext; ui: UiSpies } {
     setHeader: vi.fn(),
     setEditorComponent: vi.fn(),
     setWorkingVisible: vi.fn(),
+    setWorkingIndicator: vi.fn(),
     notify: vi.fn(),
     setHiddenThinkingLabel: vi.fn(),
   };
@@ -355,8 +357,11 @@ describe("packages/ui lifecycle and registration", () => {
       expect(renderHeader).toHaveBeenCalledWith(fakeTheme, expect.any(Object), 80, 21);
       expect(patchStartupListing).toHaveBeenCalledWith(fakeTui, expect.any(Object));
 
-      // Working visibility and Editor component
-      expect(ui.setWorkingVisible).toHaveBeenCalledWith(false); // spinFlag is true by default
+      // Working indicator and Editor component. The border spinner replaces
+      // pi's animated indicator, but pi's working row stays on screen: the row
+      // is asked for no frames rather than hidden wholesale.
+      expect(ui.setWorkingIndicator).toHaveBeenCalledWith({ frames: [] });
+      expect(ui.setWorkingVisible).not.toHaveBeenCalledWith(false);
       expect(ui.setEditorComponent).toHaveBeenCalledTimes(1);
       const editorFactory = ui.setEditorComponent.mock.calls[0]![0];
       const editorInstance = editorFactory(fakeTui, { borderColor: (s: string) => s } as EditorTheme, {} as KeybindingsManager);
@@ -406,7 +411,7 @@ describe("packages/ui lifecycle and registration", () => {
       expect(ui.setHeader).toHaveBeenCalledTimes(1);
     });
 
-    it("respects editorSpinBorder: false by leaving workingVisible=true and not installing editor component", () => {
+    it("respects editorSpinBorder: false by leaving pi's indicator running and installing no editor component", () => {
       vi.mocked(loadUIConfig).mockReturnValue({
         ...DEFAULT_UI_CONFIG,
         editorSpinBorder: false,
@@ -417,8 +422,53 @@ describe("packages/ui lifecycle and registration", () => {
 
       triggerStart(ctx);
 
-      expect(ui.setWorkingVisible).toHaveBeenCalledWith(true);
+      // No border spinner, so pi's own animated spinner comes back (omitting the
+      // argument is how pi restores the default frames).
+      expect(ui.setWorkingIndicator).toHaveBeenCalledWith(undefined);
+      expect(ui.setWorkingVisible).not.toHaveBeenCalledWith(false);
       expect(ui.setEditorComponent).not.toHaveBeenCalled();
+    });
+
+    it("puts the configured thinking label on hidden blocks through pi", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        labelText: "Pondering...",
+      });
+
+      const { triggerStart } = setupHarness();
+      const { ctx, ui } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      // The hidden row is pi's own (`AssistantMessageComponent` reads the label
+      // pi was given), so the setting is handed to pi rather than rebuilt here.
+      expect(ui.setHiddenThinkingLabel).toHaveBeenCalledWith("Pondering...");
+    });
+
+    it("hands the hidden-thinking label back to pi when the setting is empty", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        labelText: "   ",
+      });
+
+      const { triggerStart } = setupHarness();
+      const { ctx, ui } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      expect(ui.setHiddenThinkingLabel).toHaveBeenCalledWith(undefined);
+    });
+
+    it("gives the working row and the thinking label back to pi on shutdown", () => {
+      const { triggerStart, triggerShutdown } = setupHarness();
+      const { ctx, ui } = makeCtx(true);
+
+      triggerStart(ctx);
+      triggerShutdown(ctx);
+
+      expect(ui.setWorkingIndicator).toHaveBeenLastCalledWith(undefined);
+      expect(ui.setHiddenThinkingLabel).toHaveBeenLastCalledWith(undefined);
+      expect(ui.setWorkingVisible).toHaveBeenLastCalledWith(true);
     });
 
     it("registers no bash tool and yields pi's native row when bashToolStyling is false", () => {
@@ -589,8 +639,8 @@ describe("packages/ui lifecycle and registration", () => {
 
       triggerStart(ctx);
 
-      // Verify startup
-      expect(ui.setWorkingVisible).toHaveBeenCalledWith(false);
+      // Verify startup: the border spinner took over pi's animated indicator.
+      expect(ui.setWorkingIndicator).toHaveBeenCalledWith({ frames: [] });
 
       // Now trigger shutdown
       triggerShutdown(ctx);

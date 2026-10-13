@@ -142,6 +142,11 @@ export function registerUI(pi: ExtensionAPI): void {
     const targetCtx = ctx?.hasUI ? ctx : uiCtx;
     if (targetCtx?.hasUI) {
       targetCtx.ui.setWorkingVisible(true);
+      // Give back everything the session borrowed: pi's animated indicator and
+      // its own hidden-thinking wording, so a session that starts after this
+      // one (or after `/reload` with the plugin off) sees pi's defaults.
+      targetCtx.ui.setWorkingIndicator(undefined);
+      targetCtx.ui.setHiddenThinkingLabel(undefined);
       targetCtx.ui.setEditorComponent(undefined);
     }
     clearSpinInterval();
@@ -260,7 +265,18 @@ export function registerUI(pi: ExtensionAPI): void {
       }
 
       clearSpinInterval();
-      ctx.ui.setWorkingVisible(!spinFlag);
+      // pi's working row carries an animated indicator by default. When the
+      // border spinner is on, that animation would run twice, so the row is
+      // asked for no frames — it keeps showing what the agent is doing, in
+      // pi's own words, while the border carries the movement. Hiding the row
+      // wholesale (the old `setWorkingVisible(false)`) also took that message
+      // away, and on a `ctrl-o` screen it took the only sign of life.
+      ctx.ui.setWorkingIndicator(spinFlag ? { frames: [] } : undefined);
+
+      // The word a collapsed thinking block shows is pi's own row, so the
+      // setting is handed to pi rather than rebuilt here. An empty setting
+      // hands the label back to pi's default.
+      ctx.ui.setHiddenThinkingLabel(config.labelText.trim() || undefined);
 
       if (spinFlag) {
         // The border spinner lives in the editor frame, not in scrollback, so

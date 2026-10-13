@@ -60,7 +60,7 @@ export function getUISettingsItems(config: UIConfig): SettingItem[] {
     {
       id: "labelText",
       label: "Label Text",
-      description: "Text shown before thinking blocks",
+      description: "Text shown before thinking blocks, and on collapsed ones",
       currentValue: config.labelText,
     },
     {
