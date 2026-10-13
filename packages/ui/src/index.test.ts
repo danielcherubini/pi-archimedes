@@ -74,7 +74,6 @@ vi.mock("./codemode/index.js", async (importOriginal) => {
     await importOriginal<typeof import("./codemode/index.js")>();
   return {
     ...actual,
-    registerCodemodeToolOverride: vi.fn(async () => true),
     clearActiveCodemodeIntervals: vi.fn(),
   };
 });
@@ -93,8 +92,11 @@ import {
   renderBashCall,
   renderBashResult,
 } from "./bash/index.js";
-import { renderCodemodeCall, renderCodemodeResult } from "./codemode/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
+import {
+  clearActiveCodemodeIntervals,
+  renderCodemodeCall,
+  renderCodemodeResult,
+} from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
 import {
@@ -358,14 +360,11 @@ describe("packages/ui lifecycle and registration", () => {
   });
 
   describe("session_start with interactive UI (hasUI: true)", () => {
-    it("configures the codemode tool override, header, editor, and thinking renderer", () => {
-      const { triggerStart } = setupHarness();
+    it("configures the header, editor and thinking renderer", () => {
+      const { renderers, triggerStart } = setupHarness();
       const { ctx, ui } = makeCtx(true);
 
       triggerStart(ctx);
-
-      // Codemode tool override (fire-and-forget)
-      expect(registerCodemodeToolOverride).toHaveBeenCalledWith(expect.anything());
 
       // Header installation
       expect(ui.setHeader).toHaveBeenCalledTimes(1);
@@ -403,26 +402,26 @@ describe("packages/ui lifecycle and registration", () => {
       patchNotify("patch skipped");
       expect(ui.notify).toHaveBeenCalledWith("patch skipped", "warning");
 
-      // Master gate (default toolStyle is Minimal): the codemode override is
-      // registered and the bash row is ours.
-      expect(registerCodemodeToolOverride).toHaveBeenCalled();
+      // Master gate (default toolStyle is Minimal): both rows are ours.
+      expect(resolve(renderers[0], "bash").nextCalls).toBe(0);
+      expect(resolve(renderers[0], "codemode").nextCalls).toBe(0);
     });
 
-    it("skips the tool overrides entirely when toolStyle is Native", () => {
+    it("yields pi's native rows for every tool when toolStyle is Native", () => {
       vi.mocked(loadUIConfig).mockReturnValue({
         ...DEFAULT_UI_CONFIG,
         toolStyle: "Native",
       });
 
-      const { triggerStart } = setupHarness();
+      const { renderers, triggerStart } = setupHarness();
       const { ctx, ui } = makeCtx(true);
 
       triggerStart(ctx);
 
-      // Native = no archimedes tool styling: the codemode override is not
-      // registered and the bash resolver defers (pi's native rendering stands,
-      // no built-in-takeover notice).
-      expect(registerCodemodeToolOverride).not.toHaveBeenCalled();
+      // Native = no archimedes tool styling: both rows go back through
+      // `next()`, so pi's own rendering stands and nothing is taken over.
+      expect(resolve(renderers[0], "bash")).toEqual({ result: NATIVE, nextCalls: 1 });
+      expect(resolve(renderers[0], "codemode")).toEqual({ result: NATIVE, nextCalls: 1 });
       // The rest of the UI still comes up.
       expect(ui.setHeader).toHaveBeenCalledTimes(1);
     });
@@ -466,12 +465,15 @@ describe("packages/ui lifecycle and registration", () => {
         codemodeToolStyling: false,
       });
 
-      const { triggerStart } = setupHarness();
+      const { pi, renderers, triggerStart } = setupHarness();
       const { ctx } = makeCtx(true);
 
       triggerStart(ctx);
 
-      expect(registerCodemodeToolOverride).not.toHaveBeenCalled();
+      // Nothing re-registers `codemode`, so pi's built-in extension stays
+      // loaded; the resolver hands the row to pi's own renderer.
+      expect(pi.registerTool).not.toHaveBeenCalled();
+      expect(resolve(renderers[0], "codemode")).toEqual({ result: NATIVE, nextCalls: 1 });
     });
 
     it("does not accumulate message_end listeners on repeated session_start (simulating /reload)", () => {

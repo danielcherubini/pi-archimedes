@@ -78,7 +78,8 @@ vi.mock("./bash/index.js", () => ({
 }));
 
 vi.mock("./codemode/index.js", () => ({
-  registerCodemodeToolOverride: vi.fn(async () => true),
+  renderCodemodeCall: vi.fn(),
+  renderCodemodeResult: vi.fn(),
   clearActiveCodemodeIntervals: vi.fn(),
 }));
 

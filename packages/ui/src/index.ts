@@ -40,7 +40,6 @@ import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
 import { clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
 import {
-  registerCodemodeToolOverride,
   clearActiveCodemodeIntervals,
   renderCodemodeCall,
   renderCodemodeResult,
@@ -181,15 +180,6 @@ export function registerUI(pi: ExtensionAPI): void {
       bash: minimal && config.bashToolStyling !== false,
       codemode: minimal && config.codemodeToolStyling !== false,
     };
-
-    // The codemode override replaces pi's built-in codemode extension
-    // (the same take-over the bash override used to do for the core bash
-    // tool). It loads the native definition from the running CLI and
-    // swaps in the Archimedes renderers; it is a no-op on pi versions
-    // without the codemode extension.
-    if (toolStyle === "Minimal" && config.codemodeToolStyling !== false) {
-      void registerCodemodeToolOverride(pi);
-    }
 
     if (ctx.hasUI) {
       spinFlag = config.editorSpinBorder;
