@@ -57,10 +57,18 @@ vi.mock("./migration.js", () => ({
   UI_CONFIG_KEYS: [],
 }));
 
-vi.mock("./bash/index.js", () => ({
-  registerBashToolOverride: vi.fn(),
-  clearActiveBashIntervals: vi.fn(),
-}));
+// The renderers stay real: the resolver hands them straight to pi, so the
+// tests can assert on their identity. Only the deleted take-over and the
+// timer sweeper are stubbed.
+vi.mock("./bash/index.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./bash/index.js")>();
+  return {
+    ...actual,
+    registerBashToolOverride: vi.fn(),
+    clearActiveBashIntervals: vi.fn(),
+  };
+});
 
 vi.mock("./codemode/index.js", () => ({
   registerCodemodeToolOverride: vi.fn(async () => true),
@@ -76,7 +84,12 @@ import defaultExport, {
   ANIMATION_STYLES,
 } from "./index.js";
 import { migrateCoreToUIConfig } from "./migration.js";
-import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
+import {
+  registerBashToolOverride,
+  clearActiveBashIntervals,
+  renderBashCall,
+  renderBashResult,
+} from "./bash/index.js";
 import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
@@ -94,6 +107,7 @@ interface UiSpies {
   setEditorComponent: ReturnType<typeof vi.fn>;
   setWorkingVisible: ReturnType<typeof vi.fn>;
   notify: ReturnType<typeof vi.fn>;
+  setHiddenThinkingLabel: ReturnType<typeof vi.fn>;
 }
 
 function makeCtx(hasUI = true): { ctx: ExtensionContext; ui: UiSpies } {
@@ -102,6 +116,7 @@ function makeCtx(hasUI = true): { ctx: ExtensionContext; ui: UiSpies } {
     setEditorComponent: vi.fn(),
     setWorkingVisible: vi.fn(),
     notify: vi.fn(),
+    setHiddenThinkingLabel: vi.fn(),
   };
   const ctx = {
     hasUI,
@@ -114,37 +129,62 @@ function makeCtx(hasUI = true): { ctx: ExtensionContext; ui: UiSpies } {
   return { ctx, ui };
 }
 
+/** Stand-in for what `next()` hands back: pi's own renderers for the tool. */
+const NATIVE = Object.freeze({ native: true });
+
+/** What a resolver resolves for a tool name, and whether it called `next()`. */
+function resolve(
+  resolver: ((name: string, next: () => any) => any) | undefined,
+  toolName: string,
+): { result: unknown; nextCalls: number } {
+  let nextCalls = 0;
+  const result = resolver?.(toolName, () => {
+    nextCalls++;
+    return NATIVE;
+  });
+  return { result, nextCalls };
+}
+
 /** A `pi` handle whose `getSettings()` answers what pi would apply. */
 function makePi(settings: Record<string, unknown> = {}): {
   pi: ExtensionAPI;
   listeners: Record<string, ((event: any, ctx: any) => void)[]>;
+  renderers: ((name: string, next: () => any) => any)[];
 } {
   const listeners: Record<string, ((event: any, ctx: any) => void)[]> = {};
+  const renderers: ((name: string, next: () => any) => any)[] = [];
   const pi = {
     on: vi.fn((event: string, handler: (event: any, ctx: any) => void) => {
       listeners[event] = listeners[event] ?? [];
       listeners[event]!.push(handler);
     }),
     registerTool: vi.fn(),
+    registerToolRenderer: vi.fn(
+      (resolver: (name: string, next: () => any) => any) => {
+        renderers.push(resolver);
+      },
+    ),
     getSettings: vi.fn(() => settings),
   } as unknown as ExtensionAPI;
-  return { pi, listeners };
+  return { pi, listeners, renderers };
 }
 
 function setupHarness(
   settings: Record<string, unknown> = {},
 ): {
   pi: ExtensionAPI;
+  renderers: ((name: string, next: () => any) => any)[];
   triggerStart: (ctx: ExtensionContext) => void;
   triggerShutdown: (ctx: ExtensionContext) => void;
   triggerMessageEnd: (msg: unknown) => void;
 } {
-  const { pi, listeners } = makePi(settings);
+  const { pi, listeners, renderers } = makePi(settings);
 
   registerUI(pi);
 
   return {
     pi,
+    renderers,
     triggerStart: (ctx: ExtensionContext) => {
       for (const h of listeners["session_start"] ?? []) {
         h(null, ctx);
@@ -199,6 +239,92 @@ describe("packages/ui lifecycle and registration", () => {
       expect(console.log.name).toBe("log");
       expect(pi.on).toHaveBeenCalledWith("session_shutdown", expect.any(Function));
       expect(pi.on).toHaveBeenCalledWith("session_start", expect.any(Function));
+    });
+  });
+
+  // ADR 0029: presentation is resolved through `pi.registerToolRenderer()`,
+  // so the styling settings choose between our row and pi's native row inside
+  // one resolver, instead of re-registering the tool.
+  describe("tool renderer resolution", () => {
+    it("resolves bash to the Archimedes renderers when styling is on", () => {
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      expect(renderers.length).toBe(1);
+      const { result, nextCalls } = resolve(renderers[0], "bash");
+      expect(result).toEqual({
+        renderCall: renderBashCall,
+        renderResult: renderBashResult,
+      });
+      expect(nextCalls).toBe(0);
+    });
+
+    it("gives back pi's native bash row when bashToolStyling is off", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        bashToolStyling: false,
+      });
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      const { result, nextCalls } = resolve(renderers[0], "bash");
+      expect(result).toBe(NATIVE);
+      expect(nextCalls).toBe(1);
+    });
+
+    it("gives back pi's native bash row when toolStyle is Native", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        toolStyle: "Native",
+      });
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      expect(resolve(renderers[0], "bash")).toEqual({ result: NATIVE, nextCalls: 1 });
+    });
+
+    it("follows a settings change made between sessions", () => {
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+      expect(resolve(renderers[0], "bash").nextCalls).toBe(0);
+
+      // The user turns bash styling off in `/archimedes` and starts a session.
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        bashToolStyling: false,
+      });
+      triggerStart(ctx);
+
+      expect(resolve(renderers[0], "bash")).toEqual({ result: NATIVE, nextCalls: 1 });
+    });
+
+    it("leaves every other tool to the remaining resolvers", () => {
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      for (const name of ["read", "edit", "write", "grep", "todo"]) {
+        expect(resolve(renderers[0], name)).toEqual({ result: NATIVE, nextCalls: 1 });
+      }
+    });
+
+    it("registers the resolver once even across repeated session_start (/reload)", () => {
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+      triggerStart(ctx);
+
+      expect(renderers.length).toBe(1);
     });
   });
 

@@ -38,7 +38,7 @@ import { screenCapabilities, screenMode } from "@pi-archimedes/core/screen-mode"
 import { reportPiSupport } from "@pi-archimedes/core/pi-support";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
-import { registerBashToolOverride, clearActiveBashIntervals } from "./bash/index.js";
+import { registerBashToolOverride, clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
 import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 
 // Re-exports
@@ -65,11 +65,44 @@ let uiCtx: ExtensionContext | undefined;
 let spinFlag = false;
 let spinInterval: ReturnType<typeof setInterval> | undefined;
 
+/**
+ * Which Archimedes tool rows the current session asks for, refreshed at every
+ * `session_start` and read by the renderer resolver. The resolver itself is
+ * registered once per extension load — pi keeps a list of resolvers per
+ * extension, so registering it from `session_start` would stack a duplicate on
+ * every `/reload` — which means the settings have to be read here rather than
+ * inside the resolver: `renderCall`/`renderResult` run on every frame.
+ */
+let styledTools = { bash: false };
+
 function clearSpinInterval(): void {
   if (spinInterval) {
     clearInterval(spinInterval);
     spinInterval = undefined;
   }
+}
+
+/**
+ * Draw the bash row through pi's renderer resolution (ADR 0029).
+ *
+ * `registerToolRenderer()` was added in pi 1.0.1 precisely for presentation
+ * overrides: it chooses how calls to a tool are drawn without registering the
+ * tool, and `next()` hands the tool to the remaining resolvers and then to
+ * whatever is registered. Off settings therefore give back pi's own row rather
+ * than the previous arrangement — re-registering `bash` from
+ * `createBashToolDefinition()` with our renderers bolted on — which also means
+ * anything pi later adds to that tool cannot be silently dropped by us.
+ */
+function registerToolRenderers(pi: ExtensionAPI): void {
+  // Capability check, not a version wish: on a host without the API there is
+  // nothing to resolve through, and pi's own rows stand in.
+  if (typeof pi.registerToolRenderer !== "function") return;
+
+  pi.registerToolRenderer((toolName, next) => {
+    if (toolName !== "bash") return next();
+    if (!styledTools.bash) return next();
+    return { renderCall: renderBashCall, renderResult: renderBashResult };
+  });
 }
 
 export function registerUI(pi: ExtensionAPI): void {
@@ -80,6 +113,9 @@ export function registerUI(pi: ExtensionAPI): void {
   // withheld on a below-floor host, because a `ui` that registered nothing
   // would make /plugins report an enabled package that did nothing.
   reportPiSupport("ui", "1.2.0");
+
+  // Registered once per extension load, before any session exists (ADR 0029).
+  registerToolRenderers(pi);
 
   // One-time migration of any legacy core config to UI config
   migrateCoreToUIConfig();
@@ -123,6 +159,10 @@ export function registerUI(pi: ExtensionAPI): void {
 
     const config = loadUIConfig();
     const toolStyle = normalizeToolStyle(config.toolStyle);
+    const minimal = toolStyle === "Minimal";
+
+    // What the resolver answers with for this session (see `styledTools`).
+    styledTools = { bash: minimal && config.bashToolStyling !== false };
 
     // Master gate: `Minimal` = archimedes tool styling (the per-tool
     // toggles fine-tune it); `Native` = no archimedes tool styling at all
