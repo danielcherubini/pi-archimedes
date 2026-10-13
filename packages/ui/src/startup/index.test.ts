@@ -22,7 +22,7 @@ vi.mock("@earendil-works/pi-tui", () => ({
 		}
 	},
 	truncateToWidth: (s: string, w: number) => s.slice(0, w),
-	visibleWidth: (s: string) => s.length,
+	visibleWidth: (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "").length,
 }));
 
 // version — no network in tests
@@ -34,7 +34,7 @@ vi.mock("./version.js", () => ({
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { Text, Container } from "@earendil-works/pi-tui";
-import { patchStartupListing, type ListingRef } from "./index.js";
+import { patchStartupListing, renderHeader, type ListingRef } from "./index.js";
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -171,5 +171,44 @@ describe("patchStartupListing section parsing", () => {
 		resources.addChild(makeSectionComponent(["[Skills]", "  beta, gamma"]));
 
 		expect(ref.sections).toEqual([{ name: "Skills", items: ["alpha", "beta", "gamma"] }]);
+	});
+});
+
+describe("patchStartupListing animation timer", () => {
+	afterEach(() => vi.useRealTimers());
+
+	it("stops redrawing once the logo settles when no sections arrive (quietStartup)", () => {
+		vi.useFakeTimers();
+		const { tui, resources } = makeTui();
+		lastResources = resources;
+		patchStartupListing(tui, THEME, { ...makeRef(), revealed: false });
+
+		vi.advanceTimersByTime(3_000);
+		const renderCountAfterSettle = tui.requestRender.mock.calls.length;
+		vi.advanceTimersByTime(3_000);
+		expect(tui.requestRender.mock.calls.length).toBe(renderCountAfterSettle);
+	});
+
+	it("restarts the timer when sections are revealed after the logo settled", () => {
+		vi.useFakeTimers();
+		const { tui, resources } = makeTui();
+		lastResources = resources;
+		const ref: ListingRef = { ...makeRef(), revealed: false };
+		// Real renders settle the listing, which is what stops the restarted timer
+		tui.requestRender.mockImplementation(() => renderHeader(THEME, ref, 200, 60));
+		patchStartupListing(tui, THEME, ref);
+		vi.advanceTimersByTime(3_000);
+
+		resources.addChild(makeSectionComponent(["[Skills]", "  tdd"]));
+		vi.advanceTimersByTime(500);
+		expect(ref.revealed).toBe(true);
+		const renderCountAfterReveal = tui.requestRender.mock.calls.length;
+		vi.advanceTimersByTime(200);
+		expect(tui.requestRender.mock.calls.length).toBeGreaterThan(renderCountAfterReveal);
+
+		vi.advanceTimersByTime(2_000); // past the text fade-in
+		const renderCountAfterFade = tui.requestRender.mock.calls.length;
+		vi.advanceTimersByTime(2_000);
+		expect(tui.requestRender.mock.calls.length).toBe(renderCountAfterFade);
 	});
 });

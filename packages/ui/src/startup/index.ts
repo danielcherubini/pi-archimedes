@@ -225,29 +225,34 @@ export function patchStartupListing(
   delete ref.cachedWidth;
   delete ref.maxHeaderHeight;
 
-  if (rc[ANIM_INTERVAL]) clearInterval(rc[ANIM_INTERVAL]);
   if (rc[DEBOUNCE_TIMER]) clearTimeout(rc[DEBOUNCE_TIMER]);
+  rc[DEBOUNCE_TIMER] = null;
 
-  const interval = setInterval(() => {
-    try {
-      const current: ListingRef = rc[LISTING_REF];
-      if (!current) {
+  const startAnimation = () => {
+    if (rc[ANIM_INTERVAL]) clearInterval(rc[ANIM_INTERVAL]);
+    const interval = setInterval(() => {
+      try {
+        const current: ListingRef = rc[LISTING_REF];
+        if (!current) {
+          clearInterval(interval);
+          return;
+        }
+        current.frame++;
+        // Logo done and either the listing settled, or nothing is revealed/pending (quietStartup)
+        const nothingToAnimate = current.settled || (!current.revealed && !rc[DEBOUNCE_TIMER]);
+        if (nothingToAnimate && current.frame >= LOGO_SETTLE_FRAME) {
+          clearInterval(interval);
+          rc[ANIM_INTERVAL] = null;
+          return;
+        }
+        tui.requestRender();
+      } catch {
         clearInterval(interval);
-        return;
       }
-      current.frame++;
-      if (current.settled && current.frame >= LOGO_SETTLE_FRAME) {
-        clearInterval(interval);
-        rc[ANIM_INTERVAL] = null;
-        return;
-      }
-      tui.requestRender();
-    } catch {
-      clearInterval(interval);
-    }
-  }, 16);
-
-  rc[ANIM_INTERVAL] = interval;
+    }, 16);
+    rc[ANIM_INTERVAL] = interval;
+  };
+  startAnimation();
 
   // Fetch latest version from npm
   fetchLatestVersion().then(v => {
@@ -321,6 +326,7 @@ export function patchStartupListing(
             ref.scaffoldAt = ref.frame;
             tui.requestRender();
             rc[DEBOUNCE_TIMER] = null;
+            if (!rc[ANIM_INTERVAL]) startAnimation(); // logo may have settled first; the text fade-in needs frames
           }, REVEAL_DEBOUNCE_MS);
         }
 
