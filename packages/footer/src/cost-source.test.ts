@@ -113,6 +113,22 @@ function paintedCost(lines: string[]): string | undefined {
   return match?.[0];
 }
 
+/**
+ * Assert the footer actually painted a status bar.
+ *
+ * `render()` swallows a render failure and returns `[]`, so "there is no cost
+ * figure" is satisfied by a footer that vanished. Any test whose point is the
+ * ABSENCE of a figure has to prove presence of something else first, or it
+ * passes for a blank screen.
+ */
+function expectRendered(lines: string[]): void {
+  const joined = lines.join(" ");
+  // `ctx.model` is undefined in these fixtures, so the model section reads
+  // "no-model"; the branch comes from the fake footerData.
+  expect(joined).toContain("no-model");
+  expect(joined).toContain("main");
+}
+
 describe("the footer counts a subagent's cost once", () => {
   it("a toolResult entry carrying usage is already in the footer's total", async () => {
     const { rendered, shutdown } = await installFooter([
@@ -135,6 +151,7 @@ describe("the footer counts a subagent's cost once", () => {
       toolResultEntry("e2", null),
     ]);
     const lines = rendered();
+    expectRendered(lines);
     const cost = paintedCost(lines);
     expect(cost === undefined || cost === "$0.00").toBe(true);
     expect(lines.join(" ")).not.toContain("NaN");
@@ -158,7 +175,9 @@ describe("the footer counts a subagent's cost once", () => {
       assistantEntry("e1"),
       toolResultEntry("e2", zero),
     ]);
-    expect(paintedCost(rendered())).toBeUndefined();
+    const lines = rendered();
+    expectRendered(lines);
+    expect(paintedCost(lines)).toBeUndefined();
     shutdown();
   });
 
