@@ -32,6 +32,7 @@
 
 import { dispatch, BridgeTransportError, BridgeCancelledError } from "@pi-archimedes/core/bridge";
 import { resolveModel } from "./spawn.js";
+import { resolveThinkingLevel } from "./thinking-validation.js";
 import type { ExecuteOptions } from "./execute.js";
 import type { SubagentProgress, SubagentResult } from "./types.js";
 
@@ -101,7 +102,9 @@ export function dispatchViaBridge(
     task: options.task,
     systemPrompt: options.agentConfig?.systemPrompt?.trim() || null,
     model: model ?? null,
-    thinking: options.agentConfig?.thinking ?? null,
+    // The same rule the fork path applies: a level pi's `--thinking` would warn
+    // about and drop is not handed to the runner either (`thinking-validation.ts`).
+    thinking: resolveThinkingLevel(options.agentConfig?.thinking).level ?? null,
     tools: options.agentConfig?.tools?.length ? options.agentConfig.tools : null,
   };
 

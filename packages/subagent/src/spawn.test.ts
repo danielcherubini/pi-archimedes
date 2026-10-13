@@ -202,3 +202,36 @@ describe("startAskSocketServer", () => {
     expect(cancels.length).toBe(0);
   });
 });
+
+// ── thinking level (pi warns and drops; we must not feed it one) ───────────
+
+describe("spawnSubagent thinking level", () => {
+  afterEach(() => {
+    spawnMock.mockReset();
+  });
+
+  it("passes a level pi accepts through to --thinking", () => {
+    const argv = argvFor({ thinking: "xhigh" });
+    const at = argv.indexOf("--thinking");
+    expect(at).toBeGreaterThan(-1);
+    expect(argv[at + 1]).toBe("xhigh");
+  });
+
+  it("does not pass a level pi would warn about and drop", () => {
+    // `--thinking ultra` is a `warning` diagnostic and a dropped flag in pi's
+    // own parser (dist/cli/args.js), so the child ran at the default thinking
+    // level while its config said otherwise — and in `--mode json` that warning
+    // is stderr, which the stream reader only shows for a failed run. Passing
+    // nothing is the same outcome, said out loud at dispatch instead.
+    const argv = argvFor({ thinking: "ultra" });
+    expect(argv).not.toContain("--thinking");
+  });
+
+  it("is case-sensitive, exactly like pi's list", () => {
+    expect(argvFor({ thinking: "Medium" })).not.toContain("--thinking");
+  });
+
+  it("passes no --thinking when the config sets none", () => {
+    expect(argvFor({})).not.toContain("--thinking");
+  });
+});

@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getBus, Events } from "@pi-archimedes/core/bus";
+import { resolveThinkingLevel } from "./thinking-validation.js";
 import type { AgentConfig } from "./agents.js";
 
 export interface SpawnOptions {
@@ -219,9 +220,13 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     args.push("--model", model);
   }
 
-  // Thinking level from agent config
-  if (options.agent?.thinking) {
-    args.push("--thinking", options.agent.thinking);
+  // Thinking level from agent config. An unknown level is NOT passed on: pi
+  // warns and drops the flag itself, which leaves the child on the default
+  // level with the explanation in a stderr nobody reads for a successful run.
+  // `index.ts` reports the same drop where the user can see it.
+  const thinking = resolveThinkingLevel(options.agent?.thinking);
+  if (thinking.level !== undefined) {
+    args.push("--thinking", thinking.level);
   }
 
   // Tool allowlist from agent config.

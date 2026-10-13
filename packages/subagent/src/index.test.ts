@@ -324,6 +324,60 @@ describe("dispatch: the result the model reads carries the run outcome", () => {
   });
 });
 
+describe("dispatch: a thinking level pi would drop is said out loud", () => {
+  // pi's `--thinking` parser warns and drops an unknown level, and a json
+  // child's stderr is invisible on a successful run — so without this the user
+  // reads "thinking: ultra" in the config and gets the default. The run still
+  // goes ahead (that IS what pi would have done); only the silence changes.
+  it("warns, naming the level and what runs instead, and still dispatches", async () => {
+    discoverAgents.mockReturnValue([agentConfig({ thinking: "ultra" })]);
+    const ctx = makeCtx();
+    const result = await subagent(register()).execute(
+      "c",
+      { agent: "reviewer", task: "t" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const warnings = ctx.ui.notify.mock.calls.filter(([, kind]) => kind === "warning");
+    expect(warnings.length).toBe(1);
+    expect(String(warnings[0]![0])).toContain("ultra");
+    expect(String(warnings[0]![0])).toMatch(/default thinking level/i);
+    expect(result.isError).toBeFalsy();
+    expect(executeSubagent).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing for a level pi takes", async () => {
+    discoverAgents.mockReturnValue([agentConfig({ thinking: "medium" })]);
+    const ctx = makeCtx();
+    await subagent(register()).execute("c", { agent: "reviewer", task: "t" }, undefined, undefined, ctx);
+    expect(ctx.ui.notify).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the config sets no thinking level", async () => {
+    discoverAgents.mockReturnValue([agentConfig()]);
+    const ctx = makeCtx();
+    await subagent(register()).execute("c", { agent: "reviewer", task: "t" }, undefined, undefined, ctx);
+    expect(ctx.ui.notify).not.toHaveBeenCalled();
+  });
+
+  it("reports it in parallel mode too, once per distinct level", async () => {
+    discoverAgents.mockReturnValue([agentConfig({ thinking: "turbo" })]);
+    const ctx = makeCtx();
+    await subagent(register()).execute(
+      "c",
+      { tasks: [{ agent: "reviewer", task: "a" }, { agent: "reviewer", task: "b" }] },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const warnings = ctx.ui.notify.mock.calls.filter(([, kind]) => kind === "warning");
+    expect(warnings.length).toBe(1);
+    expect(String(warnings[0]![0])).toContain("turbo");
+    expect(executeParallel).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("dispatch: cost is reported natively, not on the bus", () => {
   it("the tool result carries usage in pi's shape, so /session folds it in", async () => {
     discoverAgents.mockReturnValue([]);

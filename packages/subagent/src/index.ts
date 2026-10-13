@@ -16,6 +16,7 @@ import {
   unknownToolEntries,
   formatUnknownToolsWarning,
 } from "./tool-validation.js";
+import { resolveThinkingLevel } from "./thinking-validation.js";
 import { toNativeUsage, sumNativeUsage } from "./usage.js";
 import type {
   SubagentDetails,
@@ -109,6 +110,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
         // Membership only becomes knowable here, with the handle in scope — and
         // it is a warning, so the batch still runs (see warnUnavailableTools).
         const warnedTools = new Set<string>();
+        const warnedThinking = new Set<string>();
         for (const t of params.tasks) {
           warnUnavailableTools(
             pi,
@@ -117,6 +119,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
             t.agent ?? "subagent",
             t.agent ? findAgent(agents, t.agent)?.tools : undefined,
           );
+          warnUnknownThinkingLevel(ctx, warnedThinking, t.agent ? findAgent(agents, t.agent)?.thinking : undefined);
         }
         const results: SubagentResult[] = await executeParallel({
           tasks: params.tasks.map((t) => ({
@@ -201,6 +204,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
           };
         }
         warnUnavailableTools(pi, ctx, new Set(), params.agent ?? "subagent", agentConfig?.tools);
+        warnUnknownThinkingLevel(ctx, new Set(), agentConfig?.thinking);
         const result: SubagentResult = await executeSubagent({
           agent: params.agent ?? undefined,
           agentConfig,
@@ -353,6 +357,32 @@ function warnUnavailableTools(
     ctx.ui.notify(message, "warning");
   } catch {
     // A context too stale to notify must not fail the run it is only warning about.
+  }
+}
+
+/**
+ * Warn (never fail) about a `thinking:` level pi's `--thinking` does not take.
+ *
+ * `spawnSubagent` withholds the flag in this case, which is what pi would have
+ * done anyway — the difference is that the child no longer runs at the default
+ * level silently: pi's own notice is a stderr warning, and a successful json
+ * child's stderr is never read. One warning per distinct value per tool call.
+ */
+function warnUnknownThinkingLevel(
+  ctx: ExtensionContext,
+  alreadyWarned: Set<string>,
+  thinking: string | undefined,
+): void {
+  if (thinking === undefined || alreadyWarned.has(thinking)) return;
+  const { warning } = resolveThinkingLevel(thinking);
+  if (!warning) return;
+  alreadyWarned.add(thinking);
+  diag("subagent", warning);
+  if (!ctx.hasUI) return;
+  try {
+    ctx.ui.notify(warning, "warning");
+  } catch {
+    // Same rule as the tool-membership warning: a report must not lose a run.
   }
 }
 
