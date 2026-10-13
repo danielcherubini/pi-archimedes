@@ -42,23 +42,6 @@ export interface CodemodeRendererState {
   interval?: NodeJS.Timeout | undefined;
 }
 
-const activeStates = new Set<CodemodeRendererState>();
-
-/**
- * Clear live-timer intervals of in-flight codemode rows. Called on
- * session_shutdown so a cancelled script does not keep invalidating a
- * component that no longer exists.
- */
-export function clearActiveCodemodeIntervals(): void {
-  for (const state of activeStates) {
-    if (state.interval) {
-      clearInterval(state.interval);
-      state.interval = undefined;
-    }
-  }
-  activeStates.clear();
-}
-
 /**
  * Format a duration in milliseconds: `<X>ms` under a second, `<X.X>s`
  * otherwise (the native codemode renderer's format).
