@@ -17,11 +17,12 @@ describe("getGitStatus", () => {
   let getGitStatus: () => GitStatus;
   let isInsideLinkedWorktree: () => boolean;
 
-  async function loadModule(mockExecSync: ReturnType<typeof vi.fn>) {
+  async function loadModule(mockExecSync: ReturnType<typeof vi.fn>, mockExecFile = vi.fn()) {
     vi.resetModules();
 
     vi.doMock("child_process", () => ({
       execSync: mockExecSync,
+      execFile: mockExecFile,
     }));
 
     vi.doMock("fs", () => ({
@@ -93,6 +94,34 @@ describe("getGitStatus", () => {
     expect(result).toEqual({ staged: 0, unstaged: 0, untracked: 0, ahead: 3, behind: 2 });
   });
 
+  it("refreshes stale status asynchronously and timestamps failed refreshes", async () => {
+    const mockExecSync = vi.fn(() => "1 AM file.txt\n");
+    const mockExecFile = vi.fn();
+    await loadModule(mockExecSync, mockExecFile);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    expect(getGitStatus()).toEqual({ staged: 1, unstaged: 1, untracked: 0, ahead: 0, behind: 0 });
+    now.mockReturnValue(3_000);
+    expect(getGitStatus()).toEqual({ staged: 1, unstaged: 1, untracked: 0, ahead: 0, behind: 0 });
+    getGitStatus(); // renders while the refresh is pending
+    getGitStatus();
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+    expect(mockExecSync).toHaveBeenCalledTimes(1);
+
+    type Done = (error: Error | null, stdout: string) => void;
+    (mockExecFile.mock.calls[0]![3] as Done)(null, "?  new.txt\n");
+    expect(getGitStatus()).toEqual({ staged: 0, unstaged: 0, untracked: 1, ahead: 0, behind: 0 });
+
+    now.mockReturnValue(5_001);
+    expect(getGitStatus()).toEqual({ staged: 0, unstaged: 0, untracked: 1, ahead: 0, behind: 0 });
+    (mockExecFile.mock.calls[1]![3] as Done)(new Error("git failed"), "");
+    expect(getGitStatus()).toEqual({ staged: 0, unstaged: 0, untracked: 1, ahead: 0, behind: 0 });
+
+    now.mockReturnValue(6_000);
+    getGitStatus();
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+  });
+
   it("malformed lines ignored gracefully", async () => {
     const mockExecSync = vi.fn(() => "this is not valid\n\n  \n1 AM valid.txt\n");
     await loadModule(mockExecSync);
@@ -132,6 +161,26 @@ describe("getGitStatus", () => {
       "worktree /nope/main\nbranch ref/heads/other\n\n" + `worktree ${cwd}\n` + "detached\n");
     await loadModule(mockExecSync);
     expect(isInsideLinkedWorktree()).toBe(true);
+  });
+
+  it("refreshes stale worktree status asynchronously", async () => {
+    const cwd = process.cwd();
+    const mockExecSync = vi.fn(() => "worktree /nope/main\n\n" + `worktree ${cwd}\n`);
+    const mockExecFile = vi.fn();
+    await loadModule(mockExecSync, mockExecFile);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    expect(isInsideLinkedWorktree()).toBe(true);
+    now.mockReturnValue(3_000);
+    expect(isInsideLinkedWorktree()).toBe(true);
+    isInsideLinkedWorktree(); // renders while the refresh is pending
+    isInsideLinkedWorktree();
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+    expect(mockExecSync).toHaveBeenCalledTimes(1);
+
+    type Done = (error: Error | null, stdout: string) => void;
+    (mockExecFile.mock.calls[0]![3] as Done)(null, `worktree ${cwd}\n`);
+    expect(isInsideLinkedWorktree()).toBe(false);
   });
 
   it("property: getGitStatus never throws (catches execSync errors gracefully)", async () => {
