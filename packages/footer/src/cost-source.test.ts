@@ -125,6 +125,43 @@ describe("the footer counts a subagent's cost once", () => {
     shutdown();
   });
 
+  it("renders sensibly for a toolResult entry whose usage is null", async () => {
+    // Not hypothetical: pi 0.x persisted `usage: null` on every tool result, and
+    // those entries are still in old sessions on disk (one measured here:
+    // `{"role":"toolResult","toolName":"subagent","usage":null}`). A dereference
+    // of that field is a `NaN` in the cost line.
+    const { rendered, shutdown } = await installFooter([
+      assistantEntry("e1"),
+      toolResultEntry("e2", null),
+    ]);
+    const lines = rendered();
+    const cost = paintedCost(lines);
+    expect(cost === undefined || cost === "$0.00").toBe(true);
+    expect(lines.join(" ")).not.toContain("NaN");
+    shutdown();
+  });
+
+  it("paints no cost figure for a run that never reported one", async () => {
+    // The child that died before its first event, and every pre-spawn refusal,
+    // report zeros. `if (totalCost)` means the `$` section is simply absent — a
+    // child that cost nothing must not render as though it cost something, and
+    // must not push a bare `$0.00` into an otherwise clean line.
+    const zero = {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    };
+    const { rendered, shutdown } = await installFooter([
+      assistantEntry("e1"),
+      toolResultEntry("e2", zero),
+    ]);
+    expect(paintedCost(rendered())).toBeUndefined();
+    shutdown();
+  });
+
   it("ignores COST_UPDATE bus traffic: there is no accumulator left to double-count", async () => {
     // The route this replaced (`subagent/src/cost.ts` → `COST_UPDATE` →
     // `CostAccumulator`) added the same usage a second time on top of the entry
