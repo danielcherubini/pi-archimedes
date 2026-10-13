@@ -224,9 +224,19 @@ export function spawnSubagent(options: SpawnOptions): ChildProcess {
     args.push("--thinking", options.agent.thinking);
   }
 
-  // Tool allowlist from agent config
-  if (options.agent?.tools && options.agent.tools.length > 0) {
-    args.push("--tools", options.agent.tools.join(","));
+  // Tool allowlist from agent config.
+  //
+  // pi 1.0.4 made `--tools` *keep* MCP tools unless an entry starts with `mcp__`
+  // (the allowlist only filters MCP when it is empty or names MCP tools), so a
+  // three-tool list no longer means "only these three". `--no-mcp` is the host's
+  // own statement of intent and is what restores the closed reading; a config
+  // that wants MCP asks for it with `mcp: true` (ADR 0028).
+  const tools = options.agent?.tools ?? [];
+  if (tools.length > 0) {
+    args.push("--tools", tools.join(","));
+    if (options.agent?.mcp !== true) {
+      args.push("--no-mcp");
+    }
   }
 
   // Always exclude the subagent tool itself to prevent infinite recursion

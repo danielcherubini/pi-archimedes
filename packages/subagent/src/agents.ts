@@ -13,6 +13,17 @@ export interface AgentConfig {
   name: string;
   description: string;
   tools?: string[];
+  /**
+   * Opt this agent's child back in to MCP tools.
+   *
+   * pi 1.0.4 made `--tools` *retain* MCP tools unless an entry starts with
+   * `mcp__`, so a `tools:` list no longer read as the closed set it looks like
+   * (ADR 0028). The suite therefore passes `--no-mcp` alongside a non-empty
+   * allowlist; `mcp: true` is the one way a config asks for that back.
+   * Absent or false means the closed reading. Parsed in `loadAgentsFromDir`,
+   * written by `serializeAgent`, shown on the `/agents` detail screen.
+   */
+  mcp?: boolean;
   model?: string;
   thinking?: string;
   systemPrompt: string;
@@ -20,6 +31,11 @@ export interface AgentConfig {
   filePath: string;
   // Extra fields preserved from frontmatter but not editable in TUI
   extraFields?: Record<string, unknown>;
+}
+
+/** Split a `tools:` frontmatter string into trimmed entries. */
+function splitToolList(raw: string): string[] {
+  return raw.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
 function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): AgentConfig[] {
@@ -53,10 +69,14 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
     // Handle tools specially — preserve non-string values in extraFields
     let parsedTools: string[] | undefined;
     if (typeof frontmatter.tools === "string") {
-      parsedTools = frontmatter.tools.split(",").map((t: string) => t.trim()).filter(Boolean);
+      parsedTools = splitToolList(frontmatter.tools);
     }
 
-    const knownKeys = new Set(["name", "description", "model", "thinking"]);
+    // `mcp: true` opts the child back in to MCP tools (ADR 0028). Quoted YAML
+    // gives the string "true", which means the same thing to a human reader.
+    const mcpOptIn = frontmatter.mcp === true || frontmatter.mcp === "true";
+
+    const knownKeys = new Set(["name", "description", "model", "thinking", "mcp"]);
     const extraFields: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(frontmatter)) {
       if (key === "tools") continue; // tools is handled separately above/below
@@ -80,6 +100,7 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
     };
     if (frontmatter.model) config.model = frontmatter.model as string;
     if (frontmatter.thinking) config.thinking = frontmatter.thinking as string;
+    if (mcpOptIn) config.mcp = true;
     if (parsedTools && parsedTools.length > 0) config.tools = parsedTools;
     if (Object.keys(extraFields).length > 0) config.extraFields = extraFields;
 

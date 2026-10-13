@@ -298,6 +298,11 @@ function renderDetail(state: ManagerState, width: number, theme: Theme): string[
   } else {
     fieldLines.push(theme.fg("accent", `tools:`) + ` ${theme.fg("dim", "(none)")}`);
   }
+  // The allowlist is closed unless this says true (ADR 0028): with a `tools:`
+  // list the child runs `--no-mcp`, so the panel has to say which reading applies.
+  fieldLines.push(
+    theme.fg("accent", `mcp:`) + " " + (agent.mcp === true ? "true" : theme.fg("dim", "(off)")),
+  );
   fieldLines.push(theme.fg("accent", `model:`) + ` ${agentModel(agent)}`);
   fieldLines.push(theme.fg("accent", `thinking:`) + ` ${agent.thinking ?? theme.fg("dim", "(none)")}`);
 

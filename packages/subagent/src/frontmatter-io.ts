@@ -68,6 +68,11 @@ export function serializeAgent(config: AgentConfig): string {
   if (config.tools && config.tools.length > 0) {
     lines.push(`tools: ${quoteYamlValue(config.tools.join(", "))}`);
   }
+  // Only the opt-in is written: a closed allowlist is the default, so the
+  // absence of the key is the meaningful statement (ADR 0028).
+  if (config.mcp === true) {
+    lines.push("mcp: true");
+  }
   if (config.model) {
     lines.push(`model: ${quoteYamlValue(config.model)}`);
   }

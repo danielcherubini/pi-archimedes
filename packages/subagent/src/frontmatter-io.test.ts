@@ -117,3 +117,30 @@ describe("serializeAgent", () => {
     );
   });
 });
+
+// ── mcp round-trip (the writer's half of ADR 0028) ──────────────────────────
+
+describe("serializeAgent: mcp opt-in", () => {
+  it("writes the mcp key when the agent opts in", () => {
+    const output = serializeAgent(makeAgent({ tools: ["read", "bash"], mcp: true }));
+    expect(output).toContain("mcp: true");
+  });
+
+  it("writes no mcp key when the field is absent or false (closed is the default)", () => {
+    expect(serializeAgent(makeAgent({ tools: ["read"] }))).not.toContain("mcp:");
+    expect(serializeAgent(makeAgent({ tools: ["read"], mcp: false }))).not.toContain("mcp:");
+  });
+
+  it("survives a write → read round trip as a real boolean, not a string", async () => {
+    const { parseFrontmatter } = await import("@earendil-works/pi-coding-agent");
+    const output = serializeAgent(makeAgent({ tools: ["read", "bash"], mcp: true }));
+    const { frontmatter } = parseFrontmatter(output);
+    expect(frontmatter.mcp).toBe(true);
+  });
+
+  it("keeps the tools list intact alongside the mcp key", () => {
+    const output = serializeAgent(makeAgent({ tools: ["read", "bash"], mcp: true }));
+    expect(output).toContain("tools: read, bash");
+    expect(output).toContain("mcp: true");
+  });
+});
