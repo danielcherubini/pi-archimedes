@@ -19,6 +19,7 @@ type FooterFactory = (tui: { requestRender: () => void }, theme: unknown, footer
 interface Harness {
   factory: FooterFactory;
   notify: () => void;
+  shutdown: () => void;
 }
 
 const THEME = { fg: (_token: string, s: string) => s };
@@ -66,7 +67,11 @@ async function loadFooter(): Promise<Harness> {
   registerFooter(pi);
   handlers["session_start"]!({}, ctx);
   if (!factory) throw new Error("footer factory was never installed");
-  return { factory, notify: notifyVcsChange };
+  return {
+    factory,
+    notify: notifyVcsChange,
+    shutdown: () => handlers["session_shutdown"]!({}, ctx),
+  };
 }
 
 describe("footer repaint wiring", () => {
@@ -105,6 +110,62 @@ describe("footer repaint wiring", () => {
 
     notify();
     expect(liveTui.requestRender).toHaveBeenCalledTimes(1);
+    expect(staleTui.requestRender).not.toHaveBeenCalled();
+  });
+
+  it("stops requesting renders once session_shutdown fires", async () => {
+    // The session is over, so the subscription has to go with it — a listener
+    // left behind would outlive the session and repaint a dead footer.
+    const { factory, notify, shutdown } = await loadFooter();
+    const tui = { requestRender: vi.fn() };
+    factory(tui, THEME, makeFooterData());
+
+    notify();
+    expect(tui.requestRender).toHaveBeenCalledTimes(1);
+
+    shutdown();
+    notify();
+    expect(tui.requestRender).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the live footer subscribed when a replaced footer is disposed afterwards", async () => {
+    // The stale footer is disposed after a newer footer already took the
+    // module-level handle, so its dispose() must release only its own
+    // subscription — releasing whatever the handle points at now would
+    // unsubscribe the live footer and freeze the screen on background refresh.
+    const { factory, notify } = await loadFooter();
+    const staleTui = { requestRender: vi.fn() };
+    const staleFooter = factory(staleTui, THEME, makeFooterData());
+
+    const liveTui = { requestRender: vi.fn() };
+    factory(liveTui, THEME, makeFooterData());
+
+    staleFooter.dispose();
+    notify();
+    expect(staleTui.requestRender).not.toHaveBeenCalled();
+    expect(liveTui.requestRender).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the live subscription on rebuild after a replaced footer was disposed", async () => {
+    // Same interleaving as above, then a further rebuild. The guard is what
+    // keeps the handle pointing at the live subscription, so the next footer
+    // can still release it; clear the handle too eagerly and the replaced
+    // footer leaks and keeps painting a screen nobody shows.
+    const { factory, notify } = await loadFooter();
+    const staleTui = { requestRender: vi.fn() };
+    const staleFooter = factory(staleTui, THEME, makeFooterData());
+
+    const midTui = { requestRender: vi.fn() };
+    factory(midTui, THEME, makeFooterData());
+
+    staleFooter.dispose();
+
+    const newestTui = { requestRender: vi.fn() };
+    factory(newestTui, THEME, makeFooterData());
+
+    notify();
+    expect(newestTui.requestRender).toHaveBeenCalledTimes(1);
+    expect(midTui.requestRender).not.toHaveBeenCalled();
     expect(staleTui.requestRender).not.toHaveBeenCalled();
   });
 });
