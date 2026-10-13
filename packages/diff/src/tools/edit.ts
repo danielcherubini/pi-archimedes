@@ -85,12 +85,20 @@ export function createEditRenderers(cwd: string, home: string): ToolRenderers {
 			const fp = args?.path ?? args?.file_path ?? "";
 			const operations = getEditOperations(args);
 
+			// The row draws its own shell, so pi adds no inset of its own and tells
+			// us so (`outputPad` is 0 under `renderShell: "self"`, 2 for the default
+			// shell). The row keeps its own one-column inset as the floor and grows
+			// to whatever pi asks for, instead of hard-coding a number pi would then
+			// have to agree with.
+			const padX = Math.max(1, ctx.outputPad ?? 1);
+
 			// Box with padding + background — matches built-in edit tool pattern
 			const box = ctx.state.callBox as Box | undefined;
 			if (box) {
 				box.setBgFn((s: string) => theme.bg("toolPendingBg", s));
+				box.setPaddingX(padX);
 			}
-			const shell = box ?? new Box(1, 1, (s: string) => theme.bg("toolPendingBg", s));
+			const shell = box ?? new Box(padX, 1, (s: string) => theme.bg("toolPendingBg", s));
 			if (!box) ctx.state.callBox = shell;
 
 			const hdr = `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", sp(fp))}`;

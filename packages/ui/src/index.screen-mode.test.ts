@@ -74,13 +74,11 @@ vi.mock("./migration.js", () => ({
 vi.mock("./bash/index.js", () => ({
   renderBashCall: vi.fn(),
   renderBashResult: vi.fn(),
-  clearActiveBashIntervals: vi.fn(),
 }));
 
 vi.mock("./codemode/index.js", () => ({
   renderCodemodeCall: vi.fn(),
   renderCodemodeResult: vi.fn(),
-  clearActiveCodemodeIntervals: vi.fn(),
 }));
 
 import { VERSION } from "@earendil-works/pi-coding-agent";

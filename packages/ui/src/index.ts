@@ -38,12 +38,8 @@ import { screenCapabilities, screenMode } from "@pi-archimedes/core/screen-mode"
 import { reportPiSupport } from "@pi-archimedes/core/pi-support";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
-import { clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
-import {
-  clearActiveCodemodeIntervals,
-  renderCodemodeCall,
-  renderCodemodeResult,
-} from "./codemode/index.js";
+import { renderBashCall, renderBashResult } from "./bash/index.js";
+import { renderCodemodeCall, renderCodemodeResult } from "./codemode/index.js";
 
 // Re-exports
 export { getUISettingsItems } from "./settings.js";
@@ -103,17 +99,16 @@ function registerToolRenderers(pi: ExtensionAPI): void {
   if (typeof pi.registerToolRenderer !== "function") return;
 
   pi.registerToolRenderer((toolName, next) => {
-    if (toolName === "bash") {
-      return styledTools.bash
+    // `next()` is spread first so that whatever the built-in definition
+    // declares besides the two renderers — `renderShell` is the one that matters
+    // today — survives resolution instead of being silently dropped by us.
+    const ours =
+      toolName === "bash" && styledTools.bash
         ? { renderCall: renderBashCall, renderResult: renderBashResult }
-        : next();
-    }
-    if (toolName === "codemode") {
-      return styledTools.codemode
-        ? { renderCall: renderCodemodeCall, renderResult: renderCodemodeResult }
-        : next();
-    }
-    return next();
+        : toolName === "codemode" && styledTools.codemode
+          ? { renderCall: renderCodemodeCall, renderResult: renderCodemodeResult }
+          : undefined;
+    return ours ? { ...next(), ...ours } : next();
   });
 }
 
@@ -144,9 +139,6 @@ export function registerUI(pi: ExtensionAPI): void {
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, ctx) => {
-    clearActiveBashIntervals();
-    clearActiveCodemodeIntervals();
-
     const targetCtx = ctx?.hasUI ? ctx : uiCtx;
     if (targetCtx?.hasUI) {
       targetCtx.ui.setWorkingVisible(true);

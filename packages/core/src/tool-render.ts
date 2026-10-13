@@ -99,3 +99,47 @@ export function renderToolCallLine(
     theme.fg(token, STATUS_GLYPH[status] + " ") + theme.fg(token, name);
   return suffix ? head + theme.fg("dim", suffix) : head;
 }
+
+/** What a row knows about how long its tool took. */
+export interface ToolRowTiming {
+  /** Milliseconds the tool recorded on its final result, if it recorded any. */
+  durationMs?: number | undefined;
+  /** When this row first saw the call running, from the row's own clock. */
+  startedAt?: number | undefined;
+  /** When the row saw the call settle, from the row's own clock. */
+  endedAt?: number | undefined;
+}
+
+/** The timing line of a tool row: which word to use, and how long to show. */
+export interface ToolRowDuration {
+  label: "Elapsed" | "Took";
+  ms: number;
+}
+
+/**
+ * The duration line a tool row shows, following pi's own rows:
+ *
+ * - A settled result carries `durationMs`, measured by the tool. That number
+ *   wins, because it is monotonic, it excludes whatever the row was doing
+ *   between the call and the paint, and it is still there when the session is
+ *   reloaded and the row's own clock is gone.
+ * - While the result is still partial the row counts from its own clock
+ *   (`Elapsed`).
+ * - A settled result that recorded no duration falls back to the row's clock.
+ * - A row that never saw the call start and recorded nothing says nothing.
+ *
+ * `isError` finalises the row: a failed call is not still running, whatever the
+ * partial flag says.
+ */
+export function toolRowDuration(
+  timing: ToolRowTiming,
+  options: { isPartial: boolean; isError?: boolean },
+): ToolRowDuration | undefined {
+  const settled = !options.isPartial || options.isError === true;
+  if (settled && typeof timing.durationMs === "number") {
+    return { label: "Took", ms: Math.max(0, timing.durationMs) };
+  }
+  if (timing.startedAt === undefined) return undefined;
+  const end = timing.endedAt ?? Date.now();
+  return { label: settled ? "Took" : "Elapsed", ms: Math.max(0, end - timing.startedAt) };
+}

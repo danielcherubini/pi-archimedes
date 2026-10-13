@@ -7,7 +7,7 @@ import {
   Text,
   type Component,
 } from "@earendil-works/pi-tui";
-import { renderToolHeader } from "@pi-archimedes/core/tool-render";
+import { renderToolHeader, toolRowDuration } from "@pi-archimedes/core/tool-render";
 
 /** Nested-call args preview budget, collapsed (the native renderer uses 80). */
 const COLLAPSED_CALL_ARGS_CHARS = 80;
@@ -157,16 +157,17 @@ export function getCodemodeOutput(
 }
 
 /**
- * Track the script's wall clock for the collapsed row: start on the first
- * render after execution began, end when the result settles (or errors).
- * Mirrors the bash renderer's timer lifecycle.
+ * Keep the row's own clock for the live `Elapsed` count: start on the first
+ * render after execution began, stop the repaint when the result settles (or
+ * errors). The interval lives on the row's own state — pi's rows do the same —
+ * and there is no module-level registry of live rows to sweep on shutdown.
  *
  * `isPartial` means "still in flight": the CALL renderer passes `true`
  * (a call is in flight until its result settles) — passing `false` there
- * would record `endedAt` at call-render time and freeze the elapsed timer
- * for the rest of the script. The interval is (re)created only while the
- * result has not settled yet (`endedAt === undefined`), so a re-render of a
- * settled call never spawns a permanent interval.
+ * would record `endedAt` at call-render time and freeze the count for the rest
+ * of the script. The interval is (re)created only while the result has not
+ * settled yet (`endedAt === undefined`), so a re-render of a settled call never
+ * spawns a permanent interval.
  */
 function updateTiming(
   ctx: {
@@ -183,39 +184,20 @@ function updateTiming(
   if ((ctx?.executionStarted || isPartial) && state.startedAt === undefined) {
     state.startedAt = Date.now();
   }
-  if (isPartial && !state.interval && state.endedAt === undefined) {
-    if (ctx?.invalidate) {
-      state.interval = setInterval(() => {
-        ctx.invalidate?.();
-      }, 1000);
-      activeStates.add(state);
-    }
+
+  const settled = !isPartial || ctx?.isError === true;
+  if (isPartial && !state.interval && state.endedAt === undefined && ctx?.invalidate) {
+    state.interval = setInterval(() => {
+      ctx.invalidate?.();
+    }, 1000);
   }
-  if (!isPartial || ctx?.isError) {
+  if (settled) {
     state.endedAt ??= Date.now();
     if (state.interval) {
       clearInterval(state.interval);
       state.interval = undefined;
     }
-    activeStates.delete(state);
   }
-}
-
-/**
- * The script's wall time in ms, parsed from the result header when present
- * (more accurate than the renderer's timer, which spans TUI updates).
- */
-export function parseWallTimeMs(
-  content: Array<{ type: string; text?: string }>,
-): number | undefined {
-  const first = content[0];
-  if (first?.type !== "text" || typeof first.text !== "string") return undefined;
-  const match = first.text.match(
-    /^Script (completed|failed)\nWall time ([\d.]+) seconds/,
-  );
-  if (!match) return undefined;
-  const seconds = Number.parseFloat(match[2]!);
-  return Number.isFinite(seconds) ? seconds * 1000 : undefined;
 }
 
 /**
@@ -294,6 +276,7 @@ export function renderCodemodeResult(
   const ctx = context as {
     executionStarted?: boolean;
     isError?: boolean;
+    durationMs?: number | undefined;
     state?: CodemodeRendererState;
     invalidate?: () => void;
   } | undefined;
@@ -308,14 +291,17 @@ export function renderCodemodeResult(
   const calls = res?.details?.calls ?? [];
   const isError = Boolean(ctx?.isError);
 
-  const state: CodemodeRendererState = ctx?.state ?? {};
-  const now = Date.now();
-  const wallTime = parseWallTimeMs(content);
-  const timerMs =
-    state.startedAt !== undefined
-      ? Math.max(0, (state.endedAt ?? now) - state.startedAt)
-      : undefined;
-  const durationMs = wallTime ?? timerMs;
+  // The duration the script recorded wins over the row's own clock, so a
+  // reloaded session still says how long the script took.
+  const timing = toolRowDuration(
+    {
+      durationMs: ctx?.durationMs,
+      startedAt: ctx?.state?.startedAt,
+      endedAt: ctx?.state?.endedAt,
+    },
+    { isPartial: Boolean(options.isPartial), isError },
+  );
+  const durationMs = timing?.ms;
 
   const container = new Container();
 
@@ -378,9 +364,8 @@ export function renderCodemodeResult(
   }
 
   if (durationMs !== undefined) {
-    const label = options.isPartial ? "Elapsed" : "Took";
     parts.push(
-      theme.fg("muted", `${label} ${formatCodemodeDuration(durationMs)}`),
+      theme.fg("muted", `${timing!.label} ${formatCodemodeDuration(durationMs)}`),
     );
   }
 

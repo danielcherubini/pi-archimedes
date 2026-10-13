@@ -5,10 +5,8 @@ import {
   formatCost,
   formatNestedCall,
   getCodemodeOutput,
-  parseWallTimeMs,
   renderCodemodeCall,
   renderCodemodeResult,
-  clearActiveCodemodeIntervals,
 } from "./renderer.js";
 
 // Mock Text from @earendil-works/pi-tui while preserving real utility
@@ -170,29 +168,31 @@ describe("formatNestedCall", () => {
   });
 });
 
-describe("parseWallTimeMs", () => {
-  it("parses the wall time from the result header", () => {
-    expect(
-      parseWallTimeMs([
-        { type: "text", text: "Script completed\nWall time 0.4 seconds\nOutput:\n" },
-      ]),
-    ).toBe(400);
-  });
-
-  it("parses failed-script headers too", () => {
-    expect(
-      parseWallTimeMs([
-        { type: "text", text: "Script failed\nWall time 12.5 seconds\nOutput:\n" },
-      ]),
-    ).toBe(12500);
-  });
-
-  it("returns undefined without a header or for non-text first blocks", () => {
-    expect(parseWallTimeMs([{ type: "text", text: "plain output" }])).toBe(
-      undefined,
+describe("renderCodemodeResult timing comes from the result", () => {
+  it("says how long the script took after a session reload, with no row state", () => {
+    // A row rebuilt from a stored session has never run in this process, and the
+    // executor's wall-time header is stripped from the output anyway: the
+    // duration the result recorded is what the row has.
+    const out = renderCodemodeResult(
+      { content: [{ type: "text", text: "Script completed\nWall time 3.2 seconds\nOutput:\n" }] },
+      { expanded: true },
+      theme,
+      { durationMs: 3200, executionStarted: true, state: {} },
     );
-    expect(parseWallTimeMs([{ type: "image" }])).toBe(undefined);
-    expect(parseWallTimeMs([])).toBe(undefined);
+    expect(text(out)).toContain("Took 3.2s");
+  });
+
+  it("shows the recorded duration, not the wall clock the row happened to span", () => {
+    const out = renderCodemodeResult(
+      { content: [] },
+      { expanded: true },
+      theme,
+      { durationMs: 250, executionStarted: true, state: { startedAt: Date.now() - 90_000 } },
+    );
+    const outText = text(out);
+    expect(outText).toContain("Took 250ms");
+    expect(outText).not.toContain("1.5m");
+    expect(outText).not.toContain("90.0s");
   });
 });
 
@@ -286,7 +286,7 @@ describe("renderCodemodeCall", () => {
 });
 
 describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
-  it("renders the success glyph and the wall time from the header", () => {
+  it("renders the success glyph and the duration the script recorded", () => {
     const out = renderCodemodeResult(
       {
         content: [
@@ -299,7 +299,7 @@ describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
       },
       { expanded: false },
       theme,
-      {},
+      { durationMs: 400 },
     );
     expect(text(out)).toBe("[success:✓] [muted:400ms]");
   });
@@ -375,7 +375,7 @@ describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
       },
       { expanded: false },
       theme,
-      {},
+      { durationMs: 1000 },
     );
     expect(text(out)).toBe("[success:✓] [muted:1.0s]");
   });
@@ -406,7 +406,7 @@ describe("renderCodemodeResult - Collapsed view (Minimal)", () => {
       },
       { expanded: false },
       theme,
-      { isError: true },
+      { isError: true, durationMs: 200 },
     );
     expect(text(out)).toBe("[error:✗] [muted:200ms]");
   });
@@ -521,7 +521,7 @@ describe("renderCodemodeResult - Live timer lifecycle", () => {
     expect(context.state.endedAt).toBeDefined();
   });
 
-  it("clears active codemode intervals when clearActiveCodemodeIntervals is called", () => {
+  it("stops the once-a-second repaint as soon as the script settles", () => {
     const context = {
       executionStarted: true,
       invalidate: vi.fn(),
@@ -531,9 +531,10 @@ describe("renderCodemodeResult - Live timer lifecycle", () => {
     renderCodemodeResult({}, { isPartial: true }, theme, context);
     expect(context.state.interval).toBeDefined();
 
-    clearActiveCodemodeIntervals();
+    renderCodemodeResult({}, { isPartial: false }, theme, context);
     expect(context.state.interval).toBeUndefined();
-    vi.advanceTimersByTime(1000);
+
+    vi.advanceTimersByTime(3000);
     expect(context.invalidate).not.toHaveBeenCalled();
   });
 
@@ -616,7 +617,7 @@ describe("renderCodemodeResult - Expanded view", () => {
       },
       { expanded: true },
       theme,
-      {},
+      { durationMs: 300 },
     );
     const outText = text(out);
 
@@ -645,7 +646,7 @@ describe("renderCodemodeResult - Expanded view", () => {
       },
       { expanded: true },
       theme,
-      { isError: true },
+      { isError: true, durationMs: 100 },
     );
     const outText = text(out);
 

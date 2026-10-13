@@ -7,7 +7,6 @@ import {
   formatBashCommand,
   renderBashCall,
   renderBashResult,
-  clearActiveBashIntervals,
   TruncatedTextComponent,
 } from "./renderer.js";
 
@@ -316,7 +315,7 @@ describe("renderBashResult - Live timer lifecycle", () => {
     expect(context.state.endedAt).toBeDefined();
   });
 
-  it("clears active bash intervals when clearActiveBashIntervals is called", () => {
+  it("stops the once-a-second repaint as soon as the result settles", () => {
     const context = {
       executionStarted: true,
       invalidate: vi.fn(),
@@ -326,11 +325,57 @@ describe("renderBashResult - Live timer lifecycle", () => {
     renderBashResult({}, { isPartial: true }, theme, context);
     expect(context.state.interval).toBeDefined();
 
-    clearActiveBashIntervals();
+    renderBashResult({}, { isPartial: false }, theme, context);
     expect(context.state.interval).toBeUndefined();
-    // Verify if the interval still triggers
-    vi.advanceTimersByTime(1000);
+
+    vi.advanceTimersByTime(3000);
     expect(context.invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("renderBashResult timing comes from the result", () => {
+  it("says how long the command took after a session reload, with no row state", () => {
+    // A row rebuilt from a stored session has never run in this process: all it
+    // has is the duration the result recorded.
+    const text = renderBashResult(
+      { content: [{ type: "text", text: "ok" }] },
+      { expanded: true, isPartial: false },
+      theme,
+      { durationMs: 4200, executionStarted: true, state: {} },
+    );
+    expect(content(text)).toContain("Took 4.2s");
+  });
+
+  it("shows the recorded duration, not the wall clock the row happened to span", () => {
+    const text = renderBashResult(
+      { content: [{ type: "text", text: "ok" }] },
+      { expanded: true, isPartial: false },
+      theme,
+      { durationMs: 1500, executionStarted: true, state: { startedAt: Date.now() - 90_000 } },
+    );
+    const out = content(text);
+    expect(out).toContain("Took 1.5s");
+    expect(out).not.toContain("1m 30s");
+  });
+
+  it("collapses to the recorded duration too", () => {
+    const text = renderBashResult(
+      { content: [{ type: "text", text: "ok" }] },
+      { expanded: false, isPartial: false },
+      theme,
+      { durationMs: 4200, state: {} },
+    );
+    expect(content(text)).toContain("[muted:4.2s]");
+  });
+
+  it("still counts up while the command runs", () => {
+    const text = renderBashResult(
+      { content: [{ type: "text", text: "" }] },
+      { expanded: true, isPartial: true },
+      theme,
+      { state: { startedAt: Date.now() - 2500 }, executionStarted: true },
+    );
+    expect(content(text)).toContain("Elapsed");
   });
 });
 

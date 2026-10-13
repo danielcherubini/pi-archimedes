@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { renderToolHeader } from "@pi-archimedes/core/tool-render";
+import { renderToolHeader, toolRowDuration } from "@pi-archimedes/core/tool-render";
 
 export interface BashRendererState {
   startedAt?: number | undefined;
@@ -8,18 +8,6 @@ export interface BashRendererState {
   interval?: NodeJS.Timeout | undefined;
   timeout?: number | undefined;
   command?: string | undefined;
-}
-
-const activeStates = new Set<BashRendererState>();
-
-export function clearActiveBashIntervals(): void {
-  for (const state of activeStates) {
-    if (state.interval) {
-      clearInterval(state.interval);
-      state.interval = undefined;
-    }
-  }
-  activeStates.clear();
 }
 
 /**
@@ -171,6 +159,7 @@ export function renderBashResult(
   const ctx = context as {
     executionStarted?: boolean;
     isError?: boolean;
+    durationMs?: number | undefined;
     state?: BashRendererState;
     args?: { command?: string; timeout?: number };
     invalidate?: () => void;
@@ -185,22 +174,22 @@ export function renderBashResult(
     state.startedAt = Date.now();
   }
 
-  if (options.isPartial && !state.interval) {
-    if (ctx?.invalidate) {
-      state.interval = setInterval(() => {
-        ctx.invalidate?.();
-      }, 1000);
-      activeStates.add(state);
-    }
+  // While the result is partial the row repaints once a second so `Elapsed`
+  // moves. The interval lives on the row's own state and is cleared when the
+  // result settles — the same arrangement pi's rows use, and the reason there
+  // is no module-level registry of live rows to sweep on shutdown.
+  const settled = !options.isPartial || Boolean(ctx?.isError);
+  if (options.isPartial && !state.interval && ctx?.invalidate) {
+    state.interval = setInterval(() => {
+      ctx.invalidate?.();
+    }, 1000);
   }
-
-  if (!options.isPartial || ctx?.isError) {
+  if (settled) {
     state.endedAt ??= Date.now();
     if (state.interval) {
       clearInterval(state.interval);
       state.interval = undefined;
     }
-    activeStates.delete(state);
   }
 
   const res = result as {
@@ -219,10 +208,17 @@ export function renderBashResult(
   } | undefined;
 
   const isError = Boolean(ctx?.isError || res?.isError || result instanceof Error);
-  const now = Date.now();
-  const startTime = state.startedAt ?? (state.endedAt ?? now);
-  const endTime = state.endedAt ?? now;
-  const elapsed = Math.max(0, endTime - startTime);
+  // The duration the tool recorded wins over the row's own clock, so a
+  // reloaded session still says how long the command took.
+  const timing = toolRowDuration(
+    {
+      durationMs: ctx?.durationMs,
+      startedAt: state.startedAt,
+      endedAt: state.endedAt,
+    },
+    { isPartial: Boolean(options.isPartial), isError },
+  );
+  const elapsed = timing?.ms;
 
   const textComponent = getTextComponent(context);
 
@@ -241,7 +237,8 @@ export function renderBashResult(
         ? theme.fg("dim", ` (timeout: ${timeout}s)`)
         : "";
 
-    const styledDuration = theme.fg("muted", formatDuration(elapsed));
+    const styledDuration =
+      elapsed === undefined ? "" : theme.fg("muted", formatDuration(elapsed));
 
     textComponent.setText(`${statusGlyph} ${styledDuration}${timeoutSuffix}`);
     return textComponent;
@@ -277,8 +274,9 @@ export function renderBashResult(
     );
   }
 
-  const durationLabel = options.isPartial ? "Elapsed" : "Took";
-  parts.push(theme.fg("muted", `${durationLabel} ${formatDuration(elapsed)}`));
+  if (elapsed !== undefined) {
+    parts.push(theme.fg("muted", `${timing!.label} ${formatDuration(elapsed)}`));
+  }
 
   if (!options.isPartial) {
     if (isError) {

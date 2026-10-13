@@ -4,6 +4,7 @@ import {
   renderStatusLabel,
   renderToolCallLine,
   STATUS_GLYPH,
+  toolRowDuration,
   type ToolRenderTheme,
 } from "./tool-render.js";
 
@@ -75,5 +76,52 @@ describe("renderToolCallLine", () => {
     expect(renderToolCallLine("success", "bash", "", theme)).toBe(
       "[success:✓ ][success:bash]",
     );
+  });
+});
+
+describe("toolRowDuration", () => {
+  it("takes a settled row's duration from the result, so it survives a session reload", () => {
+    // A row re-rendered from a stored session has no renderer state at all —
+    // only the duration the result recorded.
+    expect(toolRowDuration({ durationMs: 4200 }, { isPartial: false })).toEqual({
+      label: "Took",
+      ms: 4200,
+    });
+  });
+
+  it("prefers the recorded duration over the row's own clock, so wall-clock steps are excluded", () => {
+    // The row started 90s of real time ago; the tool itself reported 1.5s.
+    const startedAt = Date.now() - 90_000;
+    expect(toolRowDuration({ durationMs: 1500, startedAt }, { isPartial: false })).toEqual({
+      label: "Took",
+      ms: 1500,
+    });
+  });
+
+  it("counts from the row's own clock while the result is still partial", () => {
+    const startedAt = Date.now() - 2500;
+    const out = toolRowDuration({ startedAt }, { isPartial: true });
+    expect(out?.label).toBe("Elapsed");
+    expect(out?.ms).toBeGreaterThanOrEqual(2400);
+    expect(out?.ms).toBeLessThan(5000);
+  });
+
+  it("falls back to the row's clock for a settled result that recorded no duration", () => {
+    expect(
+      toolRowDuration({ startedAt: Date.now() - 1000, endedAt: Date.now() }, { isPartial: false }),
+    ).toMatchObject({ label: "Took" });
+  });
+
+  it("says nothing about a row that never started and recorded nothing", () => {
+    expect(toolRowDuration({}, { isPartial: false })).toBeUndefined();
+    expect(toolRowDuration({}, { isPartial: true })).toBeUndefined();
+  });
+
+  it("finalises an errored row from its clock even while the result is partial", () => {
+    const out = toolRowDuration(
+      { startedAt: Date.now() - 800, endedAt: Date.now() },
+      { isPartial: true, isError: true },
+    );
+    expect(out?.label).toBe("Took");
   });
 });

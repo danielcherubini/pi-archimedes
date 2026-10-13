@@ -58,26 +58,7 @@ vi.mock("./migration.js", () => ({
 }));
 
 // The renderers stay real: the resolver hands them straight to pi, so the
-// tests can assert on their identity. Only the deleted take-over and the
-// timer sweeper are stubbed.
-vi.mock("./bash/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./bash/index.js")>();
-  return {
-    ...actual,
-    clearActiveBashIntervals: vi.fn(),
-  };
-});
-
-vi.mock("./codemode/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./codemode/index.js")>();
-  return {
-    ...actual,
-    clearActiveCodemodeIntervals: vi.fn(),
-  };
-});
-
+// tests can assert on their identity.
 import defaultExport, {
   registerUI,
   getUISettingsItems,
@@ -87,16 +68,8 @@ import defaultExport, {
   ANIMATION_STYLES,
 } from "./index.js";
 import { migrateCoreToUIConfig } from "./migration.js";
-import {
-  clearActiveBashIntervals,
-  renderBashCall,
-  renderBashResult,
-} from "./bash/index.js";
-import {
-  clearActiveCodemodeIntervals,
-  renderCodemodeCall,
-  renderCodemodeResult,
-} from "./codemode/index.js";
+import { renderBashCall, renderBashResult } from "./bash/index.js";
+import { renderCodemodeCall, renderCodemodeResult } from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
 import {
@@ -260,11 +233,15 @@ describe("packages/ui lifecycle and registration", () => {
 
       expect(renderers.length).toBe(1);
       const { result, nextCalls } = resolve(renderers[0], "bash");
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         renderCall: renderBashCall,
         renderResult: renderBashResult,
       });
-      expect(nextCalls).toBe(0);
+      // `next()` is consulted and spread first, so a key the built-in
+      // definition declares besides our two — `renderShell` is the one that
+      // matters today — survives resolution instead of being dropped.
+      expect(nextCalls).toBe(1);
+      expect(result).toHaveProperty("native", true);
     });
 
     it("gives back pi's native bash row when bashToolStyling is off", () => {
@@ -300,7 +277,7 @@ describe("packages/ui lifecycle and registration", () => {
       const { ctx } = makeCtx(true);
 
       triggerStart(ctx);
-      expect(resolve(renderers[0], "bash").nextCalls).toBe(0);
+      expect(resolve(renderers[0], "bash").result).toMatchObject({ renderCall: renderBashCall });
 
       // The user turns bash styling off in `/archimedes` and starts a session.
       vi.mocked(loadUIConfig).mockReturnValue({
@@ -329,9 +306,10 @@ describe("packages/ui lifecycle and registration", () => {
 
       triggerStart(ctx);
 
-      expect(resolve(renderers[0], "codemode")).toEqual({
-        result: { renderCall: renderCodemodeCall, renderResult: renderCodemodeResult },
-        nextCalls: 0,
+      expect(resolve(renderers[0], "codemode").result).toMatchObject({
+        renderCall: renderCodemodeCall,
+        renderResult: renderCodemodeResult,
+        native: true,
       });
     });
 
@@ -403,8 +381,10 @@ describe("packages/ui lifecycle and registration", () => {
       expect(ui.notify).toHaveBeenCalledWith("patch skipped", "warning");
 
       // Master gate (default toolStyle is Minimal): both rows are ours.
-      expect(resolve(renderers[0], "bash").nextCalls).toBe(0);
-      expect(resolve(renderers[0], "codemode").nextCalls).toBe(0);
+      expect(resolve(renderers[0], "bash").result).toMatchObject({ renderCall: renderBashCall });
+      expect(resolve(renderers[0], "codemode").result).toMatchObject({
+        renderCall: renderCodemodeCall,
+      });
     });
 
     it("yields pi's native rows for every tool when toolStyle is Native", () => {
@@ -616,8 +596,6 @@ describe("packages/ui lifecycle and registration", () => {
       triggerShutdown(ctx);
 
       expect(stopStartupListing).toHaveBeenCalledTimes(1);
-      expect(clearActiveBashIntervals).toHaveBeenCalledTimes(1);
-      expect(clearActiveCodemodeIntervals).toHaveBeenCalledTimes(1);
       expect(ui.setWorkingVisible).toHaveBeenLastCalledWith(true);
       expect(ui.setEditorComponent).toHaveBeenLastCalledWith(undefined);
     });

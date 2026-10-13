@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createEditTool } from "@earendil-works/pi-coding-agent";
-import { installEditTool, createEditRenderers } from "./edit.js";
+import { createEditRenderers, installEditTool } from "./edit.js";
 
 // `diff` is standalone and must not import `@pi-archimedes/core` (see
 // `src/pi-support.ts`), so the tests strip escape sequences themselves.
@@ -178,5 +178,38 @@ describe("edit tool row", () => {
     } finally {
       done();
     }
+  });
+});
+
+describe("edit row padding", () => {
+  // The row draws its own shell (`renderShell: "self"`), so the inset is ours to
+  // choose — but pi still tells the renderer how much tool output is padded
+  // here, and that number is what the row must respect.
+  const renderers = createEditRenderers("/project", "/home");
+  const callArgs = { path: "/project/src/a.ts", edits: [{ oldText: "x", newText: "y" }] };
+
+  function padXFor(outputPad: number): number {
+    const state: any = {};
+    renderers.renderCall!(
+      callArgs as any,
+      theme as any,
+      {
+        argsComplete: true,
+        cwd: "/project",
+        cwdOrParent: "/project",
+        hasUI: false,
+        outputPad,
+        state,
+      } as any,
+    );
+    return (state.callBox as any).paddingX;
+  }
+
+  it("keeps its own one-column inset where pi's output shell adds none", () => {
+    expect(padXFor(0)).toBe(1);
+  });
+
+  it("grows to pi's output padding when pi asks for more", () => {
+    expect(padXFor(2)).toBe(2);
   });
 });
