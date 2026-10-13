@@ -28,12 +28,12 @@ After installing Pi, choose one installation command above, then `cd` into your 
 
 ## What you get
 
-- **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent costs flow to the footer through it, subagent todos to the task board, subagent questions to the ask UI.
+- **The bus** (`@pi-archimedes/core/bus`) — a global pub/sub event system: `COST_UPDATE`, `ASK_REQUEST`, `TODOS_UPDATE`, `TODOS_CLEAR`… subagent todos flow to the task board through it and subagent questions to the ask UI. Cost no longer flows this way: a subagent reports its usage on its own tool result, which is what `/session` and the footer already total (`packages/subagent/src/usage.ts`).
 - **Shared utilities** — text truncation and width measurement, colour formatting, settings I/O, and startup profiling.
 - **Overlay Chrome** — shared base for UI components.
 
 ## Part of the suite
 
-In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the bus that feeds subagent costs to the footer, subagent todos to the task board, and subagent questions to the ask UI. The diff renderer is standalone and does not depend on core's chrome — it only shares the suite when it loads.
+In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the bus that carries subagent todos to the task board and subagent questions to the ask UI, and the bridge that reaches the Archimedes Client. The diff renderer is standalone and does not depend on core's chrome — it only shares the suite when it loads.
 
 ← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

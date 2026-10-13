@@ -11,9 +11,11 @@ export function registerCore(pi: ExtensionAPI): void {
 
   // Self-usage (per-turn COST_UPDATE, source "main") — top-level like the
   // bridge (never inside a session handler, so it doesn't accumulate on
-  // /reload). Unconditional: NOT gated on bridge mode (design decision 3 —
-  // the TUI footer's CostAccumulator sums it; in bridge mode the existing
-  // events.ts forwarder carries it to the desktop).
+  // /reload). Unconditional: NOT gated on bridge mode (design decision 3).
+  // Its live consumer is the events.ts forwarder, which carries it to the
+  // desktop as `cost_update`; the footer stopped subscribing in Task 9 (it
+  // reads usage from the session entries, which already include the main
+  // agent's — see bridge/self-usage.ts).
   registerSelfUsage(pi);
 }
 

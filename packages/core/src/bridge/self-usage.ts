@@ -16,10 +16,19 @@ interface UsageLike {
 /**
  * Emit the session's OWN usage as a per-turn COST_UPDATE (source "main").
  * Per design decision 1-3: per-turn (turn_end), delta (the turn's usage is
- * not cumulative), NOT gated on bridge mode (the TUI footer's
- * CostAccumulator sums it — the footer's cost line becomes the true session
- * cost; in bridge mode the existing events.ts forwarder carries it to the
- * desktop). `reasoning` is excluded (a subset of `output` — double-count).
+ * not cumulative), NOT gated on bridge mode. `reasoning` is excluded (a subset
+ * of `output` — double-count).
+ *
+ * Who listens now (Task 9 of the pi 1.x alignment changed this): the bridge
+ * forwarder in `./events.ts` relays it to the desktop as a `cost_update` frame.
+ * The TUI's consumer is **gone** — the footer's `CostAccumulator` was deleted
+ * with it, because the footer reads usage from the session entries and those
+ * already carry the main agent's assistant usage; keeping the accumulator would
+ * have counted the main session's money twice. So on a plain TUI this emit has
+ * no in-suite subscriber left. Deleting the emitter is NOT part of that change:
+ * `cost_update` is a frame the Archimedes Client may render, and retiring it is
+ * the bridge-contract question Task 11 asks when it moves these channels to
+ * `pi.events`.
  */
 export function registerSelfUsage(pi: ExtensionAPI): void {
   pi.on("turn_end", (event) => {

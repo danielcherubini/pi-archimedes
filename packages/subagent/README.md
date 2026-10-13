@@ -112,6 +112,6 @@ Available with the suite (and subagent enabled), `/agents` opens the interactive
 
 ## Part of the suite
 
-The full suite is the supported connected setup. With the relevant components loaded together, subagent token and cost events flow over core's bus into the footer, subagent tasks get their own columns on the todo board, and subagent `ask` questions surface in your terminal. On/off is managed by the suite: toggle via `/plugins` (`archimedes.subagent.enabled`, default on).
+The full suite is the supported connected setup. With the relevant components loaded together, a subagent's tokens and cost ride its own tool result into the footer's totals, subagent tasks get their own columns on the todo board, and subagent `ask` questions surface in your terminal. On/off is managed by the suite: toggle via `/plugins` (`archimedes.subagent.enabled`, default on).
 
 ← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)

@@ -32,7 +32,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 - **Token ledger** — input (↑) and output (↓) tokens, cache read/write, and the live accumulated dollar cost of the session.
 - **Context bar** — colour-coded (green → yellow → red). It shows **consumption**: how much of the context window is used, not how much headroom is left.
 - **Adaptive layout** — one compact line on wide viewports; it wraps to the lines it needs as the terminal narrows instead of truncating essential data.
-- **Subagent aggregation** — in the suite, subagent token and cost events flow over core's bus into the same accumulator, so worker spend and main-session spend read as one total.
+- **Subagent aggregation** — in the suite, a subagent reports its tokens and cost on its own tool result, which this footer's session scan already totals, so worker spend and main-session spend read as one number. (It used to arrive a second way, over core's bus, which meant the same money was counted twice.)
 
 Two honest caveats: the ledger reflects usage and pricing **as reported to the session** — it's a live read of what Pi has accounted, not a guaranteed provider invoice, and not a tally of every background model call. And the context bar tracks consumption, not remaining headroom.
 
