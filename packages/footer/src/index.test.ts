@@ -90,6 +90,17 @@ async function loadFooter(options: HarnessOptions = {}): Promise<Harness> {
     isInsideLinkedWorktree: () => false,
   }));
   vi.doMock("./utils/jj.js", () => ({ getJjBookmark: () => null, getJjChangedFiles: () => 0 }));
+  // Pin the footer's own settings to the shipped defaults. `session_start` calls
+  // `loadFooterConfig()`, which reads the developer's `settings.json`, so a saved
+  // `archimedes.footer.branchMaxLength` of 1–3 truncates the branch the fixtures
+  // assert on and a small `splitThreshold` repaginates the line: with
+  // `branchMaxLength: 2` set, three tests here fail on a footer that works
+  // perfectly. Mocked against the real defaults, so the numbers below are the
+  // ones the test claims rather than the ones a laptop happens to hold.
+  vi.doMock("./config.js", async (importOriginal) => {
+    const real = await importOriginal<typeof import("./config.js")>();
+    return { ...real, loadFooterConfig: () => real.DEFAULT_FOOTER_CONFIG };
+  });
 
   const diagCalls: Array<[string, string]> = [];
   // Partial mock: the sink is fake (that is what the assertions read), while

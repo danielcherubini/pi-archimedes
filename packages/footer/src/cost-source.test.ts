@@ -89,6 +89,15 @@ async function installFooter(entries: unknown[]): Promise<{ rendered: (width?: n
     isInsideLinkedWorktree: () => false,
   }));
   vi.doMock("./utils/jj.js", () => ({ getJjBookmark: () => null, getJjChangedFiles: () => 0 }));
+  // Pin the footer's settings to the shipped defaults: `loadFooterConfig()` reads
+  // the developer's `settings.json`, and `expectRendered` below asserts on the
+  // branch the footer paints, so a saved `archimedes.footer.branchMaxLength` of
+  // 1–3 fails these tests for a footer that is working correctly. Same fixture
+  // decision as `src/index.test.ts`.
+  vi.doMock("./config.js", async (importOriginal) => {
+    const real = await importOriginal<typeof import("./config.js")>();
+    return { ...real, loadFooterConfig: () => real.DEFAULT_FOOTER_CONFIG };
+  });
 
   const { registerFooter } = await import("./index.js");
 
