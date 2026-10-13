@@ -13,7 +13,8 @@ async function load({ paths = [".jj", ".git"], output = "main\n", throws = false
   vi.doMock("child_process", () => ({ execFileSync, execFile }));
   vi.doMock("fs", () => ({ existsSync: (p: string) => existing.has(p) }));
   const { getJjBookmark, getJjChangedFiles } = await import("./jj.js");
-  return { getJjBookmark, getJjChangedFiles, execFileSync, execFile, existing };
+  const events = await import("./vcs-change-events.js");
+  return { getJjBookmark, getJjChangedFiles, execFileSync, execFile, existing, events };
 }
 
 describe("getJjBookmark", () => {
@@ -77,6 +78,59 @@ describe("getJjBookmark", () => {
     getJjBookmark();
     (execFile.mock.calls[1]![3] as Done)(null, "feature-x\n");
     expect(getJjBookmark()).toBe("feature-x");
+    now.mockRestore();
+  });
+
+  it("publishes a VCS change when a refresh moves the bookmark or the file count", async () => {
+    const { getJjBookmark, execFile, events } = await load({ output: "main\n\t1\n" });
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const listener = vi.fn();
+    events.onVcsChange(listener);
+
+    expect(getJjBookmark()).toBe("main"); // synchronous first call: nothing to announce
+    expect(listener).not.toHaveBeenCalled();
+
+    type Done = (e: Error | null, out: string) => void;
+    now.mockReturnValue(10_000);
+    getJjBookmark(); // stale while refreshing
+    (execFile.mock.calls[0]![3] as Done)(null, "main\n\t4\n"); // same bookmark, more files
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    now.mockReturnValue(20_000);
+    getJjBookmark();
+    (execFile.mock.calls[1]![3] as Done)(null, "main\n\t4\n"); // identical → silent
+    expect(listener).toHaveBeenCalledTimes(1);
+    now.mockRestore();
+  });
+
+  it("stays silent on a failed refresh and on a reply that raced a cwd change", async () => {
+    // The other repo also looks like a jj repo to the mocked fs, so a call
+    // after chdir replaces the cache entry with one keyed to the new cwd.
+    const other = "/somewhere/else";
+    const { getJjBookmark, getJjChangedFiles, execFile, events } = await load({
+      output: "main\n\t1\n",
+      paths: [".jj", ".git", `${other}/.jj`],
+    });
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const listener = vi.fn();
+    events.onVcsChange(listener);
+    getJjBookmark();
+
+    type Done = (e: Error | null, out: string) => void;
+    now.mockReturnValue(10_000);
+    getJjBookmark(); // schedules the refresh for the original cwd
+    (execFile.mock.calls[0]![3] as Done)(new Error("lock timeout"), "");
+    expect(listener).not.toHaveBeenCalled();
+
+    now.mockReturnValue(20_000);
+    getJjBookmark(); // still the original cwd, request in flight
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(other);
+    expect(getJjBookmark()).toBe("main"); // moved: cache rewritten for the new cwd
+    expect(getJjChangedFiles()).toBe(1);
+    (execFile.mock.calls[1]![3] as Done)(null, "other-branch\n\t9\n"); // late reply for the old cwd
+    expect(getJjBookmark()).toBe("main"); // the dropped reply must not resurface
+    cwdSpy.mockRestore();
+    expect(listener).not.toHaveBeenCalled();
     now.mockRestore();
   });
 });

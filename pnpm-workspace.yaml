@@ -5,3 +5,14 @@ allowBuilds:
   '@google/genai': false
   esbuild: false
   protobufjs: false
+# Time-limited: the pi 1.2.0 train was published 2026-10-12 ~23:00Z, so these
+# exclusions are unnecessary after 2026-10-13 ~23:05Z — delete this block then
+# (ADR 0026). Exact-version pins only; never widen to a name pattern.
+minimumReleaseAgeExclude:
+  - '@earendil-works/pi-agent-core@1.2.0'
+  - '@earendil-works/pi-ai@1.2.0'
+  - '@earendil-works/pi-codemode@1.2.0'
+  - '@earendil-works/pi-coding-agent@1.2.0'
+  - '@earendil-works/pi-mcp@1.2.0'
+  - '@earendil-works/pi-telemetry@1.2.0'
+  - '@earendil-works/pi-tui@1.2.0'

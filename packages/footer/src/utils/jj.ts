@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from "child_process";
 import { existsSync } from "fs";
 import { dirname, join } from "path";
+import { notifyVcsChange } from "./vcs-change-events.js";
 
 // Same TTL as git status: bookmarks (and repo markers) don't change on every render
 const JJ_CACHE_TTL_MS = 2_000;
@@ -64,13 +65,19 @@ function refreshInBackground(cwd: string): void {
   refreshInFlight = true;
   execFile("jj", JJ_ARGS, { cwd, encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
     refreshInFlight = false;
-    if (bookmarkCache?.cwd !== cwd) return; // cwd moved on; don't clobber the new entry
+    const previous = bookmarkCache;
+    if (!previous || previous.cwd !== cwd) return; // cwd moved on; don't clobber the new entry
     // On failure keep stale values (transient lock/timeout shouldn't flash "detached")
     if (error) {
-      bookmarkCache = { ...bookmarkCache, timestamp: Date.now() };
-    } else {
-      const parsedOutput = parseJjOutput(stdout);
-      bookmarkCache = { cwd, ...parsedOutput, timestamp: Date.now() };
+      bookmarkCache = { ...previous, timestamp: Date.now() };
+      return;
+    }
+    const parsedOutput = parseJjOutput(stdout);
+    bookmarkCache = { cwd, ...parsedOutput, timestamp: Date.now() };
+    // The footer painted the stale bookmark/count and pi draws no frame unless
+    // one is requested, so a reply that moved either has to ask for a repaint.
+    if (previous.value !== parsedOutput.value || previous.changedFiles !== parsedOutput.changedFiles) {
+      notifyVcsChange();
     }
   });
 }
