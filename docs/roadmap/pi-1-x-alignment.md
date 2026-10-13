@@ -347,14 +347,15 @@ Behaviour is **warn and still register** — call `reportPiSupport()` at the top
 
 ### Task 8: Event, CLI and startup behaviour alignment
 
-**Context:** Three behavioural drifts, none visible to `tsc` because they are event-shape and CLI-semantic. (a) `notify/src/index.ts:192` cancels pending notifications on `before_agent_start`, which 1.2.0 turned into a union on `messageType` and made fire for `pi.sendMessage(…, { triggerTurn: true })` too; `:207` cancels on *any* terminal input, and pi now sends far more protocol replies (1.1.0's OSC 7501 sentinel, 1.2.0's palette query at startup **and** on every theme switch). (b) The startup section list and the `console.log` scrape of `Model scope:` predate `quietStartup` and `ctx.scopedModels`. (c) Our own update check duplicates pi's. Decision: keep cancel-on-any-run-start (a starting run really does make a "task complete" notification stale) and pin it with a test.
+**Context:** Four behavioural drifts, none visible to `tsc` because they are event-shape and CLI-semantic. (a) `notify/src/index.ts:192` cancels pending notifications on `before_agent_start`, which 1.2.0 turned into a union on `messageType` and made fire for `pi.sendMessage(…, { triggerTurn: true })` too; `:207` cancels on *any* terminal input, and pi now sends far more protocol replies (1.1.0's OSC 7501 sentinel, 1.2.0's palette query at startup **and** on every theme switch). (b) The startup section list and the `console.log` scrape of `Model scope:` predate `quietStartup` and `ctx.scopedModels`. (c) Our own update check duplicates pi's. Decision: keep cancel-on-any-run-start (a starting run really does make a "task complete" notification stale) and pin it with a test.
 
 **Files:**
 - Modify: `packages/notify/src/index.ts` (`:192`, `:207`), `packages/notify/src/*.test.ts`
 - Modify: `packages/ui/src/index.ts` (`:209` spinner wiring), `packages/ui/src/editor/index.ts` (`:376`)
+- Modify (footer repaint on async refresh): `packages/footer/src/utils/git.ts`, `packages/footer/src/utils/jj.ts`, `packages/footer/src/index.ts` (`:46` is the `onBranchChange` → `requestRender` precedent to follow), `packages/footer/src/utils/git.test.ts`, `packages/footer/src/utils/jj.test.ts`
 - Delete: `packages/ui/src/startup/capture.ts` (the `console.log` scrape), `fetchLatestVersion()` in `packages/ui/src/startup/version.ts:4-16`
-- Modify: `packages/ui/src/startup/index.ts` — remove the `patchStartupListing` `addChild` interception (installed from the header factory at `ui/src/index.ts:195`) now that `quietStartup` + `setHeader()` cover it; this is the removal Task 3 gated behind
-- Test: `packages/ui/src/startup/*.test.ts`
+- Modify: `packages/ui/src/startup/index.ts` — remove **only** the section-scrape half of `patchStartupListing`: `capture.ts`'s `console.log` patch, `findLoadedResourcesContainer()` (`:185-203`) and the `addChild` interception it feeds (`:340-355`, whose error paths are the `console.error` calls at `:349`/`:352`). **The function itself stays**, along with `renderHeader()`, the logo rows, the reveal/stagger frames and the animation timer (`:225-262`) — that machinery is our splash, not pi's listing, and it is what `ui/src/index.ts:195` hands to `setHeader()`. This is the removal Task 3 gated behind.
+- Test: `packages/ui/src/startup/*.test.ts` — including `index.test.ts`'s `patchStartupListing animation timer` block, added in #92 (`stops redrawing once the logo settles when no sections arrive (quietStartup)`, `restarts the timer when sections are revealed after the logo settled`). Those two are the contract the trimmed function must keep satisfying; they are why this is a trim and not a deletion.
 
 **What to implement:**
 `notify`: keep the `before_agent_start` handler unconditional, add a comment naming the `messageType` union and why any run start cancels, and change the terminal-input cancel to require a decoded key — use pi-tui's `matchesKey`/`isKeyRelease`/`Key` (all exported at `pi-tui/dist/index.d.ts:23`) so protocol replies do not count as a keystroke. Get the rationale right in the comment: colour responses and colour-scheme reports are consumed **before** extension listeners run (`pi-tui/dist/tui.js:688-693`), so palette replies can never reach `notify`'s handler — what actually reaches it is forwarded DA1 replies (`pi-tui/dist/terminal.js:82`) and cell-size replies (`ESC[6;h;w t`, consumed only after listeners, `tui.js:710`). Keep the `ui_prompt_end` cancel scoping exactly as ADR 0013 describes.
@@ -366,15 +367,18 @@ Nothing in this task touches tool rendering (Task 10) or the thinking patch's pr
 **Steps:**
 - [ ] Failing notify tests: a forwarded DA1 reply (`\x1b[?62;1;9c`) and a cell-size reply (`\x1b[6;24;80t`) do **not** cancel a pending notification; a plain keystroke does; `before_agent_start` with `messageType: "custom"` still cancels.
 - [ ] Failing startup tests: scoped models render from `ctx.scopedModels` with `console.log` untouched; `quietStartup: "header"` yields header without sections; no network call at startup; `patchStartupListing` is no longer installed and the `console.log`/`addChild` patch allow-list entries from Task 6 are gone.
+- [ ] Footer staleness (new since #90/#91, and the one place screen mode bites the footer): `utils/git.ts` and `utils/jj.ts` now refresh their caches with `execFile` in the background and **nothing requests a frame when the reply lands** — pi draws only on host-driven events, so a `~N`/branch value that changed between frames stays stale until unrelated activity repaints it. Wire the refresh completion to a render request (a callback or subscriber the footer connects to `tui.requestRender()`, the way `footerData.onBranchChange` already does at `footer/src/index.ts:46`), with a test that a background refresh triggers exactly one repaint and that a refresh for a moved `cwd` does not.
 - [ ] Run `npx vitest run packages/notify packages/ui` — expect failures.
 - [ ] Implement; `cd packages/notify && npx tsc --noEmit`; `cd packages/ui && npx tsc --noEmit`; `pnpm test`.
 - [ ] Manual: `grep` the process's outbound traffic is not needed — instead assert `console.log` is not patched by checking `console.log.name === "log"` from a scratch extension, and confirm startup makes no HTTP request to `registry.npmjs.org`.
 - [ ] Commit: `fix(notify,ui): align with pi 1.x events, quietStartup and scoped models`
+- [ ] Commit the footer repaint wiring **separately**: `fix(footer): repaint after background git/jj cache refresh` — unrelated to the pi 1.x event alignment, and #90/#91 are recent enough that a clean revert boundary matters.
 
 **Acceptance criteria:**
 - [ ] Terminal replies cannot cancel a notification; real keys still can.
 - [ ] No `console.log` patch anywhere; no registry fetch at startup.
-- [ ] `quietStartup` (`true`/`"header"`/`false`) all render correctly on both screen modes.
+- [ ] `quietStartup` (`true`/`"header"`/`false`) all render correctly on both screen modes, and #92's two animation-timer tests still pass against the trimmed `patchStartupListing`.
+- [ ] A background git/jj refresh repaints the footer without waiting for unrelated activity.
 - [ ] ADR 0013's `ui_prompt_end` scoping behaviour unchanged.
 
 ---
@@ -384,7 +388,7 @@ Nothing in this task touches tool rendering (Task 10) or the thinking patch's pr
 **Context:** `spawn.ts:227-233` joins `agent.tools` verbatim into `--tools`. pi 1.0.4 made `--tools` **retain** MCP tools unless an entry starts with `mcp__` (and added `--no-mcp`), and 1.1.0 made `+name`/`-name` **modifiers** — so a three-tool allowlist silently widens, and a `+web_search` entry typed into the `/agents` panel (`agent-panel.ts:469,1020`) changes the meaning of the whole list. 1.2.0 made print mode exit `1` when the final response hit the output token limit, and `stream.ts:206-210` reduces the child to `code ?? 1`, so a useful-but-truncated answer now reports as a generic failure. Cost is currently smuggled over `core/bus` (`subagent/src/cost.ts` → `footer/src/cost-accumulator.ts:11`) and therefore missing from `/session`. Decision: ADR 0028.
 
 **Files:**
-- Modify: `packages/subagent/src/spawn.ts` (`:227-233`), `packages/subagent/src/agents.ts` (**the parse path is `:49-83`; `:62-71` is `extraFields`, where an unknown `mcp:` key currently lands**), `packages/subagent/src/frontmatter-io.ts` (`:60-76` is `serializeAgent` — the **writer**, which must round-trip the new `mcp` key but is *not* where validation happens), `packages/subagent/src/agent-panel.ts` (`:469`, `:999-1022`), `packages/subagent/src/stream.ts` (`:197`, `:206-210`), `packages/subagent/src/index.ts` (tool result: `usage`, outcome), `packages/subagent/src/model-validation.ts` (pattern source), `packages/footer/src/index.ts` (`:70-80`) + `packages/footer/src/cost-accumulator.ts`
+- Modify: `packages/subagent/src/spawn.ts` (`:227-233`), `packages/subagent/src/agents.ts` (**the parse path is `:49-83`; `:62-71` is `extraFields`, where an unknown `mcp:` key currently lands**), `packages/subagent/src/frontmatter-io.ts` (`:60-76` is `serializeAgent` — the **writer**, which must round-trip the new `mcp` key but is *not* where validation happens), `packages/subagent/src/agent-panel.ts` (`:469`, `:999-1022`), `packages/subagent/src/stream.ts` (`:197`, `:206-210`), `packages/subagent/src/index.ts` (tool result: `usage`, outcome), `packages/subagent/src/model-validation.ts` (pattern source), `packages/footer/src/index.ts` (`:65-76`, the accumulator merge into `mergedStats`) + `packages/footer/src/cost-accumulator.ts`
 - Modify: `packages/subagent/package.json` — `peerDependencies` floors to `">=1.2.0"` (both pi packages, and `pi-ai` where declared)
 - Test: `packages/subagent/src/*.test.ts`, `packages/footer/src/*.test.ts`
 
@@ -564,6 +568,7 @@ Release notes shape: a leading `## Pi 1.2.0 alignment` section (screen mode supp
 
 ## Sequencing and risk notes
 
+- Line citations in this plan were re-verified against `main` after #89–#93 merged (footer git/jj/stats, `ui/src/startup/index.ts`); the earlier ones from the 2.10.4 snapshot that moved are `footer/src/index.ts:141`→`:145` (`clampLine`), `:70-80`→`:65-76` (accumulator merge) and `ui/src/startup/index.ts:343,346`→`:349,352` (`addChild` error paths). Re-check citations again if further PRs land before execution.
 - Tasks 1 and 2 must come first (everything else assumes 1.2.0 types and drift detection). Any new module under `packages/core/src` needs its `exports` entry in `packages/core/package.json` in the same commit: `core/src/index.ts` exposes only `registerCore`, and every cross-package consumer imports a subpath.
 - Task 3 gates Task 4/5 work behind screen mode; Task 6 must precede Tasks 7–10 because they add warnings that must not use `console.*`; **Task 8**, not Task 10, removes the startup `addChild` patch that Task 3 only gates.
 - Tasks 9, 10, 11, 12 each own their own peer-floor move; Task 13 verifies the final set: `>=1.2.0` for `ui`, `diff`, `subagent`; `>=0.86.0` `image-paste`/`session-name`; `>=0.85.0` `core`; `>=0.84.4` `notify`; `>=0.1.0` elsewhere.
