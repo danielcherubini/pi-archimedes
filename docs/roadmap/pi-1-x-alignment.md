@@ -68,6 +68,8 @@ Change `"@types/node": "^22.0.0"` to `"@types/node": "22.19.19"` in `packages/su
 
 Do not change `typescript` versions (root `^7.0.2`, packages `^6.0.0`); that mismatch is pre-existing and out of scope. Note for later tasks: `packages/core` declares no `@types/node` and compiles `node:fs` via the hoisted copy — the root pin added here is what makes that deterministic.
 
+**The supply-chain gate you will hit (verified on this checkout).** pnpm 12.5 enforces a default `minimumReleaseAge` of 24 hours, and the pi 1.x family is published as one train — `pi-coding-agent@1.2.0` and its six siblings (`pi-agent-core`, `pi-ai`, `pi-codemode`, `pi-mcp`, `pi-telemetry`, `pi-tui`) all landed at 2026-10-12 ~23:00Z. While they are younger than 24 hours, `pnpm install --frozen-lockfile` **fails** with `The lockfile contains entries that the active policies reject … was published … within the minimumReleaseAge cutoff`, which CI reads as a suspect lockfile. `pnpm install` resolves this by writing `minimumReleaseAgeExclude:` entries into `pnpm-workspace.yaml` (an explicit per-version policy exclusion — commit it, do not fight it, and say so in the commit message). The exclusion is time-limited by nature: it becomes unnecessary 24 hours after the pi release, and should then be deleted rather than left as a permanent hole in the policy.
+
 **Steps:**
 - [ ] Edit the 13 manifests + 2 `@types/node` lines + root `devDependencies`.
 - [ ] Run `pnpm install` (never `npm install`).
@@ -85,6 +87,7 @@ Do not change `typescript` versions (root `^7.0.2`, packages `^6.0.0`); that mis
 - [ ] `pnpm -r exec -- tsc --noEmit` exits 0.
 - [ ] `pnpm test` exits 0.
 - [ ] `pnpm-lock.yaml` is in the commit (CI runs `pnpm install --frozen-lockfile`; a stale lockfile fails with `ERR_PNPM_OUTDATED_LOCKFILE`).
+- [ ] If `pnpm-workspace.yaml` gained `minimumReleaseAgeExclude` entries, they are in the same commit with the reason stated, and a follow-up line is recorded here to delete them once the pinned pi release is older than 24 hours (`1.2.0`: published 2026-10-12 ~23:00Z, so safe to drop from 2026-10-13 ~23:00Z).
 - [ ] No `peerDependencies` range changed.
 
 ---
@@ -107,10 +110,11 @@ Add to the existing `on:` block:
 
 Add a second job `pi-latest` that mirrors the checkout/setup-node/pnpm-setup steps of `typecheck`, then instead of `pnpm install --frozen-lockfile`:
 ```yaml
-      - run: pnpm install
+      - run: pnpm install --config.minimum-release-age=0
       - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"
       - run: pnpm -r exec -- tsc --noEmit
 ```
+The `--config.minimum-release-age=0` is load-bearing, not decoration: pnpm's default 24-hour supply-chain gate rejects a pi release for its first day (`… was published …, within the minimumReleaseAge cutoff`), so a job that floats to `@latest` would be red for 24 hours after every pi release — the exact window in which it is most worth running. The flag is the only way to express this for a *floating* version, because `minimumReleaseAgeExclude` pins exact versions. The floor job keeps the policy untouched; only the float job relaxes it, and only in CI.
 `pnpm update -r` prints "ignored update" for packages that do not declare a given specifier and still exits 0 — that is fine. **Do not** substitute `pnpm -r add`: it writes into `dependencies`, which is the wrong section for a compile-time-only host package and would corrupt the manifests Task 1 just pinned. Do not run `pnpm test` in this job — its purpose is the compile surface, and test failures against an unreleased pi would be noise on the main branch's green check.
 
 Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm test`): it is now the floor job and its failure means "our supported floor no longer compiles", which is actionable.
@@ -128,7 +132,7 @@ Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm tes
 
 **Acceptance criteria:**
 - [ ] `ci.yml` has a `schedule` trigger and a `workflow_dispatch` trigger.
-- [ ] `pi-latest` runs `pnpm update -r` (or the `add` fallback) then `tsc --noEmit`, and does not use `--frozen-lockfile`.
+- [ ] `pi-latest` runs `pnpm update -r` (or the `add` fallback) then `tsc --noEmit`, does not use `--frozen-lockfile`, and passes `--config.minimum-release-age=0` to the install so a same-day pi release is not rejected by the supply-chain policy.
 - [ ] `typecheck` still uses `--frozen-lockfile` and still runs the tests.
 - [ ] No commit in this task contains bumped dependency versions.
 
