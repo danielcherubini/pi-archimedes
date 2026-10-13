@@ -125,7 +125,16 @@ function makePanelTheme(tokens: PanelTokens): Theme {
  */
 function realPiTheme(
   overrides: Record<string, string | number>,
-  options: { appearance: "light" | "dark"; mode?: "truecolor" | "256color" },
+  options: {
+    appearance: "light" | "dark";
+    mode?: "truecolor" | "256color";
+    /**
+     * Tokens to leave out entirely, standing in for a hand-written theme JSON
+     * that never declares them — `Theme` fills only tokens that declare a
+     * fallback, so an omitted token makes `getBgAnsi` throw.
+     */
+    omit?: string[];
+  },
 ): Theme {
   const tokens: Record<string, string | number> = {
     text: "#d8d8d8",
@@ -148,6 +157,7 @@ function realPiTheme(
     toolDiffContext: "#8a8a8a",
     ...overrides,
   };
+  for (const token of options.omit ?? []) delete tokens[token];
   return new PiTheme(
     tokens as never,
     tokens as never,
@@ -397,6 +407,49 @@ describe("resolvePalette against a real pi 1.2.0 Theme", () => {
     // the border's 240.
     expect(p.panelEdge).toBe("\x1b[38;5;236m");
     expect(p.panelEdge).not.toBe("\x1b[38;5;240m");
+  });
+
+  it("asks the THEME which colour mode to emit in, not a hardcoded one", () => {
+    // Both other palette tests use *indexed* tokens (236, 240), and the emitter
+    // answers `38;5;n` for an indexed colour whatever mode it is handed — so
+    // neither can see the mode argument at all. A real theme's tokens are rgb
+    // (`okhsl(...)` resolves to rgb), and those DO depend on the mode:
+    // `#213b49` is `38;2;33;59;73m` in truecolour and `38;5;23m` here. Handing
+    // the emitter a fixed mode would paint a truecolour escape on a terminal
+    // that said it cannot draw one, and the slab would fall back to the
+    // terminal's own foreground — the bright bar this whole rule avoids.
+    const theme = realPiTheme(
+      { userMessageBg: "#213b49" },
+      { appearance: "dark", mode: "256color" },
+    );
+    // Measured, so the premise (rgb + 256 colour ⇒ an indexed answer) is visible.
+    expect(theme.getBgAnsi("userMessageBg")).toBe("\x1b[48;5;23m");
+
+    const p = resolvePalette(theme);
+    expect(p.panelBg).toBe("\x1b[48;5;23m");
+    expect(p.panelEdge).toBe("\x1b[38;5;23m");
+    // The same index as the body, in the other slot — and no truecolour escape
+    // anywhere near a terminal that did not ask for one.
+    expect(p.panelEdge.replace("38;", "48;")).toBe(p.panelBg);
+    expect(p.panelEdge).not.toContain("38;2;");
+  });
+
+  it("edges with the token that WON the tint, not with a hardcoded one", () => {
+    // `panelTint` tries `userMessageBg` then `customMessageBg`, and a theme JSON
+    // that omits the first is legal: pi fills only tokens that declare a
+    // fallback, and neither panel token declares one, so `getBgAnsi`
+    // ("userMessageBg") throws and the second token wins. The edge has to follow
+    // the winner — asking `colors` for a fixed token would find nothing for a
+    // panel that IS tinted and blank the slab.
+    const theme = realPiTheme(
+      { customMessageBg: "#3a3055" },
+      { appearance: "dark", omit: ["userMessageBg"] },
+    );
+    expect(() => theme.getBgAnsi("userMessageBg")).toThrow();
+
+    const p = resolvePalette(theme);
+    expect(p.panelBg).toBe("\x1b[48;2;58;48;85m");
+    expect(p.panelEdge).toBe("\x1b[38;2;58;48;85m");
   });
 });
 
