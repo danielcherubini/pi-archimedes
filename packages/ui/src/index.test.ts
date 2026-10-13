@@ -69,10 +69,15 @@ vi.mock("./bash/index.js", async (importOriginal) => {
   };
 });
 
-vi.mock("./codemode/index.js", () => ({
-  registerCodemodeToolOverride: vi.fn(async () => true),
-  clearActiveCodemodeIntervals: vi.fn(),
-}));
+vi.mock("./codemode/index.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./codemode/index.js")>();
+  return {
+    ...actual,
+    registerCodemodeToolOverride: vi.fn(async () => true),
+    clearActiveCodemodeIntervals: vi.fn(),
+  };
+});
 
 import defaultExport, {
   registerUI,
@@ -88,6 +93,7 @@ import {
   renderBashCall,
   renderBashResult,
 } from "./bash/index.js";
+import { renderCodemodeCall, renderCodemodeResult } from "./codemode/index.js";
 import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
 import { patchThinkingRenderer } from "./thinking/patch.js";
 import { transformThinkingContent } from "./thinking/transform.js";
@@ -313,6 +319,31 @@ describe("packages/ui lifecycle and registration", () => {
       for (const name of ["read", "edit", "write", "grep", "todo"]) {
         expect(resolve(renderers[0], name)).toEqual({ result: NATIVE, nextCalls: 1 });
       }
+    });
+
+    it("resolves codemode to the Archimedes renderers when styling is on", () => {
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      expect(resolve(renderers[0], "codemode")).toEqual({
+        result: { renderCall: renderCodemodeCall, renderResult: renderCodemodeResult },
+        nextCalls: 0,
+      });
+    });
+
+    it("gives back pi's own codemode row when codemodeToolStyling is off", () => {
+      vi.mocked(loadUIConfig).mockReturnValue({
+        ...DEFAULT_UI_CONFIG,
+        codemodeToolStyling: false,
+      });
+      const { renderers, triggerStart } = setupHarness();
+      const { ctx } = makeCtx(true);
+
+      triggerStart(ctx);
+
+      expect(resolve(renderers[0], "codemode")).toEqual({ result: NATIVE, nextCalls: 1 });
     });
 
     it("registers the resolver once even across repeated session_start (/reload)", () => {

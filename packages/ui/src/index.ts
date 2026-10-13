@@ -39,7 +39,12 @@ import { reportPiSupport } from "@pi-archimedes/core/pi-support";
 import { getUISettingsItems } from "./settings.js";
 import { migrateCoreToUIConfig, migrateCompactThinkingToStyle, migrateRemovedToolPatch } from "./migration.js";
 import { clearActiveBashIntervals, renderBashCall, renderBashResult } from "./bash/index.js";
-import { registerCodemodeToolOverride, clearActiveCodemodeIntervals } from "./codemode/index.js";
+import {
+  registerCodemodeToolOverride,
+  clearActiveCodemodeIntervals,
+  renderCodemodeCall,
+  renderCodemodeResult,
+} from "./codemode/index.js";
 
 // Re-exports
 export { getUISettingsItems } from "./settings.js";
@@ -73,7 +78,7 @@ let spinInterval: ReturnType<typeof setInterval> | undefined;
  * every `/reload` — which means the settings have to be read here rather than
  * inside the resolver: `renderCall`/`renderResult` run on every frame.
  */
-let styledTools = { bash: false };
+let styledTools = { bash: false, codemode: false };
 
 function clearSpinInterval(): void {
   if (spinInterval) {
@@ -99,9 +104,17 @@ function registerToolRenderers(pi: ExtensionAPI): void {
   if (typeof pi.registerToolRenderer !== "function") return;
 
   pi.registerToolRenderer((toolName, next) => {
-    if (toolName !== "bash") return next();
-    if (!styledTools.bash) return next();
-    return { renderCall: renderBashCall, renderResult: renderBashResult };
+    if (toolName === "bash") {
+      return styledTools.bash
+        ? { renderCall: renderBashCall, renderResult: renderBashResult }
+        : next();
+    }
+    if (toolName === "codemode") {
+      return styledTools.codemode
+        ? { renderCall: renderCodemodeCall, renderResult: renderCodemodeResult }
+        : next();
+    }
+    return next();
   });
 }
 
@@ -164,7 +177,10 @@ export function registerUI(pi: ExtensionAPI): void {
     // What the resolver answers with for this session (see `styledTools`).
     // `Minimal` = archimedes tool styling (the per-tool toggles fine-tune it);
     // `Native` = none of it, so pi's own rows stand everywhere.
-    styledTools = { bash: minimal && config.bashToolStyling !== false };
+    styledTools = {
+      bash: minimal && config.bashToolStyling !== false,
+      codemode: minimal && config.codemodeToolStyling !== false,
+    };
 
     // The codemode override replaces pi's built-in codemode extension
     // (the same take-over the bash override used to do for the core bash
