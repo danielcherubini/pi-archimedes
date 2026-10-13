@@ -64,15 +64,19 @@ jobs:
           cache: pnpm
 
       # pnpm enforces a 24h minimum release age by default, which rejects a pi
-      # release for its first day — exactly the window this job exists to cover.
-      # The floor job keeps the policy; only the float job relaxes it, and a
-      # floating version cannot be exempted via minimumReleaseAgeExclude, which
-      # pins exact versions. The flag must go on `update` as well as `install`:
-      # a flagless update silently resolves the *previous* release and exits 0,
-      # which would leave this job green against yesterday's pi.
-      - run: pnpm install --config.minimum-release-age=0
+      # release for its first day — exactly the window this job exists to cover,
+      # and a floating version cannot be exempted through minimumReleaseAgeExclude
+      # because that pins exact versions. Relax the policy once, in the runner's
+      # workspace config, rather than per command: pnpm re-verifies the lockfile
+      # before *any* `pnpm exec`, so a flag on install and update still dies at
+      # the type-check step with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION (the
+      # first run of this job failed there). The floor job keeps the policy
+      # untouched, and this edit exists only on the runner.
+      - run: pnpm config set minimum-release-age 0 --location project
 
-      - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest" --config.minimum-release-age=0
+      - run: pnpm install
+
+      - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"
 
       - name: Type-check all packages against pi@latest
         run: pnpm -r exec -- tsc --noEmit
