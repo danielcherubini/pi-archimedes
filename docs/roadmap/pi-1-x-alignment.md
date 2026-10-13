@@ -106,21 +106,31 @@ Add to the existing `on:` block:
 ```
 (An odd minute avoids the queue pileup; `workflow_dispatch` lets anyone re-run it against today's latest on demand.)
 
-Add a second job `pi-latest` that mirrors the checkout/setup-node/pnpm-setup steps of `typecheck`, then instead of `pnpm install --frozen-lockfile`:
+Add a second job `pi-latest` that mirrors the checkout/setup-node/pnpm-setup steps of `typecheck`, gated so it never runs on a PR, then instead of `pnpm install --frozen-lockfile`:
 ```yaml
+  pi-latest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+```
+```yaml
+      - run: pnpm config set minimum-release-age 0 --location project
       - run: pnpm install
       - run: pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"
       - run: pnpm -r exec -- tsc --noEmit
 ```
+The gate is deliberate: on a PR an upstream pi change would redden every open PR for a reason the author cannot fix. `workflow_dispatch` exists so anyone can re-run it against today's latest.
+
+**Relax pnpm's supply-chain policy once, in the runner's workspace config — not per command.** pnpm's default `minimumReleaseAge` is 24 hours, so a brand-new pi release is rejected for its first day, which is precisely when this job matters; `minimumReleaseAgeExclude` cannot help because it pins exact versions and this job floats. Writing `minimum-release-age: 0` into the runner's `pnpm-workspace.yaml` covers every later invocation, including pnpm's own. Per-command `--config.minimum-release-age=0` does **not**: it has to be on `update` as well as `install` (a flagless `pnpm update` silently resolves the *previous* release and exits 0 — verified: it picked 1.1.0 while 1.2.0 sat in the window, and picked 1.2.0 with the flag), and even then pnpm re-verifies the lockfile before *any* `pnpm exec`, so the type-check step still dies with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`. Both of those were observed in CI on the first run of this job; the config-set step is what fixed it. The floor job keeps the policy intact, and the edit only ever touches the runner's copy.
+
+`pnpm update -r` prints "ignored update" for packages that do not declare a given specifier and still exits 0 — that is fine.
 `pnpm update -r` prints "ignored update" for packages that do not declare a given specifier and still exits 0 — that is fine. **Do not** substitute `pnpm -r add`: it writes into `dependencies`, which is the wrong section for a compile-time-only host package and would corrupt the manifests Task 1 just pinned. Do not run `pnpm test` in this job — its purpose is the compile surface, and test failures against an unreleased pi would be noise on the main branch's green check.
 
 Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm test`): it is now the floor job and its failure means "our supported floor no longer compiles", which is actionable.
 
 **Steps:**
 - [ ] Edit `.github/workflows/ci.yml`.
-- [ ] Validate locally: `pnpm install && pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest" && pnpm -r exec -- tsc --noEmit`
-  - Green? If `pnpm update -r` errors out entirely (rather than printing "ignored update"), report BLOCKED with its output — do not switch to `pnpm -r add`.
-  - Then `git checkout -- . && git checkout -- pnpm-lock.yaml` to discard the float bump (this job must not commit bumped versions).
+- [ ] Validate locally by running the job's four commands **in the job's order** — `pnpm config set minimum-release-age 0 --location project`, then `pnpm install`, then `pnpm update -r "@earendil-works/pi-coding-agent@latest" "@earendil-works/pi-tui@latest" "@earendil-works/pi-ai@latest"`, then `pnpm -r exec -- tsc --noEmit` — from the *unfloated* tree, so the float actually moves something.
+  - Every manifest should end up on the new specifier and all 13 packages should type-check. If `pnpm update -r` errors out entirely (rather than printing "ignored update"), report BLOCKED with its output — do not switch to `pnpm -r add`.
+  - Then discard the bump with a **path-scoped** checkout: `git checkout -- package.json 'packages/*/package.json' 'meta/package.json' pnpm-lock.yaml pnpm-workspace.yaml`. Path-scoped because the float rewrites the 13 manifests *and* the lockfile *and* (via the config step) `pnpm-workspace.yaml`, while `.github/workflows/ci.yml` must survive. A blunt `git checkout -- .` deletes the work this task just did.
 - [ ] Validate the workflow parses: `npx --yes js-yaml .github/workflows/ci.yml >/dev/null`
   - Non-zero exit means bad YAML; fix indentation and re-run.
 - [ ] Push and trigger `pi-latest` with `gh workflow run ci.yml`, then confirm from `gh run view --log` that both jobs exist.
@@ -129,8 +139,9 @@ Leave the existing `typecheck` job exactly as it is (frozen lockfile + `pnpm tes
 
 **Acceptance criteria:**
 - [ ] `ci.yml` has a `schedule` trigger and a `workflow_dispatch` trigger.
-- [ ] `pi-latest` runs `pnpm update -r` (or the `add` fallback) then `tsc --noEmit`, and does not use `--frozen-lockfile`.
-- [ ] `typecheck` still uses `--frozen-lockfile` and still runs the tests.
+- [ ] `pi-latest` is gated with `if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'`, and a `workflow_dispatch` run on the branch shows `typecheck` and `pi-latest` **both** executed while a `pull_request` run shows `pi-latest` **skipped** — check the job list, not just the workflow status, because a skipped job still lets the run succeed.
+- [ ] `pi-latest` relaxes the policy with `pnpm config set minimum-release-age 0 --location project` before installing, so the type-check step's implicit lockfile re-verification also passes; the job does not use `--frozen-lockfile`.
+- [ ] The `typecheck` job is byte-for-byte unchanged (frozen lockfile + tests) and its job name is unchanged, so any required-status-check configuration keeps matching.
 - [ ] No commit in this task contains bumped dependency versions.
 
 ---
