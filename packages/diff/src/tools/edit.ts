@@ -85,11 +85,12 @@ export function createEditRenderers(cwd: string, home: string): ToolRenderers {
 			const fp = args?.path ?? args?.file_path ?? "";
 			const operations = getEditOperations(args);
 
-			// The row draws its own shell, so pi adds no inset of its own and tells
-			// us so (`outputPad` is 0 under `renderShell: "self"`, 2 for the default
-			// shell). The row keeps its own one-column inset as the floor and grows
-			// to whatever pi asks for, instead of hard-coding a number pi would then
-			// have to agree with.
+			// `outputPad` is the user's `outputPad` setting (0 or 1 on pi 1.2.0) and
+			// says nothing about the shell: under `renderShell: "self"` pi composes the
+			// row in a plain container and applies none of it itself, so the inset here
+			// is ours to decide. The row keeps its own one-column inset as the floor —
+			// its background is a Box, which needs the inset to read as a block — and
+			// grows to whatever pi asks for rather than hard-coding a number.
 			const padX = Math.max(1, ctx.outputPad ?? 1);
 
 			// Box with padding + background — matches built-in edit tool pattern
