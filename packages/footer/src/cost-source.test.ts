@@ -10,7 +10,7 @@
  * the same money. These tests are the proof of both halves.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getBus, Events } from "@pi-archimedes/core/bus";
 import { formatTokenCount } from "./utils/format.js";
@@ -65,6 +65,23 @@ function assistantEntry(id: string) {
   };
 }
 
+/**
+ * Footers built by the fixture while a test runs, handed back after it.
+ *
+ * Each test calls `shutdown()` itself, which releases the module-level
+ * subscription — but only if the test gets that far: a failed assertion skips
+ * it, and `session_shutdown` never touched the host's branch-change
+ * subscription anyway, which is the footer's `dispose()` alone. So the release
+ * belongs in a hook rather than in each test's happy path, mirroring
+ * `src/index.test.ts`.
+ */
+let builtFooters: FooterInstance[] = [];
+
+afterEach(() => {
+  for (const footer of builtFooters) footer.dispose();
+  builtFooters = [];
+});
+
 async function installFooter(entries: unknown[]): Promise<{ rendered: (width?: number) => string[]; shutdown: () => void }> {
   vi.resetModules();
   vi.doMock("./utils/git.js", () => ({
@@ -110,6 +127,7 @@ async function installFooter(entries: unknown[]): Promise<{ rendered: (width?: n
     getGitBranch: () => "main",
     getExtensionStatuses: () => new Map<string, string>(),
   });
+  builtFooters.push(footer);
   return {
     rendered: (width = 200) => footer.render(width),
     shutdown: () => handlers["session_shutdown"]!({}, ctx),
