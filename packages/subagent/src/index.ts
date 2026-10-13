@@ -3,7 +3,7 @@ import { Text, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { SUBAGENT_PARAMS_SCHEMA } from "./tool-schema.js";
 import { executeSubagent, executeParallel } from "./execute.js";
-import { formatParallelResults } from "./format.js";
+import { formatParallelResults, formatSingleResult } from "./format.js";
 // agent-manager.js lazy-loaded below to keep subagent tool registration fast
 import { renderSubagentResult } from "./render.js";
 import { OVERLAY_CHROME } from "@pi-archimedes/core/overlay";
@@ -220,13 +220,16 @@ export function registerSubagent(pi: ExtensionAPI): void {
         });
 
         return {
-          content: [{ type: "text", text: result.finalOutput ?? result.error ?? "completed" }],
+          content: [{ type: "text", text: formatSingleResult(result) }],
           details: {
             mode: "single",
             results: [result],
             progress: result.progress ? [result.progress] : undefined,
           },
-          isError: result.exitCode !== 0,
+          // Only a *failed* run is a tool error. A truncated answer and a
+          // cancelled one both produced something, and `isError` is how the model
+          // and the Client decide to retry or give up (ADR 0028).
+          isError: result.outcome === undefined && result.exitCode !== 0,
         };
       }
 

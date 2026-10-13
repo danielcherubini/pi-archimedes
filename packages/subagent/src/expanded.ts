@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
-import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall } from "./types.js";
-import { formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import type { RunOutcome, SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall } from "./types.js";
+import { formatDuration, truncLine, buildStatsLine, buildAgentLabel, buildOutcomeLine } from "./format.js";
 import { renderToolCallLine } from "@pi-archimedes/core/tool-render";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
@@ -17,6 +17,20 @@ function formatToolCall(call: SubagentToolCall | string, theme: Theme): string {
   const status = call.error ? "error" : "success";
   const suffix = call.argsPreview ? ": " + call.argsPreview : "";
   return renderToolCallLine(status, call.name, suffix, theme);
+}
+
+// The bottom row of a finished view. The *Run outcome* wins over the done/failed
+// pair: a truncated answer is not a failed run, and labelling it "✗ Failed" is
+// how a useful answer gets thrown away by whoever reads it.
+function outcomeRow(
+  data: { outcome?: RunOutcome | undefined; error: string | undefined },
+  theme: Theme,
+  fallback: { failed: string },
+): string {
+  const line = buildOutcomeLine({ outcome: data.outcome, error: data.error }, theme);
+  if (line) return line;
+  if (data.error) return theme.fg("error", "✗ " + data.error);
+  return theme.fg("error", "✗ " + fallback.failed);
 }
 
 // ── Expanded completed result ───────────────────────────────────────────────
@@ -68,13 +82,14 @@ export function buildExpandedText(
     lines.push(outputText);
   }
 
-  // Error
-  if (result.error) {
+  // Error / outcome at the bottom
+  if (result.error || result.outcome || result.exitCode === 0) {
     lines.push("");
-    lines.push(theme.fg("error", "✗ " + result.error));
-  } else if (result.exitCode === 0) {
-    lines.push("");
-    lines.push(theme.fg("success", "✓ Done"));
+    if (result.outcome || result.error) {
+      lines.push(outcomeRow({ outcome: result.outcome, error: result.error }, theme, { failed: "Failed" }));
+    } else {
+      lines.push(theme.fg("success", "✓ Done"));
+    }
   } else {
     lines.push("");
     lines.push(theme.fg("error", "✗ Failed"));
@@ -147,16 +162,13 @@ export function renderProgressExpanded(
   }
 
   // Status at bottom
-  if (progress.status === "completed") {
+  if (progress.status === "completed" || progress.outcome) {
     lines.push("");
-    lines.push(theme.fg("success", "✓ Done"));
+    const row = buildOutcomeLine({ outcome: progress.outcome, error: progress.error }, theme);
+    lines.push(row ?? theme.fg("success", "✓ Done"));
   } else if (progress.status === "failed") {
     lines.push("");
-    if (progress.error) {
-      lines.push(theme.fg("error", "✗ " + progress.error));
-    } else {
-      lines.push(theme.fg("error", "✗ Failed"));
-    }
+    lines.push(outcomeRow({ outcome: undefined, error: progress.error }, theme, { failed: "Failed" }));
   }
 
   text.setText(lines.join("\n"));
@@ -222,16 +234,13 @@ export function buildProgressExpandedText(
   }
 
   // Status at bottom
-  if (progress.status === "completed") {
+  if (progress.status === "completed" || progress.outcome) {
     lines.push("");
-    lines.push(theme.fg("success", "✓ Done"));
+    const row = buildOutcomeLine({ outcome: progress.outcome, error: progress.error }, theme);
+    lines.push(row ?? theme.fg("success", "✓ Done"));
   } else if (progress.status === "failed") {
     lines.push("");
-    if (progress.error) {
-      lines.push(theme.fg("error", "✗ " + progress.error));
-    } else {
-      lines.push(theme.fg("error", "✗ Failed"));
-    }
+    lines.push(outcomeRow({ outcome: undefined, error: progress.error }, theme, { failed: "Failed" }));
   }
 
   return lines.join("\n");

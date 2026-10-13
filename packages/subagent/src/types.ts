@@ -13,9 +13,27 @@ export interface SubagentToolCall {
   error: boolean;
 }
 
+/**
+ * The terminal state of a finished run — the suite's fixed vocabulary for it
+ * (`CONTEXT.md`: *Run outcome*).
+ *
+ * `completed` finished within limits; `truncated` finished but hit the output
+ * token limit, so the answer is partial; `aborted` was cancelled. None of them
+ * is a *failed* run — a pre/during-run error carries `error` and **no** outcome.
+ */
+export type RunOutcome = "completed" | "truncated" | "aborted";
+
 export interface SubagentProgress {
   agent: string;
+  /**
+   * The coarse view axis (still running / finished / broke). The three-valued
+   * *Run outcome* lives in `outcome`, which is what the renderers show when a
+   * run has finished — a truncated run is not `failed`, and an aborted one is
+   * not `completed`, whatever the row's status has to say for layout.
+   */
   status: "running" | "completed" | "failed";
+  /** Set once the run reaches a terminal state; absent for a failed run. */
+  outcome?: RunOutcome;
   task: string;
   currentTool: string | undefined;
   currentToolArgs: string | undefined;
@@ -43,6 +61,11 @@ export interface SubagentResult {
   /** Logical Pi session UUID for this spawned subagent process. */
   childSessionId?: string;
   exitCode: number;
+  /**
+   * How the run ended, when it ended. Absent when the run **failed** (an error
+   * before or during the run), which is the case `error` and `isError` describe.
+   */
+  outcome?: RunOutcome;
   usage: SubagentUsage;
   model: string | undefined;
   finalOutput: string | undefined;
@@ -73,6 +96,10 @@ export interface StreamState {
   totalCacheRead: number;
   totalCacheWrite: number;
   totalCost: number;
+  /** `stopReason` of the last assistant message seen (`length` ⇒ truncated). */
+  lastStopReason?: string;
+  /** `agent_settled.aborted` — pi 1.1.0's own account of a cancelled run. */
+  settledAborted?: boolean;
   currentTool: string | undefined;
   currentToolArgs: string | undefined;
   currentToolStartedAt: number | undefined;

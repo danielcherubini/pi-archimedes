@@ -253,3 +253,55 @@ describe("dispatch: a tools list the config read rejected", () => {
     expect(result.content[0]!.text).toContain("read");
   });
 });
+
+describe("dispatch: the result the model reads carries the run outcome", () => {
+  it("marks a truncated answer, and does not report it as an error", async () => {
+    discoverAgents.mockReturnValue([]);
+    executeSubagent.mockResolvedValue({
+      ...okResult,
+      outcome: "truncated",
+      exitCode: 1,
+      finalOutput: "here is most of it",
+      error: undefined,
+    });
+    const ctx = makeCtx();
+    const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, ctx);
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0]!.text).toContain("here is most of it");
+    expect(result.content[0]!.text).toMatch(/truncated/i);
+  });
+
+  it("marks a cancelled run", async () => {
+    discoverAgents.mockReturnValue([]);
+    executeSubagent.mockResolvedValue({
+      ...okResult,
+      outcome: "aborted",
+      exitCode: 143,
+      finalOutput: undefined,
+    });
+    const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0]!.text).toMatch(/aborted/i);
+  });
+
+  it("keeps reporting a failed run as an error, with no outcome claim", async () => {
+    discoverAgents.mockReturnValue([]);
+    executeSubagent.mockResolvedValue({
+      ...okResult,
+      outcome: undefined,
+      exitCode: 1,
+      finalOutput: undefined,
+      error: "boom",
+    });
+    const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain("boom");
+  });
+
+  it("says nothing extra for a completed run", async () => {
+    discoverAgents.mockReturnValue([]);
+    const result = await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());
+    expect(result.content[0]!.text).toBe("all good");
+    expect(result.isError).toBeFalsy();
+  });
+});

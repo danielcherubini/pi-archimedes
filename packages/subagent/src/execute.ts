@@ -142,7 +142,8 @@ export async function executeSubagent(options: ExecuteOptions): Promise<Subagent
           // synthesize one so the parallel renderer stays aligned with results.
           {
             agent: agentName,
-            status: result.exitCode === 0 ? "completed" : "failed",
+            status: result.outcome || result.exitCode === 0 ? "completed" : "failed",
+            ...(result.outcome ? { outcome: result.outcome } : {}),
             task: options.task,
             currentTool: undefined,
             currentToolArgs: undefined,

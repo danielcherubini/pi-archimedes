@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
-import type { SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall, SubagentToolResult } from "./types.js";
-import { formatDuration, truncLine, buildStatsLine, buildAgentLabel } from "./format.js";
+import type { RunOutcome, SubagentDetails, SubagentProgress, SubagentResult, SubagentToolCall, SubagentToolResult } from "./types.js";
+import { formatDuration, truncLine, buildStatsLine, buildAgentLabel, buildOutcomeLine } from "./format.js";
 import { renderToolCallLine } from "@pi-archimedes/core/tool-render";
 
 type Theme = { fg: (token: string, text: string) => string; bold: (text: string) => string };
@@ -14,6 +14,8 @@ interface ActivityData {
   currentToolStartedAt: number | undefined;
   finalOutput: string | undefined;
   status: "running" | "completed" | "failed" | undefined;
+  /** The *Run outcome*, when the run reached one — shown instead of Done/Failed. */
+  outcome?: RunOutcome | undefined;
   error: string | undefined;
   toolCalls?: (SubagentToolCall | string)[] | undefined;
 }
@@ -24,6 +26,14 @@ export function buildActivityLine(
 ): string {
   if (data.error) {
     return theme.fg("error", "✗ " + truncLine(data.error, 80));
+  }
+
+  // A finished run reports its outcome: Done / Truncated / Aborted. Truncated and
+  // Aborted are not the old "Failed" — the answer may be perfectly good, just
+  // partial, and a cancelled run was cancelled on purpose.
+  if (data.outcome) {
+    const line = buildOutcomeLine({ outcome: data.outcome, error: undefined }, theme);
+    if (line) return line;
   }
 
   // Finished subagents always show their final status — never a stale
@@ -123,7 +133,6 @@ export function renderCompactSingle(
   const summary = result.progressSummary ?? { toolCount: 0, tokens: 0, durationMs: 0 };
   const isRunning = progress?.status === "running";
   const status = isRunning ? "running" : (result.exitCode === 0 ? "completed" : "failed");
-
   // Track start time for live duration
   const timeKey = "_subagentStartTime_" + agentName;
   if (isRunning && context.state[timeKey] === undefined) {
@@ -153,6 +162,7 @@ export function renderCompactSingle(
         currentToolStartedAt: progress?.currentToolStartedAt,
         finalOutput: result.finalOutput,
         status: isRunning ? "running" : status,
+        outcome: isRunning ? undefined : result.outcome,
         error: result.error,
         toolCalls: progress?.toolCalls,
       },
@@ -203,6 +213,7 @@ export function renderCompactParallel(
           currentToolStartedAt: progress?.currentToolStartedAt,
           finalOutput: result.finalOutput,
           status,
+          outcome: result.outcome,
           error: result.error,
           toolCalls: progress?.toolCalls,
         },
@@ -255,6 +266,7 @@ export function renderCompactProgress(
         currentToolStartedAt: progress.currentToolStartedAt,
         finalOutput: undefined,
         status,
+        outcome: status === "running" ? undefined : progress.outcome,
         error: progress.error,
         toolCalls: progress.toolCalls,
       },

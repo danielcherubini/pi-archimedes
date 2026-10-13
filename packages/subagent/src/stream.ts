@@ -11,6 +11,7 @@ import {
   handleMessageEnd,
   handleAgentEnd,
 } from "./handlers.js";
+import { decideRunOutcome } from "./run-outcome.js";
 
 export interface StreamCallbacks {
   agent?: string;
@@ -198,21 +199,41 @@ export function streamEvents(
           handleAgentEnd(state, event);
           break;
         }
+        case "agent_settled": {
+          // pi 1.1.0: the child's own statement that its run is over, and
+          // whether it was cancelled. `agent_end` fires for a cancelled run too
+          // (and can fire while a continuation is still pending), so this — not
+          // `agent_end` — is what an outcome is read from.
+          if (event.aborted === true) state.settledAborted = true;
+          break;
+        }
         // Ignore: agent_start, message_start, message_update, turn_end, tool_execution_update
       }
     });
 
     // Handle process exit
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       clearStartupTimer();
       clearInterval(heartbeat);
       const durationMs = Date.now() - startTime;
       const exitCode = code ?? 1;
 
-      // Surface stderr as error if the process failed and we have no other error
-      if (exitCode !== 0 && !error) {
+      const outcome = decideRunOutcome({
+        settledAborted: state.settledAborted === true,
+        stopReason: state.lastStopReason,
+        // The raw code, not `exitCode`: `null` is the difference between "it was
+        // killed" and "it failed", and the outcome table reads that difference.
+        exitCode: code,
+        signal: signal ?? undefined,
+      });
+
+      // stderr explains a failure and nothing else. A truncated run's stderr is
+      // pi's own "Response was truncated" notice and an aborted one's is noise —
+      // promoting either to `error` would report a real answer as a broken one.
+      if (outcome === "failed" && !error) {
         const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
         if (stderr) error = stderr;
+        else if (code === null) error = `subagent terminated by ${signal ?? "a signal"}`;
       }
 
       const result: SubagentResult = {
@@ -220,6 +241,7 @@ export function streamEvents(
         task: callbacks.task ?? "",
         ...(state.childSessionId ? { childSessionId: state.childSessionId } : {}),
         exitCode,
+        ...(outcome === "failed" ? {} : { outcome }),
         model: state.model,
         usage: {
           input: state.totalInput,
@@ -233,7 +255,8 @@ export function streamEvents(
         error,
         progress: {
           ...buildProgress(),
-          status: exitCode === 0 ? "completed" : "failed",
+          status: outcome === "failed" ? "failed" : "completed",
+          ...(outcome === "failed" ? {} : { outcome }),
           durationMs,
         },
         progressSummary: {

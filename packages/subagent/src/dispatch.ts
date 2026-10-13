@@ -114,6 +114,11 @@ export function dispatchViaBridge(
       const progress: SubagentProgress = {
         agent: agentName,
         status: "completed",
+        // The Client ran the session and reported it finished; that is a
+        // completed run in this vocabulary. It has no stopReason to expose and
+        // no cancellation of its own to report — a local cancel settles below
+        // with BridgeCancelledError, which is a failure by contract.
+        outcome: "completed",
         task: options.task,
         currentTool: undefined,
         currentToolArgs: undefined,
@@ -134,6 +139,7 @@ export function dispatchViaBridge(
         agent: agentName,
         task: options.task,
         exitCode: 0,
+        outcome: "completed",
         usage: {
           input: res.metrics.inputTokens,
           output: res.metrics.outputTokens,

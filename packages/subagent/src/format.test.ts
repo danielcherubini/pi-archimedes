@@ -117,3 +117,28 @@ describe("formatParallelResults", () => {
     );
   });
 });
+
+describe("formatParallelResults: run outcomes", () => {
+  it("says truncated on the header row of a cut-off result", () => {
+    const out = formatParallelResults([
+      makeResult({ outcome: "truncated", finalOutput: "partial answer" }),
+    ]);
+    expect(out.split("\n")[0]).toMatch(/truncated/i);
+    expect(out).toContain("partial answer");
+  });
+
+  it("says aborted on the header row of a cancelled result", () => {
+    const out = formatParallelResults([makeResult({ outcome: "aborted" })]);
+    expect(out.split("\n")[0]).toMatch(/aborted/i);
+  });
+
+  it("leaves a completed header byte-identical to the pre-outcome contract", () => {
+    const r = makeResult({
+      outcome: "completed",
+      agent: "reviewer",
+      progressSummary: { toolCount: 4, tokens: 2000, durationMs: 12000 },
+      finalOutput: "Looks good.",
+    });
+    expect(formatParallelResults([r])).toBe("✓ reviewer 4 tools · 2k tok · 12s\nLooks good.");
+  });
+});

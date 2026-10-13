@@ -1,4 +1,4 @@
-import type { SubagentResult } from "./types.js";
+import type { RunOutcome, SubagentResult } from "./types.js";
 
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -50,18 +50,72 @@ export function truncLine(text: string, maxLen: number): string {
  * (finalOutput ?? error ?? "completed"), `trimEnd()`-ed so sections stay
  * separated by exactly one blank line, and is deliberately untruncated by
  * design (see docs/decisions/0020-subagent-parallel-full-output.md).
+ *
+ * A run that merely completed keeps that header exactly as it was. A truncated
+ * or aborted one says so on the row, because a "✓" the calling model has no way
+ * to check would be the worse kind of lie.
  */
 export function formatParallelResults(results: SubagentResult[]): string {
   const sections = results.map((r) => {
-    const status = r.exitCode === 0 ? "✓" : "✗";
+    const status =
+      r.outcome === "truncated"
+        ? "⚠ truncated"
+        : r.outcome === "aborted"
+          ? "⚠ aborted"
+          : r.exitCode === 0
+            ? "✓"
+            : "✗";
     const summary = r.progressSummary
       ? `${r.progressSummary.toolCount} tools · ${Math.round(r.progressSummary.tokens / 1000)}k tok · ${Math.round(r.progressSummary.durationMs / 1000)}s`
       : "";
     const header = `${status} ${r.agent}${summary ? " " + summary : ""}`;
-    const body = (r.finalOutput ?? r.error ?? "completed").trimEnd();
+    const body = (r.finalOutput ?? r.error ?? fallbackBody(r)).trimEnd();
     return `${header}\n${body}`;
   });
   return sections.join("\n\n");
+}
+
+/** What to say when a result has neither output nor an error to show. */
+function fallbackBody(result: SubagentResult): string {
+  return result.outcome ? "(no output)" : "completed";
+}
+
+/**
+ * The single-run result text the calling model reads.
+ *
+ * The outcome is spelled out in words as well as carried in
+ * `details.results[].outcome`, because `content` is the half of the contract the
+ * model is guaranteed to see — and "this answer was cut off" is not something it
+ * can recover from the answer itself.
+ */
+export function formatSingleResult(result: SubagentResult): string {
+  const body = result.finalOutput ?? result.error ?? fallbackBody(result);
+  const note =
+    result.outcome === "truncated"
+      ? "[truncated: the subagent reached its output token limit — the answer above is partial]"
+      : result.outcome === "aborted"
+        ? "[aborted: the subagent run was cancelled — anything above is partial]"
+        : undefined;
+  return note ? `${body}\n\n${note}` : body;
+}
+
+/**
+ * The finished-run row, shared by the compact and expanded views.
+ *
+ * `undefined` means "nothing to report yet" (the run is still going), which is
+ * what leaves the callers' running / tool-call rendering untouched.
+ */
+export function buildOutcomeLine(
+  data: { outcome?: RunOutcome | undefined; error: string | undefined },
+  theme: { fg: (token: string, text: string) => string },
+): string | undefined {
+  if (data.error) return theme.fg("error", "✗ " + truncLine(data.error, 80));
+  if (data.outcome === "truncated") {
+    return theme.fg("warning", "⚠ Truncated — hit the output token limit, answer is partial");
+  }
+  if (data.outcome === "aborted") return theme.fg("warning", "⚠ Aborted");
+  if (data.outcome === "completed") return theme.fg("success", "✓ Done");
+  return undefined;
 }
 
 export interface StatsData {

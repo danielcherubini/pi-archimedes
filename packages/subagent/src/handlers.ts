@@ -126,6 +126,13 @@ export function handleMessageEnd(state: StreamState, event: JsonEvent): void {
     state.model = message.model as string;
   }
 
+  // How this response ended. The LAST assistant message's stopReason is what
+  // decides the run's outcome (`length` ⇒ truncated, `aborted` ⇒ cancelled,
+  // `error` ⇒ failed) — the exit code cannot tell them apart.
+  if (typeof message.stopReason === "string") {
+    state.lastStopReason = message.stopReason;
+  }
+
   // Collect text + thinking output
   const content = message.content as Array<Record<string, unknown>> | string | undefined;
   if (typeof content === "string" && content.trim()) {

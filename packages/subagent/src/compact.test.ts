@@ -446,3 +446,33 @@ describe("buildActivityLine property tests", () => {
     );
   });
 });
+
+describe("compact activity line: run outcomes", () => {
+  it("shows Truncated for a cut-off answer, in warning colour", () => {
+    const { theme } = makeMockTheme();
+    const line = buildActivityLine(
+      activityData({ status: "completed", outcome: "truncated" } as never),
+      theme,
+    );
+    expect(line).toMatch(/truncated/i);
+    expect(line).not.toMatch(/Done/);
+  });
+
+  it("shows Aborted for a cancelled run", () => {
+    const { theme } = makeMockTheme();
+    const line = buildActivityLine(
+      activityData({ status: "completed", outcome: "aborted" } as never),
+      theme,
+    );
+    expect(line).toMatch(/aborted/i);
+  });
+
+  it("shows Done for a completed run, unchanged", () => {
+    const { theme } = makeMockTheme();
+    const line = buildActivityLine(
+      activityData({ status: "completed", outcome: "completed" } as never),
+      theme,
+    );
+    expect(line).toContain("✓ Done");
+  });
+});

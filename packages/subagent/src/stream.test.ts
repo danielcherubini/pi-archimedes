@@ -345,3 +345,149 @@ describe("streamEvents todo mirroring", () => {
   });
 });
 
+
+// ── Run outcomes (CONTEXT.md: *Run outcome*; ADR 0028) ──────────────────────
+//
+// pi 1.2.0 made print mode exit 1 when the final response hit the output token
+// limit, and text-mode truncation is reported that way — so an exit code alone
+// can no longer tell a useful-but-cut-off answer from a crash. The child's own
+// `stopReason` and 1.1.0's `agent_settled.aborted` are what carry the
+// distinction; `agent_end` fires for a cancelled run too and says nothing about
+// either. Cost has to survive all three outcomes.
+
+const USAGE = {
+  input: 100,
+  output: 40,
+  cacheRead: 7,
+  cacheWrite: 2,
+  totalTokens: 149,
+  cost: { input: 0.001, output: 0.002, cacheRead: 0, cacheWrite: 0, total: 0.003 },
+};
+
+function assistantMessage(stopReason: string): Record<string, unknown> {
+  return {
+    type: "message_end",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "partial answer" }],
+      model: "anthropic/claude-opus-4.5",
+      stopReason,
+      usage: USAGE,
+    },
+  };
+}
+
+async function finishChild(
+  events: Array<Record<string, unknown>>,
+  close: [code: number | null, signal?: NodeJS.Signals | null],
+  stderr = "",
+) {
+  const child = fakeChild();
+  const result = streamEvents(child, { agent: "reviewer", task: "t" });
+  if (stderr) child.stderr.write(stderr);
+  for (const event of events) {
+    child.stdout.write(`${JSON.stringify(event)}\n`);
+  }
+  child.emit("close", close[0], close[1] ?? null);
+  return result;
+}
+
+describe("streamEvents run outcomes", () => {
+  it("a clean finish is `completed`", async () => {
+    const result = await finishChild(
+      [
+        assistantMessage("stop"),
+        { type: "agent_end", messages: [] },
+        { type: "agent_settled", aborted: false },
+      ],
+      [0],
+    );
+    expect(result.outcome).toBe("completed");
+    expect(result.error).toBeUndefined();
+  });
+
+  it("exit 1 with stopReason `length` is `truncated`, not a failure, and keeps the cost", async () => {
+    const result = await finishChild(
+      [
+        assistantMessage("length"),
+        { type: "agent_end", messages: [] },
+        { type: "agent_settled", aborted: false },
+      ],
+      [1],
+      "Response was truncated: the model reached its output token limit.\n",
+    );
+    expect(result.outcome).toBe("truncated");
+    expect(result.error).toBeUndefined();
+    expect(result.usage.cost).toBeCloseTo(0.003);
+    expect(result.usage.input).toBe(100);
+    expect(result.usage.output).toBe(40);
+  });
+
+  it("`--mode json` exits 0 for the same truncation, and it is still `truncated`", async () => {
+    // Verified on 1.2.0: the exit-1 mapping lives in print mode's *text* branch,
+    // so a json child reports truncation only through stopReason.
+    const result = await finishChild(
+      [assistantMessage("length"), { type: "agent_settled", aborted: false }],
+      [0],
+    );
+    expect(result.outcome).toBe("truncated");
+    expect(result.error).toBeUndefined();
+  });
+
+  it("`agent_settled.aborted: true` is `aborted`, whatever the exit code says", async () => {
+    // The child's print mode exits 143 when it is SIGTERM'd on the way out.
+    const result = await finishChild(
+      [assistantMessage("stop"), { type: "agent_settled", aborted: true }],
+      [143],
+    );
+    expect(result.outcome).toBe("aborted");
+    expect(result.error).toBeUndefined();
+    expect(result.usage.cost).toBeCloseTo(0.003);
+  });
+
+  it("a child killed by the abort signal before it settled is `aborted`", async () => {
+    const result = await finishChild([assistantMessage("stop")], [null, "SIGTERM"]);
+    expect(result.outcome).toBe("aborted");
+    expect(result.error).toBeUndefined();
+  });
+
+  it("an assistant message aborted at the provider is `aborted` even with no settle event", async () => {
+    const result = await finishChild([assistantMessage("aborted")], [0]);
+    expect(result.outcome).toBe("aborted");
+  });
+
+  it("a pre/during-run error stays a failure: no outcome, error from stderr", async () => {
+    const result = await finishChild(
+      [assistantMessage("error"), { type: "agent_settled", aborted: false }],
+      [1],
+      "401 unauthorized",
+    );
+    expect(result.outcome).toBeUndefined();
+    expect(result.error).toContain("401");
+  });
+
+  it("a nonzero exit with no run behind it stays a failure", async () => {
+    const result = await finishChild([], [2], "unknown flag --nope");
+    expect(result.outcome).toBeUndefined();
+    expect(result.error).toContain("unknown flag");
+  });
+
+  it("a crash on an unexpected signal is a failure, not a cancellation", async () => {
+    const result = await finishChild([assistantMessage("stop")], [null, "SIGSEGV"]);
+    expect(result.outcome).toBeUndefined();
+    expect(result.error).toBeTruthy();
+  });
+
+  it("the final progress carries the outcome, so the live view can show it", async () => {
+    const seen: Array<string | undefined> = [];
+    const result = await finishChild(
+      [assistantMessage("length"), { type: "agent_settled", aborted: false }],
+      [0],
+    ).then((r) => {
+      seen.push(r.progress?.outcome);
+      return r;
+    });
+    expect(seen).toEqual(["truncated"]);
+    expect(result.progress?.status).toBe("completed");
+  });
+});
