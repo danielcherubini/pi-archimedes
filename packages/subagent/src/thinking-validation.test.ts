@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   THINKING_LEVELS,
+  THINKING_LEVELS_PI_VERSION,
   isThinkingLevel,
   resolveThinkingLevel,
   formatUnknownThinkingWarning,
@@ -13,9 +14,15 @@ import {
 // otherwise, and in `--mode json` the warning lands in stderr — which the stream
 // reader only ever shows for a failed run.
 //
-// This file pins the copy of that list the suite checks against. If pi changes
-// the set, the assertion below goes red and the consequence of not noticing is
-// a warning plus the default level, never a refused dispatch.
+// This file pins the copy of that list the suite checks against. The host's own
+// validator cannot be consulted: pi's `exports` map publishes only `"."` and
+// `"./rpc-entry"`, so `dist/cli/args.js` is not importable, and the root entry
+// re-exports neither `isValidThinkingLevel` nor `VALID_THINKING_LEVELS` nor the
+// `ThinkingLevel` type that could pin it at compile time. What the test can do is
+// pin the list and the pi version it claims to describe, so drift is a
+// deliberately-edited constant rather than an invisible difference — and the
+// consequence of not editing it stays a warning plus pi's default, never a
+// dispatch refused over a word the host has since learned.
 
 describe("isThinkingLevel", () => {
   it("accepts exactly pi's seven levels", () => {
@@ -78,5 +85,12 @@ describe("resolveThinkingLevel", () => {
 describe("formatUnknownThinkingWarning", () => {
   it("names the value rather than describing the problem in the abstract", () => {
     expect(formatUnknownThinkingWarning("turbo")).toContain("turbo");
+  });
+
+  it("says which pi the level list came from", () => {
+    // The list is a copy of the host's, so the sentence that quotes it has to
+    // say whose list it is — a reader on a newer pi should question it rather
+    // than trust it.
+    expect(formatUnknownThinkingWarning("turbo")).toContain(THINKING_LEVELS_PI_VERSION);
   });
 });

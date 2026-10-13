@@ -16,12 +16,22 @@
 // that *adds* a level: the worst case is a warning and the default, never a
 // dispatch refused over a word the host has since learned.
 //
-// The list is duplicated here on purpose. `isValidThinkingLevel` is exported
-// from pi's CLI entry (`dist/cli/args.js`), not from the package's public
-// surface, so importing it would reach into another package's internals for a
-// seven-word list; `model-validation.ts` (ADR 0008) set the same precedent for
-// model ids. `thinking-validation.test.ts` pins the list against pi's source so
-// drift is a red test rather than a silent difference.
+// The list is duplicated here because there is no other way to read it. pi
+// exports only `"."` and `"./rpc-entry"` (its package `exports` map), so
+// `@earendil-works/pi-coding-agent/dist/cli/args.js` — where `isValidThinkingLevel`
+// and `VALID_THINKING_LEVELS` live — is not importable; the root entry does not
+// re-export either, nor the `ThinkingLevel` type that would pin the set at
+// compile time (that lives in `@earendil-works/pi-agent-core`, which this package
+// cannot resolve). So the copy below is checked by test, not by the host, and the
+// warning names the pi version it was read from — `thinking-validation.test.ts`
+// pins both. `model-validation.ts` (ADR 0008) already keeps a host-owned set the
+// same way for model ids, obtaining those through the `modelRegistry` handle
+// instead, which for levels does not exist.
+
+/** pi's own `VALID_THINKING_LEVELS` were read from, and the version they were
+ * read from. The warning quotes the version so a reader on a newer host knows
+ * which list they are being handed. */
+export const THINKING_LEVELS_PI_VERSION = "1.2.0";
 
 /** pi 1.2.0's `VALID_THINKING_LEVELS`, in pi's order. */
 export const THINKING_LEVELS = [
@@ -63,6 +73,6 @@ export function resolveThinkingLevel(
 export function formatUnknownThinkingWarning(configured: string): string {
   return [
     `Subagent asked for thinking level "${configured}", which pi's --thinking does not take.`,
-    `The run proceeds at pi's default thinking level. Valid levels: ${THINKING_LEVELS.join(", ")}.`,
+    `The run proceeds at pi's default thinking level. Valid levels (pi ${THINKING_LEVELS_PI_VERSION}): ${THINKING_LEVELS.join(", ")}.`,
   ].join(" ");
 }
