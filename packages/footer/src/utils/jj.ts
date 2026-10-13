@@ -13,11 +13,12 @@ const JJ_ARGS = [
   "--no-graph",
   "--ignore-working-copy",
   "--color", "never",
-  "-T", 'if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(" "), "@" ++ change_id.shortest(8)) ++ "\\n"',
+  // Count line is tab-tagged (git refs can't contain tabs); it comes from the last snapshot, so it lags until jj snapshots.
+  "-T", 'if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(" "), "@" ++ change_id.shortest(8)) ++ "\\n" ++ if(current_working_copy, "\\t" ++ self.diff().files().len() ++ "\\n")',
 ];
 
 let jjRepoCache: { cwd: string; isJj: boolean; timestamp: number } | undefined;
-let bookmarkCache: { cwd: string; value: string | null; timestamp: number } | undefined;
+let bookmarkCache: { cwd: string; value: string | null; changedFiles: number; timestamp: number } | undefined;
 let refreshInFlight = false;
 
 function isJjRepo(cwd: string): boolean {
@@ -43,13 +44,19 @@ function isJjRepo(cwd: string): boolean {
  * Several bookmarks on one commit collapse to `first +N` — footer chunks are
  * atomic, so an unbounded list could push other sections onto their own lines.
  */
-function parseJjOutput(output: string): string | null {
-  const lines = output.split("\n").filter(Boolean);
-  const bookmarks = lines.find((l) => !l.startsWith("@"));
-  if (!bookmarks) return lines[0]?.slice(1) || null;
+function parseJjOutput(output: string): { value: string | null; changedFiles: number } {
+  const outputLines = output.split("\n").filter(Boolean);
+  const changedFilesLine = outputLines.find((line) => line.startsWith("\t"));
+  const changedFiles = Number(changedFilesLine?.slice(1)) || 0;
+  const revisionLines = outputLines.filter((line) => !line.startsWith("\t"));
+  const bookmarks = revisionLines.find((line) => !line.startsWith("@"));
+  if (!bookmarks) return { value: revisionLines[0]?.slice(1) || null, changedFiles };
   // Space-joined by the template: git ref names can't contain spaces
-  const [first, ...rest] = bookmarks.split(" ");
-  return rest.length ? `${first} +${rest.length}` : first!;
+  const [firstBookmark, ...remainingBookmarks] = bookmarks.split(" ");
+  return {
+    value: remainingBookmarks.length ? `${firstBookmark} +${remainingBookmarks.length}` : firstBookmark!,
+    changedFiles,
+  };
 }
 
 function refreshInBackground(cwd: string): void {
@@ -58,9 +65,19 @@ function refreshInBackground(cwd: string): void {
   execFile("jj", JJ_ARGS, { cwd, encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
     refreshInFlight = false;
     if (bookmarkCache?.cwd !== cwd) return; // cwd moved on; don't clobber the new entry
-    // On failure keep the stale value (transient lock/timeout shouldn't flash "detached")
-    bookmarkCache = { cwd, value: error ? bookmarkCache.value : parseJjOutput(stdout), timestamp: Date.now() };
+    // On failure keep stale values (transient lock/timeout shouldn't flash "detached")
+    if (error) {
+      bookmarkCache = { ...bookmarkCache, timestamp: Date.now() };
+    } else {
+      const parsedOutput = parseJjOutput(stdout);
+      bookmarkCache = { cwd, ...parsedOutput, timestamp: Date.now() };
+    }
   });
+}
+
+/** @'s changed-file count; only meaningful when getJjBookmark() returned non-null this render. */
+export function getJjChangedFiles(): number {
+  return bookmarkCache?.cwd === process.cwd() ? bookmarkCache.changedFiles : 0;
 }
 
 /**
@@ -77,6 +94,7 @@ export function getJjBookmark(): string | null {
   }
 
   let value: string | null = null;
+  let changedFiles = 0;
   try {
     const output = execFileSync("jj", JJ_ARGS, {
       cwd,
@@ -84,10 +102,12 @@ export function getJjBookmark(): string | null {
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 2_000,
     });
-    value = parseJjOutput(output);
+    const parsedOutput = parseJjOutput(output);
+    value = parsedOutput.value;
+    changedFiles = parsedOutput.changedFiles;
   } catch {
     /* jj missing or failed */
   }
-  bookmarkCache = { cwd, value, timestamp: Date.now() };
+  bookmarkCache = { cwd, value, changedFiles, timestamp: Date.now() };
   return value;
 }

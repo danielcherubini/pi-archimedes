@@ -195,6 +195,25 @@ export function getTokenUsageStats(ctx: ExtensionContext): TokenUsageStats {
   return runningTotal;
 }
 
+// getContextUsage() rebuilds the session projection; only recompute when the session moves
+let contextUsageCache:
+  | { sessionId: string; leafId: string | null; entryCount: number; model: unknown; value: ReturnType<ExtensionContext["getContextUsage"]> }
+  | undefined;
+
+function getCachedContextUsage(ctx: ExtensionContext): ReturnType<ExtensionContext["getContextUsage"]> {
+  const sessionId = ctx.sessionManager.getSessionId();
+  const leafId = ctx.sessionManager.getLeafId();
+  const entryCount = ctx.sessionManager.getEntries().length;
+  const model = ctx.model;
+  const cached = contextUsageCache;
+  if (cached && cached.sessionId === sessionId && cached.leafId === leafId && cached.entryCount === entryCount && cached.model === model) {
+    return cached.value;
+  }
+  const value = ctx.getContextUsage();
+  contextUsageCache = { sessionId, leafId, entryCount, model, value };
+  return value;
+}
+
 /** Clear the stats cache — call when a new message arrives. */
 export function invalidateStatsCache(): void {
   statsCache = undefined;
@@ -208,6 +227,7 @@ export function resetStatsState(): void {
   lastAnchorEntryId = undefined;
   lastTailUsage = undefined;
   statsCache = undefined;
+  contextUsageCache = undefined;
 }
 
 export interface ContextWindowInfo {
@@ -217,7 +237,7 @@ export interface ContextWindowInfo {
 }
 
 export function getContextWindowInfo(ctx: ExtensionContext): ContextWindowInfo {
-  const contextUsage = ctx.getContextUsage();
+  const contextUsage = getCachedContextUsage(ctx);
   const modelContextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
   const tokenStats = getTokenUsageStats(ctx);
 

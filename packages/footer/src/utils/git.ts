@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFile, execSync } from "child_process";
 import { realpathSync } from "fs";
 
 export interface GitStatus {
@@ -30,7 +30,8 @@ interface WorktreeCacheEntry {
 
 let gitStatusCache: GitCacheEntry | undefined;
 let worktreeCache: WorktreeCacheEntry | undefined;
-let gitRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+let gitRefreshInFlight = false;
+let worktreeRefreshInFlight = false;
 
 interface FileStates {
   indexField: string;
@@ -81,23 +82,20 @@ function parseGitOutput(output: string): GitStatus {
   return status;
 }
 
-/** Schedule a background git status refresh (debounced). */
+/** Refresh git status without blocking the render loop. */
 function scheduleGitRefresh(): void {
-  if (gitRefreshTimer) return; // Already scheduled
-  gitRefreshTimer = setTimeout(() => {
-    gitRefreshTimer = undefined;
-    try {
-      const output = execSync(GIT_STATUS_CMD, {
-        cwd: process.cwd(),
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "pipe"],
-        timeout: 2_000,
-      });
-      gitStatusCache = { value: parseGitOutput(output), timestamp: Date.now() };
-    } catch {
-      /* not a git repo or command failed — keep stale cache */
-    }
-  }, 0);
+  if (gitRefreshInFlight || !gitStatusCache) return;
+  gitRefreshInFlight = true;
+  const staleValue = gitStatusCache.value;
+  execFile(
+    "git",
+    ["status", "--porcelain=v2", "--branch", "-uall"],
+    { cwd: process.cwd(), encoding: "utf8", timeout: 2_000 },
+    (error, stdout) => {
+      gitRefreshInFlight = false;
+      gitStatusCache = { value: error ? staleValue : parseGitOutput(stdout), timestamp: Date.now() };
+    },
+  );
 }
 
 export function getGitStatus(): GitStatus {
@@ -112,7 +110,7 @@ export function getGitStatus(): GitStatus {
     return gitStatusCache.value;
   }
 
-  // First call — sync fetch + schedule background refresh
+  // First call — sync fetch so the first render is correct
   const emptyStatus: GitStatus = { staged: 0, unstaged: 0, untracked: 0, ahead: 0, behind: 0 };
   try {
     const output = execSync(GIT_STATUS_CMD, {
@@ -126,8 +124,44 @@ export function getGitStatus(): GitStatus {
     /* not a git repo or command failed */
     gitStatusCache = { value: emptyStatus, timestamp: Date.now() };
   }
-  scheduleGitRefresh();
   return gitStatusCache.value;
+}
+
+function parseWorktreeOutput(output: string, realCwd: string): boolean {
+  const worktreeEntries = output.trim().split("\n\n").filter(Boolean);
+  if (worktreeEntries.length <= 1) return false;
+
+  // The first porcelain entry is always the main worktree: only linked ones
+  // can match.
+  for (let i = 1; i < worktreeEntries.length; i++) {
+    const pathLine = worktreeEntries[i]!.split("\n").find((line) => line.startsWith("worktree "));
+    const worktreePath = pathLine?.replace("worktree ", "");
+    if (worktreePath && (realCwd === worktreePath || realCwd.startsWith(worktreePath + "/"))) return true;
+  }
+  return false;
+}
+
+function scheduleWorktreeRefresh(): void {
+  if (worktreeRefreshInFlight || !worktreeCache) return;
+  worktreeRefreshInFlight = true;
+  const staleValue = worktreeCache.value;
+  execFile(
+    "git",
+    ["worktree", "list", "--porcelain"],
+    { cwd: process.cwd(), encoding: "utf8", timeout: 2_000 },
+    (error, stdout) => {
+      worktreeRefreshInFlight = false;
+      let value = staleValue;
+      if (!error) {
+        try {
+          value = parseWorktreeOutput(stdout, realpathSync(process.cwd()));
+        } catch {
+          /* keep stale value */
+        }
+      }
+      worktreeCache = { value, timestamp: Date.now() };
+    },
+  );
 }
 
 /**
@@ -140,6 +174,11 @@ export function isInsideLinkedWorktree(): boolean {
     return worktreeCache.value;
   }
 
+  if (worktreeCache) {
+    scheduleWorktreeRefresh();
+    return worktreeCache.value;
+  }
+
   try {
     const worktreeOutput = execSync("git worktree list --porcelain", {
       cwd: process.cwd(),
@@ -147,29 +186,7 @@ export function isInsideLinkedWorktree(): boolean {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 2_000,
     });
-
-    const worktreeEntries = worktreeOutput.trim().split("\n\n").filter(Boolean);
-    if (worktreeEntries.length <= 1) {
-      worktreeCache = { value: false, timestamp: Date.now() };
-      return false;
-    }
-
-    const currentDirectoryPath = realpathSync(process.cwd());
-    let result = false;
-    // The first porcelain entry is always the main worktree: being in the
-    // main clone isn't "being in a worktree", so only linked ones (index >= 1)
-    // can match.
-    for (let i = 1; i < worktreeEntries.length; i++) {
-      const entry = worktreeEntries[i]!;
-      const entryLines = entry.split("\n");
-      const pathLine = entryLines.find((l) => l.startsWith("worktree "));
-      const worktreePath = pathLine?.replace("worktree ", "");
-
-      if (worktreePath && (currentDirectoryPath === worktreePath || currentDirectoryPath.startsWith(worktreePath + "/"))) {
-        result = true;
-        break;
-      }
-    }
+    const result = parseWorktreeOutput(worktreeOutput, realpathSync(process.cwd()));
     worktreeCache = { value: result, timestamp: Date.now() };
     return result;
   } catch {
