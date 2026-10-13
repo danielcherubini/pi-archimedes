@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   splitToolEntries,
+  readToolEntries,
   validateToolEntries,
   applyToolEntries,
   unknownToolEntries,
@@ -166,5 +167,43 @@ describe("unknownToolEntries (membership, asked at dispatch)", () => {
     expect(warning).toContain("sudo_exec");
     // The whole point of warn-not-fail: the run still happens.
     expect(warning).toMatch(/proceed|continues/i);
+  });
+});
+
+describe("readToolEntries: every YAML spelling of a tools value", () => {
+  // pi's frontmatter parser hands the config read whatever YAML said, so the
+  // comma string this suite writes is only one of three shapes that mean
+  // "allowlist". Reading only that one silently dropped list-shaped configs —
+  // no allowlist at all, which is the unrestricted child ADR 0028 forbids.
+  const ok = (r: ReturnType<typeof readToolEntries>) => ("entries" in r ? r.entries : undefined);
+
+  it("reads the comma-separated form the suite's writer emits", () => {
+    expect(ok(readToolEntries("read, bash"))).toEqual(["read", "bash"]);
+  });
+
+  it("reads a block list, trimming each entry", () => {
+    expect(ok(readToolEntries(["read", " bash "]))).toEqual(["read", "bash"]);
+  });
+
+  it("reads an inline list, and keeps an empty entry visible for the name rules to reject", () => {
+    expect(ok(readToolEntries(["read", ""]))).toEqual(["read", ""]);
+  });
+
+  it("reports an entry that is not a string, naming it", () => {
+    const r = readToolEntries(["read", { count: 2 }], { agentName: "probe" });
+    expect("error" in r ? r.error : undefined).toMatch(/not a tool name/);
+    expect("error" in r ? r.error : "").toContain('{"count":2}');
+    expect("error" in r ? r.error : "").toContain('Agent "probe"');
+  });
+
+  it("reports a value that is not a list at all, and says what to write instead", () => {
+    const r = readToolEntries(42, { agentFilePath: "/x/probe.md" });
+    expect("error" in r ? r.error : undefined).toMatch(/not a list of tool names/);
+    expect("error" in r ? r.error : "").toContain("/x/probe.md");
+    expect("error" in r ? r.error : "").toContain("read, bash");
+  });
+
+  it("an absent key is the caller's business, not an error here (it never reaches this gate)", () => {
+    expect(ok(readToolEntries(""))).toEqual([]);
   });
 });

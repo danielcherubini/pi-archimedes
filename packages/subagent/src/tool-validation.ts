@@ -53,6 +53,43 @@ export function splitToolEntries(raw: string): string[] {
   return raw.split(",").map((entry) => entry.trim());
 }
 
+export type ReadToolEntriesResult = { entries: string[] } | { error: string };
+
+/**
+ * Read a `tools:` **frontmatter value** as entries, before any name rules apply.
+ *
+ * pi's frontmatter parser hands over whatever YAML said, and there are three
+ * spellings in the wild: the comma-separated string this suite's writer emits,
+ * a hand-written block list (`tools:\n  - read`), and an inline list
+ * (`tools: [read]`) — the two list forms both arrive as real arrays. All three
+ * mean the same allowlist. Anything else (a number, a mapping, a list holding a
+ * mapping) is not a tool list, and must be *said* to be broken rather than
+ * skipped: an allowlist this function refuses to read is a child that runs with
+ * every tool the host has, which is the whole thing ADR 0028 is about.
+ */
+export function readToolEntries(
+  raw: unknown,
+  context: ValidateToolsContext = {},
+): ReadToolEntriesResult {
+  const { subject, where } = address(context);
+  if (typeof raw === "string") return { entries: splitToolEntries(raw) };
+  if (Array.isArray(raw)) {
+    const entries: string[] = [];
+    for (const item of raw) {
+      if (typeof item !== "string") {
+        return {
+          error: `${subject} has a tools entry that is not a tool name${where}: ${JSON.stringify(item) ?? String(item)}. Each entry is a tool name on its own line (or one comma-separated list).`,
+        };
+      }
+      entries.push(item.trim());
+    }
+    return { entries };
+  }
+  return {
+    error: `${subject}'s tools field${where} is not a list of tool names: ${JSON.stringify(raw) ?? String(raw)}. Write it as "read, bash" or as a YAML list with one tool name per entry.`,
+  };
+}
+
 /**
  * Reject entries that cannot be tool names. Order matters: the first problem in
  * list order is reported, so the user fixes one thing at a time.

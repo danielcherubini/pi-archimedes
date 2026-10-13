@@ -8,7 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { readLocalConfig } from "./local-config.js";
-import { splitToolEntries, validateToolEntries } from "./tool-validation.js";
+import { readToolEntries, validateToolEntries } from "./tool-validation.js";
 
 export interface AgentConfig {
   name: string;
@@ -32,7 +32,10 @@ export interface AgentConfig {
   filePath: string;
   /**
    * Set when the `tools:` list was **rejected at config read** — an entry pi
-   * cannot read as a tool name (empty, duplicated, or a `+`/`-` modifier).
+   * cannot read as a tool name (empty, duplicated, or a `+`/`-` modifier), or a
+   * value that is not a tool list in any spelling pi's YAML parser produces
+   * (comma string, block list, inline list) — a number, a mapping, or a list
+   * holding something that is not a name.
    *
    * The list is never applied in that case: a rejected allowlist that falls back
    * to "no allowlist" would hand the child a *wider* tool set than the config
@@ -76,16 +79,26 @@ function loadAgentsFromDir(dir: string, source: "global" | "user" | "project"): 
     // Handle tools specially — preserve non-string values in extraFields
     let parsedTools: string[] | undefined;
     let toolsError: string | undefined;
-    if (typeof frontmatter.tools === "string") {
-      const entries = splitToolEntries(frontmatter.tools);
-      const check = validateToolEntries(entries, {
+    if (frontmatter.tools !== undefined) {
+      // Every YAML spelling is read (comma string, block list, inline list);
+      // anything that is not a list of names is rejected loudly rather than
+      // dropped, because an unread allowlist means an unrestricted child.
+      const read = readToolEntries(frontmatter.tools, {
         agentName: String(frontmatter.name),
         agentFilePath: filePath,
       });
-      if (check.ok) {
-        parsedTools = entries;
+      if ("error" in read) {
+        toolsError = read.error;
       } else {
-        toolsError = check.error;
+        const check = validateToolEntries(read.entries, {
+          agentName: String(frontmatter.name),
+          agentFilePath: filePath,
+        });
+        if (check.ok) {
+          parsedTools = read.entries;
+        } else {
+          toolsError = check.error;
+        }
       }
     }
 

@@ -168,3 +168,74 @@ describe("agent config read: malformed tools entries are rejected", () => {
     expect(fineLine).not.toMatch(/invalid tools|tools rejected/i);
   });
 });
+
+describe("agent config read: `tools:` written as a YAML list", () => {
+  // pi's own frontmatter parser turns both `tools: a, b`-style block lists and
+  // inline lists into real arrays, and a hand-written agent file is far more
+  // likely to use one than the comma form this suite's writer emits. Reading
+  // only the string form meant a list-shaped allowlist was dropped on the floor:
+  // no allowlist, no error, and a child that runs with every tool the host has —
+  // the exact "wider than the config asked for" outcome the read path exists to
+  // prevent (and which a live dispatch reproduced: `tools: [read]` + MCP on).
+  beforeEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("applies a block list as the allowlist", () => {
+    writeAgent("blocky", "tools:\n  - read\n  - bash\nmcp: true\n");
+    const agent = readAgent("blocky");
+    expect(agent?.tools).toEqual(["read", "bash"]);
+    expect(agent?.toolsError).toBeUndefined();
+    // The list is an allowlist, so the MCP opt-in still has to survive next to it.
+    expect(agent?.mcp).toBe(true);
+  });
+
+  it("applies an inline list the same way", () => {
+    writeAgent("inliney", "tools: [read, bash]\n");
+    expect(readAgent("inliney")?.tools).toEqual(["read", "bash"]);
+  });
+
+  it("applies a one-entry list (which YAML reads as a bare string only when written that way)", () => {
+    writeAgent("single", "tools:\n  - read\n");
+    expect(readAgent("single")?.tools).toEqual(["read"]);
+  });
+
+  it("rejects a list entry pi cannot read as a name, and applies nothing", () => {
+    writeAgent("blockbad", "tools:\n  - read\n  - +web_search\n");
+    const agent = readAgent("blockbad");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("+web_search");
+    // Preserved for the writer, same contract as the comma form.
+    expect(agent?.extraFields?.tools).toEqual(["read", "+web_search"]);
+  });
+
+  it("rejects a duplicate inside a list", () => {
+    writeAgent("blockdupe", "tools:\n  - read\n  - read\n");
+    const agent = readAgent("blockdupe");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toContain("read");
+  });
+
+  it("rejects a list holding something that is not a name at all", () => {
+    writeAgent("mixed", "tools:\n  - read\n  - count: 2\n");
+    const agent = readAgent("mixed");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toBeTruthy();
+  });
+
+  it("rejects a tools value that is neither a list nor a list of names, instead of ignoring it", () => {
+    // `tools: 42` used to be preserved in extraFields and otherwise ignored —
+    // silently unbounded again. A config that means something by the key gets an
+    // error, not a shrug.
+    writeAgent("scalar", "tools: 42\n");
+    const agent = readAgent("scalar");
+    expect(agent?.tools).toBeUndefined();
+    expect(agent?.toolsError).toBeTruthy();
+    expect(agent?.extraFields?.tools).toBe(42);
+  });
+});
