@@ -1,3 +1,5 @@
+import type { Usage } from "@earendil-works/pi-ai";
+
 export interface SubagentUsage {
   input: number;
   output: number;
@@ -77,6 +79,15 @@ export interface SubagentResult {
 export interface SubagentToolResult {
   content: Array<{ type: "text"; text: string }>;
   details: SubagentDetails;
+  /**
+   * The runs' summed usage, in pi's own shape (see `usage.ts`).
+   *
+   * This is the cost report: pi persists it onto the toolResult message and
+   * folds it into `/session`, which is why the `COST_UPDATE` bus route to the
+   * footer was deleted instead of merely abandoned — the footer reads the same
+   * entries and would have counted the money twice.
+   */
+  usage?: Usage;
   isError?: boolean;
 }
 

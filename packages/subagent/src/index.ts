@@ -16,6 +16,7 @@ import {
   unknownToolEntries,
   formatUnknownToolsWarning,
 } from "./tool-validation.js";
+import { toNativeUsage, sumNativeUsage } from "./usage.js";
 import type {
   SubagentDetails,
   SubagentProgress,
@@ -142,8 +143,10 @@ export function registerSubagent(pi: ExtensionAPI): void {
           },
         });
 
+        const nativeUsage = sumNativeUsage(results);
         return {
           content: [{ type: "text", text: formatParallelResults(results) }],
+          ...(nativeUsage ? { usage: nativeUsage } : {}),
           details: {
             mode: "parallel",
             results,
@@ -221,6 +224,7 @@ export function registerSubagent(pi: ExtensionAPI): void {
 
         return {
           content: [{ type: "text", text: formatSingleResult(result) }],
+          usage: toNativeUsage(result.usage),
           details: {
             mode: "single",
             results: [result],

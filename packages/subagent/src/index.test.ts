@@ -305,3 +305,76 @@ describe("dispatch: the result the model reads carries the run outcome", () => {
     expect(result.isError).toBeFalsy();
   });
 });
+
+describe("dispatch: cost is reported natively, not on the bus", () => {
+  it("the tool result carries usage in pi's shape, so /session folds it in", async () => {
+    discoverAgents.mockReturnValue([]);
+    const result = (await subagent(register()).execute(
+      "c",
+      { task: "t" },
+      undefined,
+      undefined,
+      makeCtx(),
+    )) as unknown as {
+      usage?: {
+        input: number;
+        output: number;
+        cacheRead: number;
+        cacheWrite: number;
+        totalTokens: number;
+        cost: { total: number };
+      };
+    };
+    expect(result.usage?.input).toBe(10);
+    expect(result.usage?.output).toBe(5);
+    expect(result.usage?.totalTokens).toBe(15);
+    expect(result.usage?.cost.total).toBeCloseTo(0.01);
+  });
+
+  it("a parallel batch carries the summed usage of its runs", async () => {
+    discoverAgents.mockReturnValue([]);
+    executeParallel.mockResolvedValue([okResult, okResult]);
+    const result = (await subagent(register()).execute(
+      "c",
+      { tasks: [{ task: "a" }, { task: "b" }] },
+      undefined,
+      undefined,
+      makeCtx(),
+    )) as unknown as { usage?: { input: number; cost: { total: number } } };
+    expect(result.usage?.input).toBe(20);
+    expect(result.usage?.cost.total).toBeCloseTo(0.02);
+  });
+
+  it("publishes nothing on COST_UPDATE while a run reports its cost", async () => {
+    const { getBus, Events } = await import("@pi-archimedes/core/bus");
+    const seen: unknown[] = [];
+    const unsub = getBus().on(Events.COST_UPDATE, (payload) => seen.push(payload));
+    try {
+      discoverAgents.mockReturnValue([]);
+      await subagent(register()).execute("c", { task: "t" }, undefined, undefined, makeCtx());
+    } finally {
+      unsub();
+    }
+    expect(seen).toEqual([]);
+  });
+
+  it("publishes nothing on COST_UPDATE for a parallel batch either", async () => {
+    const { getBus, Events } = await import("@pi-archimedes/core/bus");
+    executeParallel.mockResolvedValue([okResult, okResult]);
+    const seen: unknown[] = [];
+    const unsub = getBus().on(Events.COST_UPDATE, (payload) => seen.push(payload));
+    try {
+      discoverAgents.mockReturnValue([]);
+      await subagent(register()).execute(
+        "c",
+        { tasks: [{ task: "a" }, { task: "b" }] },
+        undefined,
+        undefined,
+        makeCtx(),
+      );
+    } finally {
+      unsub();
+    }
+    expect(seen).toEqual([]);
+  });
+});

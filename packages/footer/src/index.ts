@@ -14,29 +14,21 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { diag, describeError } from "@pi-archimedes/core/log";
 import { loadFooterConfig } from "./config.js";
-import { CostAccumulator } from "./cost-accumulator.js";
 import { getGitStatus, isInsideLinkedWorktree } from "./utils/git.js";
 import { getJjBookmark, getJjChangedFiles } from "./utils/jj.js";
 import { onVcsChange } from "./utils/vcs-change-events.js";
-import { getContextWindowInfo, getTokenUsageStats, type TokenUsageStats } from "./utils/stats.js";
+import { getContextWindowInfo, getTokenUsageStats } from "./utils/stats.js";
 import { formatContextBar, formatGitStatusIndicators, formatThinkingIndicator, formatTokenCount, truncateBranch, wrapStatusToChunks } from "./utils/format.js";
 import { footerIcons } from "./utils/icons.js";
 import { packFooterLines, SEP_W, SEPARATOR } from "./utils/layout.js";
 
 export function registerFooter(pi: ExtensionAPI): void {
-  // Module-level state for session lifecycle (shared between session_start and session_shutdown)
-  let footerAccumulator: CostAccumulator | undefined;
   // Subscription for the footer's lifetime; module-level so a footer rebuilt
   // without an explicit dispose cannot leave a second listener behind.
   let unsubscribeVcsChange: (() => void) | undefined;
 
   // session_shutdown handler (top-level to prevent accumulation on /reload)
   pi.on("session_shutdown", (_event, _ctx) => {
-    if (footerAccumulator) {
-      footerAccumulator.dispose();
-      footerAccumulator.reset();
-      footerAccumulator = undefined;
-    }
     unsubscribeVcsChange?.();
     unsubscribeVcsChange = undefined;
   });
@@ -46,10 +38,6 @@ export function registerFooter(pi: ExtensionAPI): void {
     // A render failure is reported once per session, not once per frame: the
     // footer paints on every frame, so an unguarded notice would spam.
     let renderFailureReported = false;
-
-    // Create cost accumulator for subagent costs
-    footerAccumulator = new CostAccumulator();
-    footerAccumulator.subscribe();
 
     ctx.ui.setFooter((tui, theme, footerData) => {
       const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
@@ -82,18 +70,20 @@ export function registerFooter(pi: ExtensionAPI): void {
             const inWorktree = jjBookmark === null && isInsideLinkedWorktree();
             const thinkingLevel = pi.getThinkingLevel();
 
-            // Merge main agent stats with subagent stats from accumulator
-            const mainStats = getTokenUsageStats(ctx);
-            const acc = footerAccumulator;
-            const mergedStats: TokenUsageStats = {
-              totalInput: mainStats.totalInput + (acc?.inputTokens ?? 0),
-              totalOutput: mainStats.totalOutput + (acc?.outputTokens ?? 0),
-              totalCacheRead: mainStats.totalCacheRead + (acc?.cacheReadTokens ?? 0),
-              totalCacheWrite: mainStats.totalCacheWrite + (acc?.cacheWriteTokens ?? 0),
-              totalCost: mainStats.totalCost + (acc?.cost ?? 0),
-            };
-
-            const { totalInput, totalOutput, totalCacheRead, totalCacheWrite, totalCost } = mergedStats;
+            // One source of truth for usage: the session entries. They carry the
+            // main agent's assistant usage AND any tool result that reported
+            // usage — which is how a subagent's cost arrives now that the tool
+            // returns native `usage` (ADR 0028). There used to be a second,
+            // additive source here (a `COST_UPDATE` listener accumulating what
+            // subagents published); keeping it would have counted that money
+            // twice — see `packages/subagent/src/usage.ts`.
+            const {
+              totalInput,
+              totalOutput,
+              totalCacheRead,
+              totalCacheWrite,
+              totalCost,
+            } = getTokenUsageStats(ctx);
             const { percent: contextPercent, percentValue: contextPercentValue, windowSize: contextWindowSize } = getContextWindowInfo(ctx);
 
             // ── Sections ──────────────────────────────────────────────────
