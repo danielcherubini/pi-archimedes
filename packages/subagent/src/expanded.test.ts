@@ -85,8 +85,8 @@ const LAST_ERROR_LINE = ERROR_LINES[ERROR_LINES.length - 1]!;
 const ERROR_SGR = "\x1b[31m";
 const sgrTheme = {
   fg: (token: string, text: string) =>
-    `${token === "error" ? ERROR_SGR : "\x1b[2m"}${text}${RESET}`,
-  bold: (t: string) => `\x1b[1m${t}${RESET}`,
+    `${token === "error" ? ERROR_SGR : "\x1b[2m"}${text}\x1b[0m`,
+  bold: (t: string) => `\x1b[1m${t}\x1b[0m`,
 };
 
 /** A `RowBlock` that remembers the segments it was last given, without faking the row layer. */

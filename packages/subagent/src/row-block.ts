@@ -29,7 +29,8 @@ export const ROW_ELLIPSIS = "...";
 
 /**
  * SGR reset for styled rows: resets foreground color and font styles (bold,
- * dim, italic, underline), but never resets the background color (SGR 49).
+ * dim, italic, underline, reverse video, strikethrough), but never resets the
+ * background color (SGR 49).
  *
  * Inside pi's tool execution component, rows are rendered inside a Box that
  * applies a panel background (e.g. toolSuccessBg / toolPendingBg) across the
@@ -39,7 +40,7 @@ export const ROW_ELLIPSIS = "...";
  * background (appearing as an unsightly mid-grey or mismatched bar after
  * truncated text or early newlines).
  */
-export const RESET = "\x1b[22;23;24;39m";
+export const RESET = "\x1b[22;23;24;27;29;39m";
 
 /**
  * Replace any full SGR resets (\x1b[0m or \x1b[m) with a style-and-foreground reset

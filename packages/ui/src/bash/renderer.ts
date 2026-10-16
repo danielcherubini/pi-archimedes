@@ -71,7 +71,7 @@ export class TruncatedTextComponent implements Component {
     const truncated = truncateToWidth(singleLine, width, ellipsis);
     // truncateToWidth emits \x1b[0m, which resets the enclosing Box background mid-line.
     // Downgrade full resets to fg/style resets so padding spaces keep the container background.
-    const safeTruncated = truncated.replace(/\x1b\[0?m/g, "\x1b[22;23;24;39m");
+    const safeTruncated = truncated.replace(/\x1b\[0?m/g, "\x1b[22;23;24;27;29;39m");
     const padNeeded = Math.max(0, width - visibleWidth(safeTruncated));
     return [safeTruncated + " ".repeat(padNeeded)];
   }

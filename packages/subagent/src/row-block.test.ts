@@ -227,4 +227,18 @@ describe("RowBlock", () => {
     const lines = rows.render(60);
     for (const line of lines) expect(padTo(line, 60)).toBe(line);
   });
+
+  it("sanitizes embedded \\x1b[0m in block segments to RESET when rendered and padded", () => {
+    const rows = new RowBlock();
+    rows.setSegments([block("\x1b[31merror message\x1b[0m: line one\nsecond line with \x1b[32msuccess\x1b[m details")]);
+    const lines = rows.render(80);
+    expect(lines.length).toBe(2);
+    for (const line of lines) {
+      expect(line.includes("\x1b[0m")).toBe(false);
+      expect(line.includes("\x1b[m")).toBe(false);
+      expect(visibleWidth(line)).toBe(80);
+    }
+    expect(lines[0]!).toContain(`\x1b[31merror message${RESET}: line one`);
+    expect(lines[1]!).toContain(`second line with \x1b[32msuccess${RESET} details`);
+  });
 });
