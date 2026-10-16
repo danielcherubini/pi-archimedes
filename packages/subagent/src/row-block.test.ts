@@ -14,12 +14,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Text, stripTerminalSequences, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { RowBlock, block, row, truncateRow } from "./row-block.js";
+import { Box, Text, stripTerminalSequences, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { RowBlock, block, row, truncateRow, RESET } from "./row-block.js";
 
-const dim = (t: string) => `\x1b[2m${t}\x1b[0m`;
-const bold = (t: string) => `\x1b[1m${t}\x1b[0m`;
-const RESET = "\x1b[0m";
+const dim = (t: string) => `\x1b[2m${t}${RESET}`;
+const bold = (t: string) => `\x1b[1m${t}${RESET}`;
 
 const drawn = (line: string) => visibleWidth(stripTerminalSequences(line).replace(/\s+$/, ""));
 
@@ -91,6 +90,42 @@ describe("truncateRow", () => {
     for (const width of [40, 27, 13, 7]) {
       expect(visibleWidth(truncateRow(emoji, width)), `emoji width ${width}`).toBeLessThanOrEqual(width);
     }
+  });
+
+  it("never emits a full SGR reset (\\x1b[0m) that would kill a container Box background", () => {
+    // Both when cut on width and when cut on a newline
+    const cutOnWidth = truncateRow(dim(LONG), 40);
+    expect(cutOnWidth.includes("\x1b[0m")).toBe(false);
+    expect(cutOnWidth.includes("\x1b[m")).toBe(false);
+
+    const cutOnNewline = truncateRow("general: Check status\nsecond line", 80);
+    expect(cutOnNewline.includes("\x1b[0m")).toBe(false);
+    expect(cutOnNewline.includes("\x1b[m")).toBe(false);
+
+    // Embedded \x1b[0m is safely converted to style reset
+    const embedded = truncateRow("\x1b[31merror\x1b[0m: details", 80);
+    expect(embedded.includes("\x1b[0m")).toBe(false);
+    expect(embedded.includes("\x1b[m")).toBe(false);
+  });
+
+  it("preserves an enclosing Box background across the entire row including padding", () => {
+    const bgFn = (t: string) => `\x1b[48;2;33;34;44m${t}\x1b[49m`;
+    const box = new Box(1, 1, bgFn);
+    const rows = new RowBlock();
+    rows.setSegments([
+      row("general: Check the status of PR #23 on danielcherubini/archimedes:\nsomething else"),
+    ]);
+    box.addChild(rows);
+    const lines = box.render(100);
+    // Line 1 is the content row
+    const contentLine = lines[1]!;
+    expect(contentLine).toBeDefined();
+    // Background escape was applied at the start and closed at the end
+    expect(contentLine.startsWith("\x1b[48;2;33;34;44m")).toBe(true);
+    expect(contentLine.endsWith("\x1b[49m")).toBe(true);
+    // No full reset in the middle that would kill the background before the padding
+    expect(contentLine.includes("\x1b[0m")).toBe(false);
+    expect(contentLine.includes("\x1b[m")).toBe(false);
   });
 
   it("survives widths with no room for an ellipsis", () => {

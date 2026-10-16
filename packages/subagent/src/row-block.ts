@@ -27,8 +27,27 @@ import { Text, sliceByColumn, visibleWidth, wrapTextWithAnsi } from "@earendil-w
 /** The marker appended to a row that was cut. Plain text, so it inherits colour. */
 export const ROW_ELLIPSIS = "...";
 
-/** SGR reset, appended after a cut so the row's padding is not painted. */
-const RESET = "\x1b[0m";
+/**
+ * SGR reset for styled rows: resets foreground color and font styles (bold,
+ * dim, italic, underline), but never resets the background color (SGR 49).
+ *
+ * Inside pi's tool execution component, rows are rendered inside a Box that
+ * applies a panel background (e.g. toolSuccessBg / toolPendingBg) across the
+ * entire row: `theme.bg(token, paddedLine)`. A full SGR reset (`\x1b[0m` or
+ * `\x1b[m`) cancels the Box-painted background mid-line, causing all subsequent
+ * padding spaces and trailing content to fall through to the terminal's default
+ * background (appearing as an unsightly mid-grey or mismatched bar after
+ * truncated text or early newlines).
+ */
+export const RESET = "\x1b[22;23;24;39m";
+
+/**
+ * Replace any full SGR resets (\x1b[0m or \x1b[m) with a style-and-foreground reset
+ * so the line never kills an enclosing container's background color mid-line.
+ */
+export function sanitizeRowResets(line: string): string {
+  return line.replace(/\x1b\[0?m/g, RESET);
+}
 
 /** How `Text` renders a tab; kept identical so short rows stay byte-identical. */
 const TAB_WIDTH = 3;
@@ -82,13 +101,16 @@ export function truncateRow(line: string, width: number): string {
   if (width <= 0) return "";
   const nlIdx = line.indexOf("\n");
   const firstLine = nlIdx === -1 ? line : line.slice(0, nlIdx);
-  if (nlIdx === -1 && visibleWidth(firstLine) <= width) return firstLine;
+  if (nlIdx === -1 && visibleWidth(firstLine) <= width) {
+    return sanitizeRowResets(firstLine);
+  }
 
   const budget = width - ROW_ELLIPSIS.length;
   // No room for both content and dots: show as many dots as the frame holds, so
   // the row still reads as "cut" rather than as "the whole task".
   if (budget <= 0) return sliceByColumn(ROW_ELLIPSIS, 0, width, true);
-  return sliceByColumn(firstLine, 0, budget, true) + ROW_ELLIPSIS + RESET;
+  const sliced = sliceByColumn(firstLine, 0, budget, true);
+  return sanitizeRowResets(sliced + ROW_ELLIPSIS) + RESET;
 }
 
 /** Pad a rendered line out to the frame, the way `Text` does. */
@@ -175,7 +197,7 @@ export class RowBlock extends Text {
       const text = segment.text.replace(/\t/g, " ".repeat(TAB_WIDTH));
       if (segment.kind === "block") {
         for (const wrapped of wrapTextWithAnsi(text, width)) {
-          lines.push(padToWidth(wrapped, width));
+          lines.push(padToWidth(sanitizeRowResets(wrapped), width));
         }
       } else {
         lines.push(padToWidth(truncateRow(text, width), width));

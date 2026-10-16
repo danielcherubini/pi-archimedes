@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { buildExpandedText, buildProgressExpandedText, renderExpanded, renderProgressExpanded } from "./expanded.js";
-import { RowBlock, type RowSegment } from "./row-block.js";
+import { RowBlock, type RowSegment, RESET } from "./row-block.js";
 import type { RunOutcome, SubagentProgress, SubagentResult } from "./types.js";
 
 // The expanded row is what the user reads after `ctrl+o`; the compact row is
@@ -83,7 +83,6 @@ const LAST_ERROR_LINE = ERROR_LINES[ERROR_LINES.length - 1]!;
 
 /** `theme.fg` for real SGR bytes, so the rendered lines carry an ANSI state. */
 const ERROR_SGR = "\x1b[31m";
-const RESET = "\x1b[0m";
 const sgrTheme = {
   fg: (token: string, text: string) =>
     `${token === "error" ? ERROR_SGR : "\x1b[2m"}${text}${RESET}`,
@@ -293,7 +292,7 @@ describe("expanded view: a multi-line error is readable in full (issue #112)", (
       expect(line.startsWith(ERROR_SGR), `line does not open its own span: ${JSON.stringify(line)}`)
         .toBe(true);
       expect(
-        /\x1b\[0m\s*$/.test(line),
+        line.trimEnd().endsWith(RESET),
         `line leaves its span open across the padding: ${JSON.stringify(line)}`,
       ).toBe(true);
     }
