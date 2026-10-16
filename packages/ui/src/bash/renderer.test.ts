@@ -141,6 +141,13 @@ describe("TruncatedTextComponent", () => {
     const comp = new TruncatedTextComponent("");
     expect(comp.render(5)).toEqual([""]);
   });
+
+  it("does not emit \\x1b[0m when truncated so an enclosing Box background is preserved", () => {
+    const comp = new TruncatedTextComponent("a".repeat(50));
+    const lines = comp.render(10);
+    expect(lines[0]!.includes("\x1b[0m")).toBe(false);
+    expect(lines[0]!.includes("\x1b[m")).toBe(false);
+  });
 });
 
 describe("renderBashCall", () => {

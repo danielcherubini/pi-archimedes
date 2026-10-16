@@ -69,8 +69,11 @@ export class TruncatedTextComponent implements Component {
     const singleLine = this.text.replace(/[\r\n]+/g, " ");
     const ellipsis = this.theme ? this.theme.fg("accent", "…") : "…";
     const truncated = truncateToWidth(singleLine, width, ellipsis);
-    const padNeeded = Math.max(0, width - visibleWidth(truncated));
-    return [truncated + " ".repeat(padNeeded)];
+    // truncateToWidth emits \x1b[0m, which resets the enclosing Box background mid-line.
+    // Downgrade full resets to fg/style resets so padding spaces keep the container background.
+    const safeTruncated = truncated.replace(/\x1b\[0?m/g, "\x1b[22;23;24;39m");
+    const padNeeded = Math.max(0, width - visibleWidth(safeTruncated));
+    return [safeTruncated + " ".repeat(padNeeded)];
   }
 }
 
