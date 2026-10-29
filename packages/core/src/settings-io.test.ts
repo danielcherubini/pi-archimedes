@@ -220,12 +220,14 @@ describe("loadConfig", () => {
     );
     loadConfig("test.ns", { foo: "bar", count: 42 });
     saveConfig("other.ns", { val: 123 });
-    const data = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    const raw = fs.readFileSync(settingsPath, "utf-8");
+    expect(raw.startsWith("\uFEFF")).toBe(false);
+    const data = JSON.parse(raw);
     expect(data["test.ns"]).toEqual({ foo: "overridden" });
     expect(data["other.ns"]).toEqual({ val: 123 });
   });
 
-  it("readEffectiveSettings returns parsed object from BOM-prefixed settings.json", () => {
+  it("readEffectiveSettings returns parsed object from BOM-prefixed settings.json (file fallback)", () => {
     const settingsPath = join(tempDir, "settings.json");
     fs.writeFileSync(
       settingsPath,

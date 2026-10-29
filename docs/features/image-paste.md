@@ -63,7 +63,9 @@ Unlike `todo`, `ask`, `subagent`, `footer` and `notify`, this package has no twi
 
 **What pi has that ours does not.** pi holds the editor and its cursor, so its spacing rule is exact wherever the caret sits; an extension is limited to `getEditorText()`/`pasteToEditor()` and has no cursor accessor, so our copy assumes the caret is at the end of the draft and the one case it can't get right — a trailing space when the caret is mid-line — is pinned as a known limitation in `paste-dispatch.test.ts` rather than papered over. pi's path leaves a real filename in the draft, so the text the model receives carries something it can read back later; ours leaves the `[Image #1]` marker in that text **and** attaches the bytes alongside it (the `input` handler returns the text unchanged plus `images`), so the model sees the marker and the image, not a path. And pi's action needs no file in `~/.pi/agent/`: keeping our version is what costs the `keybindings.json` entry described above.
 
-One thing pi already has that our preview leans on: inline image rendering exists in pi — `tool-execution.js` uses pi-tui's `Image` for tool output — it just does not apply to an image you pasted. Our preview registers a message renderer and draws with that same `Image` component, capped at 60 cells. Pi >=1.4.0 detects `TERM_PROGRAM=rex` as supporting partial Kitty graphics inline images, OSC 8 hyperlinks, and truecolor. Archimedes adds no Rex-specific logic and relies on host terminal detection.
+One thing pi already has that our preview leans on: inline image rendering exists in pi — `tool-execution.js` uses pi-tui's `Image` for tool output — it just does not apply to an image you pasted. Our preview registers a message renderer and draws with that same `Image` component, capped at 60 cells.
+
+Pi 1.4.0 introduced native Rex terminal detection (confirmed in the 1.4.0 changelog via #11131, #11150), detecting `TERM_PROGRAM=rex` as supporting partial Kitty graphics inline images, OSC 8 hyperlinks, and truecolor. Archimedes adds no Rex-specific logic and relies on host terminal detection.
 
 ## Not verified in this pass
 
