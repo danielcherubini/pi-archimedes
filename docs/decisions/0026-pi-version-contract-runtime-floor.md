@@ -26,7 +26,7 @@ Given that, we picked asymmetric floors over pi's documented `"*"` convention (`
 - The runtime check is the only mechanism that can actually reach a user, so it is not optional polish. It reads the already-imported `VERSION`, warns once per session through the suite's own notification surface rather than `console.*` (a stray write smears the fullscreen viewport), and `meta` aggregates the messages so a mismatched host yields one line rather than one per package. It **warns and still registers**: refusing to load would make `/plugins` report an enabled package that loaded nothing, and ADR 0024 already gives us the correct instrument — deprecation — for something that genuinely cannot work.
 - The floating `pi@latest` job must be **scheduled**, not merely PR-triggered. Under minor-means-breaking, a float job that only runs when we touch the repo is green exactly as long as we leave it alone.
 - devDeps are pinned **exactly** at `1.2.0`, not `^1.2.0`, so the floor job's name means something and an unannounced pi minor cannot move the type-check target underneath us. Upstream pins its own dependencies for the same reason.
-- `@types/node` stays held at **22.19.19**. pi 1.2.0 bundles 26.6.5, where `ChildProcess extends InternalEventEmitter<ChildProcessEventMap>`; resolving both copies into one program yields three false `Property 'on' does not exist` errors in `packages/image-paste/src/clipboard.ts` and `packages/sudo/src/tool.ts` that look exactly like real breakage. This pin will read as stale to a future contributor and must not be "cleaned up" without re-running the type check.
+- `@types/node` stays held at **22.19.19** (matching root `devDependencies` and upstream `pi-coding-agent` `devDependencies`). pi 1.2.0 bundles 26.6.5, where `ChildProcess extends InternalEventEmitter<ChildProcessEventMap>`; resolving both copies into one program yields three false `Property 'on' does not exist` errors in `packages/image-paste/src/clipboard.ts` and `packages/sudo/src/tool.ts` that look exactly like real breakage. This pin will read as stale to a future contributor and must not be "cleaned up" without re-running the type check.
 - `pnpm-lock.yaml` must be regenerated in the same commit as the range change, or both `--frozen-lockfile` jobs fail with `ERR_PNPM_OUTDATED_LOCKFILE`.
 - Peer ranges still buy no protection at install time. If pi begins validating them, every `>=0.1.0` in this monorepo becomes a live false claim and this decision should be revisited.
 
@@ -56,3 +56,11 @@ The set this decision recorded was chosen before three things merged: **#110** (
 | `session-name` | `>=0.86.0` | unchanged: everything it uses is present at 0.84.4, so the declared floor is conservative-but-published, which is the acceptable direction |
 
 **`>=0.1.0` is gone from the manifests entirely.** Not only is it unevaluated at install time (this decision's opening fact); `0.1.0` **was never published** for `pi-coding-agent`, `pi-tui` or `pi-ai` — the oldest release of each on npm is `0.74.0` — so it never described a host, not even vacuously "from the beginning". ADR 0013's exemption ("packages whose new code only needs *types* from pi stay `>=0.1.0`") is not overruled, it simply has no members any more: every package in the suite calls host values at runtime. If a genuinely types-only package is added, the exemption is available again and this table should not be read as banning it.
+
+## Amendment (2026-10-29, pi 1.4.0)
+
+The compile-time target in `devDependencies` across all 13 package manifests is bumped from `"1.2.0"` to `"1.4.0"`. In accordance with this ADR:
+1. Published `peerDependencies` floors remain at their honest minima (e.g. `>=1.2.0` for ui/diff/subagent/ask/meta, `>=0.85.0` for core, etc.) because existing runtime code requires no 1.4.0-exclusive APIs.
+2. The `@types/node` hold at `22.19.19` remains in place to avoid the 26.x `ChildProcess` event signature mismatch.
+3. The temporary `minimumReleaseAgeExclude` entries for 1.2.0 in `pnpm-workspace.yaml` were deleted following the expiration of their 24h release-age window.
+
