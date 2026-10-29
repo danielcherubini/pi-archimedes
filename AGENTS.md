@@ -71,8 +71,8 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 - Pi's jiti loader handles TypeScript at runtime
 - Verification is `tsc --noEmit`, not a build or test command
 
-### Type-Check Target: pi 1.2.0 (and the `@types/node` hold)
-- Every one of the 13 manifests pins `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` in **`devDependencies` to the exact string `"1.2.0"`** — not a range. The four packages that declare `@earendil-works/pi-ai` pin it to `"1.2.0"` too. Ranges are wrong here on purpose: caret on an 0.x (`^0.87.0`) cannot even resolve `0.87.1`, and the suite once type-checked eleven releases behind what users ran.
+### Type-Check Target: pi 1.4.0 (and the `@types/node` hold)
+- Every one of the 13 manifests pins `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` in **`devDependencies` to the exact string `"1.4.0"`** — not a range. The four packages that declare `@earendil-works/pi-ai` pin it to `"1.4.0"` too. Ranges are wrong here on purpose: caret on an 0.x (`^0.87.0`) cannot even resolve `0.87.1`, and the suite once type-checked eleven releases behind what users ran.
 - This is a **compile-time** pin only. At runtime pi aliases every host specifier to its own copy (ADR 0026), so the workspace `node_modules` copy is never what executes. `typescript` stays where it is (root `^7.0.2`, packages `^6.0.x`).
 - **`@types/node` is held at `22.19.19`** — pinned exactly in root `devDependencies` (which is what makes `packages/core`'s hoisted `node:fs` compile deterministically) and declared in `packages/subagent` and `packages/web`. Do **not** "modernise" it to 26.x: pi 1.2.0 bundles `@types/node` 26.6.5, where `ChildProcess extends InternalEventEmitter<ChildProcessEventMap>`, and if both copies land in one program you get three false `Property 'on' does not exist on type 'ChildProcessWithoutNullStreams'` errors — `packages/image-paste/src/clipboard.ts` and `packages/sudo/src/tool.ts` — that read exactly like real upstream breakage. Check with `pnpm why @types/node | grep -o "2[0-9]\.[0-9]*\.[0-9]*" | sort -u` (exactly one version). The pin will look stale to a future contributor; that is why it is written down here and in ADR 0026.
 
@@ -92,7 +92,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 
 ### CI: the floor job and the floating `pi@latest` job
 `.github/workflows/ci.yml` has two jobs, and they answer different questions:
-- **`typecheck`** — the floor job: `pnpm install --frozen-lockfile`, `pnpm -r exec -- tsc --noEmit`, `pnpm test`, against *our* pinned 1.2.0. Red means our tree stopped compiling or stopped working.
+- **`typecheck`** — the floor job: `pnpm install --frozen-lockfile`, `pnpm -r exec -- tsc --noEmit`, `pnpm test`, against *our* pinned 1.4.0. Red means our tree stopped compiling or stopped working.
 - **`pi-latest`** — the drift detector: same compile surface after `pnpm update -r` against whatever `@earendil-works/pi-*@latest` publishes today (with `minimum-release-age 0` set in the runner's project config, because pnpm's 24h policy would otherwise reject the newest pi for its first day — exactly the window the job covers). pi does not follow semver (`patch` and `minor` both ship breaking changes), so this job is the only drift detector available.
 - **`pi-latest` is gated to `schedule` and `workflow_dispatch`**, deliberately: a float job that ran on PRs would turn every open PR red for a reason the author cannot fix. So **`pi-latest` showing *SKIPPED* on a pull request is the expected result, not a failure.** To run it on demand: `gh workflow run ci.yml --ref <branch>` (`workflow_dispatch` also lets anyone re-check against today's latest on `main`).
 
