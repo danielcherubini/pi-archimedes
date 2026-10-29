@@ -33,7 +33,7 @@
  * which list they are being handed. */
 export const THINKING_LEVELS_PI_VERSION = "1.4.0";
 
-/** pi 1.4.0's `VALID_THINKING_LEVELS`, in pi's order (the 7 accepted levels remain identical to 1.2.0 — list unchanged since 1.2.0). */
+/** pi 1.4.0's VALID_THINKING_LEVELS, in pi's order (unchanged since 1.2.0). */
 export const THINKING_LEVELS = [
   "off",
   "minimal",
