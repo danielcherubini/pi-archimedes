@@ -199,6 +199,42 @@ describe("loadConfig", () => {
     const result = loadConfig("test.ns", { foo: "bar", count: 42 });
     expect(result).toEqual({ foo: "bar", count: 42 });
   });
+
+  it("handles leading UTF-8 BOM in settings.json", () => {
+    const settingsPath = join(tempDir, "settings.json");
+    fs.writeFileSync(
+      settingsPath,
+      "\uFEFF" + JSON.stringify({ "test.ns": { foo: "overridden" } }),
+      "utf-8",
+    );
+    const result = loadConfig("test.ns", { foo: "bar", count: 42 });
+    expect(result).toEqual({ foo: "overridden", count: 42 });
+  });
+
+  it("prevents clobbering sibling namespaces when settings.json has UTF-8 BOM", () => {
+    const settingsPath = join(tempDir, "settings.json");
+    fs.writeFileSync(
+      settingsPath,
+      "\uFEFF" + JSON.stringify({ "test.ns": { foo: "overridden" } }),
+      "utf-8",
+    );
+    loadConfig("test.ns", { foo: "bar", count: 42 });
+    saveConfig("other.ns", { val: 123 });
+    const data = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    expect(data["test.ns"]).toEqual({ foo: "overridden" });
+    expect(data["other.ns"]).toEqual({ val: 123 });
+  });
+
+  it("readEffectiveSettings returns parsed object from BOM-prefixed settings.json", () => {
+    const settingsPath = join(tempDir, "settings.json");
+    fs.writeFileSync(
+      settingsPath,
+      "\uFEFF" + JSON.stringify({ "test.ns": { foo: "overridden" } }),
+      "utf-8",
+    );
+    const result = readEffectiveSettings();
+    expect(result).toEqual({ "test.ns": { foo: "overridden" } });
+  });
 });
 
 describe("saveConfig", () => {

@@ -31,9 +31,9 @@
 /** pi's own `VALID_THINKING_LEVELS` were read from, and the version they were
  * read from. The warning quotes the version so a reader on a newer host knows
  * which list they are being handed. */
-export const THINKING_LEVELS_PI_VERSION = "1.2.0";
+export const THINKING_LEVELS_PI_VERSION = "1.4.0";
 
-/** pi 1.2.0's `VALID_THINKING_LEVELS`, in pi's order. */
+/** pi 1.4.0's `VALID_THINKING_LEVELS`, in pi's order. */
 export const THINKING_LEVELS = [
   "off",
   "minimal",

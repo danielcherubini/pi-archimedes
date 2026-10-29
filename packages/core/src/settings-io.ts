@@ -22,8 +22,9 @@ function readRawSettings(): string | null {
 /** Parse a raw settings string, returning empty object on null/corrupt input. */
 function parseSettings(raw: string | null): Record<string, unknown> {
   if (raw === null) return {};
+  const sanitized = raw.startsWith("\uFEFF") ? raw.slice(1) : raw;
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    return JSON.parse(sanitized) as Record<string, unknown>;
   } catch {
     return {};
   }
