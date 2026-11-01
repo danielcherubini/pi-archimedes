@@ -14,7 +14,7 @@ import {
   readClipboardText,
 } from "./clipboard.js";
 import { runNativePasteRestore, suiteMayClaimPasteKey } from "./keybinding-offer.js";
-import { registerImagePreview, sendPreviewMessage } from "./preview.js";
+import { previewEnabled, registerImagePreview, sendPreviewMessage } from "./preview.js";
 import type { ClipboardImage, PendingImage, ImageMarker } from "./types.js";
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
@@ -278,10 +278,12 @@ export function registerImagePaste(pi: ExtensionAPI): void {
     }
 
     // Send preview message for TUI display (images are invisible in user messages)
-    try {
-      sendPreviewMessage(pi, imagesToAttach);
-    } catch {
-      // Preview is optional — don't fail the submit
+    if (previewEnabled()) {
+      try {
+        sendPreviewMessage(pi, imagesToAttach);
+      } catch {
+        // Preview is optional — don't fail the submit
+      }
     }
 
     return {
