@@ -44,8 +44,13 @@ function writeSettings(imagePaste: Record<string, unknown> | undefined): void {
 
 type Handler = (...args: unknown[]) => unknown;
 
-/** Register, paste one image through the shortcut, submit it; report what happened. */
-async function pasteAndSubmit() {
+interface SubmitResult {
+  action: string;
+  images?: unknown[];
+}
+
+/** Register once; `pasteAndSubmit()` then drives the same handlers each time. */
+function registerSession() {
   const pi = {
     on: vi.fn(),
     registerShortcut: vi.fn(),
@@ -60,15 +65,22 @@ async function pasteAndSubmit() {
   initImagePasteSession(ctx as never);
 
   const paste = pi.registerShortcut.mock.calls[0]![1].handler as Handler;
-  await paste(ctx);
-
   const input = pi.on.mock.calls.find((call) => call[0] === "input")![1] as Handler;
-  const result = (await input({ text: "[Image #1] look", source: "interactive" })) as {
-    action: string;
-    images?: unknown[];
-  };
 
-  return { pi, notify, result };
+  /** Paste one image through the shortcut and submit it. */
+  async function pasteAndSubmit(): Promise<SubmitResult> {
+    await paste(ctx);
+    return (await input({ text: "[Image #1] look", source: "interactive" })) as SubmitResult;
+  }
+
+  return { pi, notify, pasteAndSubmit };
+}
+
+/** Register, paste one image through the shortcut, submit it; report what happened. */
+async function pasteAndSubmit() {
+  const session = registerSession();
+  const result = await session.pasteAndSubmit();
+  return { pi: session.pi, notify: session.notify, result };
 }
 
 beforeEach(() => {
@@ -99,6 +111,26 @@ describe("archimedes.imagePaste.preview", () => {
     expect(notify).toHaveBeenCalledWith("Image attached from clipboard.", "info");
     expect(result.action).toBe("transform");
     expect(result.images).toHaveLength(1);
+  });
+
+  it("re-reads the setting on each submit through the same registered handler (no /reload)", async () => {
+    const session = registerSession();
+
+    const first = await session.pasteAndSubmit();
+    expect(session.pi.sendMessage).toHaveBeenCalledTimes(1);
+    expect(first.action).toBe("transform");
+    expect(first.images).toHaveLength(1);
+
+    writeSettings({ preview: false });
+    const second = await session.pasteAndSubmit();
+    expect(session.pi.sendMessage).toHaveBeenCalledTimes(1);
+    expect(second.action).toBe("transform");
+    expect(second.images).toHaveLength(1);
+
+    writeSettings({ preview: true });
+    const third = await session.pasteAndSubmit();
+    expect(session.pi.sendMessage).toHaveBeenCalledTimes(2);
+    expect(third.images).toHaveLength(1);
   });
 
   it("treats a value that is not the boolean false as on", async () => {
