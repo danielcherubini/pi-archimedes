@@ -32,6 +32,7 @@ vi.mock("./clipboard.js", () => ({
 }));
 
 const { registerImagePaste, initImagePasteSession, shutdownImagePaste } = await import("./index.js");
+const { saveImagePastePreview } = await import("./settings.js");
 
 const NAMESPACE = "archimedes.imagePaste";
 const settingsPath = (): string => join(tempDir, "settings.json");
@@ -140,5 +141,24 @@ describe("archimedes.imagePaste.preview", () => {
       const { pi } = await pasteAndSubmit();
       expect(pi.sendMessage, `preview=${JSON.stringify(value)}`).toHaveBeenCalledTimes(1);
     }
+  });
+});
+
+describe("saveImagePastePreview (the /archimedes row)", () => {
+  it("merges preview into the namespace, keeps its other keys, and the next submit obeys it", async () => {
+    writeSettings({ enabled: true, suppressNativePaste: true, keybindingsPromptDone: true });
+    const session = registerSession();
+
+    saveImagePastePreview(false);
+    expect(JSON.parse(fs.readFileSync(settingsPath(), "utf-8"))[NAMESPACE]).toEqual({
+      enabled: true,
+      suppressNativePaste: true,
+      keybindingsPromptDone: true,
+      preview: false,
+    });
+
+    const result = await session.pasteAndSubmit();
+    expect(session.pi.sendMessage).not.toHaveBeenCalled();
+    expect(result.images).toHaveLength(1);
   });
 });

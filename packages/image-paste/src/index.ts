@@ -14,7 +14,8 @@ import {
   readClipboardText,
 } from "./clipboard.js";
 import { runNativePasteRestore, suiteMayClaimPasteKey } from "./keybinding-offer.js";
-import { previewEnabled, registerImagePreview, sendPreviewMessage } from "./preview.js";
+import { registerImagePreview, sendPreviewMessage } from "./preview.js";
+import { previewEnabled } from "./settings.js";
 import type { ClipboardImage, PendingImage, ImageMarker } from "./types.js";
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB

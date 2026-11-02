@@ -16,7 +16,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./keybinding-offer": "./src/keybinding-offer.ts"
+    "./keybinding-offer": "./src/keybinding-offer.ts",
+    "./settings": "./src/settings.ts"
   },
   "dependencies": {
     "@pi-archimedes/core": "workspace:*"

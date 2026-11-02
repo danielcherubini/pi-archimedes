@@ -250,6 +250,7 @@ describe("item set", () => {
       "notifyOnQuestion",
       "delayMs",
       "sessionNameModel",
+      "imagePastePreview",
     ]);
   });
 });

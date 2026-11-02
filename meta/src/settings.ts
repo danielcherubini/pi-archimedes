@@ -5,6 +5,7 @@ import { getUISettingsItems, saveUIConfig, normalizeThinkingStyle, normalizeTool
 import { getFooterSettingsItems } from "@pi-archimedes/footer/config";
 import { getNotifySettingsItems } from "@pi-archimedes/notify";
 import { getSessionNameSettingsItems } from "@pi-archimedes/session-name";
+import { getImagePasteSettingsItems, saveImagePastePreview } from "@pi-archimedes/image-paste/settings";
 import {
   loadAllConfig,
   saveFooterConfig,
@@ -76,6 +77,10 @@ export async function buildSettingsItems(allConfig: ReturnType<typeof loadAllCon
     items.push(...getSessionNameSettingsItems({ ...allConfig.sessionName }));
   }
 
+  if (isPluginEnabled("image-paste")) {
+    items.push(...getImagePasteSettingsItems());
+  }
+
   return items;
 }
 
@@ -87,6 +92,10 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
   const footerConfig = { ...allConfig.footer };
   const diffConfig = { ...allConfig.diff };
   const sessionNameConfig = { ...allConfig.sessionName };
+  // Unset until the row is touched, so a save that never touched it leaves
+  // archimedes.imagePaste (which also holds enabled / suppressNativePaste /
+  // keybindingsPromptDone) unwritten.
+  let imagePastePreview: boolean | undefined;
 
   const items = await buildSettingsItems(allConfig);
 
@@ -169,6 +178,9 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
             sessionNameConfig.model = !ref || ref === "(current model)" ? undefined : ref;
             break;
           }
+
+          // ── Image paste settings ──
+          case "imagePastePreview": imagePastePreview = newValue === "On"; break;
         }
       },
       onSave: () => {
@@ -177,6 +189,7 @@ export async function openSettings(pi: ExtensionAPI, ctx: ExtensionContext): Pro
         saveDiffConfig(diffConfig);
         saveNotifyConfig(notifyConfig);
         saveSessionNameConfig(sessionNameConfig);
+        if (imagePastePreview !== undefined) saveImagePastePreview(imagePastePreview);
         done(undefined);
       },
       onClose: () => { done(undefined); },

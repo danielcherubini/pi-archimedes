@@ -1,19 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";
 
-import { loadConfig } from "@pi-archimedes/core/settings-io";
-
 import type { PendingImage } from "./types.js";
 
 const CUSTOM_TYPE = "hephaestus-image-preview";
-
-/**
- * `archimedes.imagePaste.preview`, default on. Only the strict boolean `false`
- * disables it. Read per call so a settings change applies on the next submit.
- */
-export function previewEnabled(): boolean {
-  return loadConfig<{ preview: boolean }>("archimedes.imagePaste", { preview: true }).preview !== false;
-}
 
 interface PreviewDetails {
   images: Array<{ data: string; mimeType: string }>;
