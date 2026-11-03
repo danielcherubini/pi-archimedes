@@ -1,7 +1,7 @@
 ---
 status: live
-last-verified: 2026-10-14
-verified-by: reading `packages/todo/src` (tool.ts, state-manager.ts, index.ts, prepare-args.ts, ui/todo-widget.ts) against pi 1.2.0's shipped `examples/extensions/todo.ts`, claim by claim, on 2026-10-14; the suite's own tests (`npx vitest run` — 2430 tests / 145 files) and `tsc --noEmit` clean in all 13 workspace projects. Not re-checked against a live terminal in this pass: the exact frame on which the widget disappears after auto-clear (see "Auto-clear" — the 2 s timer and the widget refresh are separate).
+last-verified: 2026-11-03
+verified-by: reading `packages/todo/src` (tool.ts, state-manager.ts, index.ts, prepare-args.ts, ui/todo-widget.ts) against pi 1.2.0's shipped `examples/extensions/todo.ts`, claim by claim, on 2026-10-14; the suite's own tests (`npx vitest run` — 2430 tests / 145 files) and `tsc --noEmit` clean in all 13 workspace projects. Not re-checked against a live terminal in this pass: the exact frame on which the widget disappears after auto-clear (see "Auto-clear" — the 2 s timer and the widget refresh are separate). On 2026-11-03 the schema-symbol sourcing below and `packages/todo/package.json`'s dependencies were re-read against pi 1.5.0 (both CI jobs green: the pinned-1.4.0 `typecheck` and the floating `pi-latest`); everything else above stands as recorded on 2026-10-14.
 ---
 
 # Todo board (`@pi-archimedes/todo`)
@@ -21,6 +21,8 @@ Two things sit around that schema:
 
 - **Argument repair before validation.** `prepareArguments: prepareTodoArguments` (`packages/todo/src/prepare-args.ts`) runs before pi validates, and normalises the recoverable mistakes seen in practice — a stringified `todoList`, the list sent under `todo_list`/`todos`, items keyed `title`/`step` instead of `content`, dashed or plain-English statuses, bare-string items, and an invented `id` (stripped, not repaired). Unrecoverable input passes through so the real validation error still surfaces.
 - **A declared output schema.** `outputSchema: ManageTodoListOutput` (`{ operation, todos }`) mirrors `details` on success, so a codemode script gets the list as data; failure results carry none of it. `packages/todo/src/tool.output-schema.test.ts` runs the handler and validates the payload against the declaration, because pi does not.
+
+Both schemas are built from `Type` / `Static`, which `packages/todo/src/tool.ts` imports from `typebox` directly — the same source the suite's other schema-bearing packages (`ask`, `sudo`, `subagent`, `web`) use. `StringEnum` is a module-local helper in that file for the same reason it is a one-off: it was a `pi-ai` helper, `typebox` has no equivalent, and it emits the identical `{ type: "string", enum: [...] }`. `todo` therefore declares no `@earendil-works/pi-ai` dependency at all — its peers are `pi-coding-agent`, `pi-tui` and `typebox` (`>=1.1.0`); taking schema symbols from a host re-export is a never-do rule (`AGENTS.md` → Conventions → Imports, ADR 0026), because pi 1.5.0 deleted pi-ai's typebox re-exports and only the direct `typebox` importers survived it.
 
 Successful writes announce the new list on the host's event handle (`Events.TODOS_UPDATE` → `archimedes:todos_update`, `packages/todo/src/tool.ts`). That is the outward path — the suite's desktop bridge forwards it as a `todos_update` frame (`packages/core/src/bridge/events.ts`) — and is separate from `onUpdate()`, which refreshes the local widget.
 
