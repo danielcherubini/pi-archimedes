@@ -1,4 +1,4 @@
-import { type Static, StringEnum, Type } from "@earendil-works/pi-ai";
+import { Type, type Static } from "typebox";
 import type { AgentToolResult, EventBus, ExtensionContext, Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Events, emitOn } from "@pi-archimedes/core/events";
@@ -7,6 +7,24 @@ import { prepareTodoArguments } from "./prepare-args.js";
 import type { TodoStateManager } from "./state-manager.js";
 import { STATUS_ICONS } from "./types.js";
 import type { TodoDetails, TodoItem, TodoStatus } from "./types.js";
+
+/**
+ * pi-ai shipped this helper; typebox has no equivalent, and pi 1.5.0 dropped
+ * pi-ai's typebox re-exports, so the suite no longer takes schema symbols from
+ * the host. Emits the identical JSON Schema: { type: "string", enum: [...] }.
+ * pi-ai's version also accepted a `default`; no caller here does, so it is not
+ * carried.
+ */
+function StringEnum<T extends readonly string[]>(
+  values: readonly [...T],
+  options?: { description?: string },
+) {
+  return Type.Unsafe<T[number]>({
+    type: "string",
+    enum: [...values],
+    ...(options?.description ? { description: options.description } : {}),
+  });
+}
 
 const TodoItemSchema = Type.Object({
   content: Type.String({
