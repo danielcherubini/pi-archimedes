@@ -22,13 +22,11 @@
     "@pi-archimedes/core": "workspace:*"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": ">=0.99.0",
     "@earendil-works/pi-coding-agent": ">=0.99.0",
     "@earendil-works/pi-tui": ">=0.99.0",
     "typebox": ">=1.1.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.4.0",
     "typebox": "^1.1.38",
