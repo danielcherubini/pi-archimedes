@@ -24,10 +24,10 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` works two ways here: it picks the extension up, **and** it restores the todo list, which survives `/reload` through session state reconstruction.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers the first run. `/reload` works two ways here: it picks the extension up, **and** it restores the todo list, which survives `/reload` through session state reconstruction.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Main agent and subagent todos side by side">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/todos-and-subagent.png" width="750" alt="Main agent and subagent todos side by side">
 </div>
 
 ## The `manage_todo_list` tool
@@ -54,7 +54,7 @@ Two operations, `write` and `read`:
 States are `pending`, `in_progress`, and `completed`. Finished items render struck through; the current one stays highlighted.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/todos-multiple-todos.png" width="600" alt="Multiple todos tracking progress">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/todos-multiple-todos.png" width="600" alt="Multiple todos tracking progress">
 </p>
 
 ## Commands
@@ -68,6 +68,6 @@ When every task reaches `completed`, the widget shows a brief confirmation, then
 
 ## Part of the suite
 
-With subagents running alongside in the [full suite](https://github.com/danielcherubini/pi-archimedes), each child gets its own named column to the right of yours — it appears on the child's first non-empty todo update over the host's event bus, `pi.events` (empty updates are ignored; it does not appear when the worker merely starts), and it is removed when the child exits. The 2-second auto-clear is local to whatever list completed — a child clearing its own list does not dismiss the column in your session. On/off is managed by the suite: toggle via `/plugins` (`archimedes.todo.enabled`, default on).
+With subagents running alongside in the [full suite](https://github.com/archimedes-codes/pi-archimedes), each child gets its own named column to the right of yours — it appears on the child's first non-empty todo update over the host's event bus, `pi.events` (empty updates are ignored; it does not appear when the worker merely starts), and it is removed when the child exits. The 2-second auto-clear is local to whatever list completed — a child clearing its own list does not dismiss the column in your session. On/off is managed by the suite: toggle via `/plugins` (`archimedes.todo.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

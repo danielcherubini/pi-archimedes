@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers the first run. `/reload` picks the tool up in a running session.
 
 ## What you get
 
@@ -90,9 +90,9 @@ An option the agent marks `recommended` is flagged in the UI; `description` rend
 When a subagent dispatched by `@pi-archimedes/subagent` calls `ask`, the same prompt relayed over the bidirectional IPC channel appears in your live terminal, even mid-stream — the subagent blocks while you answer and resumes carrying your exact choices. It works alongside the live streaming and cost tracking, no temp files or pipes. This relay only applies to Archimedes-dispatched subagents; a question from a directly-called agent simply renders in-line.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/ask-subagent.png" width="700" alt="Ask prompt routed from subagent to parent TUI">
 </div>
 
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.ask.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

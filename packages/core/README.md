@@ -34,6 +34,6 @@ After installing Pi, choose one installation command above, then `cd` into your 
 
 ## Part of the suite
 
-In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the channel vocabulary that carries subagent todos to the task board and subagent questions to the ask UI, and the bridge that reaches the Archimedes Client. The diff renderer is standalone and does not depend on core's chrome — it only shares the suite when it loads.
+In [pi-archimedes](https://github.com/archimedes-codes/pi-archimedes), core is always registered — it isn't one of the `/plugins` toggles — and it underpins what the other components share: the channel vocabulary that carries subagent todos to the task board and subagent questions to the ask UI, and the bridge that reaches the Archimedes Client. The diff renderer is standalone and does not depend on core's chrome — it only shares the suite when it loads.
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

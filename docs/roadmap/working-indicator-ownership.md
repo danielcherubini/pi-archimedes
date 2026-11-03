@@ -1,6 +1,6 @@
 ---
 status: committed
-issue: https://github.com/danielcherubini/pi-archimedes/issues/147#issuecomment-6290421504
+issue: https://github.com/archimedes-codes/pi-archimedes/issues/147#issuecomment-6290421504
 done-when: "`pnpm -r exec -- tsc --noEmit` and `pnpm test` are green, and in a scratch `PI_CODING_AGENT_DIR` where a sibling extension sets `setWorkingIndicator({ frames: [\"QQ\", \"WW\"], intervalMs: 100 })` on `session_start` alongside archimedes with `archimedes.ui.editorSpinBorder: false`, a real pi run in a pty shows the sibling's frames during a prompt (on `main` it shows pi's default braille frames instead)."
 ---
 

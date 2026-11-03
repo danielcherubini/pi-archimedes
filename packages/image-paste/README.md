@@ -18,7 +18,7 @@ Or the full suite instead:
 pi install npm:pi-archimedes
 ```
 
-New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0. If you need Pi, [its quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) starts with `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`. After installing Pi, choose one installation command above, then `cd` into your project, run `pi`, and use `/login` and `/model` inside the session. The [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers it end to end. `/reload` picks the extension up in a running session.
+New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0. If you need Pi, [its quickstart](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/quickstart.md) starts with `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`. After installing Pi, choose one installation command above, then `cd` into your project, run `pi`, and use `/login` and `/model` inside the session. The [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers it end to end. `/reload` picks the extension up in a running session.
 
 ## How it works
 
@@ -73,6 +73,6 @@ In the suite on/off is managed by the suite: toggle via `/plugins` (`archimedes.
 
 ## Part of the suite
 
-In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), image-paste works alongside the framed editor, the status bar, and the todo board; on/off is managed by the suite (`/plugins`, `archimedes.imagePaste.enabled`, default on).
+In [pi-archimedes](https://github.com/archimedes-codes/pi-archimedes), image-paste works alongside the framed editor, the status bar, and the todo board; on/off is managed by the suite (`/plugins`, `archimedes.imagePaste.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

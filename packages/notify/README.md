@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
 
 ## Triggers
 
@@ -57,4 +57,4 @@ Delivery depends on your terminal understanding one of these protocols; if it un
 
 In the suite the settings also appear in `/archimedes` (where the panel has a control), and on/off is managed by the suite: toggle via `/plugins` (`archimedes.notify.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

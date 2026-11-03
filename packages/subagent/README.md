@@ -24,10 +24,10 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the dispatch tool up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers the first run. `/reload` picks the dispatch tool up in a running session.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/subagents-main-view.png" width="750" alt="Subagents parallel streaming view">
 </div>
 
 ## Dispatching
@@ -102,16 +102,16 @@ Independent tasks go in a `tasks` array — mix defined agents and config-less t
 Available with the suite (and subagent enabled), `/agents` opens the interactive manager: a searchable list, model and tool pickers, cross-scope collision warnings, and dirty-tracking on save.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-agent-view.png" width="650" alt="Subagents agent details view">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/subagents-agent-view.png" width="650" alt="Subagents agent details view">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-model-selection.png" width="48%" alt="Model selection">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/subagents-tool-selection.png" width="48%" alt="Tool selection">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/subagents-model-selection.png" width="48%" alt="Model selection">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/subagents-tool-selection.png" width="48%" alt="Tool selection">
 </p>
 
 ## Part of the suite
 
 The full suite is the supported connected setup. With the relevant components loaded together, a subagent's tokens and cost ride its own tool result into the footer's totals, subagent tasks get their own columns on the todo board, and subagent `ask` questions surface in your terminal. On/off is managed by the suite: toggle via `/plugins` (`archimedes.subagent.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

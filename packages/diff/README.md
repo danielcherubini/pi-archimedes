@@ -24,10 +24,10 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the first run. A running session picks the diff renderer up with `/reload`.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) walks through the first run. A running session picks the diff renderer up with `/reload`.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/danielcherubini/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">
+  <img src="https://raw.githubusercontent.com/archimedes-codes/pi-archimedes/main/docs/images/diff-edit.png" width="700" alt="Shiki syntax-highlighted split diff">
 </div>
 
 ## What you get
@@ -43,7 +43,7 @@ The renderer displays `edit` and `write` tool changes in the tool UI, including 
 
 ## Appearance
 
-Standalone, the renderer runs on fixed defaults — the `github-dark` theme, a 150-column minimum for split view, 60 code columns per side, and line-wrap safety checks enabled — and it does **not** read settings, because standalone has no config reader. In the [suite](https://github.com/danielcherubini/pi-archimedes), its `archimedes.diff` namespace supplies the settings through the suite's config reader:
+Standalone, the renderer runs on fixed defaults — the `github-dark` theme, a 150-column minimum for split view, 60 code columns per side, and line-wrap safety checks enabled — and it does **not** read settings, because standalone has no config reader. In the [suite](https://github.com/archimedes-codes/pi-archimedes), its `archimedes.diff` namespace supplies the settings through the suite's config reader:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
@@ -56,4 +56,4 @@ The palette is derived from the chosen Shiki theme; it does **not** automaticall
 
 On/off is managed by the suite: toggle via `/plugins` (`archimedes.diff.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

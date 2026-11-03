@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) walks through the whole first run. A running session picks the footer up with `/reload`.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) walks through the whole first run. A running session picks the footer up with `/reload`.
 
 ## What you get
 
@@ -47,4 +47,4 @@ Two honest caveats: the ledger reflects usage and pricing **as reported to the s
 
 In the suite the setting also appears in `/archimedes` (when the panel has a control for it); `/reload` applies it. On/off is managed by the suite: toggle via `/plugins` (`archimedes.footer.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)

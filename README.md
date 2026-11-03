@@ -270,7 +270,7 @@ pi-archimedes is a pnpm monorepo with no build step — Pi loads the `.ts` sourc
 ```
 
 ```bash
-git clone https://github.com/danielcherubini/pi-archimedes.git
+git clone https://github.com/archimedes-codes/pi-archimedes.git
 cd pi-archimedes
 pnpm install            # requires pnpm ≥ 10
 

@@ -24,7 +24,7 @@ New to Pi? Pi itself is a one-time global install and needs Node.js ≥ 22.19.0:
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/danielcherubini/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
+After installing Pi, choose one installation command above, then `cd` into your project and run `pi`. Inside the session, `/login` signs you in and `/model` picks a model — the [setup section](https://github.com/archimedes-codes/pi-archimedes#setup) covers the first run. `/reload` picks the extension up in a running session.
 
 ## What you get
 
@@ -34,7 +34,7 @@ After installing Pi, choose one installation command above, then `cd` into your 
 - **Credential cache** — a single in-memory cache with a TTL (15 minutes by default, `ttlMs`); cleared on authentication failure, at `session_start`/`session_shutdown`, and by `/sudo forget`.
 - **Timeout/abort cleanup** — on timeout or abort, the tool attempts to kill the command's entire process group, falling back to the direct sudo process, so root children, not just the direct sudo process, are the target of the cleanup. Deliberately detached descendants (`setsid`, daemonising) leave the process group and are outside its scope — use a flag to keep the child a process in the group (e.g. `--foreground`).
 - **Headless sessions refused** — `sudo_exec` requires an interactive (TUI) session; subagent and headless sessions get a clear error instead of a prompt. The masked prompt only ever appears in front of a human.
-- **Active bash guard** — a `tool_call` veto on the built-in `bash` tool (per [ADR 0010](https://github.com/danielcherubini/pi-archimedes/blob/main/docs/decisions/0010-archimedes-sudo-security.md)) blocks interactive `sudo`, funneling privileged execution toward `sudo_exec`.
+- **Active bash guard** — a `tool_call` veto on the built-in `bash` tool (per [ADR 0010](https://github.com/archimedes-codes/pi-archimedes/blob/main/docs/decisions/0010-archimedes-sudo-security.md)) blocks interactive `sudo`, funneling privileged execution toward `sudo_exec`.
 
 ## Usage
 
@@ -55,7 +55,7 @@ The scanned `bash` commands:
 - **Blocked:** `sudo` in command position without a no-prompt flag — including through runner wrappers (`env`, `nohup`, `timeout`, `xargs`, …), nested shells (`bash -c`, `su -c`), `eval`, compound keywords, and heredoc bodies.
 - **Allowed:** sudo occurrences that carry a no-prompt flag (`-n`, `-l`, `-v`, `-K`, `-k`, `--non-interactive`, or merged short flags composed solely of those) — the scanner's allow-list exception, mirroring the typical non-interactive usage.
 
-The guard is a **heuristic with accepted residual bypasses** documented in the [ADR 0010 design notes](https://github.com/danielcherubini/pi-archimedes/blob/main/docs/decisions/0010-archimedes-sudo-security.md) — for example cross-token variable indirection, and `sudo` inside `$(...)`/backtick interpolation the word-position model cannot see. Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract of the scanner, **not** a guarantee that no prompt can occur.
+The guard is a **heuristic with accepted residual bypasses** documented in the [ADR 0010 design notes](https://github.com/archimedes-codes/pi-archimedes/blob/main/docs/decisions/0010-archimedes-sudo-security.md) — for example cross-token variable indirection, and `sudo` inside `$(...)`/backtick interpolation the word-position model cannot see. Over-blocking is the safe direction; the tested no-prompt flag set is a stable contract of the scanner, **not** a guarantee that no prompt can occur.
 
 ## Commands
 
@@ -80,6 +80,6 @@ On sudoers policies that retain no reusable credential ticket (e.g. `timestamp_t
 
 ## Part of the suite
 
-In [pi-archimedes](https://github.com/danielcherubini/pi-archimedes), the package is registered by the plugin manifest; the bash guard and `sudo_exec` are loaded in the main session and in subagent children — the guard still vetoes there, while `sudo_exec` itself refuses to run in headless mode. Standalone works independently. On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on).
+In [pi-archimedes](https://github.com/archimedes-codes/pi-archimedes), the package is registered by the plugin manifest; the bash guard and `sudo_exec` are loaded in the main session and in subagent children — the guard still vetoes there, while `sudo_exec` itself refuses to run in headless mode. Standalone works independently. On/off is managed by the suite: toggle via `/plugins` (`archimedes.sudo.enabled`, default on).
 
-← [Back to pi-archimedes](https://github.com/danielcherubini/pi-archimedes)
+← [Back to pi-archimedes](https://github.com/archimedes-codes/pi-archimedes)
