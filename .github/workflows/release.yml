@@ -32,16 +32,13 @@ jobs:
       - name: Type-check all packages
         run: pnpm -r exec -- tsc --noEmit
 
-      - name: Publish to npm
+      - name: Stage to npm
         # Belt and braces: make sure no residual token can shadow the OIDC flow.
         #
-        # The GitHub OIDC -> npm token exchange intermittently answers 404
-        # (ERR_PNPM_AUTH_TOKEN_EXCHANGE), and it tends to start failing part-way
-        # through a run. A flat list of `pnpm publish` lines therefore dies on
-        # package N and silently abandons every package after it, so each release
-        # needed hand-finishing. Instead: skip versions already in the registry
-        # (makes a re-run safe), retry the flake, and keep going so one bad
-        # package can't hide the rest -- the verify step below is the real gate.
+        # Packages are staged using `pnpm stage publish` for review and approval
+        # with 2FA on npmjs.com or via `npm stage approve`.
+        # Skip versions already in the registry (makes a re-run safe), retry
+        # transient flakes, and keep going so one bad package can't hide the rest.
         run: |
           unset NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG 2>/dev/null || true
           set -u
@@ -57,90 +54,32 @@ jobs:
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
 
-            published=0
+            staged=0
             for attempt in 1 2 3; do
               # Re-check every pass: a previous attempt may have reached the
               # registry and only failed on the way back out.
               if [ "$(npm view "$name@$version" version 2>/dev/null || true)" = "$version" ]; then
                 echo "⏭️  $name@$version already on npm -- skipping"
-                published=1
+                staged=1
                 break
               fi
 
-              if pnpm --filter "$name" publish --access public --no-git-checks --provenance; then
-                echo "✅ Published $name@$version"
-                published=1
+              if pnpm --filter "$name" stage publish --access public --no-git-checks --provenance; then
+                echo "✅ Staged $name@$version"
+                staged=1
                 break
               fi
 
-              echo "::warning::$name publish attempt $attempt/3 failed"
+              echo "::warning::$name stage publish attempt $attempt/3 failed"
               if [ "$attempt" -lt 3 ]; then
                 sleep $((attempt * 20))
               fi
             done
 
-            [ "$published" -eq 1 ] || failed="$failed $name@$version"
+            [ "$staged" -eq 1 ] || failed="$failed $name@$version"
           done
 
           if [ -n "$failed" ]; then
-            echo "##[error]Failed to publish:$failed"
+            echo "##[error]Failed to stage:$failed"
             exit 1
           fi
-
-      - name: Verify all packages are on npm
-        # The publish step above tolerates flakes; this step is what decides
-        # whether the release actually shipped. Guards against a half-published
-        # version, which leaves `pi install @pi-archimedes/<pkg>` resolving to
-        # mismatched suite versions.
-        #
-        # A package can be published and still 404 here: the registry serves
-        # reads from replicas that lag the write. On the v2.9.2 run three
-        # packages published minutes earlier still 404'd past a 75s per-package
-        # budget, and on v2.10.1 @pi-archimedes/ui was invisible for ~7 minutes
-        # after a successful publish, exhausting a 5-minute shared deadline. So:
-        # probe everything in parallel, then poll only what is still missing
-        # against one shared deadline. The happy path is still a single
-        # parallel round-trip.
-        run: |
-          node --input-type=module -e '
-          import { readFileSync } from "node:fs"
-          const dirs = [
-            "core", "ui", "sudo", "ask", "todo", "notify", "session-name",
-            "footer", "diff", "image-paste", "subagent", "web",
-          ].map((p) => `packages/${p}`)
-          dirs.push("meta")
-
-          const pkgs = dirs.map((dir) => {
-            const { name, version } = JSON.parse(readFileSync(`${dir}/package.json`, "utf8"))
-            return { name, version }
-          })
-          const live = (p) =>
-            fetch(`https://registry.npmjs.org/${encodeURIComponent(p.name)}/${p.version}`)
-              .then((res) => res.ok)
-              .catch(() => false)
-
-          const DEADLINE_MS = 10 * 60_000
-          const POLL_MS = 10_000
-          let pending = [...pkgs]
-          const deadline = Date.now() + DEADLINE_MS
-
-          for (let round = 1; pending.length && Date.now() < deadline; round++) {
-            const results = await Promise.all(pending.map(live))
-            pending = pending.filter((_, i) => !results[i])
-            if (pending.length && Date.now() < deadline) {
-              console.log(`Round ${round}: ${pending.length} not visible yet, retrying in ${POLL_MS / 1000}s (replicas lag writes)`)
-              await new Promise((r) => setTimeout(r, POLL_MS))
-            }
-          }
-
-          const missing = pending.map((p) => `${p.name}@${p.version}`)
-          for (const p of pkgs) {
-            console.log(`${missing.includes(`${p.name}@${p.version}`) ? "❌" : "✅"} ${p.name}@${p.version}`)
-          }
-
-          if (missing.length > 0) {
-            console.error(`\n::error::Not published to npm: ${missing.join(", ")}`)
-            process.exit(1)
-          }
-          console.log(`\nAll ${pkgs.length} packages are live on npm.`)
-          '

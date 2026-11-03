@@ -33,17 +33,17 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 3. **`meta/src/index.ts`** — import and register the new package's entry, gated by `isPluginEnabled("<name>")` (the single global gate from `meta/src/plugins.ts`)
 4. **`meta/src/plugins.ts`** — add the package to the `PLUGINS` manifest (`id`, `label`, `description`, `namespace` (e.g. `archimedes.<newkey>`), `load()`). A manifest entry is required: registration alone is not enough — the gate, `/archimedes` settings items, and shutdown all key off the manifest, and a missing entry means the package also disappears from the `/plugins` menu. (There is no `defaultEnabled` any more — the manifest entry carries the settings-namespace key the gate reads, and no plugin is off-by-default today.)
 5. **npm trusted publishing** — on npmjs.com, add a Trusted Publisher for `@pi-archimedes/<name>`: package page → **Access** → *Trusted Publishing* → add a GitHub Actions publisher for repo `archimedes-codes/pi-archimedes`, workflow `.github/workflows/release.yml`. There is **no CLI for this**, and it is **per package** — an existing org/scope setting does not cover a new package. Skip it and the release workflow's `--provenance` publish dies with `ERR_PNPM_AUTH_TOKEN_EXCHANGE … 404` followed by a bare `{"error":"Not found"}`, which reads like a transient registry outage but is not: npm 404s the OIDC token exchange when the package has no matching trusted publisher. Do this **before** the first release that includes the package — `ui` and `web` were both missed, so their versions had to be hand-published without provenance.
-6. **`.github/workflows/release.yml`** — add `@pi-archimedes/<name>` to the `ORDER` list in the "Publish to npm" step, placed after its internal deps and before `meta`, and to the package list in the "Verify all packages are on npm" step
+6. **`.github/workflows/release.yml`** — add `@pi-archimedes/<name>` to the `ORDER` list in the "Stage to npm" step, placed after its internal deps and before `meta`
 7. **`AGENTS.md`** — add to the Monorepo Structure list; bump the "all N package versions" count and the "N package directories" type-check count in Release Steps; add the package to the publish-order line
 8. **`README.md`** — add a feature section, a line in the monorepo layout tree, a `pi install @pi-archimedes/<name>` line under "install selectively", and a settings-table entry if it has settings
 
-> A package missing from **both** lists above is invisible to CI: it will never publish and nothing fails to say so.
+> A package missing from the list above is invisible to CI: it will never publish and nothing fails to say so.
 
 ### Publishing a new package safely
 
-- Always publish via the release workflow (`git tag v...`), which uses `pnpm publish`.
-- The publish step skips versions already on npm and retries transient failures, so a **failed run can be re-run safely** (`gh run rerun <id>`) once the cause is fixed — already-published packages are skipped, not re-published. The "Verify all packages are on npm" step is the real gate on whether a release shipped.
-- **Publish order matters for `meta`:** `pi-archimedes` pins every component to an exact version, so if any component fails to publish, `meta` is left with an unsatisfiable dependency and `npm install pi-archimedes@<v>` fails with `ETARGET`. Don't consider a release done until the verify step is green.
+- Always publish via the release workflow (`git tag v...`), which uses `pnpm stage publish`.
+- The stage step skips versions already on npm and retries transient failures, so a **failed run can be re-run safely** (`gh run rerun <id>`) once the cause is fixed — already-published packages are skipped, not re-staged.
+- **Approval on npm:** Packages are staged with provenance and must be approved on npmjs.com (or via `npm stage approve <stage-id>`) before they become publicly available.
 - **Never** `npm publish` a workspace package directly — npm does **not** rewrite `workspace:*`, so the leaked protocol spec breaks `pi install` (npm) with `Unsupported URL Type "workspace"`. This is what happened to `todo@1.2.0`.
 - If you must publish manually, use `pnpm publish --no-git-checks --access public` from the package directory (it rewrites `workspace:*` → real version) and provide `--otp=<code>` if 2FA is enabled.
 
