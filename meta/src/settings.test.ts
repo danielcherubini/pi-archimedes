@@ -26,6 +26,12 @@ vi.mock("@pi-archimedes/core/settings-io", () => {
     saveConfig: vi.fn((ns: string, config: object) => {
       store[ns] = config;
     }),
+    // Same merge as the real one: re-read the namespace, mutate, save it whole.
+    updateConfig: vi.fn((ns: string, defaults: object, mutate: (cfg: object) => object) => {
+      const next = mutate({ ...defaults, ...((store[ns] as object) ?? {}) });
+      store[ns] = next;
+      return next;
+    }),
     removeConfig: vi.fn((ns: string) => {
       delete store[ns];
     }),
@@ -215,5 +221,58 @@ describe("startupSplash editing", () => {
     expect(store["archimedes.ui"]).toEqual(
       expect.objectContaining({ startupSplash: true, editorSpinBorder: false }),
     );
+  });
+});
+
+describe("imagePastePreview editing", () => {
+  const NS = "archimedes.imagePaste";
+
+  async function openPanel() {
+    managerCalls.length = 0;
+    const custom = vi.fn((factory: any) => factory({}, {}, {}, () => {}));
+    await openSettings({} as any, { ui: { custom } } as any);
+    const panel = managerCalls.at(-1);
+    if (!panel) throw new Error("openSettings never built a settings manager");
+    return panel;
+  }
+
+  const row = (panel: Awaited<ReturnType<typeof openPanel>>) =>
+    panel.items.find((i) => i.id === "imagePastePreview");
+
+  it("shows the row on by default", async () => {
+    const item = row(await openPanel());
+    expect(item?.label).toBe("Image Paste Preview");
+    expect(item?.currentValue).toBe("On");
+    expect(item?.values).toEqual(["On", "Off"]);
+  });
+
+  it("shows the row off when preview is false", async () => {
+    store[NS] = { preview: false };
+    expect(row(await openPanel())?.currentValue).toBe("Off");
+  });
+
+  it("writes preview: false and keeps the namespace's other keys", async () => {
+    store[NS] = { suppressNativePaste: false, keybindingsPromptDone: true };
+    const panel = await openPanel();
+    panel.onChange("imagePastePreview", "Off");
+    panel.onSave();
+    expect(store[NS]).toEqual({ suppressNativePaste: false, keybindingsPromptDone: true, preview: false });
+  });
+
+  it("leaves the namespace untouched when the row was not changed", async () => {
+    store[NS] = { keybindingsPromptDone: true };
+    const panel = await openPanel();
+    panel.onSave();
+    expect(store[NS]).toEqual({ keybindingsPromptDone: true });
+  });
+
+  it("hides the row while the image-paste plugin is disabled", async () => {
+    const { isConfigEnabled } = vi.mocked(await import("@pi-archimedes/core/settings-io"));
+    isConfigEnabled.mockImplementation((ns: string) => ns !== NS);
+    try {
+      expect(row(await openPanel())).toBeUndefined();
+    } finally {
+      isConfigEnabled.mockImplementation(() => true);
+    }
   });
 });
