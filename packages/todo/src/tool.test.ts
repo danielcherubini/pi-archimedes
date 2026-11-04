@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { Value } from "typebox/value";
 import type { AgentToolResult, Theme } from "@earendil-works/pi-coding-agent";
 import { createManageTodoListTool } from "./tool.js";
+import type { ManageTodoListInput } from "./tool.js";
+import { ManageTodoListParams } from "./tool.js";
 import { TodoStateManager } from "./state-manager.js";
 import type { TodoDetails } from "./types.js";
 
@@ -109,6 +112,27 @@ describe("tool schema", () => {
     expect(tool.description).not.toMatch(/not-started|in-progress/);
     expect(tool.description).toContain("in_progress");
     expect(tool.description).toContain("\"content\": \"Fix the auth middleware\"");
+  });
+});
+
+// Parity guards for the schema's enum plumbing. `StringEnum` used to come from
+// pi-ai; it now lives in tool.ts, built on Type.Unsafe. Two ways that move can
+// go silently wrong, so both are pinned here: the emitted JSON Schema can stop
+// rejecting out-of-vocabulary values (caught below by Value.Check), and the
+// derived TypeScript type can widen from a narrow union to `string` — invisible
+// to every runtime assertion, so it is caught at compile time.
+describe("schema enum guards", () => {
+  it("rejects out-of-vocabulary operation values at runtime", () => {
+    expect(Value.Check(ManageTodoListParams, { operation: "nope" })).toBe(false);
+    expect(Value.Check(ManageTodoListParams, { operation: "read" })).toBe(true);
+  });
+
+  it("keeps operation a narrow union at the type level", () => {
+    const good: ManageTodoListInput = { operation: "read" };
+    // @ts-expect-error "nope" is not a member of the operation union
+    const bad: ManageTodoListInput = { operation: "nope" };
+    void good;
+    void bad;
   });
 });
 

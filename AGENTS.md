@@ -59,6 +59,7 @@ When a new package is added under `packages/<name>/`, update **all** of these or
 - **Within a package:** always relative paths (e.g., `from "../chrome.js"`)
 - **Cross-package:** use package subpath exports (e.g., `from "@pi-archimedes/core/events"`)
 - **Never** import `../utils/...` — those barrels were dissolved into `text.ts` and `color.ts`
+- **Never take schema symbols (`Type`, `Static`, `TSchema`) from `@earendil-works/pi-ai`'s re-exports — import them from `typebox` at their source.** pi 1.5.0 deleted pi-ai's typebox re-exports in a patch-level train release; the packages that imported `typebox` directly were unaffected and the one that imported through the host broke (`packages/todo`). A host re-export is not a stable surface (ADR 0026).
 
 ### Config
 - Each package reads its own namespace in `~/.pi/agent/settings.json`
